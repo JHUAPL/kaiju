@@ -2,10 +2,11 @@ CMAKE_ENV=FC=`which ifort` FFLAGS=-qmkl
 CMAKE_OPTIONS=-DENABLE_MPI=ON -DENABLE_MKL=ON -DALLOW_INVALID_COMPILERS=ON
 ncarenv/23.09
 cmake/3.26.3
-craype/2.7.20
-intel/2023.2.1
+craype/2.7.23
+intel-classic/2023.2.1
+cray-mpich/8.1.27
 ncarcompilers/1.0.0
-cray-mpich/8.1.25
-hdf5-mpi/1.12.2
 mkl/2023.2.0
-intel-inspector/2024.0.0
+hdf5-mpi/1.12.2
+netcdf-mpi/4.9.2
+esmf/8.6.0

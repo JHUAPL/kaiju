@@ -1,23 +1,24 @@
 #!/bin/bash
-#PBS -N wDashGo
+
+#PBS -N {{ job_name }}
 #PBS -A P28100045
-#PBS -l walltime=12:00:00
-#PBS -l job_priority=economy
 #PBS -q main
-#PBS -j oe
+#PBS -l job_priority={{ job_priority }}
 #PBS -l select=8:ncpus=128:mpiprocs=2:ompthreads=64+3:ncpus=128:mpiprocs=1:ompthreads=128
+#PBS -l walltime=06:00:00
+#PBS -j oe
 #PBS -m abe
 
 echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
 
-echo 'Setting up MAGE environment.'
-source $KAIJUROOTDIR/scripts/setupEnvironment.sh
-
 echo 'Loading modules.'
-module --force purge
-module load $MODULE_LIST
+{{ module_cmd }}
 echo 'The following modules are loaded:'
 module list
+
+echo 'Setting up MAGE environment.'
+KAIJUROOTDIR={{ KAIJUROOTDIR }}
+source $KAIJUROOTDIR/scripts/setupEnvironment.sh
 
 echo 'Setting environment variables.'
 MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
@@ -25,6 +26,11 @@ export TMPDIR=/glade/work/ewinter/mage_testing/derecho/tmp
 export OMP_NUM_THREADS=128
 export MPI_TYPE_DEPTH=32
 export KMP_STACKSIZE=128M
+export MAGE_TEST_ROOT='/glade/work/ewinter/mage_testing/derecho'
+export MAGE_TEST_SET_ROOT={{ MAGE_TEST_SET_ROOT }}
+export BRANCH_OR_COMMIT={{ BRANCH_OR_COMMIT }}
+export SLACK_BOT_TOKEN='xoxb-1065817665921-1413594823303-gUePq3obrqlPmlCHC5E7rKVP'
+export DERECHO_TESTING_ACCOUNT=P28100045
 echo 'The active environment variables are:'
 printenv
 
@@ -32,7 +38,6 @@ printenv
 $MPICOMMAND ./voltron_mpi.x weeklyDashGo.xml > weeklyDashGo.out
 
 # Generate the report.
-export MAGE_TEST_ROOT='/glade/work/ewinter/mage_testing/derecho'
 export CONDARC="${MAGE_TEST_ROOT}/condarc"
 export CONDA_ENVS_PATH="${MAGE_TEST_ROOT}/conda"
 mage_miniconda3="${MAGE_TEST_ROOT}/miniconda3"
@@ -49,6 +54,6 @@ else
 fi
 unset __conda_setup
 conda activate kaiju-3.8-testing
-python $KAIJUHOME/testingScripts/weeklyDashReport.py -dlv >& weeklyDashReport.out
+python $KAIJUHOME/testingScripts/weeklyDashReport.py -dtlv >& weeklyDashReport.out
 
 echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

@@ -1,0 +1,36 @@
+#!/bin/bash
+
+#PBS -N {{ job_name }}
+#PBS -A {{ account }}
+#PBS -q {{ queue }}
+#PBS -l job_priority={{ job_priority }}
+#PBS -l walltime={{ walltime }}
+#PBS -l select=2:ncpus=128:mpiprocs=1:ompthreads=128
+#PBS -j oe
+#PBS -m abe
+
+echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
+
+echo 'Loading modules.'
+module --force purge
+{%- for module in modules %}
+module load {{ module }}
+{%- endfor %}
+module list
+
+echo 'Setting up MAGE environment.'
+source {{ kaijuhome }}/scripts/setupEnvironment.sh
+
+echo 'Setting environment variables.'
+export TMPDIR={{ tmpdir }}
+export OMP_NUM_THREADS=128
+export MPI_TYPE_DEPTH=32
+export KMP_STACKSIZE=128M
+echo 'The active environment variables are:'
+printenv
+
+# Run the Intel checks.
+MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
+${MPICOMMAND} inspxe-cl -collect=ti3 -r threadResults -- ./voltron_mpi.x tinyCase.xml
+
+echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

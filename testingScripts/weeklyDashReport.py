@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 """Create the MAGE weekly dash test report.
 
 This script creates the MAGE weekly dash test report.
@@ -9,23 +8,24 @@ Authors
 -------
 Jeff Garretson
 Eric Winter
+
 """
 
 
 # Import standard modules.
 import datetime
+import glob
 import os
+import platform
 import re
-import shutil
 import subprocess
 import sys
 
 # Import 3rd-party modules.
 from astropy.time import Time
-import h5py
 import matplotlib as mpl
-mpl.use('Agg')
-from slack_sdk.errors import SlackApiError
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 
 # Import project modules.
 import kaipy.kaiH5 as kh5
@@ -38,9 +38,41 @@ from kaipy.testing import common
 # Program description.
 DESCRIPTION = 'Create the MAGE weekly dash test report.'
 
-# Default path to wiki directory to receive results.
-DEFAULT_WIKI_PATH = os.path.join(
-    os.environ['MAGE_TEST_ROOT'], 'workspace', 'kaijuWiki', 'wiki'
+# Root of directory tree for all tests.
+MAGE_TEST_ROOT = os.environ['MAGE_TEST_ROOT']
+
+# Root of directory tree for this set of tests.
+MAGE_TEST_SET_ROOT = os.environ['MAGE_TEST_SET_ROOT']
+
+# Directory for unit tests
+WEEKLY_DASH_DIRECTORY = os.path.join(MAGE_TEST_SET_ROOT, 'weeklyDash')
+
+# Glob pattern for individual weekly dash directories
+WEEKLY_DASH_DIRECTORY_GLOB_PATTERN = 'weeklyDash_*'
+
+# Regular expression for git hash read from weekly dash output log.
+GIT_HASH_PATTERN = 'Git hash   = (.{8})'
+
+# Path to directory containing master-branch reference results.
+REFERENCE_RESULTS_DIRECTORY_MASTER = os.path.join(
+    MAGE_TEST_ROOT, 'weekly_dash_files', 'reference_results', 'master'
+)
+
+# Compute the path to the log file for the master branch reference
+# results.
+REFERENCE_LOG_MASTER = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_MASTER, 'voltron_mpi.out'
+)
+
+# Path to directory containing development-branch reference results.
+REFERENCE_RESULTS_DIRECTORY_DEVELOPMENT = os.path.join(
+    MAGE_TEST_ROOT, 'weekly_dash_files', 'reference_results', 'development'
+)
+
+# Compute the path to the log file for the development branch reference
+# results.
+REFERENCE_LOG_DEVELOPMENT = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_DEVELOPMENT, 'voltron_mpi.out'
 )
 
 # Name of subdirectory containing binaries and test results.
@@ -49,23 +81,64 @@ BIN_DIR = 'bin'
 # Name of file containg PBS job IDs.
 JOB_LIST_FILE = 'jobs.txt'
 
-# Name of directory containing weekly dash results.
-WEEKLY_DASH_DIRECTORY = 'weeklyDash_01'
-
-# Name of weekly dash log file.
-WEEKLY_DASH_LOG_FILE = 'weeklyDashGo.out'
-
-# Subdirectory of wiki repository for weekly dash results.
-WEEKLY_DASH_WIKI_DIRECTORY = 'weeklyDash'
-
-# Regular expression for git hash read from weekly dash output log.
-GIT_HASH_PATTERN = 'Git hash   = (.{8})'
+# String naming branch or commit used in this test.
+BRANCH_OR_COMMIT = os.environ['BRANCH_OR_COMMIT']
 
 # Name of voltron output file.
 VOLTRON_OUTPUT_FILE = 'msphere.volt.h5'
 
-# Name of file for previous data.
-PREVIOUS_DATA_FILE = 'previousData.h5'
+# Compute the path to the voltron output file for the master branch reference
+# results.
+VOLTRON_OUTPUT_FILE_MASTER = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_MASTER, VOLTRON_OUTPUT_FILE
+)
+
+# Compute the path to the voltron output file for the development branch
+# reference results.
+VOLTRON_OUTPUT_FILE_DEVELOPMENT = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_DEVELOPMENT, VOLTRON_OUTPUT_FILE
+)
+
+# # Home directory of kaiju installation
+# KAIJUHOME = os.environ['KAIJUHOME']
+
+# # Top-level directory for testing
+# KAIJU_TESTING_HOME = '/glade/work/ewinter/mage_testing/derecho'
+
+# # Path to directory containing weekly dash results.
+# WEEKLY_DASH_DIRECTORY = os.path.join(KAIJUHOME, 'weeklyDash_01')
+
+# # Name of weekly dash log file.
+# weekly_dash_log_latest = 'weeklyDashGo.out'
+
+
+# Compute the paths to the quicklook plots for the master branch.
+MAGNETOSPHERE_QUICKLOOK_MASTER = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_MASTER, 'qkmsphpic.png'
+)
+REMIX_NORTH_QUICKLOOK_MASTER = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_MASTER, 'remix_n.png'
+)
+REMIX_SOUTH_QUICKLOOK_MASTER = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_MASTER, 'remix_s.png'
+)
+RCM_QUICKLOOK_MASTER = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_MASTER, 'qkrcmpic.png'
+)
+
+# Compute the paths to the quicklook plots for the development branch.
+MAGNETOSPHERE_QUICKLOOK_DEVELOPMENT = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_MASTER, 'qkmsphpic.png'
+)
+REMIX_NORTH_QUICKLOOK_DEVELOPMENT = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_DEVELOPMENT, 'remix_n.png'
+)
+REMIX_SOUTH_QUICKLOOK_DEVELOPMENT = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_DEVELOPMENT, 'remix_s.png'
+)
+RCM_QUICKLOOK_DEVELOPMENT = os.path.join(
+    REFERENCE_RESULTS_DIRECTORY_DEVELOPMENT, 'qkrcmpic.png'
+)
 
 
 def main():
@@ -83,344 +156,576 @@ def main():
 
     Raises
     ------
-    None
+    subprocess.CalledProcessError
+        If an exception occurs in subprocess.run()
     """
     # Set up the command-line parser.
     parser = common.create_command_line_parser(DESCRIPTION)
-
-    # Add an option for the wiki path.
-    parser.add_argument('--wiki_path', '-w', type=str, default=DEFAULT_WIKI_PATH,
-                        help='Wiki path to receive results')
 
     # Parse the command-line arguments.
     args = parser.parse_args()
     if args.debug:
         print(f"args = {args}")
-    account = args.account
     debug = args.debug
     be_loud = args.loud
     is_test = args.test
     verbose = args.verbose
-    wiki_path = args.wiki_path
+
+    # ------------------------------------------------------------------------
 
     if debug:
-        print(f"Starting {sys.argv[0]} at {datetime.datetime.now()}")
+        print(f"Starting {sys.argv[0]} at {datetime.datetime.now()}"
+              f" on {platform.node()}")
         print(f"Current directory is {os.getcwd()}")
 
-    #--------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
-    # Set up for communication with Slack.
-    slack_client = common.slack_create_client()
+    # Move to the top-level weekly dash directory.
+    os.chdir(WEEKLY_DASH_DIRECTORY)
+
+    # ------------------------------------------------------------------------
+
+    # Get list of weekly dash directories.
+    weekly_dash_directories = glob.glob(WEEKLY_DASH_DIRECTORY_GLOB_PATTERN)
     if debug:
-        print(f"slack_client = {slack_client}")
+        print(f"weekly_dash_directories = {weekly_dash_directories}")
 
-    #--------------------------------------------------------------------------
+    # <HACK>
+    # Use only the first mdirectory for now.
+    weekly_dash_directory = weekly_dash_directories[0]
+    # </HACK>
 
-    # Move to the MAGE installation directory.
-    kaiju_home = os.environ['KAIJUHOME']
-    if debug:
-        print(f"kaiju_home = {kaiju_home}")
-    os.chdir(kaiju_home)
-    if debug:
-        print(f"Now in directory {os.getcwd()}.")
+    # ------------------------------------------------------------------------
 
-    #--------------------------------------------------------------------------
-
-    # Find the current branch.
-    git_branch_name = common.git_get_branch_name()
-    if debug:
-        print(f"git_branch_name = {git_branch_name}")
-
-    #--------------------------------------------------------------------------
-
-    # Make sure the path to the wiki results exists.
-    if debug:
-        print(f"wiki_path = {wiki_path}")
-    if not os.path.exists(wiki_path):
-        print(f"Wiki folder does not exist at {wiki_path}. Please create it.")
-        sys.exit(1)
-
-    #--------------------------------------------------------------------------
-
-    # Get the short hostname.
-    cmd = 'hostname -s'
-    cproc = subprocess.run(cmd, shell=True, check=True, text=True, capture_output=True)
-    if debug:
-        print(f"cproc = {cproc}")
-    short_hostname = cproc.stdout.rstrip()
+    # Read reference results for the master branch.
     if verbose:
-        print(f"Running weekly dash test on host {short_hostname}.")
+        print('Reading reference results for real-time performance for master '
+              f" branch from {REFERENCE_LOG_MASTER}.")
+
+    # Read the git hash from the log file.
+    if verbose:
+        print(f"Reading git hash from {REFERENCE_LOG_MASTER}.")
+    git_hash_master = 'XXXXXXXX'
+    with open(REFERENCE_LOG_MASTER, 'r', encoding='utf-8') as f:
+        for line in f:
+            git_hash_match = re.search(GIT_HASH_PATTERN, line)
+            if git_hash_match:
+                git_hash_master = git_hash_match.group(1)
+                break
+    if debug:
+        print(f"git_hash_master = {git_hash_master}")
+
+    # Read the output times for each Voltron output message (as UT strings)
+    # from the log file.
+    if verbose:
+        print(f"Reading UT from {REFERENCE_LOG_MASTER}.")
+    cmd = (
+        'sed --quiet "s/^ \\+UT \\+= \\+\\([0-9-]\\+ [0-9:]\\+\\).*$/\\1/p" '
+        f"{REFERENCE_LOG_MASTER}"
+    )
+    if debug:
+        print(f"cmd = {cmd}")
+    try:
+        cproc = subprocess.run(cmd, shell=True, check=True,
+                               text=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(
+            f"ERROR: Unable to read UT from {REFERENCE_LOG_MASTER}.\n"
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n",
+            file=sys.stderr
+        )
+        sys.exit(1)
+    UT_log_str_master = cproc.stdout
+    if debug:
+        print(f"UT_log_str_master = {UT_log_str_master}")
+
+    # Convert the UT string to a list of datetime objects.
+    UT_log_dt_master = [datetime.datetime.strptime(ut, '%Y-%m-%d %H:%M:%S')
+                        for ut in UT_log_str_master.splitlines()]
+    if debug:
+        print(f"UT_log_dt_master = {UT_log_dt_master}")
+
+    # Read % real-time performance values from the log file.
+    if verbose:
+        print(f"Reading performance data from {REFERENCE_LOG_MASTER}.")
+    cmd = (
+        'sed --quiet "s/^ \\+Running @ *\\([0-9]\\+\\.\\?[0-9]*\\)% of '
+        f'real-time.*$/\\1/p" {REFERENCE_LOG_MASTER}'
+    )
+    if debug:
+        print(f"cmd = {cmd}")
+    try:
+        cproc = subprocess.run(cmd, shell=True, check=True,
+                               text=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(
+            'ERROR: Unable to read performance data from'
+            f"{REFERENCE_LOG_MASTER}.\n"
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n",
+            file=sys.stderr
+        )
+        sys.exit(1)
+    RT_log_str_master = cproc.stdout
+    if debug:
+        print(f"RT_log_str_master = {RT_log_str_master}")
+
+    # Convert % real-time values to floats.
+    RT_log_f_master = [float(x) for x in RT_log_str_master.splitlines()]
+    if debug:
+        print(f"RT_log_f_master = {RT_log_f_master}")
+
+    # <HACK>
+    # Make sure the lists of UT and RT are of equal length now (console
+    # output not always reliable). Equalize the lengths by truncating the
+    # lists at the end.
+    if len(UT_log_dt_master) > len(RT_log_f_master):
+        if verbose:
+            print(f"WARNING: UT data from {REFERENCE_LOG_MASTER} is longer"
+                  f" than RT data ({len(UT_log_dt_master)} > "
+                  f"{len(RT_log_f_master)}); truncating UT data.")
+        UT_log_dt_master = UT_log_dt_master[:len(RT_log_f_master)]
+    elif len(RT_log_f_master) > len(UT_log_dt_master):
+        if verbose:
+            print(f"WARNING: RT data from {REFERENCE_LOG_MASTER} is longer"
+                  f" than UT data ({len(RT_log_f_master)} > "
+                  f"{len(UT_log_dt_master)}); truncating UT data.")
+        RT_log_f_master = RT_log_f_master[:len(UT_log_dt_master)]
+    # </HACK>
+
+    # ------------------------------------------------------------------------
+
+    # Read reference results for the development branch.
+    if verbose:
+        print(
+            'Reading reference results for real-time performance for '
+            'development branch from '
+            f"{REFERENCE_RESULTS_DIRECTORY_DEVELOPMENT}."
+        )
+
+    # Read the git hash from the log file.
+    if verbose:
+        print(f"Reading git hash from {REFERENCE_LOG_DEVELOPMENT}.")
+    git_hash_development = 'XXXXXXXX'
+    with open(REFERENCE_LOG_DEVELOPMENT, 'r', encoding='utf-8') as f:
+        for line in f:
+            git_hash_match = re.search(GIT_HASH_PATTERN, line)
+            if git_hash_match:
+                git_hash_development = git_hash_match.group(1)
+                break
+    if debug:
+        print(f"git_hash_development = {git_hash_development}")
+
+    # Read the output times for each Voltron output message (as UT strings)
+    # from the log file.
+    if verbose:
+        print(f"Reading UT from {REFERENCE_LOG_DEVELOPMENT}.")
+    cmd = (
+        'sed --quiet "s/^ \\+UT \\+= \\+\\([0-9-]\\+ [0-9:]\\+\\).*$/\\1/p" '
+        f"{REFERENCE_LOG_DEVELOPMENT}"
+    )
+    if debug:
+        print(f"cmd = {cmd}")
+    try:
+        cproc = subprocess.run(cmd, shell=True, check=True,
+                               text=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(
+            f"ERROR: Unable to read UT from {REFERENCE_LOG_DEVELOPMENT}.\n"
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n",
+            file=sys.stderr
+        )
+        sys.exit(1)
+    UT_log_str_development = cproc.stdout
+    if debug:
+        print(f"UT_log_str_development = {UT_log_str_development}")
+
+    # Convert the UT string to a list of datetime objects.
+    UT_log_dt_development = [
+        datetime.datetime.strptime(ut, '%Y-%m-%d %H:%M:%S')
+        for ut in UT_log_str_development.splitlines()
+    ]
+    if debug:
+        print(f"UT_log_dt_development = {UT_log_dt_development}")
+
+    # Read % real-time performance values from the reference results log.
+    if verbose:
+        print(f"Reading performance data from {REFERENCE_LOG_DEVELOPMENT}.")
+    cmd = (
+        'sed --quiet "s/^ \\+Running @ *\\([0-9]\\+\\.\\?[0-9]*\\)% of '
+        f'real-time.*$/\\1/p" {REFERENCE_LOG_DEVELOPMENT}'
+    )
+    if debug:
+        print(f"cmd = {cmd}")
+    try:
+        cproc = subprocess.run(cmd, shell=True, check=True,
+                               text=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(
+            'ERROR: Unable to read performance data from'
+            f"{REFERENCE_LOG_DEVELOPMENT}.\n"
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n",
+            file=sys.stderr
+        )
+        sys.exit(1)
+    RT_log_str_development = cproc.stdout
+    if debug:
+        print(f"RT_log_str_development = {RT_log_str_development}")
+
+    # Convert % real-time values to floats.
+    RT_log_f_development = [
+        float(x) for x in RT_log_str_development.splitlines()
+    ]
+    if debug:
+        print(f"RT_log_f_development = {RT_log_f_development}")
+
+    # <HACK>
+    # Make sure the lists of UT and RT are of equal length now (console
+    # output not always reliable). Equalize the lengths by truncating the
+    # lists at the end.
+    if len(UT_log_dt_development) > len(RT_log_f_development):
+        if verbose:
+            print(f"WARNING: UT data from {REFERENCE_LOG_DEVELOPMENT}"
+                  f"is longer than RT data ({len(UT_log_dt_development)} > "
+                  f"{len(RT_log_f_development)}); truncating UT data.")
+        UT_log_dt_development = (
+            UT_log_dt_development[:len(RT_log_f_development)]
+        )
+    elif len(RT_log_f_development) > len(UT_log_dt_development):
+        if verbose:
+            print(f"WARNING: RT data from {REFERENCE_LOG_DEVELOPMENT}"
+                  f" is longer than UT data ({len(RT_log_f_development)} > "
+                  f"{len(UT_log_dt_development)}); truncating UT data.")
+        RT_log_f_development = (
+            RT_log_f_development[:len(UT_log_dt_development)]
+        )
+    # </HACK>
+
+    # ------------------------------------------------------------------------
+
+    # Read results from the latest run.
+    if verbose:
+        print(f"Reading results for latest run in {weekly_dash_directory}.")
 
     # Go to weekly dash folder
-    path = os.path.join(kaiju_home, WEEKLY_DASH_DIRECTORY)
-    try:
-        os.chdir(path)
-    except:
-        print(f"Weekly dash results folder {path} does not exist.")
-        sys.exit(1)
-    if debug:
-        print(f"Now in {os.getcwd()}")
+    os.chdir(weekly_dash_directory)
 
     # Move down to the directory containing the dash results.
     os.chdir(BIN_DIR)
-    if debug:
-        print(f"Now in {os.getcwd()}")
 
-    # Check for jobs.txt
-    if not os.path.exists(JOB_LIST_FILE):
-        print(f"Job list file {JOB_LIST_FILE} not found.")
+    # Read in the jobs.txt file to get the job number.
+    try:
+        with open(JOB_LIST_FILE, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        print(
+            f"ERROR: Unable to open {JOB_LIST_FILE} for weekly dash.\n"
+            'See job log for output.\n'
+            'Aborting weekly dash report.\n',
+            file=sys.stderr
+        )
         sys.exit(1)
-
-    # Read in the jobs.txt file to get the job numbers.
-    with open(JOB_LIST_FILE, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
-    job1 = lines[0].rstrip()
+    job_id = lines[0].rstrip()
     if debug:
-        print(f"job1 = {job1}")
-
-    # Find the job output log.
-    job1_output_log = f"wDashGo.o{job1}"
-    if debug:
-        print(f"job1_output_log = {job1_output_log}")
-    if not os.path.exists(job1_output_log):
-        print('The dash job has not finished yet.')
-        sys.exit(1)
-
-    # Move to wiki repository folder and ensure it is up to date.
-    os.chdir(wiki_path)
-    if debug:
-        print(f"Now in {os.getcwd()}")
-    cmd = 'git pull'
-    cproc = subprocess.run(cmd, shell=True, text=True, check=True, capture_output=True)
-    if debug:
-        print(f"cproc = {cproc}")
-    text = cproc.stdout.rstrip()
-    if debug:
-        print(f"text = {text}")
-    if 'not a git repository' in text:
-        print(f"Wiki path {wiki_path} is not a git repository.")
-        sys.exit(1)
-    os.chdir(WEEKLY_DASH_WIKI_DIRECTORY)
-    if debug:
-        print(f"Now in {os.getcwd()}")
-
-    # Read in the git hash from the output file.
-    git_hash = 'XXXXXXXX'
-    path = os.path.join(kaiju_home, WEEKLY_DASH_DIRECTORY, BIN_DIR, WEEKLY_DASH_LOG_FILE)
-    if debug:
-        print(f"path = {path}")
-    with open(path, 'r', encoding='utf-8') as weekly_dash_output:
-        for line in weekly_dash_output:
-            git_hash_match = re.search(GIT_HASH_PATTERN, line)
-            if git_hash_match:
-                git_hash = git_hash_match.group(1)
-                break
-    if debug:
-        print(f"git_hash = {git_hash}")
-
-    # Read performance data from the test results.
-    cmd = 'sed --quiet "s/^ \\+UT \\+= \\+\\([0-9-]\\+ [0-9:]\\+\\).*$/\\1/p" '
-    cmd += os.path.join(kaiju_home, WEEKLY_DASH_DIRECTORY, BIN_DIR, WEEKLY_DASH_LOG_FILE)
-    if debug:
-        print(f"cmd = {cmd}")
-    cproc = subprocess.run(cmd, shell=True, check=True, text=True, capture_output=True)
-    # if debug:
-    #     print(f"cproc = {cproc}")
-    utData = cproc.stdout
-    # if debug:
-    #     print(f"utData = {utData}")
-    cmd = 'sed --quiet "s/^ \\+Running @ *\\([0-9]\\+\\.\\?[0-9]*\\)% of real-time.*$/\\1/p" '
-    cmd += os.path.join(kaiju_home, WEEKLY_DASH_DIRECTORY, BIN_DIR, WEEKLY_DASH_LOG_FILE)
-    if debug:
-        print(f"cmd = {cmd}")
-    cproc = subprocess.run(cmd, shell=True, check=True, text=True, capture_output=True)
-    # if debug:
-    #     print(f"cproc = {cproc}")
-    rtData = cproc.stdout
-    # if debug:
-    #     print(f"rtData = {rtData}")
+        print(f"job_id = {job_id}")
 
     # <HACK>
-    # There is always one extra line of UT data in the front, strip it.
-    utData = utData[1:]
+    weekly_dash_log_latest = 'weeklyDashGo.out'
     # </HACK>
 
-    # Split UT and RT data into lists
-    utData = utData.splitlines()
-    rtData = rtData.splitlines()
-    # if debug:
-    #     print(f"utData = {utData}")
-    #     print(f"rtData = {rtData}")
+    # Read the git hash from the log file.
+    if verbose:
+        print(f"Reading git hash from {weekly_dash_log_latest}.")
+    git_hash_latest = 'XXXXXXXX'
+    with open(weekly_dash_log_latest, 'r', encoding='utf-8') as f:
+        for line in f:
+            git_hash_match = re.search(GIT_HASH_PATTERN, line)
+            if git_hash_match:
+                git_hash_latest = git_hash_match.group(1)
+                break
+    if debug:
+        print(f"git_hash_latest = {git_hash_latest}")
+
+    # Read the output times for each Voltron output message (as UT strings)
+    # from the log file.
+    if verbose:
+        print(f"Reading UT from {weekly_dash_log_latest}.")
+    cmd = (
+        'sed --quiet "s/^ \\+UT \\+= \\+\\([0-9-]\\+ [0-9:]\\+\\).*$/\\1/p" '
+        f"{weekly_dash_log_latest}"
+    )
+    if debug:
+        print(f"cmd = {cmd}")
+    try:
+        cproc = subprocess.run(cmd, shell=True, check=True,
+                               text=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(
+            f"ERROR: Unable to read UT from {weekly_dash_log_latest}.\n"
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n",
+            file=sys.stderr
+        )
+        sys.exit(1)
+    UT_log_str_latest = cproc.stdout
+    if debug:
+        print(f"UT_log_str_latest = {UT_log_str_latest}")
+
+    # Convert the UT string to a list of datetime objects.
+    UT_log_dt_latest = [
+        datetime.datetime.strptime(ut, '%Y-%m-%d %H:%M:%S')
+        for ut in UT_log_str_latest.splitlines()
+    ]
+    if debug:
+        print(f"UT_log_dt_latest = {UT_log_dt_latest}")
+
+    # Read % real-time performance values from the results log.
+    if verbose:
+        print(f"Reading performance data from {weekly_dash_log_latest}.")
+    cmd = (
+        'sed --quiet "s/^ \\+Running @ *\\([0-9]\\+\\.\\?[0-9]*\\)% of '
+        f'real-time.*$/\\1/p" {weekly_dash_log_latest}'
+    )
+    if debug:
+        print(f"cmd = {cmd}")
+    try:
+        cproc = subprocess.run(cmd, shell=True, check=True,
+                               text=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(
+            'ERROR: Unable to read performance data from'
+            f"{weekly_dash_log_latest}.\n"
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n",
+            file=sys.stderr
+        )
+        sys.exit(1)
+    RT_log_str_latest = cproc.stdout
+    if debug:
+        print(f"RT_log_str_latest = {RT_log_str_latest}")
+
+    # Convert % real-time values to floats.
+    RT_log_f_latest = [
+        float(x) for x in RT_log_str_latest.splitlines()
+    ]
+    if debug:
+        print(f"RT_log_f_latest = {RT_log_f_latest}")
 
     # <HACK>
-    # Make sure the lists are of equal length now (console output not
-    # always reliable).
-    if len(utData) > len(rtData):
-        utData = utData[:len(rtData)]
-        # if debug:
-        #     print(f"utData = {utData}")
-    elif len(rtData) > len(utData):
-        rtData = rtData[:len(utData)]
-        # if debug:
-        #     print(f"rtData = {rtData}")
+    # Make sure the lists of UT and RT are of equal length now (console
+    # output not always reliable). Equalize the lengths by truncating the
+    # lists at the end.
+    if len(UT_log_dt_latest) > len(RT_log_f_latest):
+        if verbose:
+            print(f"WARNING: UT data from {weekly_dash_log_latest}"
+                  f"is longer than RT data ({len(UT_log_dt_latest)} > "
+                  f"{len(RT_log_f_latest)}); truncating UT data.")
+        UT_log_dt_latest = (
+            UT_log_dt_latest[:len(RT_log_f_latest)]
+        )
+    elif len(RT_log_f_latest) > len(UT_log_dt_latest):
+        if verbose:
+            print(f"WARNING: RT data from {weekly_dash_log_latest}"
+                  f" is longer than UT data ({len(RT_log_f_latest)} > "
+                  f"{len(UT_log_dt_latest)}); truncating UT data.")
+        RT_log_f_latest = (
+            RT_log_f_latest[:len(UT_log_dt_latest)]
+        )
+    # </HACK>
 
-    # Convert the rt data to floats.
-    rtData_f = [float(x) for x in rtData]
-    # if debug:
-    #     print(f"rtData_f = {rtData_f}")
+    # ------------------------------------------------------------------------
 
-    #--------------------------------------------------------------------------
+    # Create all plots in a memory buffer.
+    mpl.use('Agg')
 
-    # Get simulation data from voltron output file.
-    fVolt = os.path.join(kaiju_home, WEEKLY_DASH_DIRECTORY, BIN_DIR, VOLTRON_OUTPUT_FILE)
-    # if debug:
-    #     print(f"fVolt = {fVolt}")
-
-    # Get Dst and CPCP plot info.
-    if verbose:
-        print(f"Reading Dst and CPCP data from {fVolt}.")
-    nSteps, sIds = kh5.cntSteps(fVolt)
-    symh = kh5.getTs(fVolt, sIds, 'SymH')
-    MJD = kh5.getTs(fVolt, sIds, 'MJD')
-    BSDst = kh5.getTs(fVolt, sIds, 'BSDst')
-    nCPCP = kh5.getTs(fVolt, sIds, 'cpcpN')
-    sCPCP = kh5.getTs(fVolt, sIds, 'cpcpS')
-    UT = Time(MJD, format='mjd').isot
-    ut_datetime = [datetime.datetime.strptime(ut, '%Y-%m-%dT%H:%M:%S.%f') for ut in UT] # needed to plot symh
-    # if debug:
-    #     print(f"nSteps = {nSteps}")
-    #     print(f"sIds = {sIds}")
-    #     print(f"MJD = {MJD}")
-    #     print(f"BSDst = {BSDst}")
-    #     print(f"nCPCP = {nCPCP}")
-    #     print(f"sCPCP = {sCPCP}")
-    #     print(f"UT = {UT}")
-    #     print(f"ut_datetime = {ut_datetime}")
-
-    # Load old data from an h5 file.
-    masterUT = None
-    masterRT = None
-    masterUTsim = None
-    masterDST = None
-    masterCPCPn = None
-    materCPCPs = None
-    masterGitHash = None
-    devpriorUT = None
-    devpriorRT = None
-    devpriorUTsim = None
-    devpriorDST = None
-    devpriorCPCPn = None
-    devpriorCPCPs = None
-    devpriorGitHash = None
-    devcurrentUT = None
-    devcurrentRT = None
-    devcurrentUTsim = None
-    devcurrentDST = None
-    devcurrentCPCPn = None
-    devcurrentCPCPs = None
-    devcurrentGitHash = None
-    if os.path.exists(PREVIOUS_DATA_FILE):
-        with h5py.File(PREVIOUS_DATA_FILE, 'r') as data_object:
-            if 'masterUT' in data_object:
-                masterUT = [x.decode('utf-8') for x in data_object['masterUT']]
-                masterRT = data_object['masterRT'][...]
-                masterUTsim = [x.decode('utf-8') for x in data_object['masterUTsim']]
-                masterDST = data_object['masterDST'][...]
-                masterCPCPn = data_object['masterCPCPn'][...]
-                masterCPCPs = data_object['masterCPCPs'][...]
-                masterGitHash = data_object['masterGitHash'][()].decode('utf-8')
-            if 'devpriorUT' in data_object:
-                devpriorUT = [x.decode('utf-8') for x in data_object['devpriorUT']]
-                devpriorRT = data_object['devpriorRT'][...]
-                devpriorUTsim = [x.decode('utf-8') for x in data_object['devpriorUTsim']]
-                devpriorDST = data_object['devpriorDST'][...]
-                devpriorCPCPn = data_object['devpriorCPCPn'][...]
-                devpriorCPCPs = data_object['devpriorCPCPs'][...]
-                devpriorGitHash = data_object['devpriorGitHash'][()].decode('utf-8')
-            if 'devcurrentUT' in data_object:
-                devcurrentUT = [x.decode('utf-8') for x in data_object['devcurrentUT']]
-                devcurrentRT = data_object['devcurrentRT'][...]
-                devcurrentUTsim = [x.decode('utf-8') for x in data_object['devcurrentUTsim']]
-                devcurrentDST = data_object['devcurrentDST'][...]
-                devcurrentCPCPn = data_object['devcurrentCPCPn'][...]
-                devcurrentCPCPs = data_object['devcurrentCPCPs'][...]
-                devcurrentGitHash = data_object['devcurrentGitHash'][()].decode('utf-8')
-
-    # Update appropriate data with new data.
-    if git_branch_name == 'master':
-        masterUT = utData
-        masterRT = rtData_f
-        masterUTsim = UT
-        masterDST = BSDst
-        masterCPCPn = nCPCP
-        masterCPCPs = sCPCP
-        masterGitHash = git_hash
-    elif git_branch_name == 'development':
-        devpriorUT = devcurrentUT
-        devpriorRT = devcurrentRT
-        devpriorUTsim = devcurrentUTsim
-        devpriorDST = devcurrentDST
-        devpriorCPCPn = devcurrentCPCPn
-        devpriorCPCPs = devcurrentCPCPs
-        devpriorGitHash = devcurrentGitHash
-        devcurrentUT = utData
-        devcurrentRT = rtData_f
-        devcurrentUTsim = UT
-        devcurrentDST = BSDst
-        devcurrentCPCPn = nCPCP
-        devcurrentCPCPs = sCPCP
-        devcurrentGitHash = git_hash
-
-    # Convert date strings into date-time objects
-    if masterUT is not None:
-        masterUTdt = [datetime.datetime.strptime(ut, '%Y-%m-%d %H:%M:%S') for ut in masterUT]
-        masterUTsimdt = [datetime.datetime.strptime(ut, '%Y-%m-%dT%H:%M:%S.%f') for ut in masterUTsim]
-    if devpriorUT is not None:
-        devpriorUTdt = [datetime.datetime.strptime(ut, '%Y-%m-%d %H:%M:%S') for ut in devpriorUT]
-        devpriorUTsimdt = [datetime.datetime.strptime(ut, '%Y-%m-%dT%H:%M:%S.%f') for ut in devpriorUTsim]
-    if devcurrentUT is not None:
-        devcurrentUTdt = [datetime.datetime.strptime(ut, '%Y-%m-%d %H:%M:%S') for ut in devcurrentUT]
-        devcurrentUTsimdt = [datetime.datetime.strptime(ut, '%Y-%m-%dT%H:%M:%S.%f') for ut in devcurrentUTsim]
-
-    #--------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Make the real-time performance plot.
+    if verbose:
+        print('Creating real-time performance plot.')
 
     # Plot parameters
-    line_width = 0.75 # LineWidth
-    alpha = 0.25 # Transparency
-    grid_color = 'slategrey' # GridColor
+    line_width = 0.75
+    alpha = 0.25  # Transparency
+    grid_color = 'slategrey'
     figsize = (14, 7)
 
     # Create the figure to hold the plot.
-    fig = mpl.pyplot.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize)
     gs = mpl.gridspec.GridSpec(1, 1, hspace=0.05, wspace=0.05)
     ax = fig.add_subplot(gs[0, 0])
 
     # Create the plot.
-    if masterRT is not None:
-        ax.plot(masterUTdt, masterRT, label=f"master ({masterGitHash})", linewidth=line_width)
-    if devpriorRT is not None:
-        ax.plot(devpriorUTdt, devpriorRT, label=f"dev prior ({devpriorGitHash})", linewidth=line_width)
-    if devcurrentRT is not None:
-        ax.plot(devcurrentUTdt, devcurrentRT, label=f"dev current ({devcurrentGitHash})", linewidth=line_width)
+    ax.plot(UT_log_dt_master, RT_log_f_master,
+            label=f"Master ({git_hash_master})",
+            linewidth=line_width)
+    ax.plot(UT_log_dt_development, RT_log_f_development,
+            label=f"Development ({git_hash_development})",
+            linewidth=line_width)
+    ax.plot(UT_log_dt_latest, RT_log_f_latest,
+            label=f"{BRANCH_OR_COMMIT} ({git_hash_latest})",
+            linewidth=line_width)
     ax.legend(loc='lower right', fontsize='small')
-    ax.minorticks_on()
-    ax.xaxis_date()
-    xfmt = mpl.dates.DateFormatter('%H:%M \n%Y-%m-%d')
+
+    # Decorate the x-axis.
+    ax.set_xlabel('Date (UTC)')
+    # Major ticks on the hour.
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M\n%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.HourLocator())
+    # Minor ticks every 15 minutes.
+    # ax.xaxis.set_minor_formatter(mdates.DateFormatter('%H:%M'))
+    # ax.xaxis.set_minor_locator(mdates.MinuteLocator([15, 30, 45]))
+    # Major and minor grid lines.
+    ax.xaxis.grid(True, which='major', linewidth=line_width, alpha=alpha,
+                  color=grid_color)
+    # ax.xaxis.grid(True, which='minor', linewidth=line_width/4, alpha=alpha,
+    #               color=grid_color)
+
+    # Decorate the y-axis.
     ax.set_ylabel('Percent of Real-Time [%]')
-    ax.xaxis.set_major_formatter(xfmt)
-    ax.xaxis.set_minor_locator(mpl.dates.HourLocator())
-    # mpl.pyplot.grid(True)
-    # ax.xaxis.grid(True,which='major',linewidth=line_width  ,alpha=alpha,color=grid_color)
-    # ax.xaxis.grid(True,which='minor',linewidth=line_width/4,alpha=alpha,color=grid_color)
-    # ax.yaxis.grid(True,which='major',linewidth=line_width  ,alpha=alpha,color=grid_color)
+    # Major grid lines only.
+    ax.yaxis.grid(True, which='major', linewidth=line_width, alpha=alpha,
+                  color=grid_color)
+
+    # Decorate the plot as a whole
     ax.set_title('Real-Time Performance')
+
+    # Save the plot to a file.
     fOut = 'perfPlots.png'
     kv.savePic(fOut)
-    mpl.pyplot.close('all')
+    plt.close('all')
 
-    #--------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
+
+    # Read Dst data from the master-branch reference results.
+    if verbose:
+        print('Reading reference Dst for master branch from'
+              f"{VOLTRON_OUTPUT_FILE_MASTER}.")
+
+    # Read the git hash from the voltron output file.
+    if verbose:
+        print(f"Reading git hash from {VOLTRON_OUTPUT_FILE_MASTER}.")
+    git_hash_master = kh5.GetHash(VOLTRON_OUTPUT_FILE_MASTER)
+    if debug:
+        print(f"git_hash_master = {git_hash_master}")
+
+    # Read the step count and step IDs from the voltron output file.
+    n_steps_master, step_IDs_master = kh5.cntSteps(VOLTRON_OUTPUT_FILE_MASTER)
+    if debug:
+        print(f"n_steps_master = {n_steps_master}")
+        print(f"step_IDs_master = {step_IDs_master}")
+
+    # Read the MJD for each output simulation step.
+    MJD_master = kh5.getTs(VOLTRON_OUTPUT_FILE_MASTER, step_IDs_master, 'MJD')
+    if debug:
+        print(f"MJD_master = {MJD_master}")
+
+    # Convert the floating-point MJD values to UT strings in ISO format.
+    UT_str_master = Time(MJD_master, format='mjd').isot
+    if debug:
+        print(f"UT_str_master = {UT_str_master}")
+
+    # Convert the UT strings to datetime objects.
+    UT_dt_master = [datetime.datetime.strptime(ut, '%Y-%m-%dT%H:%M:%S.%f')
+                    for ut in UT_str_master]
+    if debug:
+        print(f"UT_dt_master = {UT_dt_master}")
+
+    # Read the Dst values from the voltron output file.
+    Dst_master = kh5.getTs(VOLTRON_OUTPUT_FILE_MASTER, step_IDs_master,
+                           'BSDst')
+    if debug:
+        print(f"Dst_master = {Dst_master}")
+
+    # ------------------------------------------------------------------------
+
+    # Read Dst data from the development-branch reference results.
+    if verbose:
+        print('Reading reference Dst for development branch from'
+              f"{VOLTRON_OUTPUT_FILE_DEVELOPMENT}.")
+
+    # Read the git hash from the voltron output file.
+    if verbose:
+        print(f"Reading git hash from {VOLTRON_OUTPUT_FILE_DEVELOPMENT}.")
+    git_hash_development = kh5.GetHash(VOLTRON_OUTPUT_FILE_DEVELOPMENT)
+    if debug:
+        print(f"git_hash_development = {git_hash_development}")
+
+    # Read the step count and step IDs from the voltron output file.
+    n_steps_development, step_IDs_development = kh5.cntSteps(
+        VOLTRON_OUTPUT_FILE_DEVELOPMENT
+    )
+    if debug:
+        print(f"n_steps_development = {n_steps_development}")
+        print(f"step_IDs_development = {step_IDs_development}")
+
+    # Read the MJD for each output simulation step.
+    MJD_development = kh5.getTs(VOLTRON_OUTPUT_FILE_DEVELOPMENT,
+                                step_IDs_development, 'MJD')
+    if debug:
+        print(f"MJD_development = {MJD_development}")
+
+    # Convert the floating-point MJD values to UT strings in ISO format.
+    UT_str_development = Time(MJD_development, format='mjd').isot
+    if debug:
+        print(f"UT_str_development = {UT_str_development}")
+
+    # Convert the UT strings to datetime objects.
+    UT_dt_development = [datetime.datetime.strptime(ut, '%Y-%m-%dT%H:%M:%S.%f')
+                         for ut in UT_str_development]
+    if debug:
+        print(f"UT_dt_development = {UT_dt_development}")
+
+    # Read the Dst values from the voltron output file.
+    Dst_development = kh5.getTs(VOLTRON_OUTPUT_FILE_DEVELOPMENT,
+                                step_IDs_development, 'BSDst')
+    if debug:
+        print(f"Dst_development = {Dst_development}")
+
+    # ------------------------------------------------------------------------
+
+    # Read Dst from the latest run.
+    if verbose:
+        print(f"Reading Dst for latest run in {VOLTRON_OUTPUT_FILE}.")
+
+    # Read the git hash from the voltron output file.
+    if verbose:
+        print(f"Reading git hash from {VOLTRON_OUTPUT_FILE}.")
+    git_hash_latest = kh5.GetHash(VOLTRON_OUTPUT_FILE)
+    if debug:
+        print(f"git_hash_latest = {git_hash_latest}")
+
+    # Read the step count and step IDs from the voltron output file.
+    n_steps_latest, step_IDs_latest = kh5.cntSteps(VOLTRON_OUTPUT_FILE)
+    if debug:
+        print(f"n_steps_latest = {n_steps_latest}")
+        print(f"step_IDs_latest = {step_IDs_latest}")
+
+    # Read the MJD for each output simulation step.
+    MJD_latest = kh5.getTs(VOLTRON_OUTPUT_FILE, step_IDs_latest, 'MJD')
+    if debug:
+        print(f"MJD_latest = {MJD_latest}")
+
+    # Convert the floating-point MJD values to UT strings in ISO format.
+    UT_str_latest = Time(MJD_latest, format='mjd').isot
+    if debug:
+        print(f"UT_str_latest = {UT_str_latest}")
+
+    # Convert the UT strings to datetime objects.
+    UT_dt_latest = [datetime.datetime.strptime(ut, '%Y-%m-%dT%H:%M:%S.%f')
+                    for ut in UT_str_latest]
+    if debug:
+        print(f"UT_dt_latest = {UT_dt_latest}")
+
+    # Read the Dst values from the voltron output file.
+    Dst_latest = kh5.getTs(VOLTRON_OUTPUT_FILE, step_IDs_latest, 'BSDst')
+    if debug:
+        print(f"Dst_latest = {Dst_latest}")
+
+    # ------------------------------------------------------------------------
 
     # Make the DST plot.
 
@@ -430,30 +735,96 @@ def main():
     ax = fig.add_subplot(gs[0, 0])
 
     # Create the plot.
-    ax.plot(ut_datetime, symh, label='SYM-H', linewidth=2*line_width)
-    if masterDST is not None:
-        ax.plot(masterUTsimdt, masterDST, label=f"master ({masterGitHash})", linewidth=line_width)
-    if devpriorDST is not None:
-        ax.plot(devpriorUTsimdt, devpriorDST, label=f"dev prior ({devpriorGitHash})", linewidth=line_width)
-    if devcurrentDST is not None:
-        ax.plot(devcurrentUTsimdt, devcurrentDST, label=f"dev current ({devcurrentGitHash})", linewidth=line_width)
+    ax.plot(UT_dt_master, Dst_master,
+            label=f"Master ({git_hash_master})",
+            linewidth=2*line_width)
+    ax.plot(UT_dt_development, Dst_development,
+            label=f"Development ({git_hash_development})",
+            linewidth=2*line_width)
+    ax.plot(UT_dt_latest, Dst_latest,
+            label=f"{BRANCH_OR_COMMIT} ({git_hash_latest})",
+            linewidth=2*line_width)
     ax.legend(loc='upper right', fontsize='small')
-    ax.minorticks_on()
-    ax.xaxis_date()
-    xfmt = mpl.dates.DateFormatter('%H:%M \n%Y-%m-%d')
-    ax.set_ylabel('Dst [nT]')
-    ax.xaxis.set_major_formatter(xfmt)
-    ax.xaxis.set_minor_locator(mpl.dates.HourLocator())
-    # mpl.pyplot.grid(True)
-    # ax.xaxis.grid(True,which='major',linewidth=line_width  ,alpha=alpha,color=grid_color)
-    # ax.xaxis.grid(True,which='minor',linewidth=line_width/4,alpha=alpha,color=grid_color)
-    # ax.yaxis.grid(True,which='major',linewidth=line_width  ,alpha=alpha,color=grid_color)
-    ax.set_title('BSDst')
-    fOut = 'dstPlots.png'
-    kv.savePic(fOut)
-    mpl.pyplot.close('all')
 
-    #--------------------------------------------------------------------------
+    # Decorate the x-axis.
+    ax.set_xlabel('Date (UTC)')
+    # Major ticks on the hour.
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M\n%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.HourLocator())
+    # Minor ticks every 15 minutes.
+    # ax.xaxis.set_minor_formatter(mdates.DateFormatter('%H:%M'))
+    # ax.xaxis.set_minor_locator(mdates.MinuteLocator([15, 30, 45]))
+    # Major and minor grid lines.
+    ax.xaxis.grid(True, which='major', linewidth=line_width, alpha=alpha,
+                  color=grid_color)
+    # ax.xaxis.grid(True, which='minor', linewidth=line_width/4, alpha=alpha,
+    #               color=grid_color)
+
+    # Decorate the y-axis.
+    ax.set_ylabel('Dst [nT]')
+    # Major grid lines only.
+    ax.yaxis.grid(True, which='major', linewidth=line_width, alpha=alpha,
+                  color=grid_color)
+
+    # Decorate the plot as a whole
+    ax.set_title('BSDst')
+
+    # Save the plot to a file.
+    fOut = 'Dst.png'
+    kv.savePic(fOut)
+    plt.close('all')
+
+    # ------------------------------------------------------------------------
+
+    # Read CPCP (north and south) data from the master-branch reference
+    # results.
+    if verbose:
+        print('Reading reference CPCP (north and south) for master branch '
+              f"from {VOLTRON_OUTPUT_FILE_MASTER}.")
+
+    # Read the CPCP values from the voltron output file.
+    CPCP_north_master = kh5.getTs(VOLTRON_OUTPUT_FILE_MASTER, step_IDs_master,
+                                  'cpcpN')
+    CPCP_south_master = kh5.getTs(VOLTRON_OUTPUT_FILE_MASTER, step_IDs_master,
+                                  'cpcpS')
+    if debug:
+        print(f"CPCP_north_master = {CPCP_north_master}")
+        print(f"CPCP_south_master = {CPCP_south_master}")
+
+    # ------------------------------------------------------------------------
+
+    # Read CPCP (north and south) data from the development-branch reference
+    # results.
+    if verbose:
+        print('Reading reference CPCP (north and south) for development '
+              f"branch from {VOLTRON_OUTPUT_FILE_DEVELOPMENT}.")
+
+    # Read the CPCP values from the voltron output file.
+    CPCP_north_development = kh5.getTs(VOLTRON_OUTPUT_FILE_DEVELOPMENT,
+                                       step_IDs_development, 'cpcpN')
+    CPCP_south_development = kh5.getTs(VOLTRON_OUTPUT_FILE_DEVELOPMENT,
+                                       step_IDs_development, 'cpcpS')
+    if debug:
+        print(f"CPCP_north_development = {CPCP_north_development}")
+        print(f"CPCP_south_development = {CPCP_south_development}")
+
+    # ------------------------------------------------------------------------
+
+    # Read CPCP (north and south) data from the latest run.
+    if verbose:
+        print('Reading CPCP (north and south) for latest run'
+              f" from {VOLTRON_OUTPUT_FILE}.")
+
+    # Read the CPCP values from the voltron output file.
+    CPCP_north_latest = kh5.getTs(VOLTRON_OUTPUT_FILE,
+                                  step_IDs_latest, 'cpcpN')
+    CPCP_south_latest = kh5.getTs(VOLTRON_OUTPUT_FILE,
+                                  step_IDs_latest, 'cpcpS')
+    if debug:
+        print(f"CPCP_north_latest = {CPCP_north_latest}")
+        print(f"CPCP_south_latest = {CPCP_south_latest}")
+
+    # ------------------------------------------------------------------------
 
     # Make the CPCP plot.
 
@@ -462,272 +833,274 @@ def main():
     gs = mpl.gridspec.GridSpec(1, 1, hspace=0.05, wspace=0.05)
     ax = fig.add_subplot(gs[0, 0])
 
+    # Fetch the defaut color cycle.
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = prop_cycle.by_key()['color']
+
     # Create the plot.
-    if masterCPCPn is not None:
-        ax.plot(masterUTsimdt, masterCPCPn, color='orange', linestyle='dotted',
-                label=f"master-N ({masterGitHash})", linewidth=line_width)
-        ax.plot(masterUTsimdt, masterCPCPs, color='blue', linestyle='dotted',
-                label=f"master-S ({masterGitHash})", linewidth=line_width)
-    if devpriorCPCPn is not None:
-        ax.plot(devpriorUTsimdt, devpriorCPCPn, color='orange', linestyle='dashed',
-                label=f"dev prior-N ({devpriorGitHash})", linewidth=line_width)
-        ax.plot(devpriorUTsimdt, devpriorCPCPs, color='blue', linestyle='dashed',
-                label=f"dev prior-S ({devpriorGitHash})", linewidth=line_width)
-    if devcurrentCPCPn is not None:
-        ax.plot(devcurrentUTsimdt, devcurrentCPCPn, color='orange', linestyle='solid',
-                label=f"dev current-N ({devcurrentGitHash})", linewidth=line_width)
-        ax.plot(devcurrentUTsimdt, devcurrentCPCPs, color='blue', linestyle='solid',
-                label=f"dev current-S ({devcurrentGitHash})", linewidth=line_width)
+    ax.plot(UT_dt_master, CPCP_north_master,
+            label=f"Master (north) ({git_hash_master})",
+            color=colors[0], linewidth=2*line_width)
+    ax.plot(UT_dt_master, CPCP_south_master,
+            label=f"Master (south) ({git_hash_master})",
+            color=colors[0], linewidth=2*line_width, linestyle='dashed')
+    ax.plot(UT_dt_development, CPCP_north_development,
+            label=f"Development (north) ({git_hash_development})",
+            color=colors[1], linewidth=2*line_width)
+    ax.plot(UT_dt_development, CPCP_south_development,
+            label=f"Development (south) ({git_hash_development})",
+            color=colors[1], linewidth=2*line_width, linestyle='dashed')
+    ax.plot(UT_dt_latest, CPCP_north_latest,
+            label=f"{BRANCH_OR_COMMIT} (north) ({git_hash_latest})",
+            color=colors[2], linewidth=2*line_width)
+    ax.plot(UT_dt_latest, CPCP_south_latest,
+            label=f"{BRANCH_OR_COMMIT} (south) ({git_hash_latest})",
+            color=colors[2], linewidth=2*line_width, linestyle='dashed')
     ax.legend(loc='upper right', fontsize='small')
-    ax.minorticks_on()
-    ax.xaxis_date()
-    xfmt = mpl.dates.DateFormatter('%H:%M \n%Y-%m-%d')
+
+    # Decorate the x-axis.
+    ax.set_xlabel('Date (UTC)')
+    # Major ticks on the hour.
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M\n%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.HourLocator())
+    # Minor ticks every 15 minutes.
+    # ax.xaxis.set_minor_formatter(mdates.DateFormatter('%H:%M'))
+    # ax.xaxis.set_minor_locator(mdates.MinuteLocator([15, 30, 45]))
+    # Major and minor grid lines.
+    ax.xaxis.grid(True, which='major', linewidth=line_width, alpha=alpha,
+                  color=grid_color)
+    # ax.xaxis.grid(True, which='minor', linewidth=line_width/4, alpha=alpha,
+    #               color=grid_color)
+
+    # Decorate the y-axis.
     ax.set_ylabel('CPCP [kV]')
-    ax.xaxis.set_major_formatter(xfmt)
-    ax.xaxis.set_minor_locator(mpl.dates.HourLocator())
-    # mpl.pyplot.grid(True)
-    # ax.xaxis.grid(True,which='major',linewidth=line_width  ,alpha=alpha,color=grid_color)
-    # ax.xaxis.grid(True,which='minor',linewidth=line_width/4,alpha=alpha,color=grid_color)
-    # ax.yaxis.grid(True,which='major',linewidth=line_width  ,alpha=alpha,color=grid_color)
+    # Major grid lines only.
+    ax.yaxis.grid(True, which='major', linewidth=line_width, alpha=alpha,
+                  color=grid_color)
+
+    # Decorate the plot as a whole
     ax.set_title('CPCP')
-    fOut = 'cpcpPlots.png'
+
+    # Save the plot to a file.
+    fOut = 'CPCP.png'
     kv.savePic(fOut)
-    mpl.pyplot.close('all')
+    plt.close('all')
 
-    #--------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
-    # Save the new data as h5.
-    with h5py.File('previousData.h5', 'w') as data_object:
-        if masterUT is not None:
-            data_object.create_dataset('masterUT',  data=[x.encode('utf-8') for x in masterUT])
-            data_object.create_dataset('masterRT', data=masterRT)
-            data_object.create_dataset('masterUTsim', data=[x.encode('utf-8') for x in masterUTsim])
-            data_object.create_dataset('masterDST', data=masterDST)
-            data_object.create_dataset('masterCPCPn', data=masterCPCPn)
-            data_object.create_dataset('masterCPCPs', data=masterCPCPs)
-            data_object.create_dataset('masterGitHash', data=masterGitHash.encode('utf-8'))
-        if devpriorUT is not None:
-            data_object.create_dataset('devpriorUT', data=[x.encode('utf-8') for x in devpriorUT])
-            data_object.create_dataset('devpriorRT', data=devpriorRT)
-            data_object.create_dataset('devpriorUTsim', data=[x.encode('utf-8') for x in devpriorUTsim])
-            data_object.create_dataset('devpriorDST', data=devpriorDST)
-            data_object.create_dataset('devpriorCPCPn', data=devpriorCPCPn)
-            data_object.create_dataset('devpriorCPCPs', data=devpriorCPCPs)
-            data_object.create_dataset('devpriorGitHash', data=devpriorGitHash.encode('utf-8'))
-        if devcurrentUT is not None:
-            data_object.create_dataset('devcurrentUT', data=[x.encode('utf-8') for x in devcurrentUT])
-            data_object.create_dataset('devcurrentRT', data=devcurrentRT)
-            data_object.create_dataset('devcurrentUTsim', data=[x.encode('utf-8') for x in devcurrentUTsim])
-            data_object.create_dataset('devcurrentDST', data=devcurrentDST)
-            data_object.create_dataset('devcurrentCPCPn', data=devcurrentCPCPn)
-            data_object.create_dataset('devcurrentCPCPs', data=devcurrentCPCPs)
-            data_object.create_dataset('devcurrentGitHash', data=devcurrentGitHash.encode('utf-8'))
+    # Make the magnetosphere quick-look plot.
+    if verbose:
+        print('Creating magnetosphere quicklook plot for '
+              f"{weekly_dash_directory}.")
 
-    # If I'm on development, copy latest quick look plots over old ones
-    if git_branch_name == 'development':
-        shutil.copyfile('development_qk_msph.png', 'development_qk_msph_old.png')
-        shutil.copyfile('development_qk_rcm.png', 'development_qk_rcm_old.png')
-        shutil.copyfile('development_qk_mix.png', 'development_qk_mix_old.png')
-
-    #--------------------------------------------------------------------------
-
-    # Make quick-look plots
-
-    # Move back to the directory containing the simulation results.
-    path = os.path.join(kaiju_home, WEEKLY_DASH_DIRECTORY, BIN_DIR)
-    if debug:
-        print(f"path = {path}")
-    os.chdir(path)
-    if debug:
-        print(f"Now in {os.getcwd()}")
-
-    # Magnetosphere quicklook
+    # Create the plot.
     cmd = 'msphpic.py'
     if debug:
         print(f"cmd = {cmd}")
-    cproc = subprocess.run(cmd, shell=True, check=True)
-    if debug:
-        print(f"cproc = {cproc}")
-    from_path = 'qkmsphpic.png'
-    to_path = os.path.join(wiki_path, WEEKLY_DASH_WIKI_DIRECTORY, f"{git_branch_name}_qk_msph.png")
-    shutil.copyfile(from_path, to_path)
+    try:
+        _ = subprocess.run(cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(
+            'ERROR: Unable to create magnetosphere quicklook plot.\n'
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n"
+            f'See log for output.\n',
+            file=sys.stderr
+        )
 
-    # REMIX quicklook
+    # ------------------------------------------------------------------------
+
+    # Make the REMIX quick-look plots.
+    if verbose:
+        print(f"Creating REMIX quicklook plots for {weekly_dash_directory}.")
+
+    # Create the plot.
     cmd = 'mixpic.py'
     if debug:
         print(f"cmd = {cmd}")
-    cproc = subprocess.run(cmd, shell=True, check=True)
-    if debug:
-        print(f"cproc = {cproc}")
-    from_path = 'remix_n.png'
-    to_path = os.path.join(wiki_path, WEEKLY_DASH_WIKI_DIRECTORY, f"{git_branch_name}_qk_mix.png")
-    shutil.copyfile(from_path, to_path)
+    try:
+        _ = subprocess.run(cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(
+            'ERROR: Unable to create REMIX quicklook plots.\n'
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n"
+            f'See log for output.\n',
+            file=sys.stderr
+        )
 
-    # RCM quicklook
+    # ------------------------------------------------------------------------
+
+    # Make the RCM quick-look plot.
+    if verbose:
+        print(f"Creating RCM quicklook plot for {weekly_dash_directory}.")
+
+    # Create the plot.
     cmd = 'rcmpic.py'
     if debug:
         print(f"cmd = {cmd}")
-    cproc = subprocess.run(cmd, shell=True, check=True)
+    try:
+        _ = subprocess.run(cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(
+            'ERROR: Unable to create RCM quicklook plot.\n'
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n"
+            f'See log for output.\n',
+            file=sys.stderr
+        )
+
+    # ------------------------------------------------------------------------
+
+    # Create merged images for the quicklook plots.
+
+    # Merge magnetosphere quicklooks.
+    cmd = (
+        f"convert {MAGNETOSPHERE_QUICKLOOK_MASTER}"
+        f" {MAGNETOSPHERE_QUICKLOOK_DEVELOPMENT}"
+        ' qkmsphpic.png -append combined_msphpic.png'
+    )
     if debug:
-        print(f"cproc = {cproc}")
-    from_path = 'qkrcmpic.png'
-    to_path = os.path.join(wiki_path, WEEKLY_DASH_WIKI_DIRECTORY, f"{git_branch_name}_qk_rcm.png")
-    shutil.copyfile(from_path, to_path)
+        print(f"cmd = {cmd}")
+    try:
+        _ = subprocess.run(cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(
+            'ERROR: Unable to combine magnetosphere quicklook plots.\n'
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n"
+            f'See log for output.\n',
+            file=sys.stderr
+        )
 
-    #--------------------------------------------------------------------------
-
-    # Move back to the wiki repository.
-    os.chdir(wiki_path)
-    os.chdir(WEEKLY_DASH_WIKI_DIRECTORY)
-
-    # Combine quick looks into larger images
-    cmd = f"convert master_qk_msph.png -gravity NorthWest -pointsize 60 -annotate +0+0 'master ({masterGitHash})' mm.png"
-    cproc = subprocess.run(cmd, shell=True, check=True)
+    # Merge REMIX (north) quicklooks.
+    cmd = (
+        f"convert {REMIX_NORTH_QUICKLOOK_MASTER}"
+        f" {REMIX_NORTH_QUICKLOOK_DEVELOPMENT}"
+        ' remix_n.png -append combined_remix_n.png'
+    )
     if debug:
-        print(f"cproc = {cproc}")
-
-    cmd = f"convert master_qk_mix.png -gravity NorthWest -pointsize 80 -annotate +0+0 'master ({masterGitHash})' mx.png"
-    cproc = subprocess.run(cmd, shell=True, check=True)
-    if debug:
-        print(f"cproc = {cproc}")
-
-    cmd = f"convert master_qk_rcm.png -gravity NorthWest -pointsize 80 -annotate +0+0 'master ({masterGitHash})' mr.png"
-    cproc = subprocess.run(cmd, shell=True, check=True)
-    if debug:
-        print(f"cproc = {cproc}")
-
-    cmd = f"convert development_qk_msph_old.png -gravity NorthWest -pointsize 60 -annotate +0+0 'dev prior ({devpriorGitHash})' dmo.png"
-    cproc = subprocess.run(cmd, shell=True, check=True)
-    if debug:
-        print(f"cproc = {cproc}")
-
-    cmd = f"convert development_qk_mix_old.png -gravity NorthWest -pointsize 80 -annotate +0+0 'dev prior ({devpriorGitHash})' dxo.png"
-    cproc = subprocess.run(cmd, shell=True, check=True)
-    if debug:
-        print(f"cproc = {cproc}")
-
-    cmd = f"convert development_qk_rcm_old.png -gravity NorthWest -pointsize 80 -annotate +0+0 'dev prior ({devpriorGitHash})' dro.png"
-    cproc = subprocess.run(cmd, shell=True, check=True)
-    if debug:
-        print(f"cproc = {cproc}")
-
-    # cmd = f"convert development_qk_msph.png -gravity NorthWest -pointsize 60 -annotate +0+0 'dev current ({devcurrentGitHash})' dm.png"
-    # cproc = subprocess.run(cmd, shell=True, check=True)
-    # if debug:
-    #     print(f"cproc = {cproc}")
-
-    # cmd = f"convert development_qk_mix.png -gravity NorthWest -pointsize 80 -annotate +0+0 'dev current ({devcurrentGitHash})' dx.png"
-    # cproc = subprocess.run(cmd, shell=True, check=True)
-    # if debug:
-    #     print(f"cproc = {cproc}")
-
-    # cmd = f"convert development_qk_rcm.png -gravity NorthWest -pointsize 80 -annotate +0+0 'dev current ({devcurrentGitHash})' dr.png"
-    # cproc = subprocess.run(cmd, shell=True, check=True)
-    # if debug:
-    #     print(f"cproc = {cproc}")
-
-    # <HACK>
-    # For testing
-    shutil.copyfile('dmo.png', 'dm.png')
-    shutil.copyfile('dxo.png', 'dx.png')
-    shutil.copyfile('dro.png', 'dr.png')
-    # </HACK>
-
-    cmd = 'convert mm.png dmo.png dm.png -append combined_qk_msph.png'
-    cproc = subprocess.run(cmd, shell=True, check=True)
-    if debug:
-        print(f"cproc = {cproc}")
-
-    cmd = 'convert mx.png dxo.png dx.png -append combined_qk_mix.png'
-    cproc = subprocess.run(cmd, shell=True, check=True)
-    if debug:
-        print(f"cproc = {cproc}")
-
-    cmd = 'convert mr.png dro.png dr.png -append combined_qk_rcm.png'
-    cproc = subprocess.run(cmd, shell=True, check=True)
-    if debug:
-        print(f"cproc = {cproc}")
-
-    # Delete the original images.
-    for filename in ['mm.png', 'mx.png', 'mr.png',
-                     'dmo.png', 'dxo.png', 'dro.png',
-                     'dm.png', 'dx.png', 'dr.png']:
-        if os.path.exists(filename):
-            os.remove(filename)
-
-    # Push the data to the wiki.
-    # <HACK>
-    debug = False
-    # </HACK>
-    if not debug:
-        cmd = f"git commit -a -m 'New weekly dash data for branch {git_branch_name}'"
+        print(f"cmd = {cmd}")
+    try:
         cproc = subprocess.run(cmd, shell=True, check=True)
-        if debug:
-            print(f"cproc = {cproc}")
-        if debug:
-            print(f"text = {text}")
-        cmd = 'git push'
+    except subprocess.CalledProcessError as e:
+        print(
+            'ERROR: Unable to combine REMIX (north) quicklook plots.\n'
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n"
+            f'See log for output.\n',
+            file=sys.stderr
+        )
+
+    # Merge REMIX (south) quicklooks.
+    cmd = (
+        f"convert {REMIX_SOUTH_QUICKLOOK_MASTER}"
+        f" {REMIX_SOUTH_QUICKLOOK_DEVELOPMENT}"
+        ' remix_s.png -append combined_remix_s.png'
+    )
+    if debug:
+        print(f"cmd = {cmd}")
+    try:
         cproc = subprocess.run(cmd, shell=True, check=True)
-        if debug:
-            print(f"cproc = {cproc}")
-        if debug:
-            print(f"text = {text}")
+    except subprocess.CalledProcessError as e:
+        print(
+            'ERROR: Unable to combine REMIX (south) quicklook plots.\n'
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n"
+            f'See log for output.\n',
+            file=sys.stderr
+        )
 
-    #--------------------------------------------------------------------------
+    # Merge RCM quicklooks.
+    cmd = (
+        f"convert {RCM_QUICKLOOK_MASTER}"
+        f" {RCM_QUICKLOOK_DEVELOPMENT}"
+        ' qkrcmpic.png -append combined_qkrcmpic.png'
+    )
+    if debug:
+        print(f"cmd = {cmd}")
+    try:
+        cproc = subprocess.run(cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(
+            'ERROR: Unable to combine RCM quicklook plots.\n'
+            f"e.cmd = {e.cmd}\n"
+            f"e.returncode = {e.returncode}\n"
+            f'See log for output.\n',
+            file=sys.stderr
+        )
 
-    # Post results to Slack.
+    # ------------------------------------------------------------------------
 
     # Set up for communication with Slack.
     slack_client = common.slack_create_client()
     if debug:
         print(f"slack_client = {slack_client}")
 
-    if not is_test and be_loud:
-        if verbose:
-            print('Posting test results to Slack.')
-        message = f"Weekly results complete on branch {git_branch_name}, run on host {short_hostname}. Latest comparative results attached as replies to this message.\nOr up-to-date results can be viewed on the wiki at https://bitbucket.org/aplkaiju/kaiju/wiki/weeklyDash/dashStatus"
-        slack_response = common.slack_send_message(slack_client, message)
+    # ------------------------------------------------------------------------
+
+    # List the files to post and their comments.
+    images_to_post = [
+        'perfPlots.png',
+        'Dst.png',
+        'CPCP.png',
+        'qkmsphpic.png',
+        'remix_n.png',
+        'remix_s.png',
+        'qkrcmpic.png',
+        'combined_msphpic.png',
+        'combined_remix_n.png',
+        'combined_remix_s.png',
+        'combined_qkrcmpic.png'
+    ]
+    comments_to_post = [
+        'Real-Time Performance\n\n',
+        'DST Plots\n\n',
+        'CPCP Plots\n\n',
+        'Magnetosphere Quicklook Plots\n\n',
+        'REMIX (north) Quicklook Plots\n\n',
+        'REMIX (south) Quicklook Plots\n\n',
+        'RCM Quicklook Plots\n\n',
+        'Magnetosphere Quicklook Comparison Plots\n\n',
+        'REMIX (north) Quicklook Comparison Plots\n\n',
+        'REMIX (south) Quicklook Comparison Plots\n\n',
+        'RCM Quicklook Comparison Plots\n\n'
+    ]
+
+    # If loud mode is on, post results to Slack.
+    if be_loud:
+        message = (
+            f"Weekly dash result plots complete on branch {BRANCH_OR_COMMIT}.\n"
+            ' Latest comparative results attached as replies to this message.\n'
+        )
+        message += (
+            f"Test results are in {os.getcwd()}.\n"
+        )
+        slack_response = common.slack_send_message(
+            slack_client, message, is_test=is_test)
         if slack_response['ok']:
             parent_ts = slack_response['ts']
-            message = 'This was a 4x4x1 (IxJxK) decomposed Quad Resolution Run using 8 nodes for Gamera, 1 for Voltron, and 3 Squish Helper nodes (12 nodes total)'
-            slack_response = common.slack_send_message(slack_client, message,
-                                                       thread_ts=parent_ts)
-            image_files = [
-                'perfPlots.png',
-                'dstPlots.png',
-                'cpcpPlots.png',
-                'combined_qk_msph.png',
-                'combined_qk_mix.png',
-                'combined_qk_rcm.png',
-            ]
-            image_comments = [
-                'Real-Time Performance\n\n',
-                'DST Plots\n\n',
-                'CPCP Plots\n\n',
-                'Quick-Looks Magnetosphere\n\n',
-                'Quick-Looks Remix\n\n',
-                'Quick-Looks RCM\n\n',
-            ]
-            for (f, c) in zip(image_files, image_comments):
-                try:
-                    slack_response = common.slack_send_image(
-                        slack_client, f, initial_comment=c,
-                        thread_ts=parent_ts,
-                    )
-                    assert slack_response['ok']
-                except SlackApiError as e:
-                    # You will get a SlackApiError if "ok" is False
-                    assert e.response["error"]  # str like 'invalid_auth', 'channel_not_found'
+            message = (
+                'This was a 4x4x1 (IxJxK) decomposed Quad Resolution Run using'
+                ' 8 nodes for Gamera, 1 for Voltron, and 2 Squish Helper nodes'
+                ' (11 nodes total).'
+            )
+            slack_response = common.slack_send_message(
+                slack_client, message, thread_ts=parent_ts, is_test=is_test)
+            for (f, c) in zip(images_to_post, comments_to_post):
+                slack_response = common.slack_send_image(
+                    slack_client, f, initial_comment=c,
+                    thread_ts=parent_ts, is_test=is_test
+                )
         else:
-            print("Failed to post parent message to Slack, could not attach replies either.")
+            print('Failed to post parent message and images to Slack.')
 
-    else:
-        print(f"weekly run completed successfully on branch {git_branch_name}")
+    # ------------------------------------------------------------------------
 
     if debug:
-        print(f"Ending {sys.argv[0]} at {datetime.datetime.now()}")
+        print(f"Ending {sys.argv[0]} at {datetime.datetime.now()}"
+              f" on {platform.node()}")
 
 
 if __name__ == '__main__':
-    """Call main program function."""
     main()

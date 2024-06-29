@@ -1,250 +1,224 @@
+#!/usr/bin/env python
+
+"""Create the report for MAGE tests run using Intel Inspector.
+
+This script creates the report for MAGE tests run using Intel Inspector.
+
+This script assumes it is run in the directory containing the test results.
+
+Authors
+-------
+Jeff Garretson
+Eric Winter
+
+"""
+
+
+# Import standard modules.
+import datetime
 import os
-import sys
-import subprocess
-from os.path import expanduser
-sys.path.insert(1, "./python-slackclient")
-from slack import WebClient
-from slack.errors import SlackApiError
-import logging
-logging.basicConfig(level=logging.DEBUG)
-import time
-from os import path
 import re
-import argparse
+import subprocess
+import sys
 
-# read arguments
-parser = argparse.ArgumentParser()
-parser.add_argument('-t',action='store_true',default=False, help='Enables testing mode')
-parser.add_argument('-l',action='store_true',default=False, help='Enables loud mode')
-parser.add_argument('-a',action='store_true',default=False, help='Run all tests')
-parser.add_argument('-f',action='store_true',default=False, help='Force the tests to run')
-parser.add_argument('--account',type=str, default='', help='qsub account number')
+# Import 3rd-party modules.
 
-args = parser.parse_args()
-isTest = args.t
-beLoud = args.l
-doAll = args.a
-forceRun = args.f
-account = args.account
+# Import project modules.
+from kaipy.testing import common
 
-# Get Slack API token
-slack_token = os.environ["SLACK_BOT_TOKEN"]
-print(slack_token)
-client = WebClient(token=slack_token, timeout=120)
 
-# Get CWD and set main kaiju folder to "home"
-calledFrom = os.path.dirname(os.path.abspath(__file__))
-os.chdir(calledFrom)
-orig = os.getcwd()
-os.chdir('..')
-home = os.getcwd()
+# Program constants
 
-# Go back to scripts folder
-os.chdir(home)
-os.chdir("testingScripts")
+# Program description.
+DESCRIPTION = 'Create report for Intel Inspector tests.'
 
-# get my current branch
-p = subprocess.Popen("git symbolic-ref --short HEAD", shell=True, stdout=subprocess.PIPE)
-gBranch = p.stdout.read()
-gBranch = gBranch.decode('ascii')
-gBranch = gBranch.rstrip()
-print(gBranch)
 
-# Read in modules.txt and load only the requested modules
-file = open('intelModules.txt', 'r')
-modules = file.readlines()
-#print(modules)
+def main():
+    """Begin main program.
 
-ModuleList = []
-myModules = []
-tempString = ""
+    This is the main program code.
 
-# Create List from separate modules
-for line in modules:
-    if (line.strip() == "##NEW ENVIRONMENT##"):
-        # Set aside what we have already
-        ModuleList.append(myModules)
-        # Reset
-        myModules = []
-        iteration += 1
-    else:
-        myModules.append(line.strip())
+    Parameters
+    ----------
+    None
 
-# Add the last module set
-ModuleList.append(myModules)
+    Returns
+    -------
+    None
 
-for setOfModules in ModuleList:
-    for line in setOfModules:
-        print(line)
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If an exception occurs in subprocess.run()
+    """
+    # Set up the command-line parser.
+    parser = common.create_command_line_parser(DESCRIPTION)
 
-# Create the list of arguments for the first set
-arguments = "module purge; module list;"
+    # Parse the command-line arguments.
+    args = parser.parse_args()
+    if args.debug:
+        print(f"args = {args}")
+    debug = args.debug
+    be_loud = args.loud
+    is_test = args.test
 
-for line in ModuleList[0]:
-    arguments = arguments + "module load " + line + ";"
+    # ------------------------------------------------------------------------
 
-print(arguments)
-subprocess.call(arguments, shell=True)
+    if debug:
+        print(f"Starting {sys.argv[0]} at {datetime.datetime.now()}")
+        print(f"Current directory is {os.getcwd()}")
 
-# Go to IntelChecks folder
-os.chdir(home)
-os.chdir('intelChecks/bin')
+    # ------------------------------------------------------------------------
 
-# Check for jobs.txt
-jobsExists = path.exists("jobs.txt")
+    # Check for for the job list file.
+    if not os.path.exists('jobs.txt'):
+        print('Nothing to report on.')
+        sys.exit(0)
 
-# If not, end. Otherwise, continue
-if (not jobsExists):
-    print("Nothing to Test.\n")
-    exit()
+    # Read in the jobs.txt file to get the job numbers
+    with open('jobs.txt', 'r', encoding='utf-8') as f:
+        job1 = f.readline().rstrip()
+        job2 = f.readline().rstrip()
+    if debug:
+        print(f"job1 = {job1}")
+        print(f"job2 = {job2}")
 
-# Read in the jobs.txt file to get the job numbers
-file = open("jobs.txt", 'r')
-job1 = file.readline()
-job1 = job1.strip()
-job2 = file.readline()
-job2 = job2.strip()
-file.close()
+    # Combine the job output files.
+    job_file_1 = f"mage_intelCheckSubmitMem.o{job1}"
+    job_file_2 = f"mage_intelCheckSubmitThread.o{job2}"
+    if debug:
+        print(f"job_file_1 = {job_file_1}")
+        print(f"job_file_2 = {job_file_2}")
 
-# Take the output files and slap them together
-jobFile1 = "memCheck.o" + job1
-jobFile2 = "threadCheck.o" + job2
+    # Check the the logs exist.
+    if not os.path.exists(job_file_1):
+        print(f"{job_file_1} not found, tests are incomplete.")
+        sys.exit(0)
+    if not os.path.exists(job_file_2):
+        print(f"{job_file_2} not found, tests are incomplete.")
+        sys.exit(0)
 
-if (not path.exists(jobFile1) or not path.exists(jobFile2)):
-    print("One of the jobs isn't complete yet.\n")
-    exit()
+    # Set up regex for counting problems found.
+    problem_pattern = r'(\d+) new problem\(s\) found'
 
-# Go to IntelChecks folder
-os.chdir(home)
-os.chdir('intelChecks/bin')
+    # ------------------------------------------------------------------------
 
-# Setup regex for counting problems found
-problemPattern = "(\d+) new problem\(s\) found"
+    # Search the output logs for errors.
 
-# Memory
-memErrs = False
-memErrsFile = "combinedMemErrs.txt"
-for root, dirs, files in os.walk("."):
-    for d in dirs:
-        if "memResults" in d:
-            try:
-                memOut = subprocess.check_output(["inspxe-cl","-report summary","-result-dir " + d,"-s-f memSuppress.sup"], \
-                    stderr=subprocess.STDOUT,universal_newlines=True)
-            except subprocess.CalledProcessError as memProcErr:
-                # we need to handle non-zero error code
-                memOut = memProcErr.output
-            problemMatch = re.search(problemPattern, memOut)
-            if(not problemMatch or int(problemMatch.group(1)) > 0):
-                memErrs = True
+    # Memory
+    memory_errors_file = 'combinedMemErrs.txt'
+    for _, dirs, _ in os.walk('.'):
+        for d in dirs:
+            if 'memResults' in d:
                 try:
-                    memOut = subprocess.check_output(["inspxe-cl","-report problems","-result-dir " + d,"-s-f memSuppress.sup","-report-all"], \
-                        stderr=subprocess.STDOUT,universal_newlines=True)
-                except subprocess.CalledProcessError as memProcErr:
+                    memory_check_output = subprocess.check_output(
+                        ['inspxe-cl', '-report summary', '-result-dir ' + d,
+                         '-s-f memSuppress.sup'],
+                        stderr=subprocess.STDOUT, universal_newlines=True)
+                except subprocess.CalledProcessError as e:
                     # we need to handle non-zero error code
-                    memOut = memProcErr.output
-                with open(memErrsFile, "a") as memFile:
-                    memFile.write(memOut)
-                    memFile.write("\n")
+                    memory_check_output = e.output
+                problem_match = re.search(problem_pattern, memory_check_output)
+                if not problem_match or int(problem_match.group(1)) > 0:
+                    try:
+                        memory_check_output = subprocess.check_output(
+                            ['inspxe-cl', '-report problems',
+                             '-result-dir ' + d, '-s-f memSuppress.sup',
+                             '-report-all'],
+                            stderr=subprocess.STDOUT, universal_newlines=True)
+                    except subprocess.CalledProcessError as e:
+                        # we need to handle non-zero error code
+                        memory_check_output = e.output
+                    with open(
+                        memory_errors_file, 'a', encoding='utf-8'
+                    ) as f:
+                        f.write(memory_check_output)
+                        f.write('\n')
 
-if(not isTest and (beLoud or memErrs)):
-    if(memErrs):
-        try:
-            response = client.files_upload(
-                file=memErrsFile,
-                initial_comment='Memory Access Problems:\n\n',
-                channels="#kaijudev",
-                )
-            assert response['ok']
-            slack_file = response['file']
-        except SlackApiError as e:
-            # You will get a SlackApiError if "ok" is False
-            assert e.response["error"]  # str like 'invalid_auth', 'channel_not_found'
-        try:
-            response = client.chat_postMessage(
-                channel="#kaijudev",
-                text="Memory Access Problems Detected on Branch " + gBranch + "\nPlease check the errors sent above",
-            )
-        except SlackApiError as e:
-           # You will get a SlackApiError if "ok" is False
-           assert e.response["error"]  # str like 'invalid_auth', 'channel_not_found'
-    else:
-        try:
-            response = client.chat_postMessage(
-                channel="#kaijudev",
-                text="No Memory Access Problems Detected on Branch " + gBranch,
-            )
-        except SlackApiError as e:
-           # You will get a SlackApiError if "ok" is False
-           assert e.response["error"]  # str like 'invalid_auth', 'channel_not_found'
-else:
-    if(memErrs):
-        print("*** Memory Access Problems Detected on Branch " + gBranch + "***\nPlease check the results in " + memErrsFile + "\n")
-    else:
-        print("No Memory Access Problems Detected on Branch " + gBranch)
-
-# Thread
-threadErrs = False
-threadErrsFile = "combinedThreadErrs.txt"
-for root, dirs, files in os.walk("."):
-    for d in dirs:
-        if "threadResults" in d:
-            try:
-                threadOut = subprocess.check_output(["inspxe-cl","-report summary","-result-dir " + d,"-s-f threadSuppress.sup"], \
-                    stderr=subprocess.STDOUT,universal_newlines=True)
-            except subprocess.CalledProcessError as threadProcErr:
-                # we need to handle non-zero error code
-                threadOut = threadProcErr.output
-            problemMatch = re.search(problemPattern, threadOut)
-            if(not problemMatch or int(problemMatch.group(1)) > 0):
-                threadErrs = True
+    # Thread
+    thread_errors_file = 'combinedThreadErrs.txt'
+    for _, dirs, _ in os.walk('.'):
+        for d in dirs:
+            if 'threadResults' in d:
                 try:
-                    threadOut = subprocess.check_output(["inspxe-cl","-report problems","-result-dir " + d,"-s-f threadSuppress.sup","-report-all"], \
-                        stderr=subprocess.STDOUT,universal_newlines=True)
-                except subprocess.CalledProcessError as threadProcErr:
+                    thread_check_output = subprocess.check_output(
+                        ['inspxe-cl', '-report summary', '-result-dir ' + d,
+                         '-s-f threadSuppress.sup'],
+                        stderr=subprocess.STDOUT, universal_newlines=True
+                    )
+                except subprocess.CalledProcessError as e:
                     # we need to handle non-zero error code
-                    threadOut = threadProcErr.output
-                with open(threadErrsFile, "a") as threadFile:
-                    threadFile.write(threadOut)
-                    threadFile.write("\n")
+                    thread_check_output = e.output
+                problem_match = re.search(problem_pattern, thread_check_output)
+                if not problem_match or int(problem_match.group(1)) > 0:
+                    try:
+                        thread_check_output = subprocess.check_output([
+                            'inspxe-cl', '-report problems',
+                            '-result-dir ' + d, '-s-f threadSuppress.sup',
+                            '-report-all'],
+                            stderr=subprocess.STDOUT, universal_newlines=True)
+                    except subprocess.CalledProcessError as e:
+                        # we need to handle non-zero error code
+                        thread_check_output = e.output
+                    with open(
+                        thread_errors_file, 'a', encoding='utf-8'
+                    ) as f:
+                        f.write(thread_check_output)
+                        f.write('\n')
 
-if(not isTest and (beLoud or threadErrs)):
-    if(threadErrs):
-        try:
-            response = client.files_upload(
-                file=threadErrsFile,
-                initial_comment='Threading Data Race Problems:\n\n',
-                channels="#kaijudev",
-                )
-            assert response['ok']
-            slack_file = response['file']
-        except SlackApiError as e:
-            # You will get a SlackApiError if "ok" is False
-            assert e.response["error"]  # str like 'invalid_auth', 'channel_not_found'
-        try:
-            response = client.chat_postMessage(
-                channel="#kaijudev",
-                text="Threading Data Race Problems Detected on Branch " + gBranch + "\nPlease check the errors sent above",
+    # -----------------------------------------------------------------------
+
+    # Set up for communication with Slack.
+    slack_client = common.slack_create_client()
+    if debug:
+        print(f"slack_client = {slack_client}")
+
+    # ------------------------------------------------------------------------
+
+    # Detail the test results
+    test_report_details_string = ''
+    test_report_details_string += (
+        f"Intel check results are in {os.getcwd()}.\n"
+    )
+    test_report_details_string += 'Results of memory tests:\n'
+    with open(memory_errors_file, 'r', encoding='utf-8') as f:
+        test_report_details_string += f.read()
+    test_report_details_string += '\n'
+    test_report_details_string += 'Results of thread tests:\n'
+    with open(thread_errors_file, 'r', encoding='utf-8') as f:
+        test_report_details_string += f.read()
+
+    # Summarize the test results
+    test_report_summary_string = (
+        'Intel Inspector tests complete (`intelChecksReport.py`).'
+    )
+
+    # Print the test results summary and details.
+    print(test_report_summary_string)
+    print(test_report_details_string)
+
+    # If loud mode is on, post report to Slack.
+    if be_loud:
+        test_report_summary_string += 'Details in thread for this messsage.\n'
+        slack_response_summary = common.slack_send_message(
+            slack_client, test_report_summary_string, is_test=is_test
+        )
+        if slack_response_summary['ok']:
+            thread_ts = slack_response_summary['ts']
+            slack_response_details = common.slack_send_message(
+                slack_client, test_report_details_string, thread_ts=thread_ts,
+                is_test=is_test
             )
-        except SlackApiError as e:
-           # You will get a SlackApiError if "ok" is False
-           assert e.response["error"]  # str like 'invalid_auth', 'channel_not_found'
-    else:
-        try:
-            response = client.chat_postMessage(
-                channel="#kaijudev",
-                text="No Threading Data Race Problems Detected on Branch " + gBranch,
-            )
-        except SlackApiError as e:
-           # You will get a SlackApiError if "ok" is False
-           assert e.response["error"]  # str like 'invalid_auth', 'channel_not_found'
-else:
-    if(threadErrs):
-        print("*** Threading Data Race Problems Detected on Branch " + gBranch + "***\nPlease check the results in " + threadErrsFile + "\n")
-    else:
-        print("No Threading Data Race Problems Detected on Branch " + gBranch)
+            if 'ok' not in slack_response_details:
+                print('*ERROR* Unable to post test details to Slack.')
+        else:
+            print('*ERROR* Unable to post test summary to Slack.')
 
-# Go to IntelChecks and delete jobs.txt
-os.chdir(home)
-os.chdir('intelChecks/bin')
-os.remove("jobs.txt")
+    # ------------------------------------------------------------------------
 
+    if debug:
+        print(f"Ending {sys.argv[0]} at {datetime.datetime.now()}")
+
+
+if __name__ == '__main__':
+    main()

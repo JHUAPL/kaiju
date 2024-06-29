@@ -1,0 +1,39 @@
+#!/bin/bash
+#PBS -N memCheck
+#PBS -A P28100045
+#PBS -l walltime=12:00:00
+#PBS -q main
+#PBS -l select=2:ncpus=128:mpiprocs=1:ompthreads=128
+#PBS -j oe
+#PBS -m abe
+
+# NOTE: The user account must be specified on the qsub command line with the
+# -A option,
+# KAIJUROOTDIR and MODULE_LIST must be set as transferred environment
+# variables on the qsub command line.
+# Example qsub command:
+# qsub -A P28100045 -v $HOME/kaiju,MODULE_LIST='module1 module2 ...'
+
+echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
+
+# echo 'Setting up MAGE environment.'
+# source $KAIJUROOTDIR/scripts/setupEnvironment.sh
+
+# echo 'Loading modules.'
+# module --force purge
+# module load $MODULE_LIST
+# echo 'The following modules are loaded:'
+# module list
+
+# echo 'Setting environment variables.'
+# MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
+# export OMP_NUM_THREADS=128
+# export MPI_TYPE_DEPTH=32
+# export KMP_STACKSIZE=128M
+# echo 'The active environment variables are:'
+# printenv
+
+# # Run the Intel checks.
+# ${MPICOMMAND} inspxe-cl -collect=mi3 -r memResults -- ./voltron_mpi.x tinyCase.xml >& memTests.out
+
+echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

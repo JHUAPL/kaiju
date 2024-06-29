@@ -1,11 +1,10 @@
 #!/bin/bash
-#PBS -N wDashGo
+#PBS -N unitTestReport
 #PBS -A P28100045
-#PBS -l walltime=12:00:00
-#PBS -l job_priority=economy
+#PBS -l walltime=00:10:00
 #PBS -q main
+#PBS -l select=1:ncpus=128
 #PBS -j oe
-#PBS -l select=8:ncpus=128:mpiprocs=2:ompthreads=64+3:ncpus=128:mpiprocs=1:ompthreads=128
 #PBS -m abe
 
 echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
@@ -19,20 +18,10 @@ module load $MODULE_LIST
 echo 'The following modules are loaded:'
 module list
 
-echo 'Setting environment variables.'
-MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
-export TMPDIR=/glade/work/ewinter/mage_testing/derecho/tmp
-export OMP_NUM_THREADS=128
-export MPI_TYPE_DEPTH=32
-export KMP_STACKSIZE=128M
-echo 'The active environment variables are:'
-printenv
-
-# Run the model.
-$MPICOMMAND ./voltron_mpi.x weeklyDashGo.xml > weeklyDashGo.out
-
-# Generate the report.
+# Set up conda.
 export MAGE_TEST_ROOT='/glade/work/ewinter/mage_testing/derecho'
+# MAGE_TEST_SET_ROOT, DERECHO_TESTING_ACCOUNT, and SLACK_BOT_TOKEN must be
+# passed in on command line as environment variables.
 export CONDARC="${MAGE_TEST_ROOT}/condarc"
 export CONDA_ENVS_PATH="${MAGE_TEST_ROOT}/conda"
 mage_miniconda3="${MAGE_TEST_ROOT}/miniconda3"
@@ -48,7 +37,15 @@ else
     fi
 fi
 unset __conda_setup
-conda activate kaiju-3.8-testing
-python $KAIJUHOME/testingScripts/weeklyDashReport.py -dlv >& weeklyDashReport.out
+conda_testing_environment='kaiju-3.8-testing'
+conda activate $conda_testing_environment
+export PYTHONUNBUFFERED=TRUE
+
+echo 'Setting environment variables.'
+echo 'The active environment variables are:'
+printenv
+
+echo 'Generating unit test report.'
+python $KAIJUHOME/testingScripts/unitTestReport.py -lv
 
 echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

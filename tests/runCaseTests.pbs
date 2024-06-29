@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -N caseTests
-#PBS -A UJHB0019
+#PBS -A P28100045
 #PBS -l walltime=12:00:00
 #PBS -q main
 #PBS -l select=1:ncpus=128:mpiprocs=8:ompthreads=16
@@ -12,7 +12,7 @@
 # KAIJUROOTDIR and MODULE_LIST must be set as transferred environment
 # variables on the qsub command line.
 # Example qsub command:
-# qsub -A UJHB0019 -v $HOME/kaiju,MODULE_LIST='module1 module2 ...'
+# qsub -A P28100045 -v $HOME/kaiju,MODULE_LIST='module1 module2 ...'
 
 echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
 

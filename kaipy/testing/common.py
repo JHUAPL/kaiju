@@ -34,6 +34,56 @@ SLACK_CHANNEL_NAME = '#kaijudev'
 SLACK_TEST_CHANNEL_NAME = '#kaijudev-testing'
 
 
+def read_strip_blanks_and_comments(path):
+    """Read a text file, stripping comments and blank lines.
+
+    Read the specified text file, and strip out:
+    0. Leading and trailing whitespace
+    1. Lines containing only whitespace
+    2. Lines containing comments (First non-whitespace character is '#')
+    3. In-line comments (everything after '#' on a line) and resiual
+       whitespace.
+
+    Parameters
+    ----------
+    path : str
+        Path to text file to read
+
+    Returns
+    -------
+    lines : list of str
+        List containing strings for each line in the file, with comments and
+        blank lines removed
+
+    Raises
+    ------
+    None
+    """
+    # Read the file.
+    lines = open(path, encoding='ut-8').readlines()
+
+    # Strip whitespace.
+    lines = [line.strip() for line in lines]
+
+    # Strip blank lines.
+    lines = [line for line in lines if len(line) > 0]
+
+    # Strip comment lines and residual trailing whitespace.
+    lines = [line for line in lines if not line.startswith('#')]
+
+    # Strip in-line comments.
+    newlines = []
+    for line in lines:
+        comment_pos = line.find('#')
+        if comment_pos > -1:
+            line = line[:comment_pos].rstrip()
+        newlines.append(line)
+    lines = newlines
+
+    # Return the file contents as a list of strings.
+    return lines
+
+
 def create_command_line_parser(description):
     """Create the command-line argument parser.
 
@@ -149,9 +199,8 @@ def read_build_module_list_file(list_file):
     ------
     None
     """
-    with open(list_file, encoding='utf-8') as f:
-        lines = f.readlines()
-    lines = [s.rstrip() for s in lines]
+    # Read the file, ignoring blank lines and comments.
+    lines = read_strip_blanks_and_comments(list_file)
 
     # Extract the optional cmake environment variable settings,
     cmake_environment = ''

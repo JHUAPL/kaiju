@@ -1,0 +1,55 @@
+#!/bin/bash
+
+#PBS -N {{ job_name }}
+#PBS -A {{ account }}
+#PBS -q {{ queue }}
+#PBS -l job_priority={{ job_priority }}
+#PBS -l walltime={{ walltime }}
+#PBS -l select=1:ncpus=128:ompthreads=128
+#PBS -j oe
+#PBS -m abe
+
+echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
+
+echo 'Loading modules.'
+module --force purge
+{%- for module in modules %}
+module load {{ module }}
+{%- endfor %}
+module list
+
+echo 'Loading python environment.'
+export CONDARC="${mage_test_root}/condarc"
+export CONDA_ENVS_PATH="${mage_test_root}/conda"
+mage_miniconda3="${mage_test_root}/miniconda3"
+mage_conda="${mage_miniconda3}/bin/conda"
+__conda_setup="$($mage_conda 'shell.bash' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "$mage_miniconda3/etc/profile.d/conda.sh" ]; then
+        . "$mage_miniconda3/etc/profile.d/conda.sh"
+    else
+        export PATH="$mage_miniconda3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+conda activate kaiju-3.8-testing
+
+echo 'Setting up MAGE environment.'
+source {{ kaijuhome }}/scripts/setupEnvironment.sh
+
+echo 'Setting environment variables.'
+export TMPDIR={{ tmpdir }}
+export OMP_NUM_THREADS=128
+export MPI_TYPE_DEPTH=32
+export KMP_STACKSIZE=128M
+export SLACK_BOT_TOKEN={{ slack_bot_token }}
+export DERECHO_TESTING_ACCOUNT={{ account }}
+echo 'The active environment variables are:'
+printenv
+
+# Create the report.
+python ${KAIJUHOME}/testingScripts/intelChecksReport.py -dltv
+
+echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

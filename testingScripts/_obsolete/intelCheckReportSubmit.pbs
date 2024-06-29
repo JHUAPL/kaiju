@@ -1,0 +1,34 @@
+#!/bin/bash
+#PBS -N intelCheckReportSubmit
+#PBS -A P28100045
+#PBS -l walltime=02:00:00
+#PBS -q main
+#PBS -l select=1:ncpus=128:ompthreads=128
+#PBS -j oe
+#PBS -m abe
+
+echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
+
+# echo 'Setting up MAGE environment.'
+# source $KAIJUROOTDIR/scripts/setupEnvironment.sh
+
+# echo 'Loading modules.'
+# module --force purge
+# module load $MODULE_LIST
+# echo 'The following modules are loaded:'
+# module list
+
+# echo 'Setting environment variables.'
+# MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
+# export TMPDIR=/glade/work/ewinter/mage_testing/derecho/tmp
+# export OMP_NUM_THREADS=128
+# export MPI_TYPE_DEPTH=32
+# export KMP_STACKSIZE=128M
+# echo 'The active environment variables are:'
+# printenv
+
+# # Create the report.
+# python ${KAIJUHOME}/testingScripts/intelChecksReport.py -dv >& intelChecksReportSubmit.out
+
+echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."
+

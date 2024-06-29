@@ -78,11 +78,15 @@ if __name__ == "__main__":
     outTag = args.outtag
     mType = args.type
     mpiIn = args.mpi
+    
+
+    fIn = "%s.volt.h5"%(inTag)    
+    N,sIds = cntSteps(fIn)
+
+    N0 = np.sort(sIds)[0]
 
     if ( (Ns == -1) or (Ne == -1) ):
-        fIn = "%s.volt.h5"%(inTag)    
-        N,sIds = cntSteps(fIn)
-
+      
         if (Ns == -1):
             Ns = np.sort(sIds)[0]
         if (Ne == -1):
@@ -149,16 +153,17 @@ if __name__ == "__main__":
                     #print("\t\tCopying %s"%(aStr))
                     oH5[gOut][sQ].attrs.create(k,iH5[gIn][sQ].attrs[aStr])
 
+        #If cache present
         #Add the cache after steps, select the same steps for the cache that are contained in the
         #Ns:Ne:Nsk start,end,stride
-        for Q in iH5[cacheName].keys():
-            sQ = str(Q)
-            nOut = Ns
-            oH5[cacheName].create_dataset(sQ, data=iH5[cacheName][sQ][Ns:Ne:Nsk]-nOut)
-            for k in iH5[cacheName][sQ].attrs.keys():
-                aStr = str(k)
-                oH5[cacheName][sQ].attrs.create(k,iH5[cacheName][sQ].attrs[aStr])
-                
+        if cacheName in iH5.keys():
+            for Q in iH5[cacheName].keys():
+                sQ = str(Q)
+                oH5[cacheName].create_dataset(sQ, data=iH5[cacheName][sQ][Ns-N0:Ne-N0:Nsk])
+                for k in iH5[cacheName][sQ].attrs.keys():
+                    aStr = str(k)
+                    oH5[cacheName][sQ].attrs.create(k,iH5[cacheName][sQ].attrs[aStr])
+                    
         #Close up
         iH5.close()
         oH5.close()

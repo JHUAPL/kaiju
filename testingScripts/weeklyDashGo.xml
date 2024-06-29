@@ -13,10 +13,10 @@
     <helpers numHelpers="2" useHelpers="T" doSquishHelp="T"/>
   </VOLTRON>
   <Gamera>
-    <sim runid="msphere" doH5g="T" H5Grid="lfmX.h5" icType="user" pdmb="1.0" rmeth="7UP"/>
+    <sim runid="msphere" doH5g="T" H5Grid="lfmQ.h5" icType="user" pdmb="1.0" rmeth="7UP"/>
     <floors dFloor="1.0e-4" pFloor="1.0e-6"/>
     <timestep doCPR="T" limCPR="0.25"/>
-    <restart doRes="T" resID="msphere" nRes="2"/>
+    <restart doRes="F" resID="msphere" nRes="2"/>
     <physics doMHD="T" doBoris="T" Ca="10.0"/>
     <ring gid="lfm" doRing="T" doAggressive="F"/>
     <ringknobs doVClean="T"/>

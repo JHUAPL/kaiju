@@ -1,0 +1,9 @@
+CMAKE_ENV=
+CMAKE_OPTIONS=-DENABLE_MPI=ON -DENABLE_MKL=OFF
+ncarenv/23.06
+cmake/3.26.3
+craype/2.7.20
+intel/2023.0.0
+ncarcompilers/1.0.0
+cray-mpich/8.1.25
+hdf5-mpi/1.12.2

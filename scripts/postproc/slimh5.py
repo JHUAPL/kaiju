@@ -82,6 +82,7 @@ if __name__ == "__main__":
     mpiIn = args.mpi
 
     N,sIds = cntSteps(fIn)
+    N0 = np.sort(sIds)[0]
     if (Ns == -1):
         Ns = np.sort(sIds)[0]
     if (Ne == -1):
@@ -98,7 +99,7 @@ if __name__ == "__main__":
             quit()
         mi, mj, mk = spl
         runTag = fIn.split('_')[0]
-        endTag = '.'.join(fIn.split('.')[1:]) #Exclude anyhting before the first '.'
+        endTag = '.'.join(fIn.split('.')[1:]) #Exclude anything before the first '.'
         inFiles = []
         outFiles = []
         for i in range(mi):
@@ -144,16 +145,20 @@ if __name__ == "__main__":
                     aStr = str(k)
                     oH5[gOut][sQ].attrs.create(k,iH5[gIn][sQ].attrs[aStr])
         
+        #If cache present
         #Add the cache after steps, select the same steps for the cache that are contained in the
         #Ns:Ne:Nsk start,end,stride
-        for Q in iH5[cacheName].keys():
-            sQ = str(Q)
-            nOut = 0
-            if(not p): nOut = Ns
-            oH5[cacheName].create_dataset(sQ, data=iH5[cacheName][sQ][Ns:Ne:Nsk]-nOut)
-            for k in iH5[cacheName][sQ].attrs.keys():
-                aStr = str(k)
-                oH5[cacheName][sQ].attrs.create(k,iH5[cacheName][sQ].attrs[aStr])
+        if cacheName in iH5.keys():
+            for Q in iH5[cacheName].keys():
+                sQ = str(Q)
+                nOffset = 0 if p else Ns
+                if(sQ == "step"):
+                    oH5[cacheName].create_dataset(sQ, data=iH5[cacheName][sQ][Ns-N0:Ne-N0:Nsk]-nOffset)
+                else:
+                    oH5[cacheName].create_dataset(sQ, data=iH5[cacheName][sQ][Ns-N0:Ne-N0:Nsk])
+                for k in iH5[cacheName][sQ].attrs.keys():
+                    aStr = str(k)
+                    oH5[cacheName][sQ].attrs.create(k,iH5[cacheName][sQ].attrs[aStr])
 
         # make a new file every Nsf steps
             if(n%Nsf==0 and n != 0):
