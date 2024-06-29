@@ -42,8 +42,18 @@ class WIND(OMNI):
         #                ]
         #self.bad_fmt = '%d-%m-%Y %H:%M:%S.f'        
 
-        self.bad_datetime = [   datetime.datetime(2015,3,17,hour=17,minute=27,second=7,microsecond=488*1000),
-                                datetime.datetime(2015,3,18,hour=21,minute=53,second=49,microsecond=140*1000)
+        self.bad_datetime = [   datetime.datetime(2015,3,17,hour=17,minute=27,second=7, microsecond=488*1000),
+                                datetime.datetime(2015,3,18,hour=21,minute=53,second=49,microsecond=140*1000),
+                                datetime.datetime(2024,5,9, hour=20,minute=41,second=20,microsecond=906*1000),
+                                datetime.datetime(2024,5,9, hour=21,minute=26,second=39,microsecond=515*1000),
+                                datetime.datetime(2024,5,9, hour=21,minute=50,second=2, microsecond=515*1000),
+                                datetime.datetime(2024,5,9, hour=23,minute=0, second=17,microsecond=273*1000),                                datetime.datetime(2024,5,10,hour=4, minute=22,second=55,microsecond=589*1000),
+                                datetime.datetime(2024,5,10,hour=5, minute=26,second=23,microsecond=335*1000),
+                                datetime.datetime(2024,5,10,hour=5, minute=27,second=58,microsecond=912*1000),
+                                datetime.datetime(2024,5,10,hour=8, minute=40,second=29,microsecond=865*1000),
+                                datetime.datetime(2024,5,10,hour=8, minute=43,second=47,microsecond=765*1000),
+                                datetime.datetime(2024,5,10,hour=23,minute=42,second=25,microsecond=781*1000),
+                                datetime.datetime(2024,5,11,hour=7, minute=32,second=59,microsecond= 31*1000)
                             ]
 
         #obtain 1 minute resolution observations from OMNI dataset
@@ -120,7 +130,7 @@ class WIND(OMNI):
         dsttime,dst = self._getDst(t0,t1)
 
         for i in range(len(tSWE)):
-            for itime in range(len(self.bad_datetime)):          
+            for itime in range(len(self.bad_datetime)):
                 if ( abs(self.__deltaMinutes(tSWE[i],self.bad_datetime[itime])) <= 3./60. ):
                     qfv[i] = 0
                     qfn[i] = 0
@@ -143,6 +153,10 @@ class WIND(OMNI):
           
             #calculating minutes from the start time
             nMin = self.__deltaMinutes(tMFI[i],t0)+tshift
+            if abs(bz[i]) > 150:
+                bx[i] = 9999.99
+                by[i] = 9999.99
+                bz[i] = 9999.99
 
             data = [nMin,bx[i],by[i],bz[i]]
 

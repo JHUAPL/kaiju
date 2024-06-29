@@ -22,6 +22,9 @@ import cartopy.crs as ccrs
 import matplotlib as mpl
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
+import numpy as np
+from multiprocessing import Pool
+from psutil import cpu_count
 
 # Import project-specific modules.
 import kaipy.cdaweb_utils as cdaweb_utils
@@ -106,58 +109,31 @@ def create_command_line_parser():
         "-v", "--verbose", action="store_true", default=False,
         help="Print verbose output (default: %(default)s)."
     )
+    parser.add_argument(
+        '-vid', action='store_true', default=False,
+        help="Make a video and store in mixVid directory (default: %(default)s)"
+    )
+    parser.add_argument(
+        '-overwrite', action='store_true', default=False,
+        help="Overwrite existing vid files (default: %(default)s)"
+    )
+    parser.add_argument(
+        '--ncpus', type=int, metavar="ncpus", default=1,
+        help="Number of threads to use with --vid (default: %(default)s)"
+    )
     return parser
 
+def makePlot(i, fname, dbdata, k0, Re, spacecraft, nStp):
 
-if __name__ == "__main__":
-    """Plot the ground magnetic field perturbations."""
+    plt.clf()
 
-    # Set up the command-line parser.
-    parser = create_command_line_parser()
-
-    # Parse the command-line arguments.
-    args = parser.parse_args()
-    debug = args.debug
-    fdir = args.d
-    runid = args.id
-    nStp = args.n
-    k0 = args.k0
-    doJr = args.Jr
-    spacecraft = args.spacecraft
-    verbose = args.verbose
-    if debug:
-        print("args = %s" % args)
-
-    # Fetch constants.
-    bLin = dbViz.dbLin
-    bMag = dbViz.dbMag
-    jMag = dbViz.jMag
-
-    # Compute the name of the file containing the ground magnetic field perturbations.
-    ftag = runid + ".deltab"
-    if debug:
-        print("ftag = %s" % ftag)
-
-    # Read the ground magnetic field perturbations.
-    fname = os.path.join(fdir, ftag + ".h5")
-    if debug:
-        print("fname = %s" % fname)
-    dbdata = gampp.GameraPipe(fdir, ftag)
-    if debug:
-        print("dbdata = %s" % dbdata)
-    print("---")
-
-    # Get the ID of the coordinate system, and the Earth radius.
-    CoordID, Re = dbViz.GetCoords(fname)
-    print("Found %s coordinate data ..." % CoordID)
-    if debug:
-        print("CoordID = %s" % CoordID)
-        print("Re = %s" % Re)
-
-    # If the last simulation step was requested, get the step number.
-    if nStp < 0:
-        nStp = dbdata.sFin
-        print("Using Step %d" % nStp)
+    if do_vid:
+        filename = "{}.{:0>{n}d}.png".format("dbpic", i, n=n_pad)
+        outPath = os.path.join(outDir, filename)
+        if not do_overwrite and os.path.exists(outPath):
+            return
+    else:
+        outPath = default_output_filename
 
     # Check the vertical level.
     Z0 = dbViz.CheckLevel(dbdata, k0, Re)
@@ -211,12 +187,6 @@ if __name__ == "__main__":
     if debug:
         print("vQ = %s" % vQ)
         print("cbStr = %s" % cbStr)
-
-    # Create plot in memory.
-    mpl.use("Agg")
-
-    # Create the figure to hold the plot.
-    fig = plt.figure(figsize=figSz)
 
     # Specify the grid for the subplots.
     gs = gridspec.GridSpec(3, 1, height_ratios=[20, 1.0, 1.0], hspace=0.025)
@@ -279,7 +249,98 @@ if __name__ == "__main__":
     dbViz.DecorateDBAxis(AxM, crs, utDT)
 
     # Save the figure.
-    fOut = default_output_filename
     if debug:
-        print("fOut = %s" % fOut)
-    kv.savePic(fOut)
+        print("fOut = %s" % outPath)
+    kv.savePic(outPath)
+
+if __name__ == "__main__":
+    """Plot the ground magnetic field perturbations."""
+
+    # Set up the command-line parser.
+    parser = create_command_line_parser()
+
+    # Parse the command-line arguments.
+    args = parser.parse_args()
+    debug = args.debug
+    fdir = args.d
+    runid = args.id
+    nStp = args.n
+    k0 = args.k0
+    doJr = args.Jr
+    spacecraft = args.spacecraft
+    verbose = args.verbose
+    do_vid = args.vid
+    do_overwrite = args.overwrite
+    ncpus = args.ncpus
+
+    if debug:
+        print("args = %s" % args)
+
+    # Fetch constants.
+    bLin = dbViz.dbLin
+    bMag = dbViz.dbMag
+    jMag = dbViz.jMag
+
+    # Compute the name of the file containing the ground magnetic field perturbations.
+    ftag = runid + ".deltab"
+    if debug:
+        print("ftag = %s" % ftag)
+
+    # Read the ground magnetic field perturbations.
+    fname = os.path.join(fdir, ftag + ".h5")
+    if debug:
+        print("fname = %s" % fname)
+    dbdata = gampp.GameraPipe(fdir, ftag)
+    if debug:
+        print("dbdata = %s" % dbdata)
+    print("---")
+
+    # Get the ID of the coordinate system, and the Earth radius.
+    CoordID, Re = dbViz.GetCoords(fname)
+    print("Found %s coordinate data ..." % CoordID)
+    if debug:
+        print("CoordID = %s" % CoordID)
+        print("Re = %s" % Re)
+
+    # Create plot in memory.
+    mpl.use("Agg")
+
+    # Set global plot font options.
+    mpl.rc('mathtext', fontset='stixsans', default='regular')
+    mpl.rc('font', size=10)
+
+    # Create the figure to hold the plot.
+    fig = plt.figure(figsize=figSz)
+
+    if not do_vid: # If we are making a single image, keep original functionality
+        # If the last simulation step was requested, get the step number.
+        if nStp < 0:
+            nStp = dbdata.sFin
+            print("Using Step %d" % nStp)
+        makePlot(nStp, fname, dbdata, k0, Re, spacecraft, nStp)
+    else:  # then we make a video, i.e. series of images saved to msphVid
+
+        # Get video loop parameters
+        s0 = max(dbdata.s0,1) # Skip Step#0
+        sFin = dbdata.sFin
+        nsteps = sFin - s0
+        sIds = np.array(range(s0,sFin))
+        outDir = 'dbVid'
+        kh5.CheckDirOrMake(outDir)
+
+        # How many 0's do we need for filenames?
+        n_pad = int(np.log10(nsteps)) + 1
+
+        if ncpus == 1:
+            for i, nStp in enumerate(sIds):
+                makePlot(i, spacecraft, nStp)
+        else:
+            # Make list of parallel arguments
+            ag = ((i,fname, dbdata, k0, Re, spacecraft,nStp) for i, nStp in enumerate(sIds) )
+            # Check we're not exceeding cpu_count on computer
+            ncpus = min(int(ncpus),cpu_count(logical=False))
+            print('Doing multithreading on ',ncpus,' threads')
+            # Do parallel job
+            with Pool(processes=ncpus) as pl:
+                pl.starmap(makePlot,ag)
+            print("Done making all the images. Go to mixVid folder")

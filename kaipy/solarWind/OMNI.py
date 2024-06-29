@@ -196,8 +196,8 @@ class OMNI(SolarWind):
         means = []
         nvar = len(dataArray[0])
         for varIdx in range(1,nvar):
-            stds.append( dataArray[:,varIdx].std() )
-            means.append( dataArray[:,varIdx].mean() )
+            stds.append( numpy.nanstd(dataArray[:,varIdx]) )
+            means.append( numpy.nanmean(dataArray[:,varIdx]) )
             
             # Linearly interpolate over data that exceeds # of standard
             # deviations from the mean set by self.sigma (default = 3)
@@ -366,7 +366,6 @@ class OMNI(SolarWind):
                 dt = datetime.datetime(currenttime.year,currenttime.month,currenttime.day,currenttime.hour,currenttime.minute,currenttime.second)
                 dsttime.append(dt)
                 dst.append(dat[1][i])
-                print(dt,dat[1][i])
         return (dsttime, dst)
 
 

@@ -346,6 +346,10 @@ module voltapp
             call DisableSymLinks()
         endif
 
+        if (vApp%doGCM) then
+          call init_apex(vApp%MJD,vApp%gcm%altmax)
+        endif
+
         if(present(optFilename)) then
             ! read from the prescribed file
             call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],optFilename=optFilename,RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)

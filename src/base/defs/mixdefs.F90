@@ -37,7 +37,7 @@ module mixdefs
 
   ! enumerator for transform variables
   enum, bind(C)
-    enumerator :: iSMtoGEO,iGEOtoSM,iSMtoGSM,iGSMtoSM,iGEOtoGSM,iGSMtoGEO
+    enumerator :: iSMtoGEO,iGEOtoSM,iSMtoGSM,iGSMtoSM,iGEOtoGSM,iGSMtoGEO,iAPEXtoSM,iSMtoAPEX
   end enum
 
 

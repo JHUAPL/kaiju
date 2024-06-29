@@ -4,6 +4,7 @@ module kai2geo
     use geopack
     use planethelper
     use math
+    use apex
 
     implicit none
 
@@ -204,6 +205,10 @@ module kai2geo
             !  call MAG2SM(indim(XDIR),indim(YDIR),indim(ZDIR),G2%x(j,i),G2%y(j,i),tempz(j,i))
             !case (iSMtoMAG)
             !  call SM2MAG(indim(XDIR),indim(YDIR),indim(ZDIR),G2%x(j,i),G2%y(j,i),tempz(j,i))
+            case (iSMtoAPEX)
+              call SM2APEX(indim(XDIR),indim(YDIR),indim(ZDIR),G2%x(j,i),G2%y(j,i),tempz(j,i))
+            case (iAPEXtoSM)
+              call APEX2SM(indim(XDIR),indim(YDIR),indim(ZDIR),G2%x(j,i),G2%y(j,i),tempz(j,i))
             case default
               ! No transform
               G2%x(j,i) = indim(XDIR)
@@ -214,18 +219,13 @@ module kai2geo
       end do
       
       G2%y = G2%y*ymod2
-      !G2%t = asin(sqrt(G2%x**2+G2%y**2))
-      !G2%p = modulo((atan2(G2%y,G2%x)+2*pi),(2*pi)) 
       ! Convert back to colatitude
       if (hemisphere == NORTH) then
         G2%t = acos(tempz/r) ! convert back to standard colatitude
       else if (hemisphere == SOUTH) then
         G2%t = pi-acos(tempz/r)   ! convert to funky remix colatitude
       endif
-      !G2%t = asin(tempz/r)-pi/2
-      !G2%t = acos(tempz/r)
       G2%p = modulo((atan2(G2%y,G2%x)+2*pi),(2*pi)) 
-      !G2%p(:,G2%Nt) = (atan2(G2%y(:,G2%Nt),G2%x(:,G2%Nt))+2*pi)
       if (allocated(tempz)) deallocate(tempz)
     end subroutine transform_grid
 
@@ -269,5 +269,76 @@ module kai2geo
       outcolat = acos(outdim(ZDIR)/r) ! convert back to standard colatitude
       outlon = modulo((atan2(outdim(YDIR),outdim(XDIR))+2*pi),(2*pi)) 
     end subroutine transform_TP
+
+    subroutine SM2APEX(XSM,YSM,ZSM,XAPX,YAPX,ZAPX)
+      real(rp), intent(in) :: XSM,YSM,ZSM
+      real(rp), intent(out) :: XAPX,YAPX,ZAPX
+
+      real(rp) :: XGEO,YGEO,ZGEO
+      real(rp) :: ionalt, r, tempt,tempp ,qdlon ,malat ,qdlat
+
+      ! Non-scalar arguments returned by APXMALL:
+      real(rp) :: b0,si,vmp,w,d,be3,sim,f, &
+          b(3),bhat(3), &
+          d1(3),d2(3),d3(3), &
+          e1(3),e2(3),e3(3), &
+          f1(3),f2(3),f3(3), &
+          g1(3),g2(3),g3(3)
+      integer :: ist
+
+      ! Calculate radius of ionosphere in km
+      r =  (RionE*1.0e+6)/REarth
+      ! Calculate altitude of ionosphere in km
+      ionalt = (RIonE*1.e+3 - REarth*1.e-3)
+
+      call SM2GEO(XSM,YSM,ZSM,XGEO,YGEO,ZGEO)
+
+      tempt = asin(ZGEO/r)*rad2deg
+      tempp = atan2(YGEO,XGEO) *rad2deg
+
+      call apex_mall (tempt,tempp,ionalt,ionalt, &
+             b,bhat,b0,si,qdlon, &
+             malat,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
+             qdlat,f,f1,f2,f3,g1,g2,g3,ist)
+      if (ist /= 0) stop 'apex_mall error'
+
+      tempt = malat *deg2rad
+      tempp = qdlon *deg2rad
+
+      XAPX = r*cos(tempt)*cos(tempp)
+      YAPX = r*cos(tempt)*sin(tempp)
+      ZAPX = r*sin(tempt)
+
+    end subroutine SM2APEX
+
+    subroutine APEX2SM(XAPX,YAPX,ZAPX,XSM,YSM,ZSM)
+      real(rp), intent(in) :: XAPX,YAPX,ZAPX
+      real(rp), intent(out) :: XSM,YSM,ZSM
+
+      real(rp) :: r, ionalt, tempt, tempp
+      real(rp) :: XGEO,YGEO,ZGEO,geolat,geolon
+
+      integer :: ist
+
+      ! Calculate radius of ionosphere in km
+      r =  (RionE*1.0e+6)/REarth
+      ! Calculate altitude of ionosphere in km
+      ionalt = (RIonE*1.e+3 - REarth*1.e-3)
+
+      tempt = asin(ZAPX/r)*rad2deg
+      tempp = atan2(YAPX,XAPX) *rad2deg
+
+      call apex_q2g(tempt,tempp,ionalt,geolat,geolon,ist)
+      if (ist /= 0) stop 'apex_q2g error'
+
+      geolon = geolon*deg2rad
+      geolat = geolat*deg2rad
+      XGEO = r*cos(geolat)*cos(geolon)
+      YGEO = r*cos(geolat)*sin(geolon)
+      ZGEO = r*sin(geolat)
+
+      call GEO2SM(XGEO,YGEO,ZGEO,XSM,YSM,ZSM)
+
+    end subroutine APEX2SM
 
 end module kai2geo

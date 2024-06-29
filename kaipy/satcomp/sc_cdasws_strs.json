@@ -1,549 +1,571 @@
 {
-	"GOES11" : {
-		"Ephem" : {
-			"Id" : "GOES11_K0_MAG",
-			"Data" : "SC_pos_sm",
-			"CoordSys" : "SM"
-		},
-		"MagneticField" : {
-			"Id" : "GOES11_K0_MAG",
-			"Data" : "B_GSM_c",
-			"CoordSys" : "GSM"	
-		},
-		"MagneticFootprintNorth" : {
-			"Id" : "GOES11_EPHEMERIS_SSC",
-			"Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		},
-		"MagneticFootprintSouth" : {
-			"Id" : "GOES11_EPHEMERIS_SSC",
-			"Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		},
-		"_testing" : {
-			"t0" : "2010-12-30T00:00:00Z",
-			"t1" : "2010-12-31T00:00:00Z"
-		}
-	},
-	"GOES12" : {
-		"Ephem" : {
-			"Id" : "GOES12_K0_MAG",
-			"Data" : "SC_pos_sm",
-			"CoordSys" : "SM"
-		},
-		"MagneticField" : {
-			"Id" : "GOES12_K0_MAG",
-			"Data" : "B_GSM_c",
-			"CoordSys" : "GSM"	
-		},
-		"MagneticFootprintNorth" : {
-			"Id" : "GOES12_EPHEMERIS_SSC",
-			"Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		},
-		"MagneticFootprintSouth" : {
-			"Id" : "GOES12_EPHEMERIS_SSC",
-			"Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		},
-		"_testing" : {
-			"t0" : "2010-09-23T00:00:00Z",
-			"t1" : "2010-09-24T00:00:00Z"
-		}
-	},
-	"GEOTAIL" : {
-		"Ephem" : {
-			"Id" : "GE_K0_MGF",
-			"Data" : "POS",
-			"CoordSys" : "GSE"
-		},
-		"MagneticField" : {
-			"Id" : "GE_K0_MGF",
-			"Data" : "IB_vector",
-			"CoordSys" : "GSE"	
-		},
-		"Density" : {
-			"Id" : "GE_H0_CPI",
-			"Data" : "SW_P_Den"
-		},
-		"Velocity" : {
-			"Id" : "GE_H0_CPI",
-			"Data" : "SW_Vc",
-			"CoordSys" : "GSE"
-		}
-	},
-	"RBSPA" : {
-		"Ephem" : {
-			"Id" : "RBSP-A_MAGNETOMETER_1SEC-GSM_EMFISIS-L3",
-			"Data" : "coordinates",
-			"CoordSys" : "GSM"
-		},
-		"MagneticField" : {
-			"Id" : "RBSP-A_MAGNETOMETER_1SEC-GSM_EMFISIS-L3",
-			"Data" : "Mag",
-			"CoordSys" : "GSM"
-		},
-		"Density" : {
-			"Id" : "RBSPA_REL04_ECT-HOPE-MOM-L3",
-			"Data" : "Dens_p_30"
-		},
-		"Electron_omniflux_RBSPICE" : {
-		 	"Id": "RBSP-A-RBSPICE_LEV-3-PAP_ESRHELT",
-		 	"Data": ["FEDU", "FEDU_OmniFlux", "MLT", "L_Eq", "L_Star"],
-		 	"OmnifluxStr" : "FEDU_OmniFlux",
-		 	"EnergyStr" : "FEDU_Energy"
-		},
-		"Hydrogen_omniflux_RBSPICE" : {
-			"Id" : "RBSP-A-RBSPICE_LEV-3-PAP_TOFXEH",
-			"Data" : ["FPDU_OmniFlux"],
-			"OmnifluxStr" : "FPDU_OmniFlux",
-			"EnergyStr" : "FPDU_Energy"
-		}
-	},
-	"RBSPB" : {
-		"Ephem" : {
-			"Id" : "RBSP-B_MAGNETOMETER_1SEC-GSM_EMFISIS-L3",
-			"Data" : "coordinates",
-			"CoordSys" : "GSM"
-		},
-		"MagneticField" : {
-			"Id" : "RBSP-B_MAGNETOMETER_1SEC-GSM_EMFISIS-L3",
-			"Data" : "Mag",
-			"CoordSys" : "GSM"
-		},
-		"Density" : {
-			"Id" : "RBSPB_REL04_ECT-HOPE-MOM-L3",
-			"Data" : "Dens_p_30"
-		},
-		"Electron_omniflux_RBSPICE" : {
-		 	"Id": "RBSP-B-RBSPICE_LEV-3-PAP_ESRHELT",
-		 	"Data": ["FEDU", "FEDU_OmniFlux", "MLT", "L_Eq", "L_Star"],
-		 	"OmnifluxStr" : "FEDU_OmniFlux",
-		 	"EnergyStr" : "FEDU_Energy"
-		},
-		"Hydrogen_omniflux_RBSPICE" : {
-			"Id" : "RBSP-B-RBSPICE_LEV-3-PAP_TOFXEH",
-			"Data" : ["FPDU_OmniFlux"],
-			"OmnifluxStr" : "FPDU_OmniFlux",
-			"EnergyStr" : "FPDU_Energy"
-		},
-		"Hydrogen_PAFlux_HOPE" : {
-			"Id" : "RBSPB_REL04_ECT-HOPE-PA-L3",
-			"Data" : ["FPDU"],
-			"PAFluxStr" : "FPDU",
-			"EnergyStr" : "HOPE_ENERGY_Ion",
-			"EpochStr"  : "Epoch_Ion"
-		}
-	},
-	"CLUSTER1" : {
-		"Ephem" : {
-			"Id" : "C1_CP_FGM_SPIN",
-			"Data" : "sc_pos_xyz_gse__C1_CP_FGM_SPIN",
-			"CoordSys" : "GSE"
-		},
-		"MagneticField" : {
-			"Id" : "C1_CP_FGM_SPIN",
-			"Data" : "B_vec_xyz_gse__C1_CP_FGM_SPIN",
-			"CoordSys" : "GSE"	
-		},
-		"Density" : {
-			"Id" : "C1_PP_CIS",
-			"Data" : "N_p__C1_PP_CIS",
-			"EpochStr" : "Epoch__C1_PP_CIS"
-		},
-		"Velocity" : {
-			"Id" : "C1_PP_CIS",
-			"Data" : "V_p_xyz_gse__C1_PP_CIS",
-			"CoordSys" : "GSE",
-			"EpochStr" : "Epoch__C1_PP_CIS"
-		},
-		"_testing" : {
-			"t0" : "2018-12-30T00:00:00Z",
-			"t1" : "2018-12-31T00:00:00Z"
-		}
-	},
-	"CLUSTER2" : {
-		"Ephem" : {
-			"Id" : "C2_CP_FGM_SPIN",
-			"Data" : "sc_pos_xyz_gse__C2_CP_FGM_SPIN",
-			"CoordSys" : "GSE"
-		},
-		"MagneticField" : {
-			"Id" : "C2_CP_FGM_SPIN",
-			"Data" : "B_vec_xyz_gse__C2_CP_FGM_SPIN",
-			"CoordSys" : "GSE"	
-		},
-		"_testing" : {
-			"t0" : "2018-12-30T00:00:00Z",
-			"t1" : "2018-12-31T00:00:00Z"
-		}
-	},
-	"CLUSTER3" : {
-		"Ephem" : {
-			"Id" : "C3_CP_FGM_SPIN",
-			"Data" : "sc_pos_xyz_gse__C3_CP_FGM_SPIN",
-			"CoordSys" : "GSE"
-		},
-		"MagneticField" : {
-			"Id" : "C3_CP_FGM_SPIN",
-			"Data" : "B_vec_xyz_gse__C3_CP_FGM_SPIN",
-			"CoordSys" : "GSE"	
-		},
-		"Density" : {
-			"Id" : "C3_PP_CIS",
-			"Data" : "N_p__C3_PP_CIS"
-		},
-		"Velocity" : {
-			"Id" : "C3_PP_CIS",
-			"Data" : "V_p_xyz_gse__C3_PP_CIS",
-			"CoordSys" : "GSE"
-		},
-		"_testing" : {
-			"t0" : "2018-12-30T00:00:00Z",
-			"t1" : "2018-12-31T00:00:00Z"
-		}
-	},
-	"CLUSTER4" : {
-		"Ephem" : {
-			"Id" : "C4_CP_FGM_SPIN",
-			"Data" : "sc_pos_xyz_gse__C4_CP_FGM_SPIN",
-			"CoordSys" : "GSE"
-		},
-		"MagneticField" : {
-			"Id" : "C4_CP_FGM_SPIN",
-			"Data" : "B_vec_xyz_gse__C4_CP_FGM_SPIN",
-			"CoordSys" : "GSE"	
-		},
-		"Density" : {
-			"Id" : "C4_PP_CIS",
-			"Data" : "N_p__C4_PP_CIS"
-		},
-		"Velocity" : {
-			"Id" : "C4_PP_CIS",
-			"Data" : "V_p_xyz_gse__C4_PP_CIS",
-			"CoordSys" : "GSE"
-		},
-		"_testing" : {
-			"t0" : "2018-12-30T00:00:00Z",
-			"t1" : "2018-12-31T00:00:00Z"
-		}
-	},
-	"THEMISA" : {
-		"Ephem" : {
-			"Id" : "THA_OR_SSC",
-			"Data" : "XYZ_GSM",
-			"CoordSys" : "GSM"
-		},
-		"MagneticField" : {
-			"Id" : "THA_L2_FGM",
-			"Data" : "tha_fgs_gsm",
-			"CoordSys" : "GSM"
-		},
-		"Density" : {
-			"Id" : "THA_L2_MOM",
-			"Data" : "tha_peim_density",
-			"EpochStr" : "tha_peim_epoch"
-		},
-		"Pressure" : {
-			"Id" : "THA_L2_MOM",
-			"Data" : "tha_peim_ptot",
-			"EpochStr" : "tha_peim_epoch"
-		},
-		"Velocity" : {
-			"Id" : "THA_L2_MOM",
-			"Data" : "tha_peim_velocity_gsm",
-			"EpochStr" : "tha_peim_epoch",
-			"CoordSys" : "GSM"
-		},
-		"MagneticFootprintNorth" : {
-			"Id" : "THA_OR_SSC",
-			"Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		},
-		"MagneticFootprintSouth" : {
-			"Id" : "THA_OR_SSC",
-			"Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		}
-	},
-	"THEMISB" : {
-		"Ephem" : {
-			"Id" : "THB_OR_SSC",
-			"Data" : "XYZ_GSM",
-			"CoordSys" : "GSM"
-		},
-		"MagneticField" : {
-			"Id" : "THB_L2_FGM",
-			"Data" : "thb_fgs_gsm",
-			"CoordSys" : "GSM"
-		},
-		"Density" : {
-			"Id" : "THB_L2_MOM",
-			"Data" : "thb_peim_density"
-		},
-		"Pressure" : {
-			"Id" : "THB_L2_MOM",
-			"Data" : "thb_peim_ptot"
-		},
-		"Velocity" : {
-			"Id" : "THB_L2_MOM",
-			"Data" : "thb_peim_velocity_gsm",
-			"CoordSys" : "GSM"
-		},
-		"MagneticFootprintNorth" : {
-			"Id" : "THB_OR_SSC",
-			"Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		},
-		"MagneticFootprintSouth" : {
-			"Id" : "THB_OR_SSC",
-			"Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		}
-	},
-	"THEMISC" : {
-		"Ephem" : {
-			"Id" : "THC_OR_SSC",
-			"Data" : "XYZ_GSM",
-			"CoordSys" : "GSM"
-		},
-		"MagneticField" : {
-			"Id" : "THC_L2_FGM",
-			"Data" : "thc_fgs_gsm",
-			"CoordSys" : "GSM"
-		},
-		"Density" : {
-			"Id" : "THC_L2_MOM",
-			"Data" : "thc_peim_density"
-		},
-		"Pressure" : {
-			"Id" : "THC_L2_MOM",
-			"Data" : "thc_peim_ptot"
-		},
-		"Velocity" : {
-			"Id" : "THC_L2_MOM",
-			"Data" : "thc_peim_velocity_gsm",
-			"CoordSys" : "GSM"
-		},
-		"MagneticFootprintNorth" : {
-			"Id" : "THC_OR_SSC",
-			"Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		},
-		"MagneticFootprintSouth" : {
-			"Id" : "THC_OR_SSC",
-			"Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		}
-	},
-	"THEMISD" : {
-		"Ephem" : {
-			"Id" : "THD_OR_SSC",
-			"Data" : "XYZ_GSM",
-			"CoordSys" : "GSM"
-		},
-		"MagneticField" : {
-			"Id" : "THD_L2_FGM",
-			"Data" : "thd_fgs_gsm",
-			"CoordSys" : "GSM"
-		},
-		"Density" : {
-			"Id" : "THD_L2_MOM",
-			"Data" : "thd_peim_density"
-		},
-		"Pressure" : {
-			"Id" : "THD_L2_MOM",
-			"Data" : "thd_peim_ptot"
-		},
-		"Velocity" : {
-			"Id" : "THD_L2_MOM",
-			"Data" : "thd_peim_velocity_gsm",
-			"CoordSys" : "GSM"
-		},
-		"MagneticFootprintNorth" : {
-			"Id" : "THD_OR_SSC",
-			"Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		},
-		"MagneticFootprintSouth" : {
-			"Id" : "THD_OR_SSC",
-			"Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		}
-	},
-	"THEMISE" : {
-		"Ephem" : {
-			"Id" : "THE_OR_SSC",
-			"Data" : "XYZ_GSM",
-			"CoordSys" : "GSM"
-		},
-		"MagneticField" : {
-			"Id" : "THE_L2_FGM",
-			"Data" : "the_fgs_gsm",
-			"CoordSys" : "GSM"
-		},
-		"Density" : {
-			"Id" : "THE_L2_MOM",
-			"Data" : "the_peim_density"
-		},
-		"Pressure" : {
-			"Id" : "THE_L2_MOM",
-			"Data" : "the_peim_ptot"
-		},
-		"Velocity" : {
-			"Id" : "THE_L2_MOM",
-			"Data" : "the_peim_velocity_gsm",
-			"CoordSys" : "GSM"
-		},
-		"MagneticFootprintNorth" : {
-			"Id" : "THE_OR_SSC",
-			"Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		},
-		"MagneticFootprintSouth" : {
-			"Id" : "THE_OR_SSC",
-			"Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
-			"CoordSys" : "GEO"
-		}
-	},
-	"MMS1" : {
-		"Ephem" : {
-			"Id" : "MMS1_FGM_SRVY_L2",
-			"Data" : "mms1_fgm_r_gsm_srvy_l2",
-			"CoordSys" : "GSM"
-		},
-		"MagneticField" : {
-			"Id" : "MMS1_FGM_SRVY_L2",
-			"Data" : "mms1_fgm_b_gsm_srvy_l2",
-			"CoordSys" : "GSM"
-		},
-		"Density" : {
-			"Id" : "MMS1_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms1_dis_numberdensity_fast"
-		},
-		"Pressure" : {
-			"Id" : "MMS1_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms1_dis_pres_bg_fast"
-		},
-		"Velocity" : {
-			"Id" : "MMS1_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms1_dis_bulkv_gse_fast",
-			"CoordSys" : "GSE"
-		},
-		"MagneticFootprintNorth" : {
-			"Id" : "MMS1_MEC_SRVY_L2_EPHT89D",
-			"Data" : "mms1_mec_pfn_gsm",
-			"CoordSys" : "GSM"
-		},
-		"MagneticFootprintSouth" : {
-			"Id" : "MMS1_MEC_SRVY_L2_EPHT89D",
-			"Data" : "mms1_mec_pfs_gsm",
-			"CoordSys" : "GSM"
-		}
-	},
-	"MMS2" : {
-		"Ephem" : {
-			"Id" : "MMS2_FGM_SRVY_L2",
-			"Data" : "mms2_fgm_r_gsm_srvy_l2",
-			"CoordSys" : "GSM"
-		},
-		"MagneticField" : {
-			"Id" : "MMS2_FGM_SRVY_L2",
-			"Data" : "mms2_fgm_b_gsm_srvy_l2",
-			"CoordSys" : "GSM"
-		},
-		"Density" : {
-			"Id" : "MMS2_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms2_dis_numberdensity_fast"
-		},
-		"Pressure" : {
-			"Id" : "MMS2_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms2_dis_pres_bg_fast"
-		},
-		"Velocity" : {
-			"Id" : "MMS2_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms2_dis_bulkv_gse_fast",
-			"CoordSys" : "GSE"
-		},
-		"MagneticFootprintNorth" : {
-			"Id" : "MMS2_MEC_SRVY_L2_EPHT89D",
-			"Data" : "mms2_mec_pfn_gsm",
-			"CoordSys" : "GSM"
-		},
-		"MagneticFootprintSouth" : {
-			"Id" : "MMS2_MEC_SRVY_L2_EPHT89D",
-			"Data" : "mms2_mec_pfs_gsm",
-			"CoordSys" : "GSM"
-		}
-	},
-	"MMS3" : {
-		"Ephem" : {
-			"Id" : "MMS3_FGM_SRVY_L2",
-			"Data" : "mms3_fgm_r_gsm_srvy_l2",
-			"CoordSys" : "GSM"
-		},
-		"MagneticField" : {
-			"Id" : "MMS3_FGM_SRVY_L2",
-			"Data" : "mms3_fgm_b_gsm_srvy_l2",
-			"CoordSys" : "GSM"
-		},
-		"Density" : {
-			"Id" : "MMS3_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms3_dis_numberdensity_fast"
-		},
-		"Pressure" : {
-			"Id" : "MMS3_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms3_dis_pres_bg_fast"
-		},
-		"Velocity" : {
-			"Id" : "MMS3_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms3_dis_bulkv_gse_fast",
-			"CoordSys" : "GSE"
-		},
-		"MagneticFootprintNorth" : {
-			"Id" : "MMS3_MEC_SRVY_L2_EPHT89D",
-			"Data" : "mms3_mec_pfn_gsm",
-			"CoordSys" : "GSM"
-		},
-		"MagneticFootprintSouth" : {
-			"Id" : "MMS3_MEC_SRVY_L2_EPHT89D",
-			"Data" : "mms3_mec_pfs_gsm",
-			"CoordSys" : "GSM"
-		}
-	},
-	"MMS4" : {
-		"Ephem" : {
-			"Id" : "MMS4_FGM_SRVY_L2",
-			"Data" : "mms4_fgm_r_gsm_srvy_l2",
-			"CoordSys" : "GSM"
-		},
-		"MagneticField" : {
-			"Id" : "MMS4_FGM_SRVY_L2",
-			"Data" : "mms4_fgm_b_gsm_srvy_l2",
-			"CoordSys" : "GSM"
-		},
-		"Density" : {
-			"Id" : "MMS4_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms4_dis_numberdensity_fast"
-		},
-		"Pressure" : {
-			"Id" : "MMS4_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms4_dis_pres_bg_fast"
-		},
-		"Velocity" : {
-			"Id" : "MMS4_FPI_FAST_L2_DIS-MOMS",
-			"Data" : "mms4_dis_bulkv_gse_fast",
-			"CoordSys" : "GSE"
-		},
-		"MagneticFootprintNorth" : {
-			"Id" : "MMS4_MEC_SRVY_L2_EPHT89D",
-			"Data" : "mms4_mec_pfn_gsm",
-			"CoordSys" : "GSM"
-		},
-		"MagneticFootprintSouth" : {
-			"Id" : "MMS4_MEC_SRVY_L2_EPHT89D",
-			"Data" : "mms4_mec_pfs_gsm",
-			"CoordSys" : "GSM"
-		}
-	}
+    "GOES11" : {
+        "Ephem" : {
+            "Id" : "GOES11_K0_MAG",
+            "Data" : "SC_pos_sm",
+            "CoordSys" : "SM"
+        },
+        "MagneticField" : {
+            "Id" : "GOES11_K0_MAG",
+            "Data" : "B_GSM_c",
+            "CoordSys" : "GSM"
+        },
+        "MagneticFootprintNorth" : {
+            "Id" : "GOES11_EPHEMERIS_SSC",
+            "Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        },
+        "MagneticFootprintSouth" : {
+            "Id" : "GOES11_EPHEMERIS_SSC",
+            "Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        },
+        "_testing" : {
+            "t0" : "2010-12-30T00:00:00Z",
+            "t1" : "2010-12-31T00:00:00Z"
+        }
+    },
+    "GOES12" : {
+        "Ephem" : {
+            "Id" : "GOES12_K0_MAG",
+            "Data" : "SC_pos_sm",
+            "CoordSys" : "SM"
+        },
+        "MagneticField" : {
+            "Id" : "GOES12_K0_MAG",
+            "Data" : "B_GSM_c",
+            "CoordSys" : "GSM"
+        },
+        "MagneticFootprintNorth" : {
+            "Id" : "GOES12_EPHEMERIS_SSC",
+            "Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        },
+        "MagneticFootprintSouth" : {
+            "Id" : "GOES12_EPHEMERIS_SSC",
+            "Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        },
+        "_testing" : {
+            "t0" : "2010-09-23T00:00:00Z",
+            "t1" : "2010-09-24T00:00:00Z"
+        }
+    },
+    "GOES16" : {
+        "Ephem" : {
+            "Id" : "GOES16_EPHEMERIS_SSC",
+            "Data" : "XYZ_SM",
+            "CoordSys" : "SM"
+            },
+        "MagneticField" : {
+            "Id" : "DN_MAGN-L2-HIRES_G16",
+            "Data" : "b_gsm",
+            "CoordSys" : "GSM"
+            },
+        "MagneticFootprintNorth" : {
+            "Id" : "GOES16_EPHEMERIS_SSC",
+            "Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+            },
+        "MagneticFootprintSouth" : {
+            "Id" : "GOES16_EPHEMERIS_SSC",
+            "Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        }
+    },
+    "GEOTAIL" : {
+        "Ephem" : {
+            "Id" : "GE_K0_MGF",
+            "Data" : "POS",
+            "CoordSys" : "GSE"
+        },
+        "MagneticField" : {
+            "Id" : "GE_K0_MGF",
+            "Data" : "IB_vector",
+            "CoordSys" : "GSE"
+        },
+        "Density" : {
+            "Id" : "GE_H0_CPI",
+            "Data" : "SW_P_Den"
+        },
+        "Velocity" : {
+            "Id" : "GE_H0_CPI",
+            "Data" : "SW_Vc",
+            "CoordSys" : "GSE"
+        }
+    },
+    "RBSPA" : {
+        "Ephem" : {
+            "Id" : "RBSP-A_MAGNETOMETER_1SEC-GSM_EMFISIS-L3",
+            "Data" : "coordinates",
+            "CoordSys" : "GSM"
+        },
+        "MagneticField" : {
+            "Id" : "RBSP-A_MAGNETOMETER_1SEC-GSM_EMFISIS-L3",
+            "Data" : "Mag",
+            "CoordSys" : "GSM"
+        },
+        "Density" : {
+            "Id" : "RBSPA_REL04_ECT-HOPE-MOM-L3",
+            "Data" : "Dens_p_30"
+        },
+        "Electron_omniflux_RBSPICE" : {
+            "Id": "RBSP-A-RBSPICE_LEV-3-PAP_ESRHELT",
+            "Data": ["FEDU", "FEDU_OmniFlux", "MLT", "L_Eq", "L_Star"],
+            "OmnifluxStr" : "FEDU_OmniFlux",
+            "EnergyStr" : "FEDU_Energy"
+        },
+        "Hydrogen_omniflux_RBSPICE" : {
+            "Id" : "RBSP-A-RBSPICE_LEV-3-PAP_TOFXEH",
+            "Data" : ["FPDU_OmniFlux"],
+            "OmnifluxStr" : "FPDU_OmniFlux",
+            "EnergyStr" : "FPDU_Energy"
+        }
+    },
+    "RBSPB" : {
+        "Ephem" : {
+            "Id" : "RBSP-B_MAGNETOMETER_1SEC-GSM_EMFISIS-L3",
+            "Data" : "coordinates",
+            "CoordSys" : "GSM"
+        },
+        "MagneticField" : {
+            "Id" : "RBSP-B_MAGNETOMETER_1SEC-GSM_EMFISIS-L3",
+            "Data" : "Mag",
+            "CoordSys" : "GSM"
+        },
+        "Density" : {
+            "Id" : "RBSPB_REL04_ECT-HOPE-MOM-L3",
+            "Data" : "Dens_p_30"
+        },
+        "Electron_omniflux_RBSPICE" : {
+            "Id": "RBSP-B-RBSPICE_LEV-3-PAP_ESRHELT",
+            "Data": ["FEDU", "FEDU_OmniFlux", "MLT", "L_Eq", "L_Star"],
+            "OmnifluxStr" : "FEDU_OmniFlux",
+            "EnergyStr" : "FEDU_Energy"
+        },
+        "Hydrogen_omniflux_RBSPICE" : {
+            "Id" : "RBSP-B-RBSPICE_LEV-3-PAP_TOFXEH",
+            "Data" : ["FPDU_OmniFlux"],
+            "OmnifluxStr" : "FPDU_OmniFlux",
+            "EnergyStr" : "FPDU_Energy"
+        },
+        "Hydrogen_PAFlux_HOPE" : {
+            "Id" : "RBSPB_REL04_ECT-HOPE-PA-L3",
+            "Data" : ["FPDU"],
+            "PAFluxStr" : "FPDU",
+            "EnergyStr" : "HOPE_ENERGY_Ion",
+            "EpochStr"  : "Epoch_Ion"
+        }
+    },
+    "CLUSTER1" : {
+        "Ephem" : {
+            "Id" : "C1_CP_FGM_SPIN",
+            "Data" : "sc_pos_xyz_gse__C1_CP_FGM_SPIN",
+            "CoordSys" : "GSE"
+        },
+        "MagneticField" : {
+            "Id" : "C1_CP_FGM_SPIN",
+            "Data" : "B_vec_xyz_gse__C1_CP_FGM_SPIN",
+            "CoordSys" : "GSE"
+        },
+        "Density" : {
+            "Id" : "C1_PP_CIS",
+            "Data" : "N_p__C1_PP_CIS",
+            "EpochStr" : "Epoch__C1_PP_CIS"
+        },
+        "Velocity" : {
+            "Id" : "C1_PP_CIS",
+            "Data" : "V_p_xyz_gse__C1_PP_CIS",
+            "CoordSys" : "GSE",
+            "EpochStr" : "Epoch__C1_PP_CIS"
+        },
+        "_testing" : {
+            "t0" : "2018-12-30T00:00:00Z",
+            "t1" : "2018-12-31T00:00:00Z"
+        }
+    },
+    "CLUSTER2" : {
+        "Ephem" : {
+            "Id" : "C2_CP_FGM_SPIN",
+            "Data" : "sc_pos_xyz_gse__C2_CP_FGM_SPIN",
+            "CoordSys" : "GSE"
+        },
+        "MagneticField" : {
+            "Id" : "C2_CP_FGM_SPIN",
+            "Data" : "B_vec_xyz_gse__C2_CP_FGM_SPIN",
+            "CoordSys" : "GSE"
+        },
+        "_testing" : {
+            "t0" : "2018-12-30T00:00:00Z",
+            "t1" : "2018-12-31T00:00:00Z"
+        }
+    },
+    "CLUSTER3" : {
+        "Ephem" : {
+            "Id" : "C3_CP_FGM_SPIN",
+            "Data" : "sc_pos_xyz_gse__C3_CP_FGM_SPIN",
+            "CoordSys" : "GSE"
+        },
+        "MagneticField" : {
+            "Id" : "C3_CP_FGM_SPIN",
+            "Data" : "B_vec_xyz_gse__C3_CP_FGM_SPIN",
+            "CoordSys" : "GSE"
+        },
+        "Density" : {
+            "Id" : "C3_PP_CIS",
+            "Data" : "N_p__C3_PP_CIS"
+        },
+        "Velocity" : {
+            "Id" : "C3_PP_CIS",
+            "Data" : "V_p_xyz_gse__C3_PP_CIS",
+            "CoordSys" : "GSE"
+        },
+        "_testing" : {
+            "t0" : "2018-12-30T00:00:00Z",
+            "t1" : "2018-12-31T00:00:00Z"
+        }
+    },
+    "CLUSTER4" : {
+        "Ephem" : {
+            "Id" : "C4_CP_FGM_SPIN",
+            "Data" : "sc_pos_xyz_gse__C4_CP_FGM_SPIN",
+            "CoordSys" : "GSE"
+        },
+        "MagneticField" : {
+            "Id" : "C4_CP_FGM_SPIN",
+            "Data" : "B_vec_xyz_gse__C4_CP_FGM_SPIN",
+            "CoordSys" : "GSE"
+        },
+        "Density" : {
+            "Id" : "C4_PP_CIS",
+            "Data" : "N_p__C4_PP_CIS"
+        },
+        "Velocity" : {
+            "Id" : "C4_PP_CIS",
+            "Data" : "V_p_xyz_gse__C4_PP_CIS",
+            "CoordSys" : "GSE"
+        },
+        "_testing" : {
+            "t0" : "2018-12-30T00:00:00Z",
+            "t1" : "2018-12-31T00:00:00Z"
+        }
+    },
+    "THEMISA" : {
+        "Ephem" : {
+            "Id" : "THA_OR_SSC",
+            "Data" : "XYZ_GSM",
+            "CoordSys" : "GSM"
+        },
+        "MagneticField" : {
+            "Id" : "THA_L2_FGM",
+            "Data" : "tha_fgs_gsm",
+            "CoordSys" : "GSM"
+        },
+        "Density" : {
+            "Id" : "THA_L2_MOM",
+            "Data" : "tha_peim_density",
+            "EpochStr" : "tha_peim_epoch"
+        },
+        "Pressure" : {
+            "Id" : "THA_L2_MOM",
+            "Data" : "tha_peim_ptot",
+            "EpochStr" : "tha_peim_epoch"
+        },
+        "Velocity" : {
+            "Id" : "THA_L2_MOM",
+            "Data" : "tha_peim_velocity_gsm",
+            "EpochStr" : "tha_peim_epoch",
+            "CoordSys" : "GSM"
+        },
+        "MagneticFootprintNorth" : {
+            "Id" : "THA_OR_SSC",
+            "Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        },
+        "MagneticFootprintSouth" : {
+            "Id" : "THA_OR_SSC",
+            "Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        }
+    },
+    "THEMISB" : {
+        "Ephem" : {
+            "Id" : "THB_OR_SSC",
+            "Data" : "XYZ_GSM",
+            "CoordSys" : "GSM"
+        },
+        "MagneticField" : {
+            "Id" : "THB_L2_FGM",
+            "Data" : "thb_fgs_gsm",
+            "CoordSys" : "GSM"
+        },
+        "Density" : {
+            "Id" : "THB_L2_MOM",
+            "Data" : "thb_peim_density"
+        },
+        "Pressure" : {
+            "Id" : "THB_L2_MOM",
+            "Data" : "thb_peim_ptot"
+        },
+        "Velocity" : {
+            "Id" : "THB_L2_MOM",
+            "Data" : "thb_peim_velocity_gsm",
+            "CoordSys" : "GSM"
+        },
+        "MagneticFootprintNorth" : {
+            "Id" : "THB_OR_SSC",
+            "Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        },
+        "MagneticFootprintSouth" : {
+            "Id" : "THB_OR_SSC",
+            "Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        }
+    },
+    "THEMISC" : {
+        "Ephem" : {
+            "Id" : "THC_OR_SSC",
+            "Data" : "XYZ_GSM",
+            "CoordSys" : "GSM"
+        },
+        "MagneticField" : {
+            "Id" : "THC_L2_FGM",
+            "Data" : "thc_fgs_gsm",
+            "CoordSys" : "GSM"
+        },
+        "Density" : {
+            "Id" : "THC_L2_MOM",
+            "Data" : "thc_peim_density"
+        },
+        "Pressure" : {
+            "Id" : "THC_L2_MOM",
+            "Data" : "thc_peim_ptot"
+        },
+        "Velocity" : {
+            "Id" : "THC_L2_MOM",
+            "Data" : "thc_peim_velocity_gsm",
+            "CoordSys" : "GSM"
+        },
+        "MagneticFootprintNorth" : {
+            "Id" : "THC_OR_SSC",
+            "Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        },
+        "MagneticFootprintSouth" : {
+            "Id" : "THC_OR_SSC",
+            "Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        }
+    },
+    "THEMISD" : {
+        "Ephem" : {
+            "Id" : "THD_OR_SSC",
+            "Data" : "XYZ_GSM",
+            "CoordSys" : "GSM"
+        },
+        "MagneticField" : {
+            "Id" : "THD_L2_FGM",
+            "Data" : "thd_fgs_gsm",
+            "CoordSys" : "GSM"
+        },
+        "Density" : {
+            "Id" : "THD_L2_MOM",
+            "Data" : "thd_peim_density"
+        },
+        "Pressure" : {
+            "Id" : "THD_L2_MOM",
+            "Data" : "thd_peim_ptot"
+        },
+        "Velocity" : {
+            "Id" : "THD_L2_MOM",
+            "Data" : "thd_peim_velocity_gsm",
+            "CoordSys" : "GSM"
+        },
+        "MagneticFootprintNorth" : {
+            "Id" : "THD_OR_SSC",
+            "Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        },
+        "MagneticFootprintSouth" : {
+            "Id" : "THD_OR_SSC",
+            "Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        }
+    },
+    "THEMISE" : {
+        "Ephem" : {
+            "Id" : "THE_OR_SSC",
+            "Data" : "XYZ_GSM",
+            "CoordSys" : "GSM"
+        },
+        "MagneticField" : {
+            "Id" : "THE_L2_FGM",
+            "Data" : "the_fgs_gsm",
+            "CoordSys" : "GSM"
+        },
+        "Density" : {
+            "Id" : "THE_L2_MOM",
+            "Data" : "the_peim_density"
+        },
+        "Pressure" : {
+            "Id" : "THE_L2_MOM",
+            "Data" : "the_peim_ptot"
+        },
+        "Velocity" : {
+            "Id" : "THE_L2_MOM",
+            "Data" : "the_peim_velocity_gsm",
+            "CoordSys" : "GSM"
+        },
+        "MagneticFootprintNorth" : {
+            "Id" : "THE_OR_SSC",
+            "Data" : ["NorthBtrace_GEO_LAT", "NorthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        },
+        "MagneticFootprintSouth" : {
+            "Id" : "THE_OR_SSC",
+            "Data" : ["SouthBtrace_GEO_LAT", "SouthBtrace_GEO_LON"],
+            "CoordSys" : "GEO"
+        }
+    },
+    "MMS1" : {
+        "Ephem" : {
+            "Id" : "MMS1_FGM_SRVY_L2",
+            "Data" : "mms1_fgm_r_gsm_srvy_l2",
+            "CoordSys" : "GSM"
+        },
+        "MagneticField" : {
+            "Id" : "MMS1_FGM_SRVY_L2",
+            "Data" : "mms1_fgm_b_gsm_srvy_l2",
+            "CoordSys" : "GSM"
+        },
+        "Density" : {
+            "Id" : "MMS1_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms1_dis_numberdensity_fast"
+        },
+        "Pressure" : {
+            "Id" : "MMS1_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms1_dis_pres_bg_fast"
+        },
+        "Velocity" : {
+            "Id" : "MMS1_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms1_dis_bulkv_gse_fast",
+            "CoordSys" : "GSE"
+        },
+        "MagneticFootprintNorth" : {
+            "Id" : "MMS1_MEC_SRVY_L2_EPHT89D",
+            "Data" : "mms1_mec_pfn_gsm",
+            "CoordSys" : "GSM"
+        },
+        "MagneticFootprintSouth" : {
+            "Id" : "MMS1_MEC_SRVY_L2_EPHT89D",
+            "Data" : "mms1_mec_pfs_gsm",
+            "CoordSys" : "GSM"
+        }
+    },
+    "MMS2" : {
+        "Ephem" : {
+            "Id" : "MMS2_FGM_SRVY_L2",
+            "Data" : "mms2_fgm_r_gsm_srvy_l2",
+            "CoordSys" : "GSM"
+        },
+        "MagneticField" : {
+            "Id" : "MMS2_FGM_SRVY_L2",
+            "Data" : "mms2_fgm_b_gsm_srvy_l2",
+            "CoordSys" : "GSM"
+        },
+        "Density" : {
+            "Id" : "MMS2_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms2_dis_numberdensity_fast"
+        },
+        "Pressure" : {
+            "Id" : "MMS2_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms2_dis_pres_bg_fast"
+        },
+        "Velocity" : {
+            "Id" : "MMS2_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms2_dis_bulkv_gse_fast",
+            "CoordSys" : "GSE"
+        },
+        "MagneticFootprintNorth" : {
+            "Id" : "MMS2_MEC_SRVY_L2_EPHT89D",
+            "Data" : "mms2_mec_pfn_gsm",
+            "CoordSys" : "GSM"
+        },
+        "MagneticFootprintSouth" : {
+            "Id" : "MMS2_MEC_SRVY_L2_EPHT89D",
+            "Data" : "mms2_mec_pfs_gsm",
+            "CoordSys" : "GSM"
+        }
+    },
+    "MMS3" : {
+        "Ephem" : {
+            "Id" : "MMS3_FGM_SRVY_L2",
+            "Data" : "mms3_fgm_r_gsm_srvy_l2",
+            "CoordSys" : "GSM"
+        },
+        "MagneticField" : {
+            "Id" : "MMS3_FGM_SRVY_L2",
+            "Data" : "mms3_fgm_b_gsm_srvy_l2",
+            "CoordSys" : "GSM"
+        },
+        "Density" : {
+            "Id" : "MMS3_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms3_dis_numberdensity_fast"
+        },
+        "Pressure" : {
+            "Id" : "MMS3_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms3_dis_pres_bg_fast"
+        },
+        "Velocity" : {
+            "Id" : "MMS3_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms3_dis_bulkv_gse_fast",
+            "CoordSys" : "GSE"
+        },
+        "MagneticFootprintNorth" : {
+            "Id" : "MMS3_MEC_SRVY_L2_EPHT89D",
+            "Data" : "mms3_mec_pfn_gsm",
+            "CoordSys" : "GSM"
+        },
+        "MagneticFootprintSouth" : {
+            "Id" : "MMS3_MEC_SRVY_L2_EPHT89D",
+            "Data" : "mms3_mec_pfs_gsm",
+            "CoordSys" : "GSM"
+        }
+    },
+    "MMS4" : {
+        "Ephem" : {
+            "Id" : "MMS4_FGM_SRVY_L2",
+            "Data" : "mms4_fgm_r_gsm_srvy_l2",
+            "CoordSys" : "GSM"
+        },
+        "MagneticField" : {
+            "Id" : "MMS4_FGM_SRVY_L2",
+            "Data" : "mms4_fgm_b_gsm_srvy_l2",
+            "CoordSys" : "GSM"
+        },
+        "Density" : {
+            "Id" : "MMS4_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms4_dis_numberdensity_fast"
+        },
+        "Pressure" : {
+            "Id" : "MMS4_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms4_dis_pres_bg_fast"
+        },
+        "Velocity" : {
+            "Id" : "MMS4_FPI_FAST_L2_DIS-MOMS",
+            "Data" : "mms4_dis_bulkv_gse_fast",
+            "CoordSys" : "GSE"
+        },
+        "MagneticFootprintNorth" : {
+            "Id" : "MMS4_MEC_SRVY_L2_EPHT89D",
+            "Data" : "mms4_mec_pfn_gsm",
+            "CoordSys" : "GSM"
+        },
+        "MagneticFootprintSouth" : {
+            "Id" : "MMS4_MEC_SRVY_L2_EPHT89D",
+            "Data" : "mms4_mec_pfs_gsm",
+            "CoordSys" : "GSM"
+        }
+    }
 }

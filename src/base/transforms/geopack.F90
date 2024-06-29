@@ -1,6 +1,3 @@
-!This software has been modified from the version downloaded from
-!https://geo.phys.spbu.ru/~tsyganenko/empirical-models/coordinate_systems/geopack/.
-!Per the website, the software in this file is distributed under the GPL >= 3.0 License.
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ !
 !
 !          ##########################################################################
