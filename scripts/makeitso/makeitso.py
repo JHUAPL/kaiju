@@ -240,7 +240,7 @@ def prompt_user_for_run_options(args):
     # Initialize the dictionary of program options.
     options = {}
 
-    #-------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # General options for the simulation
     o = options["simulation"] = {}
@@ -301,11 +301,11 @@ def prompt_user_for_run_options(args):
         num_segments = 1
 
     # Prompt for the remaining parameters.
-    for on in ["gamera_grid_type", "gamera_grid_inner_radius", 
-               "gamera_grid_outer_radius","hpc_system"]:
+    for on in ["gamera_grid_type", "gamera_grid_inner_radius",
+               "gamera_grid_outer_radius", "hpc_system"]:
         o[on] = get_run_option(on, od[on], mode)
 
-    #-------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # PBS options
     options["pbs"] = {}
@@ -315,7 +315,8 @@ def prompt_user_for_run_options(args):
     od = option_descriptions["pbs"]["_common"]
     od["account_name"]["default"] = os.getlogin()
     od["kaiju_install_directory"]["default"] = KAIJUHOME
-    od["kaiju_build_directory"]["default"] = os.path.join(KAIJUHOME, "build_mpi")
+    od["kaiju_build_directory"]["default"] = os.path.join(KAIJUHOME,
+                                                          "build_mpi")
     od["num_segments"]["default"] = str(num_segments)
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
@@ -325,7 +326,9 @@ def prompt_user_for_run_options(args):
     gamera_grid_type = options["simulation"]["gamera_grid_type"]
     od = option_descriptions["pbs"][hpc_platform]
     od["select"]["default"] = od["select"]["default"][gamera_grid_type]
-    od["num_helpers"]["default"] = od["num_helpers"]["default"][gamera_grid_type]
+    od["num_helpers"]["default"] = (
+        od["num_helpers"]["default"][gamera_grid_type]
+    )
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
@@ -335,7 +338,7 @@ def prompt_user_for_run_options(args):
     select2 = 1 + num_helpers
     o["select2"] = str(select2)
 
-    #-------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # GAMERA options
     options["gamera"] = {}
@@ -344,7 +347,9 @@ def prompt_user_for_run_options(args):
     options["gamera"]["sim"] = {}
     o = options["gamera"]["sim"]
     od = option_descriptions["gamera"]["sim"]
-    od["H5Grid"]["default"] = f"lfm{options['simulation']['gamera_grid_type']}.h5"
+    od["H5Grid"]["default"] = (
+        f"lfm{options['simulation']['gamera_grid_type']}.h5"
+    )
     od["runid"]["default"] = options["simulation"]["job_name"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
@@ -433,7 +438,7 @@ def prompt_user_for_run_options(args):
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
-    #-------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # VOLTRON options
     options["voltron"] = {}
@@ -464,7 +469,9 @@ def prompt_user_for_run_options(args):
     options["voltron"]["coupling"] = {}
     o = options["voltron"]["coupling"]
     od = option_descriptions["voltron"]["coupling"]
-    od["doAsyncCoupling"]["default"] = od["doAsyncCoupling"]["default"][hpc_platform]
+    od["doAsyncCoupling"]["default"] = (
+        od["doAsyncCoupling"]["default"][hpc_platform]
+    )
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
@@ -492,7 +499,7 @@ def prompt_user_for_run_options(args):
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
-    #-------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # CHIMP options
     options["chimp"] = {}
@@ -525,7 +532,7 @@ def prompt_user_for_run_options(args):
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
-    #-------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # REMIX options
     options["remix"] = {}
@@ -544,7 +551,7 @@ def prompt_user_for_run_options(args):
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
-    #-------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # RCM options
     options["rcm"] = {}
@@ -578,7 +585,7 @@ def prompt_user_for_run_options(args):
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
-    #-------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Return the options dictionary.
     return options
@@ -669,7 +676,8 @@ def create_ini_files(options):
         opt["voltron"]["time"]["tFin"] = str(tFin_segment)
         ini_content = template.render(opt)
         ini_file = os.path.join(
-            opt["pbs"]["run_directory"], f"{opt['simulation']['segment_id']}.ini"
+            opt["pbs"]["run_directory"],
+            f"{opt['simulation']['segment_id']}.ini"
         )
         ini_files.append(ini_file)
         with open(ini_file, "w", encoding="utf-8") as f:
@@ -684,13 +692,14 @@ def create_ini_files(options):
             opt["gamera"]["restart"]["doRes"] = "T"
             tFin = float(opt["voltron"]["time"]["tFin"])
             dT = float(options["simulation"]["segment_duration"])
-            tFin_segment = job*dT + 1  # Add 1 to ensure last restart file is created
-            if tFin_segment > tFin:    # Last segment may be shorter than the others.
+            tFin_segment = job*dT + 1  # Add 1 to ensure last file created
+            if tFin_segment > tFin:    # Last segment may be shorter.
                 tFin_segment = tFin + 1
             opt["voltron"]["time"]["tFin"] = str(tFin_segment)
             ini_content = template.render(opt)
             ini_file = os.path.join(
-                opt["pbs"]["run_directory"], f"{opt['simulation']['segment_id']}.ini"
+                opt["pbs"]["run_directory"],
+                f"{opt['simulation']['segment_id']}.ini"
             )
             ini_files.append(ini_file)
             with open(ini_file, "w", encoding="utf-8") as f:
@@ -705,7 +714,8 @@ def create_ini_files(options):
         opt["simulation"]["segment_id"] = segment_id
         ini_content = template.render(opt)
         ini_file = os.path.join(
-            opt["pbs"]["run_directory"], f"{opt['simulation']['segment_id']}.ini"
+            opt["pbs"]["run_directory"],
+            f"{opt['simulation']['segment_id']}.ini"
         )
         ini_files.append(ini_file)
         with open(ini_file, "w", encoding="utf-8") as f:
@@ -818,14 +828,14 @@ def create_pbs_scripts(options):
         s = pbs_scripts[0]
         cmd = f"job_id=`qsub {s}`\n"
         f.write(cmd)
-        cmd = f"echo $job_id\n"
+        cmd = "echo $job_id\n"
         f.write(cmd)
         for s in pbs_scripts[1:]:
             cmd = "old_job_id=$job_id\n"
             f.write(cmd)
             cmd = f"job_id=`qsub -W depend=afterok:$old_job_id {s}`\n"
             f.write(cmd)
-            cmd = f"echo $job_id\n"
+            cmd = "echo $job_id\n"
             f.write(cmd)
 
     # Return the paths to the PBS scripts.
@@ -914,6 +924,6 @@ def main():
           f"script {all_jobs_script} like this:\n"
           f"bash {all_jobs_script}")
 
+
 if __name__ == "__main__":
-    """Begin main program."""
     main()
