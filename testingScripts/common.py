@@ -60,7 +60,7 @@ def read_strip_blanks_and_comments(path):
     None
     """
     # Read the file.
-    lines = open(path, encoding='ut-8').readlines()
+    lines = open(path, encoding='utf-8').readlines()
 
     # Strip whitespace.
     lines = [line.strip() for line in lines]
@@ -105,20 +105,16 @@ def create_command_line_parser(description):
     """
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
-        '--account', default=os.environ['DERECHO_TESTING_ACCOUNT'],
-        help='PBS account to use for testing (default: %(default)s)'
-    )
-    parser.add_argument(
         '--debug', '-d', action='store_true',
         help='Print debugging output (default: %(default)s).'
     )
     parser.add_argument(
-        '--force', '-f', action='store_true',
-        help='Force all tests to run (default: %(default)s).'
-    )
-    parser.add_argument(
         '--loud', '-l', action='store_true',
         help='Enable loud mode (post results to Slack) (default: %(default)s).'
+    )
+    parser.add_argument(
+        '--slack_on_fail', '-s', action='store_true', default=False,
+        help='Only post to Slack on test failure (default: %(default)s).'
     )
     parser.add_argument(
         '--test', '-t', action='store_true',

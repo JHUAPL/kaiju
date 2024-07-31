@@ -615,7 +615,8 @@ def run_preprocessing_steps(options):
     if options["simulation"]["bcwind_available"] == "N":
         cmd = "cda2wind.py"
         args = [cmd, "-t0", options["simulation"]["start_date"], "-t1",
-                options["simulation"]["stop_date"], "-interp", "-bx"]
+                options["simulation"]["stop_date"], "-interp", "-bx",
+                "-f107", "100", "-kp", "3"]
         subprocess.run(args, check=True)
 
     # Create the RCM configuration file.

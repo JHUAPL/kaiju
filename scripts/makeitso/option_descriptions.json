@@ -644,6 +644,12 @@
                 "prompt": "(REMIX) Apply cap to Hall conductance based on Pedersen conductance",
                 "default": "T",
                 "valids": ["T", "F"]
+            },
+            "const_sigma": {
+                "LEVEL": "INTERMEDIATE",
+                "prompt": "(REMIX) Use constant conductance",
+                "default": "F",
+                "valids": ["T", "F"]
             }
         },
         "precipitation": {

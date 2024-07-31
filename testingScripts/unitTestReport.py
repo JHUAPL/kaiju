@@ -25,7 +25,7 @@ import sys
 # Import 3rd-party modules.
 
 # Import project modules.
-from kaipy.testing import common
+import common
 
 
 # Program constants
@@ -75,6 +75,7 @@ def main():
         print(f"args = {args}")
     debug = args.debug
     be_loud = args.loud
+    slack_on_fail = args.slack_on_fail
     is_test = args.test
     verbose = args.verbose
 
@@ -135,20 +136,19 @@ def main():
         # NOTE: This needs to be reorganized.
 
         # Compute the names of the job log files.
-        job_file_0 = f"testResGen.o{job_ids[0]}"
-        job_file_1 = f"caseTests.o{job_ids[1]}"
-        job_file_2 = f"nonCaseTests1.o{job_ids[2]}"
-        # job_file_3 = f"nonCaseTests2.o{job_ids[3]}"  # SKIP FOR NOW
+        job_file_0 = f"genTestData.o{job_ids[0]}"
+        job_file_1 = f"runCaseTests.o{job_ids[1]}"
+        job_file_2 = f"runNonCaseTests1.o{job_ids[2]}"
+        job_file_3 = f"runNonCaseTests2.o{job_ids[3]}"  # SKIP FOR NOW
         if debug:
-            print(f"job_file_o = {job_file_0}")
+            print(f"job_file_0 = {job_file_0}")
             print(f"job_file_1 = {job_file_1}")
             print(f"job_file_2 = {job_file_2}")
-            # print(f"job_file_3 = {job_file_3}")
+            print(f"job_file_3 = {job_file_3}")
 
         # Combine the results of each test log file.
         bigFile = []
-        # job_files = [job_file_0, job_file_1, job_file_2, job_file_3]
-        job_files = [job_file_0, job_file_1, job_file_2]
+        job_files = [job_file_0, job_file_1, job_file_2, job_file_3]
         for job_file in job_files:
             with open(job_file, 'r', encoding='utf-8') as f:
                 bigFile += f.readlines()
@@ -164,7 +164,7 @@ def main():
             elif 'job killed' in line:
                 jobKilled = True
 
-        # There should be exactly 6 OKs (8 if job_file_3 is used).
+        # There should be exactly 8 OKs.
         if okCount != 6:
             okFailure = True
         else:
@@ -187,15 +187,6 @@ def main():
 
     # ------------------------------------------------------------------------
 
-    # Set up for communication with Slack.
-    slack_client = common.slack_create_client()
-    if debug:
-        print(f"slack_client = {slack_client}")
-
-    # ------------------------------------------------------------------------
-
-    # NOTE: Assumes only 1 module set was used.
-
     # Detail the test results
     test_report_details_string = ''
     test_report_details_string += (
@@ -217,28 +208,29 @@ def main():
     if myError or jobKilled or okFailure:
         test_report_summary_string += '*FAILED*\n'
     else:
-        test_report_summary_string += '*ALL PASSED*\n'
+        test_report_summary_string += '*PASSED*\n'
 
     # Print the test results summary and details.
     print(test_report_summary_string)
     print(test_report_details_string)
 
-    # If loud mode is on, post report to Slack.
-    if be_loud:
-        test_report_summary_string += 'Details in thread for this messsage.\n'
+    # If a test failed, or loud mode is on, post report to Slack.
+    if (slack_on_fail and 'FAILED' in test_report_details_string) or be_loud:
+        slack_client = common.slack_create_client()
+        if debug:
+            print(f"slack_client = {slack_client}")
         slack_response_summary = common.slack_send_message(
             slack_client, test_report_summary_string, is_test=is_test
         )
-        if slack_response_summary['ok']:
-            thread_ts = slack_response_summary['ts']
-            slack_response_details = common.slack_send_message(
-                slack_client, test_report_details_string, thread_ts=thread_ts,
-                is_test=is_test
-            )
-            if 'ok' not in slack_response_details:
-                print('*ERROR* Unable to post test details to Slack.')
-        else:
-            print('*ERROR* Unable to post test summary to Slack.')
+        if debug:
+            print(f"slack_response_summary = {slack_response_summary}")
+        thread_ts = slack_response_summary['ts']
+        slack_response_summary = common.slack_send_message(
+            slack_client, test_report_details_string, thread_ts=thread_ts,
+            is_test=is_test
+        )
+        if debug:
+            print(f"slack_response_summary = {slack_response_summary}")
 
     # ------------------------------------------------------------------------
 

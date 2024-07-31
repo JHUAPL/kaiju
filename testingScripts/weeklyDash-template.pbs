@@ -1,46 +1,28 @@
 #!/bin/bash
 
 #PBS -N {{ job_name }}
-#PBS -A P28100045
-#PBS -q main
+#PBS -A {{ account }}
+#PBS -q {{ queue }}
 #PBS -l job_priority={{ job_priority }}
 #PBS -l select=8:ncpus=128:mpiprocs=2:ompthreads=64+3:ncpus=128:mpiprocs=1:ompthreads=128
-#PBS -l walltime=06:00:00
+#PBS -l walltime={{ walltime }}
 #PBS -j oe
 #PBS -m abe
 
 echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
 
 echo 'Loading modules.'
-{{ module_cmd }}
-echo 'The following modules are loaded:'
+module --force purge
+{%- for module in modules %}
+module load {{ module }}
+{%- endfor %}
 module list
 
-echo 'Setting up MAGE environment.'
-KAIJUROOTDIR={{ KAIJUROOTDIR }}
-source $KAIJUROOTDIR/scripts/setupEnvironment.sh
-
-echo 'Setting environment variables.'
-MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
-export TMPDIR=/glade/work/ewinter/mage_testing/derecho/tmp
-export OMP_NUM_THREADS=128
-export MPI_TYPE_DEPTH=32
-export KMP_STACKSIZE=128M
-export MAGE_TEST_ROOT='/glade/work/ewinter/mage_testing/derecho'
-export MAGE_TEST_SET_ROOT={{ MAGE_TEST_SET_ROOT }}
-export BRANCH_OR_COMMIT={{ BRANCH_OR_COMMIT }}
-export SLACK_BOT_TOKEN='xoxb-1065817665921-1413594823303-gUePq3obrqlPmlCHC5E7rKVP'
-export DERECHO_TESTING_ACCOUNT=P28100045
-echo 'The active environment variables are:'
-printenv
-
-# Run the model.
-$MPICOMMAND ./voltron_mpi.x weeklyDashGo.xml > weeklyDashGo.out
-
-# Generate the report.
-export CONDARC="${MAGE_TEST_ROOT}/condarc"
-export CONDA_ENVS_PATH="${MAGE_TEST_ROOT}/conda"
-mage_miniconda3="${MAGE_TEST_ROOT}/miniconda3"
+echo 'Loading python environment.'
+mage_test_root='{{ mage_test_root }}'
+export CONDARC="${mage_test_root}/.condarc"
+export CONDA_ENVS_PATH="${mage_test_root}/.conda"
+mage_miniconda3="${mage_test_root}/miniconda3"
 mage_conda="${mage_miniconda3}/bin/conda"
 __conda_setup="$($mage_conda 'shell.bash' 'hook' 2> /dev/null)"
 if [ $? -eq 0 ]; then
@@ -54,6 +36,27 @@ else
 fi
 unset __conda_setup
 conda activate kaiju-3.8-testing
-python $KAIJUHOME/testingScripts/weeklyDashReport.py -dtlv >& weeklyDashReport.out
+
+echo 'Setting up MAGE environment.'
+source {{ kaijuhome }}/scripts/setupEnvironment.sh
+
+echo 'Setting environment variables.'
+export TMPDIR={{ tmpdir }}
+export SLACK_BOT_TOKEN={{ slack_bot_token }}
+export OMP_NUM_THREADS=128
+export MPI_TYPE_DEPTH=32
+export KMP_STACKSIZE=128M
+export MAGE_TEST_ROOT=$mage_test_root
+export MAGE_TEST_SET_ROOT={{ mage_test_set_root }}
+export BRANCH_OR_COMMIT={{ branch_or_commit }}
+echo 'The active environment variables are:'
+printenv
+
+# Run the model.
+MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
+$MPICOMMAND ./voltron_mpi.x weeklyDashGo.xml >& weeklyDashGo.out
+
+# Generate the report.
+python $KAIJUHOME/testingScripts/weeklyDashReport.py {{ report_options }} >& weeklyDashReport.out
 
 echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

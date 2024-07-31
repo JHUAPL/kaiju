@@ -1,19 +1,24 @@
 # NOTE: Embedding the command sent to derecho via ssh in double-quotes
 # ensures proper remote argument parsing.
 
-# Run quick tests every night on development and master.
-05 23 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing_fixes/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'buildTest.py -lv,ICtest.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-development.out 2>&1
-19 23 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing_fixes/kaiju-private/testingScripts/run_mage_tests.sh -v -b master      'buildTest.py -lv,ICtest.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-master.out      2>&1
+# Run build, initial condition, and Intel Inspector tests every morning on the
+# development and master branches. These tests do not require PBS jobs and do
+# not modify the source tree.
+05 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'buildTest.py -lv,ICtest.py -lv,intelChecks.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-1-development.out 2>&1
+10 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master      'buildTest.py -lv,ICtest.py -lv,intelChecks.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-1-master.out      2>&1
 
-# Run tests requiring PBS jobs on Sunday nights for development and master.
-# Non-dash tests
-15 23 * * 0 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing_fixes/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'pyunitTest.py -lv,intelChecks.py -lv,unitTest.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weekly-tests-development.out 2>&1
-20 23 * * 0 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing_fixes/kaiju-private/testingScripts/run_mage_tests.sh -v -b master      'pyunitTest.py -lv,intelChecks.py -lv,unitTest.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weekly-tests-master.out      2>&1
+# Run Fortran unit tests every morning, separately (since they change the
+# source tree).
+15 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'unitTest.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-2-development.out 2>&1
+20 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master      'unitTest.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-2-master.out      2>&1
+
+# Run weekly dashes every Monday morning for the development and master
+# branches.
 
 # Duplicate dashes for development
-25 23 * * 0 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing_fixes/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'weeklyDash.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-development-1.out 2>&1
-30 23 * * 0 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing_fixes/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'weeklyDash.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-development-2.out 2>&1
+25 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'weeklyDash.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-1-development.out 2>&1
+30 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'weeklyDash.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-2-development.out 2>&1
 
 # Duplicate dashes for master
-35 23 * * 0 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing_fixes/kaiju-private/testingScripts/run_mage_tests.sh -v -b master 'weeklyDash.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-master-1.out 2>&1
-40 23 * * 0 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing_fixes/kaiju-private/testingScripts/run_mage_tests.sh -v -b master 'weeklyDash.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-master-2.out 2>&1
+35 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master 'weeklyDash.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-1-master.out 2>&1
+40 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master 'weeklyDash.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-2-master.out 2>&1

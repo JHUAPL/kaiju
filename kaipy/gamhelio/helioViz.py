@@ -19,18 +19,16 @@ import spacepy.datamodel as dm
 VMax = 800.
 VMin = 300.
 MagVCM = "inferno"
-#MagVCM = "rainbow"
 
-#inner helio
-DMax = 150.
-DMin = 2000.
+DMax = 1200.
+DMin = 300.
 DCM = "copper_r"
 
-#limits for iSlice
-#21.5 R_S
+# limits for iSlice
+# 21.5 R_S
 D0Max = 2000.
 D0Min = 300.
-#1 au
+# 220 R_S
 D0Max_outer = 1.
 D0Min_outer = 20.
 D0CM = "copper_r"
@@ -39,25 +37,25 @@ TMin = 0.2
 TMax = 2.
 TCM = "copper"
 
-#21.5 R_S
+# 21.5 R_S
 T0Min = 0.2
 T0Max = 2.0
-#1AU
+# 220 R_S
 T0Min_outer = 0.0
 T0Max_outer = 0.3
 
-#21.5 R_S
-BMax = 500.
-BMin = -500.
-#1AU
+# 21.5 R_S
+BMax = 150.
+BMin = -150.
+# 220 R_S
 BCM = "coolwarm"
 
-#21.5 R_S
-B0Min = -500.
-B0Max = 500.
-#1 AU
-B0Min_outer = -30.0
-B0Max_outer = 30.0
+# 21.5 R_S
+B0Min = -150.
+B0Max = 150.
+# 220 R_S
+B0Min_outer = -5.0
+B0Max_outer = 5.0
 
 BZMin = -50
 BZMax = 50
@@ -795,9 +793,9 @@ def PlotMerBrNorm(
                       shading="auto")
 
         # Plot the heliospheric current sheet.
-        Ax.contour(np.sqrt(xr_c**2 + yr_c**2), zr_c, Br_r, [0.],
+        Ax.contour(np.sqrt(xr_c**2 + yr_c**2), zr_c, Br_l, [0.],
                    colors='black')
-        Ax.contour(-np.sqrt(xl_c**2 + yl_c**2), zl_c, Br_l, [0.],
+        Ax.contour(-np.sqrt(xl_c**2 + yl_c**2), zl_c, Br_r, [0.],
                    colors='black')
 
     else:

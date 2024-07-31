@@ -28,9 +28,9 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 
 # Import project modules.
+import common
 import kaipy.kaiH5 as kh5
 import kaipy.kaiViz as kv
-from kaipy.testing import common
 
 
 # Program constants
@@ -99,19 +99,6 @@ VOLTRON_OUTPUT_FILE_DEVELOPMENT = os.path.join(
     REFERENCE_RESULTS_DIRECTORY_DEVELOPMENT, VOLTRON_OUTPUT_FILE
 )
 
-# # Home directory of kaiju installation
-# KAIJUHOME = os.environ['KAIJUHOME']
-
-# # Top-level directory for testing
-# KAIJU_TESTING_HOME = '/glade/work/ewinter/mage_testing/derecho'
-
-# # Path to directory containing weekly dash results.
-# WEEKLY_DASH_DIRECTORY = os.path.join(KAIJUHOME, 'weeklyDash_01')
-
-# # Name of weekly dash log file.
-# weekly_dash_log_latest = 'weeklyDashGo.out'
-
-
 # Compute the paths to the quicklook plots for the master branch.
 MAGNETOSPHERE_QUICKLOOK_MASTER = os.path.join(
     REFERENCE_RESULTS_DIRECTORY_MASTER, 'qkmsphpic.png'
@@ -168,6 +155,7 @@ def main():
         print(f"args = {args}")
     debug = args.debug
     be_loud = args.loud
+    # slack_on_fail = args.slack_on_fail
     is_test = args.test
     verbose = args.verbose
 
@@ -1032,13 +1020,6 @@ def main():
 
     # ------------------------------------------------------------------------
 
-    # Set up for communication with Slack.
-    slack_client = common.slack_create_client()
-    if debug:
-        print(f"slack_client = {slack_client}")
-
-    # ------------------------------------------------------------------------
-
     # List the files to post and their comments.
     images_to_post = [
         'perfPlots.png',
@@ -1069,9 +1050,14 @@ def main():
 
     # If loud mode is on, post results to Slack.
     if be_loud:
+        slack_client = common.slack_create_client()
+        if debug:
+            print(f"slack_client = {slack_client}")
         message = (
-            f"Weekly dash result plots complete on branch {BRANCH_OR_COMMIT}.\n"
-            ' Latest comparative results attached as replies to this message.\n'
+            'Weekly dash result plots complete on branch '
+            f"{BRANCH_OR_COMMIT}.\n"
+            ' Latest comparative results attached as replies to this '
+            'message.\n'
         )
         message += (
             f"Test results are in {os.getcwd()}.\n"

@@ -31,7 +31,7 @@
   </CHIMP>
   <REMIX>
     <conductance doStarlight="T" doRamp="F" doMR="F"/>
-    <precipitation aurora_model_type="RCMONO" alpha="0.2" beta="0.4" doAuroralSmooth="F"/>
+    <precipitation aurora_model_type="LINMRG" alpha="0.2" beta="0.4" doAuroralSmooth="F"/>
   </REMIX>
   <RCM>
     <ellipse xSun="12.5" yDD="15.0" xTail="-15.0" isDynamic="T"/>

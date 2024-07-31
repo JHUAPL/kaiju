@@ -31,7 +31,7 @@ import sys
 # Import 3rd-party modules.
 
 # Import project modules.
-from kaipy.testing import common
+import common
 
 
 # Program constants
@@ -49,9 +49,6 @@ BUILD_TEST_DIRECTORY = os.path.join(MAGE_TEST_SET_ROOT, 'buildTest')
 EXECUTABLE_LIST_BUILD_DIRECTORY = os.path.join(BUILD_TEST_DIRECTORY,
                                                'build_executable_list')
 
-# Prefix for naming build test directories
-BUILD_TEST_DIRECTORY_PREFIX = 'buildTest_'
-
 # Home directory of kaiju installation
 KAIJUHOME = os.environ['KAIJUHOME']
 
@@ -63,10 +60,14 @@ MODULE_LIST_DIRECTORY = os.path.join(TEST_SCRIPTS_DIRECTORY,
                                      'mage_build_test_modules')
 
 # Path to module list file to use when generating the list of executables
-EXECUTABLE_LIST_MODULE_LIST = os.path.join(MODULE_LIST_DIRECTORY, '01.lst')
+# Use a module set without MKL.
+EXECUTABLE_LIST_MODULE_LIST = os.path.join(MODULE_LIST_DIRECTORY, '04.lst')
 
 # Path to file containing list of module sets to use for build tests
 BUILD_TEST_LIST_FILE = os.path.join(MODULE_LIST_DIRECTORY, 'build_test.lst')
+
+# Prefix for naming build test directories
+BUILD_TEST_DIRECTORY_PREFIX = 'buildTest_'
 
 # Name of subdirectory of current build subdirectory containing binaries
 BUILD_BIN_DIR = 'bin'
@@ -103,6 +104,7 @@ def main():
     debug = args.debug
     be_loud = args.loud
     is_test = args.test
+    slack_on_fail = args.slack_on_fail
     verbose = args.verbose
 
     # -------------------------------------------------------------------------
@@ -226,7 +228,7 @@ def main():
     # Do a build with each set of modules.
     for (i_test, module_list_file) in enumerate(module_list_files):
         if verbose:
-            print('Performing build test with module set '
+            print('Performing build test with module list file '
                   f"{module_list_file}")
 
         # Extract the name of the list.
@@ -331,17 +333,10 @@ def main():
 
     # -------------------------------------------------------------------------
 
-    # Set up for communication with Slack.
-    slack_client = common.slack_create_client()
-    if debug:
-        print(f"slack_client = {slack_client}")
-
-    # -------------------------------------------------------------------------
-
     # Detail the test results
     test_report_details_string = ''
     test_report_details_string += (
-        f"Test results are in {os.getcwd()}.\n"
+        f"Test results are on `derecho` in `{BUILD_TEST_DIRECTORY}`.\n"
     )
     for (i_test, module_list_file) in enumerate(module_list_files):
         module_set_name = module_list_file.rstrip('.lst')
@@ -350,40 +345,40 @@ def main():
             test_report_details_string += '*PASSED*\n'
         else:
             test_report_details_string += '*FAILED*\n'
-            test_report_details_string += 'This module set used:\n'
-            path = os.path.join(MODULE_LIST_DIRECTORY, module_list_file)
-            lines = open(path).readlines()
-            for line in lines:
-                test_report_details_string += f"{line}\n"
 
     # Summarize the test results.
     test_report_summary_string = (
         'Summary of build test results from `buildTest.py`'
-        f" for branch or commit or tag {BRANCH_OR_COMMIT}: "
+        f" for branch or commit or tag `{BRANCH_OR_COMMIT}`: "
     )
     if 'FAILED' in test_report_details_string:
-        test_report_summary_string += '*FAILED*\n'
-        test_report_summary_string += 'Details in thread.\n'
+        test_report_summary_string += '*FAILED*'
     else:
-        test_report_summary_string += '*ALL PASSED*\n'
+        test_report_summary_string += '*PASSED*'
 
     # Print the test results summary and details.
     print(test_report_summary_string)
     print(test_report_details_string)
 
-    # If loud mode is on, post report to Slack.
-    if be_loud:
+    # If a test failed, or loud mode is on, post report to Slack.
+    if (slack_on_fail and 'FAILED' in test_report_details_string) or be_loud:
+        slack_client = common.slack_create_client()
+        if debug:
+            print(f"slack_client = {slack_client}")
         slack_response_summary = common.slack_send_message(
             slack_client, test_report_summary_string, is_test=is_test
         )
-        if 'FAILED' in test_report_summary_string:
-            thread_ts = slack_response_summary['ts']
-            _ = common.slack_send_message(
-                slack_client, test_report_details_string, thread_ts=thread_ts,
-                is_test=is_test
-            )
+        if debug:
+            print(f"slack_response_summary = {slack_response_summary}")
+        thread_ts = slack_response_summary['ts']
+        slack_response_summary = common.slack_send_message(
+            slack_client, test_report_details_string, thread_ts=thread_ts,
+            is_test=is_test
+        )
+        if debug:
+            print(f"slack_response_summary = {slack_response_summary}")
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     if debug:
         print(f"Ending {sys.argv[0]} at {datetime.datetime.now()}")

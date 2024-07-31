@@ -33,7 +33,7 @@ import sys
 # Import 3rd-party modules.
 
 # Import project modules.
-from kaipy.testing import common
+import common
 
 
 # Program constants
@@ -110,21 +110,22 @@ def main():
     debug = args.debug
     be_loud = args.loud
     is_test = args.test
+    slack_on_fail = args.slack_on_fail
     verbose = args.verbose
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     if debug:
         print(f"Starting {sys.argv[0]} at {datetime.datetime.now()}")
         print(f"Current directory is {os.getcwd()}")
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Make a directory to hold all of the initial condition build tests.
     print(f"Creating ${INITIAL_CONDITION_BUILD_TEST_DIRECTORY}.")
     os.mkdir(INITIAL_CONDITION_BUILD_TEST_DIRECTORY)
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Make a list of module sets to build with.
 
@@ -135,13 +136,13 @@ def main():
     if debug:
         print(f"module_list_files = {module_list_files}")
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Get a list of initial conditions to try, ignoring files in the
-    # "deprecated" folder. GAMERA ONLY FOR NOW.
+    # "deprecated" folder.
     initial_condition_paths = []
 
-    for root, directories, filenames in os.walk(
+    for root, _, filenames in os.walk(
         INITIAL_CONDITION_SRC_DIRECTORY
     ):
         if 'deprecated' not in root and 'underdev' not in root:
@@ -150,7 +151,7 @@ def main():
     if debug:
         print(f"initial_condition_paths = {initial_condition_paths}")
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Initalize test results for all module sets and initial conditions to
     # False (failed).
@@ -303,19 +304,13 @@ def main():
         # End loop over initial conditions
     # End loop over module sets
 
-    # -------------------------------------------------------------------------
-
-    # Set up for communication with Slack.
-    slack_client = common.slack_create_client()
-    if debug:
-        print(f"slack_client = {slack_client}")
-
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Detail the test results
     test_report_details_string = ''
     test_report_details_string += (
-        f"Test results are in {os.getcwd()}.\n"
+        'Test results are on `derecho` in '
+        f"`{INITIAL_CONDITION_BUILD_TEST_DIRECTORY}`.\n"
     )
     for (i_test, module_list_file) in enumerate(module_list_files):
         module_set_name = module_list_file.rstrip('.lst')
@@ -333,41 +328,40 @@ def main():
                 test_report_details_string += '*PASSED*\n'
             else:
                 test_report_details_string += '*FAILED*\n'
-                test_report_details_string += 'This module set used:\n'
-                path = os.path.join(MODULE_LIST_DIRECTORY, module_list_file)
-                lines = open(path).readlines()
-                for line in lines:
-                    test_report_details_string += f"{line}\n"
-
 
     # Summarize the test results.
     test_report_summary_string = (
         'Summary of initial condition build test results from `ICtest.py`'
-        f" for branch or commit or tag {BRANCH_OR_COMMIT}: "
+        f" for branch or commit or tag `{BRANCH_OR_COMMIT}`: "
     )
     if 'FAILED' in test_report_details_string:
         test_report_summary_string += '*FAILED*\n'
-        test_report_summary_string += 'Details in thread.\n'
     else:
-        test_report_summary_string += '*ALL PASSED*\n'
+        test_report_summary_string += '*PASSED*\n'
 
     # Print the test results summary and details.
     print(test_report_summary_string)
     print(test_report_details_string)
 
-    # If loud mode is on, post report to Slack.
-    if be_loud:
+    # If a test failed, or loud mode is on, post report to Slack.
+    if (slack_on_fail and 'FAILED' in test_report_details_string) or be_loud:
+        slack_client = common.slack_create_client()
+        if debug:
+            print(f"slack_client = {slack_client}")
         slack_response_summary = common.slack_send_message(
             slack_client, test_report_summary_string, is_test=is_test
         )
-        if 'FAILED' in test_report_summary_string:
-            thread_ts = slack_response_summary['ts']
-            _ = common.slack_send_message(
-                slack_client, test_report_details_string, thread_ts=thread_ts,
-                is_test=is_test
-            )
+        if debug:
+            print(f"slack_response_summary = {slack_response_summary}")
+        thread_ts = slack_response_summary['ts']
+        slack_response_summary = common.slack_send_message(
+            slack_client, test_report_details_string, thread_ts=thread_ts,
+            is_test=is_test
+        )
+        if debug:
+            print(f"slack_response_summary = {slack_response_summary}")
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     if debug:
         print(f"Ending {sys.argv[0]} at {datetime.datetime.now()}")

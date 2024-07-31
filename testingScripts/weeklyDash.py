@@ -15,16 +15,15 @@ Eric Winter
 # Import standard modules.
 import datetime
 import os
-import platform
 import shutil
 import subprocess
 import sys
 
 # Import 3rd-party modules.
-import jinja2
+from jinja2 import Template
 
 # Import project modules.
-from kaipy.testing import common
+import common
 
 
 # Program constants
@@ -60,17 +59,15 @@ BIN_DIR = 'bin'
 # List of weekly dash test files to copy
 WEEKLY_DASH_TEST_FILES = [
     'weeklyDashGo.xml',
-    'weeklyDashGo.pbs',
 ]
 
-# Name of PBS account to use for testing jobs.
-DERECHO_TESTING_ACCOUNT = os.environ['DERECHO_TESTING_ACCOUNT']
+# Paths to jinja2 template file for PBS script.
+WEEKLY_DASH_PBS_TEMPLATE = os.path.join(
+    TEST_SCRIPTS_DIRECTORY, 'weeklyDash-template.pbs'
+)
 
-# Token string for access to Slack.
-SLACK_BOT_TOKEN = os.environ['SLACK_BOT_TOKEN']
-
-# Branch or commit string for code used in this test.
-BRANCH_OR_COMMIT = os.environ['BRANCH_OR_COMMIT']
+# Name of rendered PBS script.
+WEEKLY_DASH_PBS_SCRIPT = 'weeklyDash.pbs'
 
 
 def main():
@@ -100,19 +97,21 @@ def main():
         print(f"args = {args}")
     debug = args.debug
     be_loud = args.loud
+    slack_on_fail = args.slack_on_fail
     is_test = args.test
     verbose = args.verbose
 
     # ------------------------------------------------------------------------
 
     if debug:
-        print(f"Starting {sys.argv[0]} at {datetime.datetime.now()}"
-              f" on {platform.node()}")
+        print(f"Starting {sys.argv[0]} at {datetime.datetime.now()}")
         print(f"Current directory is {os.getcwd()}")
 
     # ------------------------------------------------------------------------
 
     # Set up for communication with Slack.
+    if verbose:
+        print('Creating Slack client.')
     slack_client = common.slack_create_client()
     if debug:
         print(f"slack_client = {slack_client}")
@@ -120,7 +119,8 @@ def main():
     # ------------------------------------------------------------------------
 
     # Make a directory to hold all of the weekly dash tests.
-    print(f"Creating {WEEKLY_DASH_DIRECTORY}.")
+    if verbose:
+        print(f"Creating {WEEKLY_DASH_DIRECTORY}.")
     os.mkdir(WEEKLY_DASH_DIRECTORY)
 
     # ------------------------------------------------------------------------
@@ -136,6 +136,15 @@ def main():
 
     # ------------------------------------------------------------------------
 
+    # Read the template for the PBS script used for the test data generation.
+    with open(WEEKLY_DASH_PBS_TEMPLATE, 'r', encoding='utf-8') as f:
+        template_content = f.read()
+    weekly_dash_pbs_template = Template(template_content)
+    if debug:
+        print(f"weekly_dash_pbs_template = {weekly_dash_pbs_template}")
+
+    # ------------------------------------------------------------------------
+
     # Create the make command to build the code.
     make_cmd = 'make voltron_mpi.x'
     if debug:
@@ -143,8 +152,19 @@ def main():
 
     # ------------------------------------------------------------------------
 
+    # Create the list for submit results. Only set to True if all build and
+    # qsub commands for a set are OK.
+    submit_ok = [False]*len(module_list_files)
+    if debug:
+        print(f"submit_ok = {submit_ok}")
+
+    # Create the list of job IDs.
+    job_ids = [None]*len(module_list_files)
+    if debug:
+        print(f"jobs_ids = {job_ids}")
+
     # Run the weekly dash with each set of modules.
-    for (i_test, module_list_file) in enumerate(module_list_files):
+    for (i_module_set, module_list_file) in enumerate(module_list_files):
         if verbose:
             print('Performing weekly dash with module set '
                   f"{module_list_file}")
@@ -157,6 +177,10 @@ def main():
         # Read this module list file, extracting cmake environment and
         # options, if any.
         path = os.path.join(MODULE_LIST_DIRECTORY, module_list_file)
+        if debug:
+            print(f"path = {path}")
+        if verbose:
+            print(f"Reading module list file {path}.")
         module_names, cmake_environment, cmake_options = (
             common.read_build_module_list_file(path)
         )
@@ -177,16 +201,11 @@ def main():
         if debug:
             print(f"cmake_options = {cmake_options}")
 
-        # Assemble the commands to load the listed modules.
-        module_cmd = (
-            f"module --force purge; module load {' '.join(module_names)}"
-        )
-        if debug:
-            print(f"module_cmd = {module_cmd}")
-
         # Make a directory for this build, and go there.
         dir_name = f"{WEEKLY_DASH_DIRECTORY_PREFIX}{module_set_name}"
         build_directory = os.path.join(WEEKLY_DASH_DIRECTORY, dir_name)
+        if verbose:
+            print(f"Creating and moving to build directory {build_directory}.")
         if debug:
             print(f"build_directory = {build_directory}")
         os.mkdir(build_directory)
@@ -267,8 +286,7 @@ def main():
         # Generate the solar wind boundary condition file.
         if verbose:
             print('Creating solar wind initial conditions file.')
-        cmd = (
-            'cda2wind.py -t0 2016-08-09T02:00:00 -t1 2016-08-09T12:00:00')
+        cmd = 'cda2wind.py -t0 2016-08-09T02:00:00 -t1 2016-08-09T12:00:00'
         if debug:
             print(f"cmd = {cmd}")
         try:
@@ -309,81 +327,116 @@ def main():
             to_file = os.path.join('.', filename)
             shutil.copyfile(from_file, to_file)
 
+        # Assemble data to fill in the PBS template.
+        pbs_options = {}
+        pbs_options['job_name'] = dir_name
+        pbs_options['account'] = os.environ['DERECHO_TESTING_ACCOUNT']
+        pbs_options['queue'] = os.environ['DERECHO_TESTING_QUEUE']
+        pbs_options['job_priority'] = os.environ['DERECHO_TESTING_PRIORITY']
+        pbs_options['walltime'] = '08:00:00'
+        pbs_options['modules'] = module_names
+        pbs_options['kaijuhome'] = KAIJUHOME
+        pbs_options['tmpdir'] = os.environ['TMPDIR']
+        pbs_options['slack_bot_token'] = os.environ['SLACK_BOT_TOKEN']
+        pbs_options['mage_test_root'] = os.environ['MAGE_TEST_ROOT']
+        pbs_options['mage_test_set_root'] = os.environ['MAGE_TEST_SET_ROOT']
+        pbs_options['branch_or_commit'] = os.environ['BRANCH_OR_COMMIT']
+        pbs_options['report_options'] = ''
+        if debug:
+            pbs_options['report_options'] += ' -d'
+        pbs_options['report_options'] += ' -l'  # Always report.
+        if slack_on_fail:
+            pbs_options['report_options'] += ' -s'
+        if is_test:
+            pbs_options['report_options'] += ' -t'
+        if verbose:
+            pbs_options['report_options'] += ' -v'
+
+        # Render the job template.
+        pbs_content = weekly_dash_pbs_template.render(pbs_options)
+        with open(WEEKLY_DASH_PBS_SCRIPT, 'w', encoding='utf-8') as f:
+            f.write(pbs_content)
+
         # Submit the weekly dash job.
         if verbose:
-            print('Preparing to submit weekly dash model run.')
-        cmd = (
-                f"qsub -A {DERECHO_TESTING_ACCOUNT} "
-                f"-v MODULE_LIST='{' '.join(module_names)}',"
-                f"KAIJUROOTDIR={KAIJUHOME},"
-                f"MAGE_TEST_SET_ROOT={MAGE_TEST_SET_ROOT},"
-                f"DERECHO_TESTING_ACCOUNT={DERECHO_TESTING_ACCOUNT},"
-                f"SLACK_BOT_TOKEN={SLACK_BOT_TOKEN},"
-                f"BRANCH_OR_COMMIT={BRANCH_OR_COMMIT}"
-                ' weeklyDashGo.pbs'
-        )
+            print('Submitting weekly dash model run.')
+        cmd = f"qsub {WEEKLY_DASH_PBS_SCRIPT}"
         if debug:
             print(f"cmd = {cmd}")
         try:
             cproc = subprocess.run(cmd, shell=True, check=True,
-                                   text=True, stdout=subprocess.PIPE,
-                                   stderr=subprocess.STDOUT)
+                                   text=True, capture_output=True)
         except subprocess.CalledProcessError as e:
-            print(
-                'ERROR: Unable to submit job request for module set '
-                f"{module_set_name}.\n"
-                f"e.cmd = {e.cmd}\n"
-                f"e.returncode = {e.returncode}\n"
-                'See testing log for output.\n'
-                'Skipping remaining steps for module set '
-                f"{module_set_name}\n"
-            )
+            print('ERROR: qsub failed.\n'
+                  f"e.cmd = {e.cmd}\n"
+                  f"e.returncode = {e.returncode}\n"
+                  'See test log for output.\n'
+                  'Skipping remaining steps for module set '
+                  f"{module_set_name}.",
+                  file=sys.stderr)
             continue
         job_id = cproc.stdout.split('.')[0]
         if debug:
             print(f"job_id = {job_id}")
 
+        # Record the job ID.
+        job_ids[i_module_set] = job_id
+
+        # Record successful submission.
+        submit_ok[i_module_set] = True
+
         # Save the job number in a file.
         with open('jobs.txt', 'w', encoding='utf-8') as f:
             f.write(f"{job_id}\n")
 
-        # Detail the test results
-        test_report_details_string = ''
-        test_report_details_string += (
-            f"Test results are in {os.getcwd()}.\n"
-        )
-        test_report_details_string += (
-            f"Weekly dash submitted as job {job_id}."
-        )
-
-        # Summarize the test results.
-        test_report_summary_string = (
-            'Weekly dash submitted by `weeklyDash.py`'
-            f" for branch or commit or tag {BRANCH_OR_COMMIT}\n"
-        )
-
-        # Print the test results summary and details.
-        print(test_report_summary_string)
-        print(test_report_details_string)
-
-        # If loud mode is on, post report to Slack.
-        if be_loud:
-            test_report_summary_string += 'Details in thread for this messsage.\n'
-            slack_response_summary = common.slack_send_message(
-                slack_client, test_report_summary_string, is_test=is_test
-            )
-            if slack_response_summary['ok']:
-                thread_ts = slack_response_summary['ts']
-                slack_response_details = common.slack_send_message(
-                    slack_client, test_report_details_string, thread_ts=thread_ts,
-                    is_test=is_test
-                )
-                if 'ok' not in slack_response_details:
-                    print('*ERROR* Unable to post test details to Slack.')
-            else:
-                print('*ERROR* Unable to post test summary to Slack.')
-
         # End of loop over module sets.
+
+    if debug:
+        print(f"submit_ok = {submit_ok}")
+        print(f"job_ids = {job_ids}")
+
+    # ------------------------------------------------------------------------
+
+    # Detail the test results
+    test_report_details_string = ''
+    test_report_details_string += (
+        f"Test results are in {WEEKLY_DASH_DIRECTORY}.\n"
+    )
+    for (i_module_set, module_list_file) in enumerate(module_list_files):
+        if not submit_ok[i_module_set]:
+            test_report_details_string += (
+                f"Module set `{module_list_file}` submission: *FAILED*\n"
+            )
+            continue
+        test_report_details_string += (
+            f"Weekly dash for module set `{module_list_file}` submitted as "
+            f"job {job_ids[i_module_set]}.\n"
+        )
+
+    # Summarize the test results.
+    if 'FAILED' in test_report_details_string:
+        test_report_summary_string = 'Weekly dash submission: *FAILED*\n'
+    else:
+        test_report_summary_string = 'Weekly dash submission: *PASSED*\n'
+
+    # Print the test results summary and details.
+    print(test_report_summary_string)
+    print(test_report_details_string)
+
+    # If a test failed, or loud mode is on, post report to Slack.
+    if (slack_on_fail and 'FAILED' in test_report_details_string) or be_loud:
+        slack_response_summary = common.slack_send_message(
+            slack_client, test_report_summary_string, is_test=is_test
+        )
+        if debug:
+            print(f"slack_response_summary = {slack_response_summary}")
+        thread_ts = slack_response_summary['ts']
+        slack_response_summary = common.slack_send_message(
+            slack_client, test_report_details_string, thread_ts=thread_ts,
+            is_test=is_test
+        )
+        if debug:
+            print(f"slack_response_summary = {slack_response_summary}")
 
     # ------------------------------------------------------------------------
 

@@ -56,7 +56,7 @@ module shellGrid
         !> Subgrid information
         !> ShellGrids that are subgrids of other shellGrids store info about their parent grid
         logical :: isChild = .false.
-        character(len=strLen) :: parentName
+        character(len=strLen) :: parentName = "N/A"
             !! Name of the parent grid  that this one derives from
         integer :: bndis,bndie,bndjs,bndje
             !! Indices of parent grid that bound this grid

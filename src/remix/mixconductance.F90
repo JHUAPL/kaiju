@@ -16,7 +16,7 @@ module mixconductance
 
   !Replacing some hard-coded inline values (bad) w/ module private values (slightly less bad)
   real(rp), parameter, private :: maxDrop = 20.0 !Hard-coded max potential drop [kV]
-  real(rp), parameter, private :: eTINY = 1.D-8 ! Floor of average energy [keV]
+  real(rp), parameter, private :: eTINY = mixeTINY ! Floor of average energy [keV]
   real(rp), parameter, private :: Ne_floor = 0.03e6 ! minimum Ne in [/m^3] when evaluating the linearized FL relation.
   real(rp), parameter, private :: Ne_psp = 10.0e6 ! Ne threshold for the plasmasphere in [/m^3].
   real(rp), parameter, private :: GuABNF = 1.e7 ! Gussenhoven+[1983] Auroral Boundary Number Flux in [#/cm^s/s].

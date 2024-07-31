@@ -5,7 +5,7 @@
 #PBS -q {{ queue }}
 #PBS -l job_priority={{ job_priority }}
 #PBS -l walltime={{ walltime }}
-#PBS -l select=2:ncpus=128:mpiprocs=9:ompthreads=128
+#PBS -l select=1:ncpus=128:mpiprocs=64:ompthreads=128
 #PBS -j oe
 #PBS -m abe
 
@@ -28,10 +28,40 @@ export KMP_STACKSIZE=128M
 echo 'The active environment variables are:'
 printenv
 
-echo 'Running VOLTRON MPI tests.'
+echo 'Running GAMERA tests.'
+date
+./gamTests >& gamTests.out
+date
+echo 'GAMERA tests complete.'
+echo | tail -n 3 ./gamTests.out
+
+echo 'Running REMIX tests.'
+date
+./mixTests >& mixTests.out
+date
+echo 'REMIX tests complete.'
+echo | tail -n 3 ./mixTests.out
+
+echo 'Running VOLTRON tests.'
+date
+./voltTests >& voltTests.out
+date
+echo 'VOLTRON tests complete.'
+echo | tail -n 3 ./voltTests.out
+
+echo 'Running base MPI tests.'
 MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
-${MPICOMMAND} ./voltMpiTests > voltMpiTests.out
-echo 'VOLTRON MPI tests complete.'
-echo | tail -n 3 ./voltMpiTests.out
+date
+${MPICOMMAND} ./baseMpiTests >& baseMpiTests.out
+date
+echo 'Base MPI tests complete.'
+echo | tail -n 3 ./baseMpiTests.out
+
+echo 'Running GAMERA MPI tests.'
+date
+${MPICOMMAND} ./gamMpiTests >& gamMpiTests.out
+date
+echo 'GAMERA MPI tests complete.'
+echo | tail -n 3 ./gamMpiTests.out
 
 echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

@@ -24,7 +24,7 @@ import sys
 # Import 3rd-party modules.
 
 # Import project modules.
-from kaipy.testing import common
+import common
 
 
 # Program constants
@@ -60,7 +60,9 @@ def main():
         print(f"args = {args}")
     debug = args.debug
     be_loud = args.loud
+    slack_on_fail = args.slack_on_fail
     is_test = args.test
+    verbose = args.verbose
 
     # ------------------------------------------------------------------------
 
@@ -72,7 +74,7 @@ def main():
 
     # Check for for the job list file.
     if not os.path.exists('jobs.txt'):
-        print('Nothing to report on.')
+        print('jobs.txt not found. Nothing to report on.')
         sys.exit(0)
 
     # Read in the jobs.txt file to get the job numbers
@@ -110,15 +112,23 @@ def main():
     for _, dirs, _ in os.walk('.'):
         for d in dirs:
             if 'memResults' in d:
+                if debug:
+                    print(f"Examining {d}.")
                 try:
                     memory_check_output = subprocess.check_output(
                         ['inspxe-cl', '-report summary', '-result-dir ' + d,
                          '-s-f memSuppress.sup'],
                         stderr=subprocess.STDOUT, universal_newlines=True)
+                    if debug:
+                        print(f"memory_check_output = {memory_check_output}")
                 except subprocess.CalledProcessError as e:
                     # we need to handle non-zero error code
                     memory_check_output = e.output
+                    if debug:
+                        print(f"memory_check_output = {memory_check_output}")
                 problem_match = re.search(problem_pattern, memory_check_output)
+                if debug:
+                    print(f"problem_match = {problem_match}")
                 if not problem_match or int(problem_match.group(1)) > 0:
                     try:
                         memory_check_output = subprocess.check_output(
@@ -126,30 +136,46 @@ def main():
                              '-result-dir ' + d, '-s-f memSuppress.sup',
                              '-report-all'],
                             stderr=subprocess.STDOUT, universal_newlines=True)
+                        if debug:
+                            print(
+                                f"memory_check_output = {memory_check_output}"
+                            )
                     except subprocess.CalledProcessError as e:
                         # we need to handle non-zero error code
                         memory_check_output = e.output
-                    with open(
-                        memory_errors_file, 'a', encoding='utf-8'
-                    ) as f:
-                        f.write(memory_check_output)
-                        f.write('\n')
+                        if debug:
+                            print(
+                                f"memory_check_output = {memory_check_output}"
+                            )
+                with open(
+                    memory_errors_file, 'a', encoding='utf-8'
+                ) as f:
+                    f.write(memory_check_output)
+                    f.write('\n')
 
     # Thread
     thread_errors_file = 'combinedThreadErrs.txt'
     for _, dirs, _ in os.walk('.'):
         for d in dirs:
             if 'threadResults' in d:
+                if debug:
+                    print(f"Examining {d}.")
                 try:
                     thread_check_output = subprocess.check_output(
                         ['inspxe-cl', '-report summary', '-result-dir ' + d,
                          '-s-f threadSuppress.sup'],
                         stderr=subprocess.STDOUT, universal_newlines=True
                     )
+                    if debug:
+                        print(f"thread_check_output = {thread_check_output}")
                 except subprocess.CalledProcessError as e:
                     # we need to handle non-zero error code
                     thread_check_output = e.output
+                    if debug:
+                        print(f"thread_check_output = {thread_check_output}")
                 problem_match = re.search(problem_pattern, thread_check_output)
+                if debug:
+                    print(f"problem_match = {problem_match}")
                 if not problem_match or int(problem_match.group(1)) > 0:
                     try:
                         thread_check_output = subprocess.check_output([
@@ -157,28 +183,29 @@ def main():
                             '-result-dir ' + d, '-s-f threadSuppress.sup',
                             '-report-all'],
                             stderr=subprocess.STDOUT, universal_newlines=True)
+                        if debug:
+                            print(
+                                f"thread_check_output = {thread_check_output}"
+                            )
                     except subprocess.CalledProcessError as e:
                         # we need to handle non-zero error code
                         thread_check_output = e.output
-                    with open(
-                        thread_errors_file, 'a', encoding='utf-8'
-                    ) as f:
-                        f.write(thread_check_output)
-                        f.write('\n')
-
-    # -----------------------------------------------------------------------
-
-    # Set up for communication with Slack.
-    slack_client = common.slack_create_client()
-    if debug:
-        print(f"slack_client = {slack_client}")
+                        if debug:
+                            print(
+                                f"thread_check_output = {thread_check_output}"
+                            )
+                with open(
+                    thread_errors_file, 'a', encoding='utf-8'
+                ) as f:
+                    f.write(thread_check_output)
+                    f.write('\n')
 
     # ------------------------------------------------------------------------
 
     # Detail the test results
     test_report_details_string = ''
     test_report_details_string += (
-        f"Intel check results are in {os.getcwd()}.\n"
+        f"Test results are in `{os.getcwd()}`.\n"
     )
     test_report_details_string += 'Results of memory tests:\n'
     with open(memory_errors_file, 'r', encoding='utf-8') as f:
@@ -197,22 +224,23 @@ def main():
     print(test_report_summary_string)
     print(test_report_details_string)
 
-    # If loud mode is on, post report to Slack.
-    if be_loud:
-        test_report_summary_string += 'Details in thread for this messsage.\n'
+    # If a test failed, or loud mode is on, post report to Slack.
+    if (slack_on_fail and 'FAILED' in test_report_details_string) or be_loud:
+        slack_client = common.slack_create_client()
+        if debug:
+            print(f"slack_client = {slack_client}")
         slack_response_summary = common.slack_send_message(
             slack_client, test_report_summary_string, is_test=is_test
         )
-        if slack_response_summary['ok']:
-            thread_ts = slack_response_summary['ts']
-            slack_response_details = common.slack_send_message(
-                slack_client, test_report_details_string, thread_ts=thread_ts,
-                is_test=is_test
-            )
-            if 'ok' not in slack_response_details:
-                print('*ERROR* Unable to post test details to Slack.')
-        else:
-            print('*ERROR* Unable to post test summary to Slack.')
+        if debug:
+            print(f"slack_response_summary = {slack_response_summary}")
+        thread_ts = slack_response_summary['ts']
+        slack_response_summary = common.slack_send_message(
+            slack_client, test_report_details_string, thread_ts=thread_ts,
+            is_test=is_test
+        )
+        if debug:
+            print(f"slack_response_summary = {slack_response_summary}")
 
     # ------------------------------------------------------------------------
 

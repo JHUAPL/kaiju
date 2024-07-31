@@ -5,7 +5,7 @@
 #PBS -q {{ queue }}
 #PBS -l job_priority={{ job_priority }}
 #PBS -l walltime={{ walltime }}
-#PBS -l select=2:ncpus=128:mpiprocs=9:ompthreads=128
+#PBS -l select=1:ncpus=128:mpiprocs=9:ompthreads=14
 #PBS -j oe
 #PBS -m abe
 
@@ -22,15 +22,17 @@ echo 'Setting up MAGE environment.'
 source {{ kaijuhome }}/scripts/setupEnvironment.sh
 
 echo 'Setting environment variables.'
-export OMP_NUM_THREADS=128
+# export OMP_NUM_THREADS=128
 export MPI_TYPE_DEPTH=32
 export KMP_STACKSIZE=128M
 echo 'The active environment variables are:'
 printenv
 
 echo 'Running VOLTRON MPI tests.'
+date
 MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
-${MPICOMMAND} ./voltMpiTests > voltMpiTests.out
+${MPICOMMAND} ./voltMpiTests >& voltMpiTests.out
+date
 echo 'VOLTRON MPI tests complete.'
 echo | tail -n 3 ./voltMpiTests.out
 

@@ -20,7 +20,7 @@ import sys
 # Import 3rd-party modules.
 
 # Import project modules.
-from kaipy.testing import common
+import common
 
 
 # Program constants
@@ -88,7 +88,7 @@ def main():
     # -------------------------------------------------------------------------
 
     # Detail the test results
-    test_details_message = ''
+    test_report_details_string = ''
     test_report_details_string += (
         f"Test results are in {os.getcwd()}.\n"
     )
@@ -98,7 +98,7 @@ def main():
     has_error = False
     has_pass = False
     if os.path.exists(PYTHON_UNIT_TEST_LOG_FILE):
-        test_details_message += 'Python unit tests ran to completion.\n'
+        test_report_details_string += 'Python unit tests ran to completion.\n'
         with open(PYTHON_UNIT_TEST_LOG_FILE, encoding='utf-8') as f:
             lines = f.readlines()
         last_line = lines[-1]
@@ -109,17 +109,19 @@ def main():
         if 'passed' in last_line:
             has_pass = True
         if has_error:
-            test_details_message += 'Python unit tests error detected.\n'
+            test_report_details_string += 'Python unit tests error detected.\n'
         if has_fail:
-            test_details_message += 'Python unit tests: *FAILED*\n'
+            test_report_details_string += 'Python unit tests: *FAILED*\n'
         if has_pass and not has_error and not has_fail:
-            test_details_message += 'Python unit tests: *PASSED*\n'
+            test_report_details_string += 'Python unit tests: *PASSED*\n'
         if not has_pass and not has_error and not has_fail:
-            test_details_message += (
+            test_report_details_string += (
                 'Unexpected error occured during python unit tests.\n'
             )
     else:
-        test_details_message += 'Python unit tests did not run to completion.\n'
+        test_report_details_string += (
+            'Python unit tests did not run to completion.\n'
+        )
         has_pass = False
 
     # Summarize the test results.
@@ -140,7 +142,7 @@ def main():
         if slack_response_summary['ok']:
             thread_ts = slack_response_summary['ts']
             slack_response_details = common.slack_send_message(
-                slack_client, test_details_message, thread_ts=thread_ts,
+                slack_client, test_report_details_string, thread_ts=thread_ts,
                 is_test=is_test
             )
         else:
@@ -153,5 +155,4 @@ def main():
 
 
 if __name__ == '__main__':
-    """Call main program function."""
     main()

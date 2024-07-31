@@ -5,7 +5,7 @@
 #PBS -q {{ queue }}
 #PBS -l job_priority={{ job_priority }}
 #PBS -l walltime={{ walltime }}
-#PBS -l select=1:ncpus=128:ompthreads=128
+#PBS -l select=1:ncpus=128
 #PBS -j oe
 #PBS -m abe
 
@@ -41,13 +41,12 @@ echo 'Setting up MAGE environment.'
 source {{ kaijuhome }}/scripts/setupEnvironment.sh
 
 echo 'Setting environment variables.'
-export TMPDIR={{ tmpdir }}
+export MAGE_TEST_SET_ROOT={{ mage_test_set_root }}
 export SLACK_BOT_TOKEN={{ slack_bot_token }}
-export DERECHO_TESTING_ACCOUNT={{ account }}
 echo 'The active environment variables are:'
 printenv
 
-# Create the report.
-python ${KAIJUHOME}/testingScripts/intelChecksReport.py {{ report_options }}
+echo 'Generating unit test report.'
+python $KAIJUHOME/testingScripts/unitTestReport.py {{ report_options }} >& unitTestReport.out
 
 echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

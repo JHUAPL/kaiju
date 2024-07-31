@@ -5,7 +5,7 @@
 #PBS -q {{ queue }}
 #PBS -l job_priority={{ job_priority }}
 #PBS -l walltime={{ walltime }}
-#PBS -l select=2:ncpus=128:mpiprocs=9:ompthreads=128
+#PBS -l select=1:ncpus=128:mpiprocs=8:ompthreads=16
 #PBS -j oe
 #PBS -m abe
 
@@ -28,10 +28,15 @@ export KMP_STACKSIZE=128M
 echo 'The active environment variables are:'
 printenv
 
-echo 'Running VOLTRON MPI tests.'
+echo 'Running non-MPI test cases.'
+./caseTests >& caseTests.out
+echo 'Non-MPI test cases complete.'
+echo | tail -n 3 ./caseTests.out
+
+echo 'Running MPI test cases.'
 MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
-${MPICOMMAND} ./voltMpiTests > voltMpiTests.out
-echo 'VOLTRON MPI tests complete.'
-echo | tail -n 3 ./voltMpiTests.out
+${MPICOMMAND} ./caseMpiTests >& caseMpiTests.out
+echo 'MPI test cases complete.'
+echo | tail -n 3 ./caseMpiTests.out
 
 echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

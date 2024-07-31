@@ -1,0 +1,74 @@
+module testSGIO
+
+    use testHelper
+    use kdefs
+
+    use shellGrid
+    use shellGridIO
+
+    implicit none
+
+    integer, parameter :: Npnt = 50
+    character(len=strLen) :: fnameH5 = "testSGIO.h5"
+    type(ShellGrid_T) :: sh, shRead
+    character(len=strLen) :: checkMessage
+
+    contains
+
+    @before
+    subroutine setup()
+        real(rp), dimension(Npnt) :: thetas, phis
+        real(rp) :: dth, dph
+        real(rp) :: thetaL = 0.0*PI/180.0
+        integer :: i,j
+
+        dth = (0.5*PI - thetaL) / (Npnt-1)
+        dph = 2.0*PI / (Npnt-1)
+
+        do i=1,Npnt
+            thetas(i) = thetaL + (i-1)*dth
+        enddo
+
+        do j=1,Npnt
+            phis(j) = (j-1)*dph
+        enddo
+
+	    call GenShellGrid(sh, thetas, phis,'shgrTest_IO', radO=1.1_rp)
+
+    end subroutine setup
+
+    @after
+    subroutine teardown()
+        call deallocShellGrid(sh)	    
+    end subroutine teardown
+
+    @test
+    subroutine testSGRead()
+        !! Testing shellridIO:GenShellGridFromFile
+        !! Writes a ShellGrid to file, then reads it back in to see if the GenShellGridFromFile works properly
+        real(rp) :: tol = 1e-8
+        integer :: i,j
+
+        call writeShellGrid(sh, fnameH5)
+        call GenShellGridFromFile(shRead, 'shgrTest_IO', fnameH5)
+        
+        @assertEqual(sh%radius, shRead%radius, "SG Read/Write: radius differs")
+        @assertEqual(sh%is, shRead%is, "SG Read/Write: is doesn't agree")
+        @assertEqual(sh%js, shRead%js, "SG Read/Write: js doesn't agree")
+        @assertEqual(sh%ie, shRead%ie, "SG Read/Write: is doesn't agree")
+        @assertEqual(sh%je, shRead%je, "SG Read/Write: je doesn't agree")
+        @assertEqual(sh%isg, shRead%isg, "SG Read/Write: isg doesn't agree")
+        @assertEqual(sh%jsg, shRead%jsg, "SG Read/Write: jsg doesn't agree")
+        @assertEqual(sh%ieg, shRead%ieg, "SG Read/Write: isg doesn't agree")
+        @assertEqual(sh%jeg, shRead%jeg, "SG Read/Write: jeg doesn't agree")
+        do i=sh%isg,sh%ieg
+            @assertLessThanOrEqual(abs(sh%th(i)  - shRead%th(i) ), tol, "SG Read/Write: thetas differ")
+            @assertLessThanOrEqual(abs(sh%lat(i) - shRead%lat(i)), tol, "SG Read/Write: lats differ"  )
+        enddo
+        do j=sh%jsg,sh%jeg
+            @assertLessThanOrEqual(abs(sh%th(j) - shRead%th(j)), tol, "SG Read/Write: phis differ")
+        enddo
+        
+    end subroutine testSGRead
+
+end module testSGIO

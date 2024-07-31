@@ -40,5 +40,6 @@ module mixdefs
     enumerator :: iSMtoGEO,iGEOtoSM,iSMtoGSM,iGSMtoSM,iGEOtoGSM,iGSMtoGEO,iAPEXtoSM,iSMtoAPEX
   end enum
 
+  real(rp), parameter :: mixeTINY = 1.D-8 ! Floor of average energy [keV]
 
 end module mixdefs
