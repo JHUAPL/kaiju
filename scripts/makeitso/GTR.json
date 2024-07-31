@@ -1,0 +1,11 @@
+{
+    "simulation": {
+        "job_name": "GTR",
+        "start_date": "2022-03-20T02:00:00",
+        "stop_date": "2022-03-20T10:00:00",
+        "use_segments": "Y",
+        "segment_duration": "14400",
+        "gamera_grid_type": "Q",
+        "hpc_system": "derecho"
+    }
+}
