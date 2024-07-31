@@ -109,11 +109,13 @@ module mixconductance
       real(rp) :: dT,upTau,dnTau,wAvgU,wAvgD
       integer :: i,j
 
-      !Save old Sigs
-      allocate(SigH0(G%Np,G%Nt))
-      allocate(SigP0(G%Np,G%Nt))
-      SigP0 = St%Vars(:,:,SIGMAP)
-      SigH0 = St%Vars(:,:,SIGMAH)
+      if (.not. present(gcm)) then
+        !Save old Sigs
+        allocate(SigH0(G%Np,G%Nt))
+        allocate(SigP0(G%Np,G%Nt))
+        SigP0 = St%Vars(:,:,SIGMAP)
+        SigH0 = St%Vars(:,:,SIGMAH)
+      endif
 
       ! Compute EUV though because it's used in fedder
       call conductance_euv(conductance,G,St)
@@ -139,59 +141,62 @@ module mixconductance
          call apply_gcm2mix(gcm,St,h)
          St%Vars(:,:,SIGMAP) = max(conductance%pedmin,St%Vars(:,:,SIGMAP))
          St%Vars(:,:,SIGMAH) = max(conductance%hallmin,St%Vars(:,:,SIGMAH))
-      else if (conductance%const_sigma) then
-         ! Use constant conductance.
-         St%Vars(:,:,SIGMAP) = conductance%ped0
-         St%Vars(:,:,SIGMAH) = 0.D0
       else
-         ! Use vector addition of auroral and EUV conductance.
-         call conductance_aurora(conductance,G,St)
-         St%Vars(:,:,SIGMAP) = sqrt( conductance%euvSigmaP**2 + conductance%deltaSigmaP**2) 
-         St%Vars(:,:,SIGMAH) = sqrt( conductance%euvSigmaH**2 + conductance%deltaSigmaH**2)
-      endif
+        ! Empirical conductance if no GCM conductance
+        if (conductance%const_sigma) then
+            ! Use constant conductance.
+            St%Vars(:,:,SIGMAP) = conductance%ped0
+            St%Vars(:,:,SIGMAH) = 0.D0
+        else
+            ! Use vector addition of auroral and EUV conductance.
+            call conductance_aurora(conductance,G,St)
+            St%Vars(:,:,SIGMAP) = sqrt( conductance%euvSigmaP**2 + conductance%deltaSigmaP**2)
+            St%Vars(:,:,SIGMAH) = sqrt( conductance%euvSigmaH**2 + conductance%deltaSigmaH**2)
+        endif
 
-      !Before applying cap, do optional exponential smoothing
-      if ( (.not. conductance%const_sigma) .and. conductance%doEMA ) then
-         !Want 95% of weight to come from last tau seconds
-         !Lazily setting values here
-         dT = 5.D0
+        !Before applying cap, do optional exponential smoothing
+        if ( (.not. conductance%const_sigma) .and. conductance%doEMA .and.(.not. present(gcm))) then
+            !Want 95% of weight to come from last tau seconds
+            !Lazily setting values here
+            dT = 5.D0
 
-         dnTau = 30.D0 ![s], fall timescale (eg recombination)
-         upTau = 5.D0  ![s], increase timescale (eg state averaging)
+            dnTau = 30.D0 ![s], fall timescale (eg recombination)
+            upTau = 5.D0  ![s], increase timescale (eg state averaging)
 
-         wAvgD = 1.D0 - exp(-3.D0*dT/max(dT,dnTau))
-         wAvgU = 1.D0 - exp(-3.D0*dT/max(dT,upTau))
-         !Throttle how fast conductance drops (ie lazy recombination timescale)
-         !$OMP PARALLEL DO default(shared) &
-         !$OMP private(i,j)
-         do j=1,G%Nt
-            do i=1,G%Np
-               if(St%Vars(i,j,SIGMAP) < SigP0(i,j)) then
-                  !Local conductance dropping
-                  St%Vars(i,j,SIGMAP) = wAvgD*St%Vars(i,j,SIGMAP) + (1-wAvgD)*SigP0(i,j)
-               else
-                  !Local conductance increasing
-                  St%Vars(i,j,SIGMAP) = wAvgU*St%Vars(i,j,SIGMAP) + (1-wAvgU)*SigP0(i,j)
-               endif
-               if(St%Vars(i,j,SIGMAH) < SigH0(i,j)) then
-                  !Local conductance dropping
-                  St%Vars(i,j,SIGMAH) = wAvgD*St%Vars(i,j,SIGMAH) + (1-wAvgD)*SigH0(i,j)
-               else
-                  !Local conductance increasing
-                  St%Vars(i,j,SIGMAH) = wAvgU*St%Vars(i,j,SIGMAH) + (1-wAvgU)*SigH0(i,j)
-               endif
+            wAvgD = 1.D0 - exp(-3.D0*dT/max(dT,dnTau))
+            wAvgU = 1.D0 - exp(-3.D0*dT/max(dT,upTau))
+            !Throttle how fast conductance drops (ie lazy recombination timescale)
+            !$OMP PARALLEL DO default(shared) &
+            !$OMP private(i,j)
+            do j=1,G%Nt
+                do i=1,G%Np
+                if(St%Vars(i,j,SIGMAP) < SigP0(i,j)) then
+                    !Local conductance dropping
+                    St%Vars(i,j,SIGMAP) = wAvgD*St%Vars(i,j,SIGMAP) + (1-wAvgD)*SigP0(i,j)
+                else
+                    !Local conductance increasing
+                    St%Vars(i,j,SIGMAP) = wAvgU*St%Vars(i,j,SIGMAP) + (1-wAvgU)*SigP0(i,j)
+                endif
+                if(St%Vars(i,j,SIGMAH) < SigH0(i,j)) then
+                    !Local conductance dropping
+                    St%Vars(i,j,SIGMAH) = wAvgD*St%Vars(i,j,SIGMAH) + (1-wAvgD)*SigH0(i,j)
+                else
+                    !Local conductance increasing
+                    St%Vars(i,j,SIGMAH) = wAvgU*St%Vars(i,j,SIGMAH) + (1-wAvgU)*SigH0(i,j)
+                endif
+                enddo
             enddo
-         enddo
 
-         deallocate(SigP0)
-         deallocate(SigH0)
-      endif
+            deallocate(SigP0)
+            deallocate(SigH0)
+        endif
 
-      ! Apply cap
-      if ((conductance%apply_cap).and.(.not. conductance%const_sigma).and.(.not. present(gcm))) then
-         St%Vars(:,:,SIGMAP) = max(conductance%pedmin,St%Vars(:,:,SIGMAP))
-         St%Vars(:,:,SIGMAH) = min(max(conductance%hallmin,St%Vars(:,:,SIGMAH)),&
-              St%Vars(:,:,SIGMAP)*conductance%sigma_ratio)
+        ! Apply cap
+        if ((conductance%apply_cap).and.(.not. conductance%const_sigma).and.(.not. present(gcm))) then
+            St%Vars(:,:,SIGMAP) = max(conductance%pedmin,St%Vars(:,:,SIGMAP))
+            St%Vars(:,:,SIGMAH) = min(max(conductance%hallmin,St%Vars(:,:,SIGMAH)),&
+                St%Vars(:,:,SIGMAP)*conductance%sigma_ratio)
+        endif
       endif
 
     end subroutine conductance_total
