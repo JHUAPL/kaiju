@@ -33,22 +33,17 @@ import subprocess
 import h5py
 from jinja2 import Template
 
-# Import project modules.
+# # Import project modules.
 
 
 # Program constants
 
 # Program description.
-DESCRIPTION = "Interactive script to prepare a MAGE magnetosphere model run."
-
-# Indent level for JSON output.
-JSON_INDENT = 4
-
-# Path to current kaiju installation
-KAIJUHOME = os.environ["KAIJUHOME"]
+DESCRIPTION = "Interactive script to prepare a MAGE magnetosphere model run"
 
 # Path to directory containing support files for makeitso.
-SUPPORT_FILES_DIRECTORY = os.path.join(KAIJUHOME, "scripts", "makeitso")
+SUPPORT_FILES_DIRECTORY = os.path.join(os.environ["KAIJUHOME"], "scripts",
+                                       "makeitso")
 
 # Path to option descriptions file.
 OPTION_DESCRIPTIONS_FILE = os.path.join(
@@ -60,6 +55,9 @@ INI_TEMPLATE = os.path.join(SUPPORT_FILES_DIRECTORY, "template.ini")
 
 # Path to template .pbs file.
 PBS_TEMPLATE = os.path.join(SUPPORT_FILES_DIRECTORY, "template.pbs")
+
+# Indent level for JSON output.
+JSON_INDENT = 4
 
 
 def create_command_line_parser():
@@ -90,6 +88,11 @@ def create_command_line_parser():
         help="Print debugging output (default: %(default)s)."
     )
     parser.add_argument(
+        "--engage_options_path", "-e", default=None,
+        help="Path to JSON file of options from engage.py "
+        "(default: %(default)s)"
+    )
+    parser.add_argument(
         "--mode", default="BASIC",
         help="User mode (BASIC|INTERMEDIATE|EXPERT) (default: %(default)s)."
     )
@@ -104,7 +107,7 @@ def create_command_line_parser():
     return parser
 
 
-def get_run_option(name, description, mode="BASIC"):
+def get_run_option(name: str, description: dict, mode: str = "BASIC"):
     """Prompt the user for a single run option.
 
     Prompt the user for a single run option. If no user input is provided,
@@ -175,7 +178,7 @@ def get_run_option(name, description, mode="BASIC"):
     return str(option_value)
 
 
-def fetch_bcwind_time_range(bcwind_path):
+def fetch_bcwind_time_range(bcwind_path: str):
     """Fetch the start and stop times for a bcwind file.
 
     Fetch the start and stop times for a bcwind file.
@@ -206,7 +209,7 @@ def fetch_bcwind_time_range(bcwind_path):
     return start_date, stop_date
 
 
-def prompt_user_for_run_options(args):
+def prompt_user_for_run_options(args: dict):
     """Prompt the user for run options.
 
     Prompt the user for run options.
@@ -314,9 +317,9 @@ def prompt_user_for_run_options(args):
     # Common (HPC platform-independent) options
     od = option_descriptions["pbs"]["_common"]
     od["account_name"]["default"] = os.getlogin()
-    od["kaiju_install_directory"]["default"] = KAIJUHOME
-    od["kaiju_build_directory"]["default"] = os.path.join(KAIJUHOME,
-                                                          "build_mpi")
+    od["kaiju_install_directory"]["default"] = os.environ["KAIJUHOME"]
+    od["kaiju_build_directory"]["default"] = os.path.join(
+        os.environ["KAIJUHOME"], "build_mpi")
     od["num_segments"]["default"] = str(num_segments)
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
@@ -591,7 +594,7 @@ def prompt_user_for_run_options(args):
     return options
 
 
-def run_preprocessing_steps(options):
+def run_preprocessing_steps(options: dict):
     """Execute any preprocessing steps required for the run.
 
     Execute any preprocessing steps required for the run.
@@ -633,7 +636,7 @@ def run_preprocessing_steps(options):
     subprocess.run(args, check=True)
 
 
-def create_ini_files(options):
+def create_ini_files(options: dict):
     """Create the MAGE .ini files from a template.
 
     Create the MAGE .ini files from a template.
@@ -725,7 +728,7 @@ def create_ini_files(options):
     return ini_files
 
 
-def convert_ini_to_xml(ini_files):
+def convert_ini_to_xml(ini_files: list):
     """Convert the .ini files to XML.
 
     Convert the .ini files describing the run to XML files. The intermediate
@@ -768,7 +771,7 @@ def convert_ini_to_xml(ini_files):
     return xml_files
 
 
-def create_pbs_scripts(options):
+def create_pbs_scripts(options: dict):
     """Create the PBS job scripts for the run.
 
     Create the PBS job scripts from a template.
@@ -842,14 +845,16 @@ def create_pbs_scripts(options):
     return pbs_scripts, submit_all_jobs_script
 
 
-def main():
+def makeitso(args: dict):
     """Main program code for makeitso.
 
-    This is the main program code for makeitso.
+    This is the main program code for makeitso. This function can be called
+    from other python code.
 
     Parameters
     ----------
-    None
+    args : dict
+        Dictionary of command-line options
 
     Returns
     -------
@@ -859,15 +864,13 @@ def main():
     ------
     None
     """
-    # Set up the command-line parser.
-    parser = create_command_line_parser()
-
-    # Parse the command-line arguments.
-    args = parser.parse_args()
+    # Local convenience variables
     if args.debug:
         print(f"args = {args}")
     clobber = args.clobber
     debug = args.debug
+    engage_options_path = args.engage_options_path
+    mode = args.mode
     options_path = args.options_path
     verbose = args.verbose
 
@@ -923,6 +926,37 @@ def main():
           "dependency (to ensure each segment runs in order), please run the "
           f"script {all_jobs_script} like this:\n"
           f"bash {all_jobs_script}")
+
+
+def main():
+    """Main program code for makeitso.
+
+    This is the main program code for makeitso.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    None
+    """
+    # Set up the command-line parser.
+    parser = create_command_line_parser()
+
+    # Parse the command-line arguments.
+    args = parser.parse_args()
+    if args.debug:
+        print(f"args = {args}")
+
+    # ------------------------------------------------------------------------
+
+    # Call the main program logic.
+    makeitso(args)
 
 
 if __name__ == "__main__":
