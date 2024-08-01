@@ -23,6 +23,7 @@ parameters, with "EXPERT" parameters set to defaults.
 
 # Import standard modules.
 import argparse
+from argparse import Namespace
 import copy
 import datetime
 import json
@@ -33,7 +34,7 @@ import subprocess
 import h5py
 from jinja2 import Template
 
-# # Import project modules.
+# Import project modules.
 
 
 # Program constants
@@ -234,7 +235,7 @@ def prompt_user_for_run_options(args: dict):
     None
     """
     # Save the user mode.
-    mode = args.mode
+    mode = args['mode']
 
     # Read the dictionary of option descriptions.
     with open(OPTION_DESCRIPTIONS_FILE, "r", encoding="utf-8") as f:
@@ -845,7 +846,18 @@ def create_pbs_scripts(options: dict):
     return pbs_scripts, submit_all_jobs_script
 
 
-def makeitso(args: dict):
+# Default arguments when none are supplied.
+args_default = {
+    'clobber': False,
+    'debug': False,
+    'engage_options_path': None,
+    'mode': 'BASIC',
+    'options_path': None,
+    'verbose': False,
+}
+
+
+def makeitso(args: dict = {}):
     """Main program code for makeitso.
 
     This is the main program code for makeitso. This function can be called
@@ -853,8 +865,8 @@ def makeitso(args: dict):
 
     Parameters
     ----------
-    args : dict
-        Dictionary of command-line options
+    args : argparse.Namespace
+        Namespace of command-line options
 
     Returns
     -------
@@ -864,15 +876,18 @@ def makeitso(args: dict):
     ------
     None
     """
+    # Use defaults for unspecified arguments.
+    local_args = copy.deepcopy(args_default)
+    local_args.update(args)
+    args = local_args
+
     # Local convenience variables
-    if args.debug:
-        print(f"args = {args}")
-    clobber = args.clobber
-    debug = args.debug
-    engage_options_path = args.engage_options_path
-    mode = args.mode
-    options_path = args.options_path
-    verbose = args.verbose
+    clobber = args['clobber']
+    debug = args['debug']
+    engage_options_path = args['engage_options_path']
+    mode = args['mode']
+    options_path = args['options_path']
+    verbose = args['verbose']
 
     # Fetch the run options.
     if options_path:
@@ -956,7 +971,7 @@ def main():
     # ------------------------------------------------------------------------
 
     # Call the main program logic.
-    makeitso(args)
+    makeitso(dict(args))
 
 
 if __name__ == "__main__":
