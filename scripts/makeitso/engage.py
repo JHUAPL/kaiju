@@ -250,7 +250,16 @@ def prompt_user_for_run_options(args):
         o[on] = get_run_option(on, od[on], mode)
 
     #-------------------------------------------------------------------------
+    # coupling options
+    options["coupling"] = {}
+    o = options["coupling"]
+    od = option_descriptions["coupling"]
 
+    # Prompt for the remaining parameters.
+    for on in ["gamera_spin_up_time", "gcm_spin_up_time", 
+               "root_directory"]:
+        o[on] = get_run_option(on, od[on], mode)
+    #-------------------------------------------------------------------------
     # Return the options dictionary.
     return options
 

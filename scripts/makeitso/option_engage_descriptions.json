@@ -39,5 +39,22 @@
             "default": "pleiades",
             "valids": ["derecho", "pleiades"]
         }
+    },
+    "coupling": {
+        "gamera_spin_up_time": {
+            "LEVEL": "INTERMEDIATE",
+            "prompt": "Gamera spin-up time in simulated seconds",
+            "default": 14400
+        },
+        "gcm_spin_up_time": {
+            "LEVEL": "INTERMEDIATE",
+            "prompt": "GCM spin-up time in simulated seconds",
+            "default": 604800
+        },
+        "root_directory": {
+            "LEVEL": "BASIC",
+            "prompt": "Root directory for the simulation",
+            "default": "."
+        }
     }
 }
