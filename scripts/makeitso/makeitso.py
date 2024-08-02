@@ -23,7 +23,6 @@ parameters, with "EXPERT" parameters set to defaults.
 
 # Import standard modules.
 import argparse
-from argparse import Namespace
 import copy
 import datetime
 import json
@@ -857,7 +856,7 @@ args_default = {
 }
 
 
-def makeitso(args: dict = {}):
+def makeitso(args: dict = {}, engage_args=None):
     """Main program code for makeitso.
 
     This is the main program code for makeitso. This function can be called
@@ -865,8 +864,13 @@ def makeitso(args: dict = {}):
 
     Parameters
     ----------
-    args : argparse.Namespace
-        Namespace of command-line options
+    args : dict
+        Dictionary of command-line options and options passed from calling
+        function
+    engage_args : dict or str
+        Dictionary of values for makeitso variables defined by engage OR a
+        string specifying the path to a JSON file created by engage which
+        specifies values for makeitso variables.
 
     Returns
     -------
@@ -971,7 +975,7 @@ def main():
     # ------------------------------------------------------------------------
 
     # Call the main program logic.
-    makeitso(dict(args))
+    makeitso(vars(args))
 
 
 if __name__ == "__main__":
