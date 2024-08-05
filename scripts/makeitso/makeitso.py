@@ -30,7 +30,7 @@ import os
 import subprocess
 
 # Import 3rd-party modules.
-# import h5py
+import h5py
 from jinja2 import Template
 
 # Import project modules.
@@ -53,8 +53,8 @@ OPTION_DESCRIPTIONS_FILE = os.path.join(
 # Path to template .ini file.
 INI_TEMPLATE = os.path.join(SUPPORT_FILES_DIRECTORY, "template.ini")
 
-# # Path to template .pbs file.
-# PBS_TEMPLATE = os.path.join(SUPPORT_FILES_DIRECTORY, "template.pbs")
+# Path to template .pbs file.
+PBS_TEMPLATE = os.path.join(SUPPORT_FILES_DIRECTORY, "template.pbs")
 
 # Indent level for JSON output.
 JSON_INDENT = 4
@@ -228,35 +228,35 @@ def get_run_option(name: str, description: dict, mode: str = "BASIC"):
     return str(option_value)
 
 
-# def fetch_bcwind_time_range(bcwind_path: str):
-#     """Fetch the start and stop times for a bcwind file.
+def fetch_bcwind_time_range(bcwind_path: str):
+    """Fetch the start and stop times for a bcwind file.
 
-#     Fetch the start and stop times for a bcwind file.
+    Fetch the start and stop times for a bcwind file.
 
-#     Parameters
-#     ----------
-#     bcwind_path : str
-#         Path to bcwind file
+    Parameters
+    ----------
+    bcwind_path : str
+        Path to bcwind file
 
-#     Returns
-#     -------
-#     start_date, stop_date : str
-#         First and last entries in UT group, as strings, in
-#         'YYYY-MM-DDTHH:MM:SS' format.
+    Returns
+    -------
+    start_date, stop_date : str
+        First and last entries in UT group, as strings, in
+        'YYYY-MM-DDTHH:MM:SS' format.
 
-#     Raises
-#     ------
-#     None
-#     """
-#     with h5py.File(bcwind_path, "r") as f:
-#         start_date = f["UT"][0].decode("utf-8")
-#         stop_date = f["UT"][-1].decode("utf-8")
-#         # <HACK> Convert from "YYYY-MM-DD HH:MM:SS" format to
-#         # "YYYY-MM-DDTHH:MM:SS" format.
-#         start_date = start_date.replace(" ", "T")
-#         stop_date = stop_date.replace(" ", "T")
-#         # </HACK>
-#     return start_date, stop_date
+    Raises
+    ------
+    None
+    """
+    with h5py.File(bcwind_path, "r") as f:
+        start_date = f["UT"][0].decode("utf-8")
+        stop_date = f["UT"][-1].decode("utf-8")
+        # <HACK> Convert from "YYYY-MM-DD HH:MM:SS" format to
+        # "YYYY-MM-DDTHH:MM:SS" format.
+        start_date = start_date.replace(" ", "T")
+        stop_date = stop_date.replace(" ", "T")
+        # </HACK>
+    return start_date, stop_date
 
 
 def prompt_user_for_run_options(args: dict, option_descriptions: dict):
@@ -776,125 +776,126 @@ def create_ini_files(options: dict):
     return ini_files
 
 
-# def convert_ini_to_xml(ini_files: list):
-#     """Convert the .ini files to XML.
+def convert_ini_to_xml(ini_files: list):
+    """Convert the .ini files to XML.
 
-#     Convert the .ini files describing the run to XML files. The intermediate
-#     .ini files are then deleted.
+    Convert the .ini files describing the run to XML files. The intermediate
+    .ini files are then deleted.
 
-#     Parameters
-#     ----------
-#     ini_files : list of str
-#         Paths to the .ini files to convert.
+    Parameters
+    ----------
+    ini_files : list of str
+        Paths to the .ini files to convert.
 
-#     Returns
-#     -------
-#     xml_files : str
-#         Paths to the XML files.
+    Returns
+    -------
+    xml_files : str
+        Paths to the XML files.
 
-#     Raises
-#     ------
-#     None
-#     """
-#     # Convert each .ini file to an .xml file.
-#     xml_files = []
-#     for ini_file in ini_files:
+    Raises
+    ------
+    None
+    """
+    # Convert each .ini file to an .xml file.
+    xml_files = []
+    for ini_file in ini_files:
 
-#         # Put the XML file in the same directory as the .ini file.
-#         xml_file = ini_file.replace(".ini", ".xml")
+        # Put the XML file in the same directory as the .ini file.
+        xml_file = ini_file.replace(".ini", ".xml")
 
-#         # Convert the .ini file to .xml.
-#         # NOTE: assumes XMLGenerator.py is in PATH.
-#         cmd = "XMLGenerator.py"
-#         args = [cmd, ini_file, xml_file]
-#         subprocess.run(args, check=True)
+        # Convert the .ini file to .xml.
+        # NOTE: assumes XMLGenerator.py is in PATH.
+        cmd = "XMLGenerator.py"
+        args = [cmd, ini_file, xml_file]
+        subprocess.run(args, check=True)
 
-#         # Add this file to the list of XML files.
-#         xml_files.append(xml_file)
+        # Add this file to the list of XML files.
+        xml_files.append(xml_file)
 
-#         # Remove the .ini file.
-#         os.remove(ini_file)
+        # Remove the .ini file.
+        os.remove(ini_file)
 
-#     # Return the paths to the XML files.
-#     return xml_files
+    # Return the paths to the XML files.
+    return xml_files
 
 
-# def create_pbs_scripts(options: dict):
-#     """Create the PBS job scripts for the run.
+def create_pbs_scripts(options: dict):
+    """Create the PBS job scripts for the run.
 
-#     Create the PBS job scripts from a template.
+    Create the PBS job scripts from a template.
 
-#     Parameters
-#     ----------
-#     options : dict
-#         Dictionary of program options, each entry maps str to str.
+    Parameters
+    ----------
+    options : dict
+        Dictionary of program options, each entry maps str to str.
 
-#     Returns
-#     -------
-#     pbs_scripts : list of str
-#         Paths to PBS job script.
-#     submit_all_jobs_script : str
-#         Path to script which submits all PBS jobs.
+    Returns
+    -------
+    pbs_scripts : list of str
+        Paths to PBS job script.
+    submit_all_jobs_script : str
+        Path to script which submits all PBS jobs.
 
-#     Raises
-#     ------
-#     TypeError:
-#         For a non-integral of nodes requested
-#     """
-#     # Compute the number of nodes to request based on the MPI decomposition
-#     # and the MPI ranks per node.
-#     ni = int(options["gamera"]["iPdir"]["N"])
-#     nj = int(options["gamera"]["jPdir"]["N"])
-#     nk = int(options["gamera"]["kPdir"]["N"])
-#     ranks_per_node = int(options["pbs"]["mpiprocs"])
-#     select_nodes = ni*nj*nk/ranks_per_node
-#     if int(select_nodes) != select_nodes:
-#         raise TypeError(f"Requested non-integral node count ({select_nodes})!")
-#     options["pbs"]["select"] = str(int(select_nodes))
+    Raises
+    ------
+    TypeError:
+        For a non-integral of nodes requested
+    """
+    # Compute the number of nodes to request based on the MPI decomposition
+    # and the MPI ranks per node.
+    ni = int(options["gamera"]["iPdir"]["N"])
+    nj = int(options["gamera"]["jPdir"]["N"])
+    nk = int(options["gamera"]["kPdir"]["N"])
+    ranks_per_node = int(options["pbs"]["mpiprocs"])
+    select_nodes = ni*nj*nk/ranks_per_node
+    if int(select_nodes) != select_nodes:
+        raise TypeError(f"Requested non-integral node count ({select_nodes})!")
+    options["pbs"]["select"] = str(int(select_nodes))
 
-#     # Read the template.
-#     with open(PBS_TEMPLATE, "r", encoding="utf-8") as f:
-#         template_content = f.read()
-#     template = Template(template_content)
+    # Read the template.
+    with open(PBS_TEMPLATE, "r", encoding="utf-8") as f:
+        template_content = f.read()
+    template = Template(template_content)
 
-#     # Create a PBS script for each segment.
-#     pbs_scripts = []
-#     for job in range(int(options["pbs"]["num_segments"])):
-#         opt = copy.deepcopy(options)  # Need a copy of options
-#         runid = opt["simulation"]["job_name"]
-#         segment_id = f"{runid}-{job:02d}"
-#         opt["simulation"]["segment_id"] = segment_id
-#         pbs_content = template.render(opt)
-#         pbs_script = os.path.join(
-#             opt["pbs"]["run_directory"],
-#             f"{opt['simulation']['segment_id']}.pbs"
-#         )
-#         pbs_scripts.append(pbs_script)
-#         with open(pbs_script, "w", encoding="utf-8") as f:
-#             f.write(pbs_content)
+    # Create a PBS script for each segment.
+    pbs_scripts = []
+    for job in range(int(options["pbs"]["num_segments"])):
+        opt = copy.deepcopy(options)  # Need a copy of options
+        runid = opt["simulation"]["job_name"]
+        segment_id = f"{runid}-{job:02d}"
+        opt["simulation"]["segment_id"] = segment_id
+        pbs_content = template.render(opt)
+        pbs_script = os.path.join(
+            opt["pbs"]["run_directory"],
+            f"{opt['simulation']['segment_id']}.pbs"
+        )
+        pbs_scripts.append(pbs_script)
+        with open(pbs_script, "w", encoding="utf-8") as f:
+            f.write(pbs_content)
 
-#     # Create a single script which will submit all of the PBS jobs in order.
-#     submit_all_jobs_script = f"{options['simulation']['job_name']}_pbs.sh"
-#     with open(submit_all_jobs_script, "w", encoding="utf-8") as f:
-#         s = pbs_scripts[0]
-#         cmd = f"job_id=`qsub {s}`\n"
-#         f.write(cmd)
-#         cmd = "echo $job_id\n"
-#         f.write(cmd)
-#         for s in pbs_scripts[1:]:
-#             cmd = "old_job_id=$job_id\n"
-#             f.write(cmd)
-#             cmd = f"job_id=`qsub -W depend=afterok:$old_job_id {s}`\n"
-#             f.write(cmd)
-#             cmd = "echo $job_id\n"
-#             f.write(cmd)
+    # Create a single script which will submit all of the PBS jobs in order.
+    submit_all_jobs_script = f"{options['simulation']['job_name']}_pbs.sh"
+    with open(submit_all_jobs_script, "w", encoding="utf-8") as f:
+        s = pbs_scripts[0]
+        cmd = f"job_id=`qsub {s}`\n"
+        f.write(cmd)
+        cmd = "echo $job_id\n"
+        f.write(cmd)
+        for s in pbs_scripts[1:]:
+            cmd = "old_job_id=$job_id\n"
+            f.write(cmd)
+            cmd = f"job_id=`qsub -W depend=afterok:$old_job_id {s}`\n"
+            f.write(cmd)
+            cmd = "echo $job_id\n"
+            f.write(cmd)
 
-#     # Return the paths to the PBS scripts.
-#     return pbs_scripts, submit_all_jobs_script
+    # Return the paths to the PBS scripts.
+    return pbs_scripts, submit_all_jobs_script
+
 
 # ----------------------------------------------------------------------------
 
-# makeitso() is the primary entry point to those module. It will be called
+# makeitso() is the primary entry point to this module. It will be called
 # by main() when this module is run on the command line, or explicitly from a
 # calling function after importing the makeitso module.
 
@@ -951,15 +952,8 @@ def makeitso(args: dict = None):
     # Read the option descriptions file, and update it with information from
     # engage stored in the args dict.
     option_descriptions = load_option_descriptions(args=args)
-    # if debug:
-    #     print(f"option_descriptions = {option_descriptions}")
-    print(f"job_name = {option_descriptions['simulation']['job_name']}")
-    print(f"start_date = {option_descriptions['simulation']['start_date']}")
-    print(f"stop_date = {option_descriptions['simulation']['stop_date']}")
-    print(f"use_segments = {option_descriptions['simulation']['use_segments']}")
-    print(f"segment_duration = {option_descriptions['simulation']['segment_duration']}")
-    print(f"gamera_grid_type = {option_descriptions['simulation']['gamera_grid_type']}")
-    print(f"hpc_system = {option_descriptions['simulation']['hpc_system']}")
+    if debug:
+        print(f"option_descriptions = {option_descriptions}")
 
     # ------------------------------------------------------------------------
 
@@ -997,24 +991,24 @@ def makeitso(args: dict = None):
     if debug:
         print(f"ini_files = {ini_files}")
 
-    # # Convert the .ini file(s) to .xml files(s).
-    # if verbose:
-    #     print("Converting .ini file(s) to .xml file(s).")
-    # xml_files = convert_ini_to_xml(ini_files)
-    # if debug:
-    #     print(f"xml_files = {xml_files}")
+    # Convert the .ini file(s) to .xml files(s).
+    if verbose:
+        print("Converting .ini file(s) to .xml file(s).")
+    xml_files = convert_ini_to_xml(ini_files)
+    if debug:
+        print(f"xml_files = {xml_files}")
 
-    # # Create the PBS job script(s).
-    # if verbose:
-    #     print("Creating PBS job script(s) for run.")
-    # pbs_scripts, all_jobs_script = create_pbs_scripts(options)
-    # if verbose:
-    #     print(f"The PBS job scripts {pbs_scripts} are ready.")
-    # print(f"The PBS scripts {pbs_scripts} have been created, each with a "
-    #       "corresponding XML file. To submit the jobs with the proper "
-    #       "dependency (to ensure each segment runs in order), please run the "
-    #       f"script {all_jobs_script} like this:\n"
-    #       f"bash {all_jobs_script}")
+    # Create the PBS job script(s).
+    if verbose:
+        print("Creating PBS job script(s) for run.")
+    pbs_scripts, all_jobs_script = create_pbs_scripts(options)
+    if verbose:
+        print(f"The PBS job scripts {pbs_scripts} are ready.")
+    print(f"The PBS scripts {pbs_scripts} have been created, each with a "
+          "corresponding XML file. To submit the jobs with the proper "
+          "dependency (to ensure each segment runs in order), please run the "
+          f"script {all_jobs_script} like this:\n"
+          f"bash {all_jobs_script}")
 
 
 def main():
