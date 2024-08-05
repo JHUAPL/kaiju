@@ -141,6 +141,7 @@ def load_option_descriptions(path: str = OPTION_DESCRIPTIONS_FILE,
     # prompting the user. For an INTERMEDIATE or EXPERT option, change the
     # default value for the option to the value provided by engage.
     if args is not None:
+
         # Check for BASIC-level options provided by engage.
         if "simulation" in args:
             simulation = args["simulation"]
@@ -148,6 +149,15 @@ def load_option_descriptions(path: str = OPTION_DESCRIPTIONS_FILE,
                 od = option_descriptions["simulation"][k]
                 od["prompt"] = None
                 od["default"] = simulation[k]
+
+        # Update the spinup period to account for the additional spinup
+        # required for TIEGCM coupling.
+        if "coupling" in args:
+            coupling = args["coupling"]
+            gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
+            tSpin = float(option_descriptions["voltron"]["spinup"]["tSpin"]["default"])
+            tSpin += gamera_spin_up_time
+            option_descriptions["voltron"]["spinup"]["tSpin"]["default"] = str(tSpin)
 
     # Return the option descriptions.
     return option_descriptions
@@ -684,13 +694,15 @@ def run_preprocessing_steps(options: dict):
     subprocess.run(args, check=True)
 
 
-def create_ini_files(options: dict):
+def create_ini_files(args: dict, options: dict):
     """Create the MAGE .ini files from a template.
 
     Create the MAGE .ini files from a template.
 
     Parameters
     ----------
+    args : dict
+        Dictionary of program arguments from command line, or from engage.
     options : dict
         Dictionary of program options, each entry maps str to str.
 
@@ -987,7 +999,7 @@ def makeitso(args: dict = None):
     # Create the .ini file(s).
     if verbose:
         print("Creating .ini file(s) for run.")
-    ini_files = create_ini_files(options)
+    ini_files = create_ini_files(args, options)
     if debug:
         print(f"ini_files = {ini_files}")
 
