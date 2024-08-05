@@ -652,13 +652,15 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     return options
 
 
-def run_preprocessing_steps(options: dict):
+def run_preprocessing_steps(args: dict, options: dict):
     """Execute any preprocessing steps required for the run.
 
     Execute any preprocessing steps required for the run.
 
     Parameters
     ----------
+    args : dict
+        Dictionary of command-line options and options from engage
     options : dict
         Dictionary of program options, each entry maps str to str.
 
@@ -673,35 +675,49 @@ def run_preprocessing_steps(options: dict):
     # Create the LFM grid file.
     # NOTE: Assumes genLFM.py is in PATH.
     cmd = "genLFM.py"
-    args = [cmd, "-gid", options["simulation"]["gamera_grid_type"],
-            '-Rin', options["simulation"]["gamera_grid_inner_radius"],
-            '-Rout', options["simulation"]["gamera_grid_outer_radius"]]
-    subprocess.run(args, check=True)
+    cmd_args = [cmd, "-gid", options["simulation"]["gamera_grid_type"],
+                '-Rin', options["simulation"]["gamera_grid_inner_radius"],
+                '-Rout', options["simulation"]["gamera_grid_outer_radius"]]
+    subprocess.run(cmd_args, check=True)
 
     # If needed, create the solar wind file by fetching data from CDAWeb.
     # NOTE: Assumes cda2wind.py is in PATH.
     if options["simulation"]["bcwind_available"] == "N":
         cmd = "cda2wind.py"
-        args = [cmd, "-t0", options["simulation"]["start_date"], "-t1",
-                options["simulation"]["stop_date"], "-interp", "-bx",
-                "-f107", "100", "-kp", "3"]
-        subprocess.run(args, check=True)
+        # <HACK>
+        # If this code was called from engage to perform TIEGCM coupling,
+        # then there will be an additional spinup period of
+        # args["coupling"]["gamera_spin_up_time"] seconds. Add that time
+        # period at the start of the data to fetch from CDAWeb.
+        # </HACK>
+        start_date = options["simulation"]["start_date"]
+        if "coupling" in args:
+            coupling = args["coupling"]
+            gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
+            dt = datetime.timedelta(seconds=gamera_spin_up_time)
+            t0 = datetime.datetime.fromisoformat(start_date)
+            t0 -= dt
+            start_date = datetime.datetime.isoformat(t0)
+        # </HACK>
+        cmd_args = [cmd, "-t0", start_date, "-t1",
+                    options["simulation"]["stop_date"], "-interp", "-bx",
+                    "-f107", "100", "-kp", "3"]
+        subprocess.run(cmd_args, check=True)
 
     # Create the RCM configuration file.
     # NOTE: Assumes genRCM.py is in PATH.
     cmd = "genRCM.py"
-    args = [cmd]
-    subprocess.run(args, check=True)
+    cmd_args = [cmd]
+    subprocess.run(cmd_args, check=True)
 
 
-def create_ini_files(args: dict, options: dict):
+def create_ini_files(options: dict):
     """Create the MAGE .ini files from a template.
 
     Create the MAGE .ini files from a template.
 
     Parameters
     ----------
-    args : dict
         Dictionary of program arguments from command line, or from engage.
     options : dict
         Dictionary of program options, each entry maps str to str.
@@ -994,12 +1010,12 @@ def makeitso(args: dict = None):
     # Run the preprocessing steps.
     if verbose:
         print("Running preprocessing steps.")
-    run_preprocessing_steps(options)
+    run_preprocessing_steps(args, options)
 
     # Create the .ini file(s).
     if verbose:
         print("Creating .ini file(s) for run.")
-    ini_files = create_ini_files(args, options)
+    ini_files = create_ini_files(options)
     if debug:
         print(f"ini_files = {ini_files}")
 
