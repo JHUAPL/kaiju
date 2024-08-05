@@ -31,7 +31,7 @@ import subprocess
 
 # Import 3rd-party modules.
 # import h5py
-# from jinja2 import Template
+from jinja2 import Template
 
 # Import project modules.
 
@@ -50,8 +50,8 @@ OPTION_DESCRIPTIONS_FILE = os.path.join(
     SUPPORT_FILES_DIRECTORY, "option_descriptions.json"
 )
 
-# # Path to template .ini file.
-# INI_TEMPLATE = os.path.join(SUPPORT_FILES_DIRECTORY, "template.ini")
+# Path to template .ini file.
+INI_TEMPLATE = os.path.join(SUPPORT_FILES_DIRECTORY, "template.ini")
 
 # # Path to template .pbs file.
 # PBS_TEMPLATE = os.path.join(SUPPORT_FILES_DIRECTORY, "template.pbs")
@@ -684,96 +684,96 @@ def run_preprocessing_steps(options: dict):
     subprocess.run(args, check=True)
 
 
-# def create_ini_files(options: dict):
-#     """Create the MAGE .ini files from a template.
+def create_ini_files(options: dict):
+    """Create the MAGE .ini files from a template.
 
-#     Create the MAGE .ini files from a template.
+    Create the MAGE .ini files from a template.
 
-#     Parameters
-#     ----------
-#     options : dict
-#         Dictionary of program options, each entry maps str to str.
+    Parameters
+    ----------
+    options : dict
+        Dictionary of program options, each entry maps str to str.
 
-#     Returns
-#     -------
-#     ini_files : list of str
-#         Paths to the .ini files for the gamera run.
+    Returns
+    -------
+    ini_files : list of str
+        Paths to the .ini files for the gamera run.
 
-#     Raises
-#     ------
-#     None
-#     """
-#     # Read and create the template.
-#     template_file = INI_TEMPLATE
-#     with open(template_file, "r", encoding="utf-8") as f:
-#         template_content = f.read()
-#     template = Template(template_content)
+    Raises
+    ------
+    None
+    """
+    # Read and create the template.
+    template_file = INI_TEMPLATE
+    with open(template_file, "r", encoding="utf-8") as f:
+        template_content = f.read()
+    template = Template(template_content)
 
-#     # Initialize the list of file paths.
-#     ini_files = []
+    # Initialize the list of file paths.
+    ini_files = []
 
-#     # Create the job scripts.
-#     if int(options["pbs"]["num_segments"]) > 1:
+    # Create the job scripts.
+    if int(options["pbs"]["num_segments"]) > 1:
 
-#         # Create an .ini file for the spinup segment.
-#         opt = copy.deepcopy(options)  # Need a copy of options
-#         runid = opt["simulation"]["job_name"]
-#         job = 0
-#         segment_id = f"{runid}-{job:02d}"
-#         opt["simulation"]["segment_id"] = segment_id
-#         tFin = float(opt["voltron"]["time"]["tFin"])
-#         dT = float(options["simulation"]["segment_duration"])
-#         tFin_segment = 1.0  # Just perform spinup in first segment
-#         opt["voltron"]["time"]["tFin"] = str(tFin_segment)
-#         ini_content = template.render(opt)
-#         ini_file = os.path.join(
-#             opt["pbs"]["run_directory"],
-#             f"{opt['simulation']['segment_id']}.ini"
-#         )
-#         ini_files.append(ini_file)
-#         with open(ini_file, "w", encoding="utf-8") as f:
-#             f.write(ini_content)
+        # Create an .ini file for the spinup segment.
+        opt = copy.deepcopy(options)  # Need a copy of options
+        runid = opt["simulation"]["job_name"]
+        job = 0
+        segment_id = f"{runid}-{job:02d}"
+        opt["simulation"]["segment_id"] = segment_id
+        tFin = float(opt["voltron"]["time"]["tFin"])
+        dT = float(options["simulation"]["segment_duration"])
+        tFin_segment = 1.0  # Just perform spinup in first segment
+        opt["voltron"]["time"]["tFin"] = str(tFin_segment)
+        ini_content = template.render(opt)
+        ini_file = os.path.join(
+            opt["pbs"]["run_directory"],
+            f"{opt['simulation']['segment_id']}.ini"
+        )
+        ini_files.append(ini_file)
+        with open(ini_file, "w", encoding="utf-8") as f:
+            f.write(ini_content)
 
-#         # Create an .ini file for each simulation segment.
-#         for job in range(1, int(options["pbs"]["num_segments"])):
-#             opt = copy.deepcopy(options)  # Need a copy of options
-#             runid = opt["simulation"]["job_name"]
-#             segment_id = f"{runid}-{job:02d}"
-#             opt["simulation"]["segment_id"] = segment_id
-#             opt["gamera"]["restart"]["doRes"] = "T"
-#             tFin = float(opt["voltron"]["time"]["tFin"])
-#             dT = float(options["simulation"]["segment_duration"])
-#             tFin_segment = job*dT + 1  # Add 1 to ensure last file created
-#             if tFin_segment > tFin:    # Last segment may be shorter.
-#                 tFin_segment = tFin + 1
-#             opt["voltron"]["time"]["tFin"] = str(tFin_segment)
-#             ini_content = template.render(opt)
-#             ini_file = os.path.join(
-#                 opt["pbs"]["run_directory"],
-#                 f"{opt['simulation']['segment_id']}.ini"
-#             )
-#             ini_files.append(ini_file)
-#             with open(ini_file, "w", encoding="utf-8") as f:
-#                 f.write(ini_content)
+        # Create an .ini file for each simulation segment.
+        for job in range(1, int(options["pbs"]["num_segments"])):
+            opt = copy.deepcopy(options)  # Need a copy of options
+            runid = opt["simulation"]["job_name"]
+            segment_id = f"{runid}-{job:02d}"
+            opt["simulation"]["segment_id"] = segment_id
+            opt["gamera"]["restart"]["doRes"] = "T"
+            tFin = float(opt["voltron"]["time"]["tFin"])
+            dT = float(options["simulation"]["segment_duration"])
+            tFin_segment = job*dT + 1  # Add 1 to ensure last file created
+            if tFin_segment > tFin:    # Last segment may be shorter.
+                tFin_segment = tFin + 1
+            opt["voltron"]["time"]["tFin"] = str(tFin_segment)
+            ini_content = template.render(opt)
+            ini_file = os.path.join(
+                opt["pbs"]["run_directory"],
+                f"{opt['simulation']['segment_id']}.ini"
+            )
+            ini_files.append(ini_file)
+            with open(ini_file, "w", encoding="utf-8") as f:
+                f.write(ini_content)
 
-#     else:
-#         # Use a single job segment.
-#         job = 0
-#         opt = copy.deepcopy(options)  # Need a copy of options
-#         runid = opt["simulation"]["job_name"]
-#         segment_id = f"{runid}-{job:02d}"
-#         opt["simulation"]["segment_id"] = segment_id
-#         ini_content = template.render(opt)
-#         ini_file = os.path.join(
-#             opt["pbs"]["run_directory"],
-#             f"{opt['simulation']['segment_id']}.ini"
-#         )
-#         ini_files.append(ini_file)
-#         with open(ini_file, "w", encoding="utf-8") as f:
-#             f.write(ini_content)
+    else:
+        # Use a single job segment.
+        job = 0
+        opt = copy.deepcopy(options)  # Need a copy of options
+        runid = opt["simulation"]["job_name"]
+        segment_id = f"{runid}-{job:02d}"
+        opt["simulation"]["segment_id"] = segment_id
+        ini_content = template.render(opt)
+        ini_file = os.path.join(
+            opt["pbs"]["run_directory"],
+            f"{opt['simulation']['segment_id']}.ini"
+        )
+        ini_files.append(ini_file)
+        with open(ini_file, "w", encoding="utf-8") as f:
+            f.write(ini_content)
 
-#     # Return the paths to the .ini files.
-#     return ini_files
+    # Return the paths to the .ini files.
+    return ini_files
 
 
 # def convert_ini_to_xml(ini_files: list):
@@ -990,12 +990,12 @@ def makeitso(args: dict = None):
         print("Running preprocessing steps.")
     run_preprocessing_steps(options)
 
-    # # Create the .ini file(s).
-    # if verbose:
-    #     print("Creating .ini file(s) for run.")
-    # ini_files = create_ini_files(options)
-    # if debug:
-    #     print(f"ini_files = {ini_files}")
+    # Create the .ini file(s).
+    if verbose:
+        print("Creating .ini file(s) for run.")
+    ini_files = create_ini_files(options)
+    if debug:
+        print(f"ini_files = {ini_files}")
 
     # # Convert the .ini file(s) to .xml files(s).
     # if verbose:
