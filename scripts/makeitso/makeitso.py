@@ -150,14 +150,21 @@ def load_option_descriptions(path: str = OPTION_DESCRIPTIONS_FILE,
                 od["prompt"] = None
                 od["default"] = simulation[k]
 
-        # Update the spinup period to account for the additional spinup
-        # required for TIEGCM coupling.
+        # If TIEGCM coupling is specified, then move the start date of the
+        # simulation back by gamera_spin_up_time seconds. The stop date of the
+        # simulation remains unchanged. Note also that TIEGCM coupling
+        # implies a multi-segment job, so set that flag.
         if "coupling" in args:
             coupling = args["coupling"]
+            simulation = args["simulation"]
+            start_date = simulation["start_date"]
             gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
-            tSpin = float(option_descriptions["voltron"]["spinup"]["tSpin"]["default"])
-            tSpin += gamera_spin_up_time
-            option_descriptions["voltron"]["spinup"]["tSpin"]["default"] = str(tSpin)
+            dt = datetime.timedelta(seconds=gamera_spin_up_time)
+            t0 = datetime.datetime.fromisoformat(start_date)
+            t0 -= dt
+            start_date = datetime.datetime.isoformat(t0)
+            option_descriptions["simulation"]["start_date"]["prompt"] = None
+            option_descriptions["simulation"]["start_date"]["default"] = start_date
 
     # Return the option descriptions.
     return option_descriptions
@@ -330,14 +337,15 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
             o[on] = get_run_option(on, od[on], mode)
 
     # Compute the total simulation time in seconds, use as segment duration
-    # default.
+    # default, if not already specified.
     date_format = '%Y-%m-%dT%H:%M:%S'
     start_date = o["start_date"]
     stop_date = o["stop_date"]
     t1 = datetime.datetime.strptime(start_date, date_format)
     t2 = datetime.datetime.strptime(stop_date, date_format)
     simulation_duration = (t2 - t1).total_seconds()
-    od["segment_duration"]["default"] = str(simulation_duration)
+    if "default" not in od["segment_duration"]:
+        od["segment_duration"]["default"] = str(simulation_duration)
 
     # Ask if the user wants to split the run into multiple segments.
     # If so, prompt for the segment duration. If not, use the default
@@ -672,6 +680,9 @@ def run_preprocessing_steps(args: dict, options: dict):
     ------
     None
     """
+    # Local convenience variables
+    debug = args["debug"]
+
     # Create the LFM grid file.
     # NOTE: Assumes genLFM.py is in PATH.
     cmd = "genLFM.py"
@@ -684,24 +695,12 @@ def run_preprocessing_steps(args: dict, options: dict):
     # NOTE: Assumes cda2wind.py is in PATH.
     if options["simulation"]["bcwind_available"] == "N":
         cmd = "cda2wind.py"
-        # <HACK>
-        # If this code was called from engage to perform TIEGCM coupling,
-        # then there will be an additional spinup period of
-        # args["coupling"]["gamera_spin_up_time"] seconds. Add that time
-        # period at the start of the data to fetch from CDAWeb.
-        # </HACK>
-        start_date = options["simulation"]["start_date"]
-        if "coupling" in args:
-            coupling = args["coupling"]
-            gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
-            dt = datetime.timedelta(seconds=gamera_spin_up_time)
-            t0 = datetime.datetime.fromisoformat(start_date)
-            t0 -= dt
-            start_date = datetime.datetime.isoformat(t0)
-        # </HACK>
-        cmd_args = [cmd, "-t0", start_date, "-t1",
-                    options["simulation"]["stop_date"], "-interp", "-bx",
-                    "-f107", "100", "-kp", "3"]
+        cmd_args = [cmd,
+                    "-t0", options["simulation"]["start_date"],
+                    "-t1", options["simulation"]["stop_date"],
+                    "-interp", "-bx", "-f107", "100", "-kp", "3"]
+        if debug:
+            print(f"cmd_args = {cmd_args}")
         subprocess.run(cmd_args, check=True)
 
     # Create the RCM configuration file.
@@ -711,14 +710,15 @@ def run_preprocessing_steps(args: dict, options: dict):
     subprocess.run(cmd_args, check=True)
 
 
-def create_ini_files(options: dict):
+def create_ini_files(args: dict, options: dict):
     """Create the MAGE .ini files from a template.
 
     Create the MAGE .ini files from a template.
 
     Parameters
     ----------
-        Dictionary of program arguments from command line, or from engage.
+    args : dict
+        Dictionary of command-line options and options from engage
     options : dict
         Dictionary of program options, each entry maps str to str.
 
@@ -762,6 +762,26 @@ def create_ini_files(options: dict):
         with open(ini_file, "w", encoding="utf-8") as f:
             f.write(ini_content)
 
+        # If TIEGCM coupling was specified, create an .ini file for the
+        # "warm-up" segment at the start of the run.
+        t_warmup = 0.0  # Use to hold optional TIEGCM warmup period
+        if "coupling" in args:
+            opt = copy.deepcopy(options)  # Need a copy of options
+            runid = opt["simulation"]["job_name"]
+            segment_id = f"{runid}-WARMUP"
+            opt["simulation"]["segment_id"] = segment_id
+            opt["gamera"]["restart"]["doRes"] = "T"
+            t_warmup = float(args["coupling"]["gamera_spin_up_time"])
+            opt["voltron"]["time"]["tFin"] = str(t_warmup)
+            ini_content = template.render(opt)
+            ini_file = os.path.join(
+                opt["pbs"]["run_directory"],
+                f"{opt['simulation']['segment_id']}.ini"
+            )
+            ini_files.append(ini_file)
+            with open(ini_file, "w", encoding="utf-8") as f:
+                f.write(ini_content)
+
         # Create an .ini file for each simulation segment.
         for job in range(1, int(options["pbs"]["num_segments"])):
             opt = copy.deepcopy(options)  # Need a copy of options
@@ -769,11 +789,11 @@ def create_ini_files(options: dict):
             segment_id = f"{runid}-{job:02d}"
             opt["simulation"]["segment_id"] = segment_id
             opt["gamera"]["restart"]["doRes"] = "T"
-            tFin = float(opt["voltron"]["time"]["tFin"])
+            tFin = t_warmup + float(opt["voltron"]["time"]["tFin"])
             dT = float(options["simulation"]["segment_duration"])
-            tFin_segment = job*dT + 1  # Add 1 to ensure last file created
-            if tFin_segment > tFin:    # Last segment may be shorter.
-                tFin_segment = tFin + 1
+            tFin_segment = t_warmup + job*dT + 1  # Add 1 to ensure last file created
+            if tFin_segment > tFin + t_warmup:    # Last segment may be shorter.
+                tFin_segment = tFin + t_warmup + 1
             opt["voltron"]["time"]["tFin"] = str(tFin_segment)
             ini_content = template.render(opt)
             ini_file = os.path.join(
@@ -921,6 +941,35 @@ def create_pbs_scripts(options: dict):
     return pbs_scripts, submit_all_jobs_script
 
 
+def fetch_select_line(path: str):
+    """Extract the select line from a PBS script.
+
+    Extract the select line from a PBS script.
+
+    Parameters
+    ----------
+    path : str
+        Path to PBS script.
+
+    Returns
+    -------
+    select_line : str
+        The first '#PBS select' line from the PBS script.
+
+    Raises
+    ------
+    None
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    select_line = None
+    for line in lines:
+        if line.startswith("#PBS -l select="):
+            select_line = line.rstrip()
+            break
+    return select_line
+
+
 # ----------------------------------------------------------------------------
 
 # makeitso() is the primary entry point to this module. It will be called
@@ -1015,7 +1064,7 @@ def makeitso(args: dict = None):
     # Create the .ini file(s).
     if verbose:
         print("Creating .ini file(s) for run.")
-    ini_files = create_ini_files(options)
+    ini_files = create_ini_files(args, options)
     if debug:
         print(f"ini_files = {ini_files}")
 
@@ -1037,6 +1086,11 @@ def makeitso(args: dict = None):
           "dependency (to ensure each segment runs in order), please run the "
           f"script {all_jobs_script} like this:\n"
           f"bash {all_jobs_script}")
+
+    # Return the select line and the mpiexec command used in the PBS scripts.
+    select_line = fetch_select_line(pbs_scripts[0])
+    mpiexec_command = options["pbs"]["mpiexec_command"]
+    return select_line, mpiexec_command
 
 
 def main():
