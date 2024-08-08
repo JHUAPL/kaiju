@@ -26,12 +26,24 @@ import copy
 import datetime
 import json
 import os
+import sys
 import subprocess
 
 # Import 3rd-party modules.
+import netCDF4
 import h5py
 from jinja2 import Template
 
+#import tiegcmrun stuff
+#sys.path.append('/glade/u/home/wiltbemj/src/tiegcm/tiegcmrun')
+sys.path.append('/glade/u/home/nikhilr/kaiju_engage/tiegcm/')
+from tiegcmrun import tiegcmrun
+print(f'tiegcmrum from {tiegcmrun.__file__}')
+
+#import makeitso
+sys.path.append('/glade/u/home/wiltbemj/src/kaiju-private/scripts/makeitso')
+import makeitso
+print(f'makeitso from {makeitso.__file__}')
 # Program constants
 
 # Program description.
@@ -257,7 +269,7 @@ def prompt_user_for_run_options(args):
 
     # Prompt for the remaining parameters.
     for on in ["gamera_spin_up_time", "gcm_spin_up_time", 
-               "root_directory"]:
+               "root_directory", "dtOut"]:
         o[on] = get_run_option(on, od[on], mode)
     #-------------------------------------------------------------------------
     # Return the options dictionary.
@@ -311,6 +323,22 @@ def main():
             raise FileExistsError(f"Options file {path} exists!")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(options, f, indent=JSON_INDENT)
+
+    makeitso_args = {'clobber': True, 'debug': True, 'verbose': True}
+    makeitso_args.update(options)
+    print(f"makeitso_args = {makeitso_args}")
+    makeitso_select_line, makeitso_exec_command = makeitso.makeitso(makeitso_args)
+    print(f"makeitso_select_line = {makeitso_select_line}")
+    print(f"makeitso_exec_command = {makeitso_exec_command}") 
+
+    # Run the TIEGCMrun
+    print(options)
+    arguments = [
+    "--coupling",
+    "--engage", json.dumps(options)
+]
+    tiegcmrun.tiegcmrun(arguments)
+    
 
 if __name__ == "__main__":
     """Begin main program."""
