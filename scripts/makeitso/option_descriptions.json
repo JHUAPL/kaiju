@@ -92,7 +92,7 @@
                 "LEVEL": "BASIC",
                 "prompt": "PBS queue name",
                 "default": "main",
-                "valids": ["develop", "main", "preempt"]
+                "valids": ["develop", "main"]
             },
             "job_priority": {
                 "LEVEL": "BASIC",

@@ -18,6 +18,11 @@ set to default values.
 parameters, with "EXPERT" parameters set to defaults.
 
 "EXPERT" - The user is prompted for *all* adjustable parameters.
+
+This script can be run on the command line in the usual fashion, or can be
+run as a function after importing this module. In the latter case, the
+makeitso() function accepts a dict of arguments containing the command-line
+options, as well as optional additional settings from the caller.
 """
 
 
@@ -59,6 +64,16 @@ PBS_TEMPLATE = os.path.join(SUPPORT_FILES_DIRECTORY, "template.pbs")
 # Indent level for JSON output.
 JSON_INDENT = 4
 
+# Default values for command-line arguments when none are supplied (such as
+# when makeitso() is called by external code).
+args_default = {
+    "clobber": False,
+    "debug": False,
+    "mode": "BASIC",
+    "options_path": None,
+    "verbose": False,
+}
+
 
 def create_command_line_parser():
     """Create the command-line argument parser.
@@ -80,48 +95,38 @@ def create_command_line_parser():
     """
     parser = argparse.ArgumentParser(description=DESCRIPTION)
     parser.add_argument(
-        "--clobber", action="store_true",
+        "--clobber", action="store_true", default=args_default["clobber"],
         help="Overwrite existing options file (default: %(default)s)."
     )
     parser.add_argument(
-        "--debug", "-d", action="store_true",
+        "--debug", "-d", action="store_true", default=args_default["debug"],
         help="Print debugging output (default: %(default)s)."
     )
     parser.add_argument(
-        "--engage_options_path", "-e", default=None,
-        help="Path to JSON file of options from engage.py "
-        "(default: %(default)s)"
-    )
-    parser.add_argument(
-        "--mode", default="BASIC",
+        "--mode",  default=args_default["mode"],
         help="User mode (BASIC|INTERMEDIATE|EXPERT) (default: %(default)s)."
     )
     parser.add_argument(
-        "--options_path", "-o", default=None,
+        "--options_path", "-o", default=args_default["options_path"],
         help="Path to JSON file of options (default: %(default)s)"
     )
     parser.add_argument(
         "--verbose", "-v", action="store_true",
+        default=args_default["verbose"],
         help="Print verbose output (default: %(default)s)."
     )
     return parser
 
 
-def load_option_descriptions(path: str = OPTION_DESCRIPTIONS_FILE,
-                             args: dict = None):
+def load_option_descriptions(path: str = OPTION_DESCRIPTIONS_FILE):
     """Load the option descriptions and update as needed.
 
-    Read the option descriptions for makeitso from a JSON file. Then update the
-    descriptions based on any variables that may have been passed from
-    engage.
+    Read the option descriptions for makeitso from a JSON file.
 
     Parameters
     ----------
     path : str, default OPTION_DESCRIPTIONS_FILE
         Path to file containing the descriptions for makeitso options.
-    args : dict, default None
-        Dictionary of command-line options and equivalent options passed from
-        the calling function, and variables set by engage for makeitso.
 
     Returns
     -------
@@ -136,53 +141,87 @@ def load_option_descriptions(path: str = OPTION_DESCRIPTIONS_FILE,
     with open(path, "r", encoding="utf-8") as f:
         option_descriptions = json.load(f)
 
+    # Return the option descriptions.
+    return option_descriptions
+
+
+def update_option_descriptions(option_descriptions: dict, args: dict):
+    """Update the option descriptions with data from the caller.
+
+    Update the option descriptions for makeitso using data provided by the
+    calling code. This is typically done to allow engage.py to call makeitso()
+    and override parts of the option descriptions, especially defaults.
+
+    Parameters
+    ----------
+    option_descriptions: dict
+        Dictionary of option descriptions read from JSON file.
+    args : dict
+        Dictionary of command-line options and equivalent options passed from
+        the calling function, and variables set by engage for makeitso.
+
+    Returns
+    -------
+    option_descriptions : dict
+        Dictionary containing updated descriptions for all makeitso options.
+
+    Raises
+    ------
+    None
+    """
     # Update the option_descriptions dict based on data provided by engage
     # (if any). If engage provides a BASIC option, use that value without
     # prompting the user. For an INTERMEDIATE or EXPERT option, change the
     # default value for the option to the value provided by engage.
-    if args is not None:
 
-        # Check for BASIC-level options provided by engage.
-        if "simulation" in args:
-            simulation = args["simulation"]
-            for k in simulation:
-                od = option_descriptions["simulation"][k]
-                od["prompt"] = None
-                od["default"] = simulation[k]
+    # Check for simulation options provided by engage. Since all of
+    # these options are BASIC-level, copy the new values into the default
+    # for the corresponding makeitso simulation option, and delete the
+    # prompt string from the description so that the default for the
+    # option will be automatically used.
+    if "simulation" in args:
+        simulation = args["simulation"]
+        for k in simulation:
+            od = option_descriptions["simulation"][k]
+            od["prompt"] = None
+            od["default"] = simulation[k]
 
-        # If TIEGCM coupling is specified, then move the start date of the
-        # simulation back by gamera_spin_up_time seconds. The stop date of the
-        # simulation remains unchanged. Note also that TIEGCM coupling
-        # implies a multi-segment job, so set that flag.
-        if "coupling" in args:
-            coupling = args["coupling"]
-            simulation = args["simulation"]
-            start_date = simulation["start_date"]
-            gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
-            dt = datetime.timedelta(seconds=gamera_spin_up_time)
-            t0 = datetime.datetime.fromisoformat(start_date)
-            t0 -= dt
-            start_date = datetime.datetime.isoformat(t0)
-            option_descriptions["simulation"]["start_date"]["prompt"] = None
-            option_descriptions["simulation"]["start_date"]["default"] = start_date
+    # If TIEGCM coupling is specified, move the start date of the
+    # simulation back by gamera_spin_up_time seconds. The stop date of the
+    # simulation remains unchanged. Note that if "coupling" exists,
+    # "simulation" *MUST* also exist, and *MUST* contain the dict keys
+    # shown below.
+    if "coupling" in args:
+        coupling = args["coupling"]
+        simulation = args["simulation"]
+        gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
+        dt = datetime.timedelta(seconds=gamera_spin_up_time)
+        start_date = simulation["start_date"]
+        t0 = datetime.datetime.fromisoformat(start_date)
+        t0 -= dt
+        start_date = datetime.datetime.isoformat(t0)
+        option_descriptions["simulation"]["start_date"]["prompt"] = None
+        option_descriptions["simulation"]["start_date"]["default"] = (
+            start_date
+        )
 
     # Return the option descriptions.
     return option_descriptions
 
 
-def get_run_option(name: str, description: dict, mode: str = "BASIC"):
+def get_run_option(name: str, description: dict, mode: str):
     """Prompt the user for a single run option.
 
-    Prompt the user for a single run option. If no user input is provided,
-    the default value is returned for the option. If valids are provided, the
-    new value is compared against the valids, and rejected if not in the
-    valids list.
+    Prompt the user for a single run option. If no user input is provided, or
+    there is no prompt string in the description, return the default value for
+    the option. If valids are provided, the new value is compared against the
+    valids, and rejected if not in the valids list.
 
     Parameters
     ----------
-    name : str, default None
+    name : str
         Name of option
-    description : dict, default None
+    description : dict
         Dictionary of metadata for the option.
     mode : str
         User experience mode: "BASIC", "INTERMEDIATE", or "ADVANCED".
@@ -196,7 +235,8 @@ def get_run_option(name: str, description: dict, mode: str = "BASIC"):
     ------
     None
     """
-    # Extract prompt, default, and valids.
+    # Extract option level, prompt, default, and valids from the option
+    # description.
     level = description["LEVEL"]
     prompt = description.get("prompt", None)
     default = description.get("default", None)
@@ -269,14 +309,14 @@ def fetch_bcwind_time_range(bcwind_path: str):
         start_date = f["UT"][0].decode("utf-8")
         stop_date = f["UT"][-1].decode("utf-8")
         # <HACK> Convert from "YYYY-MM-DD HH:MM:SS" format to
-        # "YYYY-MM-DDTHH:MM:SS" format.
+        # "YYYY-MM-DDTHH:MM:SS" (ISO 8601) format.
         start_date = start_date.replace(" ", "T")
         stop_date = stop_date.replace(" ", "T")
         # </HACK>
     return start_date, stop_date
 
 
-def prompt_user_for_run_options(args: dict, option_descriptions: dict):
+def prompt_user_for_run_options(option_descriptions: dict, args: dict):
     """Prompt the user for run options.
 
     Prompt the user for run options.
@@ -284,14 +324,15 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     NOTE: In this function, the complete set of parameters is split up
     into logical groups. This is done partly to make the organization of the
     parameters more obvious, and partly to allow the values of options to
-    depend upon previously-specified options.
+    depend upon previously-specified options. This is messy, but it is the
+    only way to account for dependencies among the various program options.
 
     Parameters
     ----------
-    args : dict
-        Dictionary of command-line options
     option_descriptions : dict
         Dictionary of option descriptions
+    args : dict
+        Dictionary of command-line options
 
     Returns
     -------
@@ -302,8 +343,10 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     ------
     None
     """
-    # Save the user mode.
-    mode = args['mode']
+    # Local convenience variables.
+    debug = args["debug"]
+    mode = args["mode"]
+    verbose = args["verbose"]
 
     # Initialize the dictionary of program options.
     options = {}
@@ -318,8 +361,10 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     for on in ["job_name"]:
         o[on] = get_run_option(on, od[on], mode)
 
-    # Ask the user if a boundary condition file is available. If not, offer to
-    # generate one from the start and end date.
+    # Ask the user if a boundary condition file is available. If so, read the
+    # start and stop date from the boundary condition file. If not, prompt
+    # the user for the start and stop date so that a boundary condition file
+    # can be generated.
     for on in ["bcwind_available"]:
         o[on] = get_run_option(on, od[on], mode)
     if o["bcwind_available"] == "Y":
@@ -338,18 +383,17 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
 
     # Compute the total simulation time in seconds, use as segment duration
     # default, if not already specified.
-    date_format = '%Y-%m-%dT%H:%M:%S'
     start_date = o["start_date"]
     stop_date = o["stop_date"]
-    t1 = datetime.datetime.strptime(start_date, date_format)
-    t2 = datetime.datetime.strptime(stop_date, date_format)
+    t1 = datetime.datetime.fromisoformat(start_date)
+    t2 = datetime.datetime.fromisoformat(stop_date)
     simulation_duration = (t2 - t1).total_seconds()
     if "default" not in od["segment_duration"]:
         od["segment_duration"]["default"] = str(simulation_duration)
 
     # Ask if the user wants to split the run into multiple segments.
     # If so, prompt for the segment duration. If not, use the default
-    # for the segment duration (which is the simulation duration).
+    # for the segment duration.
     for on in ["use_segments"]:
         o[on] = get_run_option(on, od[on], mode)
     if o["use_segments"] == "Y":
@@ -360,14 +404,19 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
 
     # Compute the number of segments based on the simulation duration and
     # segment duration, with 1 additional segment just for spinup. Add 1 if
-    # there is a remainder.
+    # there is a remainder. If TIEGCM coupling has been specified, insert an
+    # additional "warm-up" segment, starting at t=0.
+    num_segments = 1
     if o["use_segments"] == "Y":
+        # Compute the number of simulation segments (t > 0).
         num_segments = simulation_duration/float(o["segment_duration"])
         if num_segments > int(num_segments):
             num_segments += 1
+        # Add one segment for warmup if TIEGCM coupling was requested.
+        if "coupling" in args:
+            num_segments += 1
+        # Add one segment for spinup.
         num_segments = int(num_segments) + 1
-    else:
-        num_segments = 1
 
     # Prompt for the remaining parameters.
     for on in ["gamera_grid_type", "gamera_grid_inner_radius",
@@ -377,8 +426,7 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     # ------------------------------------------------------------------------
 
     # PBS options
-    options["pbs"] = {}
-    o = options["pbs"]
+    o = options["pbs"] = {}
 
     # Common (HPC platform-independent) options
     od = option_descriptions["pbs"]["_common"]
@@ -413,8 +461,7 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     options["gamera"] = {}
 
     # <sim> options
-    options["gamera"]["sim"] = {}
-    o = options["gamera"]["sim"]
+    o = options["gamera"]["sim"] = {}
     od = option_descriptions["gamera"]["sim"]
     od["H5Grid"]["default"] = (
         f"lfm{options['simulation']['gamera_grid_type']}.h5"
@@ -424,15 +471,13 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
         o[on] = get_run_option(on, od[on], mode)
 
     # <floors> options
-    options["gamera"]["floors"] = {}
-    o = options["gamera"]["floors"]
+    o = options["gamera"]["floors"] = {}
     od = option_descriptions["gamera"]["floors"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <timestep> options
-    options["gamera"]["timestep"] = {}
-    o = options["gamera"]["timestep"]
+    o = options["gamera"]["timestep"] = {}
     od = option_descriptions["gamera"]["timestep"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
@@ -440,68 +485,59 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     # <restart> options
     # NOTE: Update this later so that restart parameters are only
     # prompted for when doRes is "T".
-    options["gamera"]["restart"] = {}
-    o = options["gamera"]["restart"]
+    o = options["gamera"]["restart"] = {}
     od = option_descriptions["gamera"]["restart"]
     od["resID"]["default"] = options["simulation"]["job_name"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <physics> options
-    options["gamera"]["physics"] = {}
-    o = options["gamera"]["physics"]
+    o = options["gamera"]["physics"] = {}
     od = option_descriptions["gamera"]["physics"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <ring> options
-    options["gamera"]["ring"] = {}
-    o = options["gamera"]["ring"]
+    o = options["gamera"]["ring"] = {}
     od = option_descriptions["gamera"]["ring"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <wind> options
-    options["gamera"]["wind"] = {}
-    o = options["gamera"]["wind"]
+    o = options["gamera"]["wind"] = {}
     od = option_descriptions["gamera"]["wind"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <source> options
-    options["gamera"]["source"] = {}
-    o = options["gamera"]["source"]
+    o = options["gamera"]["source"] = {}
     od = option_descriptions["gamera"]["source"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <iPdir> options
-    options["gamera"]["iPdir"] = {}
-    o = options["gamera"]["iPdir"]
+    o = options["gamera"]["iPdir"] = {}
     od = option_descriptions["gamera"]["iPdir"]
     od["N"]["default"] = od["N"]["default"][gamera_grid_type]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <jPdir> options
-    options["gamera"]["jPdir"] = {}
-    o = options["gamera"]["jPdir"]
+    o = options["gamera"]["jPdir"] = {}
     od = option_descriptions["gamera"]["jPdir"]
     od["N"]["default"] = od["N"]["default"][gamera_grid_type]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <kPdir> options
-    options["gamera"]["kPdir"] = {}
-    o = options["gamera"]["kPdir"]
+    o = options["gamera"]["kPdir"] = {}
     od = option_descriptions["gamera"]["kPdir"]
     od["N"]["default"] = od["N"]["default"][gamera_grid_type]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <coupling> options
-    options["gamera"]["coupling"] = {}
-    o = options["gamera"]["coupling"]
+    o = options["gamera"]["coupling"] = {}
     od = option_descriptions["gamera"]["coupling"]
     od["blockHalo"]["default"] = od["blockHalo"]["default"][hpc_platform]
     for on in od:
@@ -513,30 +549,26 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     options["voltron"] = {}
 
     # <time> options
-    options["voltron"]["time"] = {}
-    o = options["voltron"]["time"]
+    o = options["voltron"]["time"] = {}
     od = option_descriptions["voltron"]["time"]
     od["tFin"]["default"] = simulation_duration
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <spinup> options
-    options["voltron"]["spinup"] = {}
-    o = options["voltron"]["spinup"]
+    o = options["voltron"]["spinup"] = {}
     od = option_descriptions["voltron"]["spinup"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <output> options
-    options["voltron"]["output"] = {}
-    o = options["voltron"]["output"]
+    o = options["voltron"]["output"] = {}
     od = option_descriptions["voltron"]["output"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <coupling> options
-    options["voltron"]["coupling"] = {}
-    o = options["voltron"]["coupling"]
+    o = options["voltron"]["coupling"] = {}
     od = option_descriptions["voltron"]["coupling"]
     od["doAsyncCoupling"]["default"] = (
         od["doAsyncCoupling"]["default"][hpc_platform]
@@ -545,22 +577,19 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
         o[on] = get_run_option(on, od[on], mode)
 
     # <restart> options
-    options["voltron"]["restart"] = {}
-    o = options["voltron"]["restart"]
+    o = options["voltron"]["restart"] = {}
     od = option_descriptions["voltron"]["restart"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <imag> options
-    options["voltron"]["imag"] = {}
-    o = options["voltron"]["imag"]
+    o = options["voltron"]["imag"] = {}
     od = option_descriptions["voltron"]["imag"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <helpers> options
-    options["voltron"]["helpers"] = {}
-    o = options["voltron"]["helpers"]
+    o = options["voltron"]["helpers"] = {}
     od = option_descriptions["voltron"]["helpers"]
     od["numHelpers"]["default"] = num_helpers
     if num_helpers == 0:
@@ -574,29 +603,25 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     options["chimp"] = {}
 
     # <units> options
-    options["chimp"]["units"] = {}
-    o = options["chimp"]["units"]
+    o = options["chimp"]["units"] = {}
     od = option_descriptions["chimp"]["units"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <fields> options
-    options["chimp"]["fields"] = {}
-    o = options["chimp"]["fields"]
+    o = options["chimp"]["fields"] = {}
     od = option_descriptions["chimp"]["fields"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <domain> options
-    options["chimp"]["domain"] = {}
-    o = options["chimp"]["domain"]
+    o = options["chimp"]["domain"] = {}
     od = option_descriptions["chimp"]["domain"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <tracer> options
-    options["chimp"]["tracer"] = {}
-    o = options["chimp"]["tracer"]
+    o = options["chimp"]["tracer"] = {}
     od = option_descriptions["chimp"]["tracer"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
@@ -607,15 +632,13 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     options["remix"] = {}
 
     # <conductance> options
-    options["remix"]["conductance"] = {}
-    o = options["remix"]["conductance"]
+    o = options["remix"]["conductance"] = {}
     od = option_descriptions["remix"]["conductance"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <precipitation> options
-    options["remix"]["precipitation"] = {}
-    o = options["remix"]["precipitation"]
+    o = options["remix"]["precipitation"] = {}
     od = option_descriptions["remix"]["precipitation"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
@@ -625,31 +648,27 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     # RCM options
     options["rcm"] = {}
 
-    # <conductance> options
-    options["rcm"]["rcmdomain"] = {}
-    o = options["rcm"]["rcmdomain"]
+    # <rcmdomain> options
+    o = options["rcm"]["rcmdomain"] = {}
     od = option_descriptions["rcm"]["rcmdomain"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <ellipse> options
     # Only use if domType == "ELLIPSE"?
-    options["rcm"]["ellipse"] = {}
-    o = options["rcm"]["ellipse"]
+    o = options["rcm"]["ellipse"] = {}
     od = option_descriptions["rcm"]["ellipse"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <grid> options
-    options["rcm"]["grid"] = {}
-    o = options["rcm"]["grid"]
+    o = options["rcm"]["grid"] = {}
     od = option_descriptions["rcm"]["grid"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
 
     # <plasmasphere> options
-    options["rcm"]["plasmasphere"] = {}
-    o = options["rcm"]["plasmasphere"]
+    o = options["rcm"]["plasmasphere"] = {}
     od = option_descriptions["rcm"]["plasmasphere"]
     for on in od:
         o[on] = get_run_option(on, od[on], mode)
@@ -660,17 +679,17 @@ def prompt_user_for_run_options(args: dict, option_descriptions: dict):
     return options
 
 
-def run_preprocessing_steps(args: dict, options: dict):
+def run_preprocessing_steps(options: dict, args: dict):
     """Execute any preprocessing steps required for the run.
 
     Execute any preprocessing steps required for the run.
 
     Parameters
     ----------
-    args : dict
-        Dictionary of command-line options and options from engage
     options : dict
         Dictionary of program options, each entry maps str to str.
+    args : dict
+        Dictionary of command-line options and options from engage.
 
     Returns
     -------
@@ -685,42 +704,48 @@ def run_preprocessing_steps(args: dict, options: dict):
 
     # Create the LFM grid file.
     # NOTE: Assumes genLFM.py is in PATH.
-    cmd = "genLFM.py"
-    cmd_args = [cmd, "-gid", options["simulation"]["gamera_grid_type"],
-                '-Rin', options["simulation"]["gamera_grid_inner_radius"],
-                '-Rout', options["simulation"]["gamera_grid_outer_radius"]]
-    subprocess.run(cmd_args, check=True)
+    cmd = (
+        "genLFM.py"
+        f" -gid {options['simulation']['gamera_grid_type']}"
+        f" -Rin {options['simulation']['gamera_grid_inner_radius']}"
+        f" -Rout {options['simulation']['gamera_grid_outer_radius']}"
+    )
+    if debug:
+        print(f"cmd = {cmd}")
+    subprocess.run(cmd, check=True, shell=True)
 
     # If needed, create the solar wind file by fetching data from CDAWeb.
     # NOTE: Assumes cda2wind.py is in PATH.
     if options["simulation"]["bcwind_available"] == "N":
-        cmd = "cda2wind.py"
-        cmd_args = [cmd,
-                    "-t0", options["simulation"]["start_date"],
-                    "-t1", options["simulation"]["stop_date"],
-                    "-interp", "-bx", "-f107", "100", "-kp", "3"]
+        cmd = (
+            "cda2wind.py"
+            f" -t0 {options['simulation']['start_date']}"
+            f" -t1 {options['simulation']['stop_date']}"
+            " -interp -bx -f107 100 -kp  3"
+        )
         if debug:
-            print(f"cmd_args = {cmd_args}")
-        subprocess.run(cmd_args, check=True)
+            print(f"cmd = {cmd}")
+        subprocess.run(cmd, check=True, shell=True)
 
     # Create the RCM configuration file.
     # NOTE: Assumes genRCM.py is in PATH.
     cmd = "genRCM.py"
-    cmd_args = [cmd]
-    subprocess.run(cmd_args, check=True)
+    if debug:
+        print(f"cmd = {cmd}")
+    subprocess.run(cmd, check=True, shell=True)
 
 
-def create_ini_files(args: dict, options: dict):
+def create_ini_files(options: dict, args: dict):
     """Create the MAGE .ini files from a template.
 
     Create the MAGE .ini files from a template.
 
     Parameters
     ----------
-    args : dict
-        Dictionary of command-line options and options from engage
     options : dict
         Dictionary of program options, each entry maps str to str.
+    args : dict
+        Dictionary of command-line options and options from engage
 
     Returns
     -------
@@ -732,90 +757,82 @@ def create_ini_files(args: dict, options: dict):
     None
     """
     # Read and create the template.
-    template_file = INI_TEMPLATE
-    with open(template_file, "r", encoding="utf-8") as f:
+    with open(INI_TEMPLATE, "r", encoding="utf-8") as f:
         template_content = f.read()
     template = Template(template_content)
 
     # Initialize the list of file paths.
     ini_files = []
 
-    # Create the job scripts.
-    if int(options["pbs"]["num_segments"]) > 1:
+    # Create the .ini files for each PBS job.
+    if options["simulation"]["use_segments"] == "Y":
 
-        # Create an .ini file for the spinup segment.
-        opt = copy.deepcopy(options)  # Need a copy of options
-        runid = opt["simulation"]["job_name"]
-        job = 0
-        segment_id = f"{runid}-{job:02d}"
-        opt["simulation"]["segment_id"] = segment_id
-        tFin = float(opt["voltron"]["time"]["tFin"])
-        dT = float(options["simulation"]["segment_duration"])
-        tFin_segment = 1.0  # Just perform spinup in first segment
-        opt["voltron"]["time"]["tFin"] = str(tFin_segment)
-        ini_content = template.render(opt)
-        ini_file = os.path.join(
-            opt["pbs"]["run_directory"],
-            f"{opt['simulation']['segment_id']}.ini"
-        )
-        ini_files.append(ini_file)
-        with open(ini_file, "w", encoding="utf-8") as f:
-            f.write(ini_content)
+        # Create an .ini file for the spinup segment, if requested.
+        if options["voltron"]["spinup"]["doSpin"] == "T":
+            opt = copy.deepcopy(options)  # Need a copy of options
+            runid = opt["simulation"]["job_name"]
+            segment_id = f"{runid}-SPINUP"
+            opt["simulation"]["segment_id"] = segment_id
+            tFin_segment = 1.0  # Just perform spinup in first segment
+            opt["voltron"]["time"]["tFin"] = str(tFin_segment)
+            opt["gamera"]["restart"]["doRes"] = "F"
+            ini_content = template.render(opt)
+            ini_file = os.path.join(opt["pbs"]["run_directory"],
+                                    f"{segment_id}.ini")
+            ini_files.append(ini_file)
+            with open(ini_file, "w", encoding="utf-8") as f:
+                f.write(ini_content)
 
         # If TIEGCM coupling was specified, create an .ini file for the
         # "warm-up" segment at the start of the run.
-        t_warmup = 0.0  # Use to hold optional TIEGCM warmup period
+        t_warmup = 0.0  # Override if coupling.
         if "coupling" in args:
             opt = copy.deepcopy(options)  # Need a copy of options
             runid = opt["simulation"]["job_name"]
             segment_id = f"{runid}-WARMUP"
             opt["simulation"]["segment_id"] = segment_id
-            opt["gamera"]["restart"]["doRes"] = "T"
-            t_warmup = float(args["coupling"]["gamera_spin_up_time"])
+            # If there was a spinup period, start there.
+            if opt["voltron"]["spinup"]["doSpin"] == "T":
+                opt["gamera"]["restart"]["doRes"] = "T"
+            t_warmup = float(args["coupling"]["gamera_spin_up_time"]) + 1.0
             opt["voltron"]["time"]["tFin"] = str(t_warmup)
             ini_content = template.render(opt)
-            ini_file = os.path.join(
-                opt["pbs"]["run_directory"],
-                f"{opt['simulation']['segment_id']}.ini"
-            )
+            ini_file = os.path.join(opt["pbs"]["run_directory"],
+                                    f"{segment_id}.ini")
             ini_files.append(ini_file)
             with open(ini_file, "w", encoding="utf-8") as f:
                 f.write(ini_content)
 
         # Create an .ini file for each simulation segment.
-        for job in range(1, int(options["pbs"]["num_segments"])):
+        for job in range(int(options["pbs"]["num_segments"])):
             opt = copy.deepcopy(options)  # Need a copy of options
             runid = opt["simulation"]["job_name"]
             segment_id = f"{runid}-{job:02d}"
             opt["simulation"]["segment_id"] = segment_id
             opt["gamera"]["restart"]["doRes"] = "T"
-            tFin = t_warmup + float(opt["voltron"]["time"]["tFin"])
+            tFin = float(opt["voltron"]["time"]["tFin"])
             dT = float(options["simulation"]["segment_duration"])
-            tFin_segment = t_warmup + job*dT + 1  # Add 1 to ensure last file created
+            # Add 1 to ensure last file created
+            tFin_segment = t_warmup + (job + 1)*dT + 1.0
             if tFin_segment > tFin + t_warmup:    # Last segment may be shorter.
-                tFin_segment = tFin + t_warmup + 1
+                tFin_segment = tFin + t_warmup + 1.0
             opt["voltron"]["time"]["tFin"] = str(tFin_segment)
             ini_content = template.render(opt)
-            ini_file = os.path.join(
-                opt["pbs"]["run_directory"],
-                f"{opt['simulation']['segment_id']}.ini"
-            )
+            ini_file = os.path.join(opt["pbs"]["run_directory"],
+                                    f"{segment_id}.ini")
             ini_files.append(ini_file)
             with open(ini_file, "w", encoding="utf-8") as f:
                 f.write(ini_content)
 
     else:
         # Use a single job segment.
-        job = 0
         opt = copy.deepcopy(options)  # Need a copy of options
         runid = opt["simulation"]["job_name"]
-        segment_id = f"{runid}-{job:02d}"
+        segment_id = runid
         opt["simulation"]["segment_id"] = segment_id
         ini_content = template.render(opt)
-        ini_file = os.path.join(
-            opt["pbs"]["run_directory"],
-            f"{opt['simulation']['segment_id']}.ini"
-        )
+        ini_file = os.path.join(opt["pbs"]["run_directory"],
+                                f"{segment_id}.ini")
         ini_files.append(ini_file)
         with open(ini_file, "w", encoding="utf-8") as f:
             f.write(ini_content)
@@ -824,7 +841,7 @@ def create_ini_files(args: dict, options: dict):
     return ini_files
 
 
-def convert_ini_to_xml(ini_files: list):
+def convert_ini_to_xml(ini_files: list, args: dict):
     """Convert the .ini files to XML.
 
     Convert the .ini files describing the run to XML files. The intermediate
@@ -834,6 +851,8 @@ def convert_ini_to_xml(ini_files: list):
     ----------
     ini_files : list of str
         Paths to the .ini files to convert.
+    args : dict
+        Dictionary of command-line options and options from engage
 
     Returns
     -------
@@ -844,6 +863,9 @@ def convert_ini_to_xml(ini_files: list):
     ------
     None
     """
+    # Local convenience variables
+    debug = args["debug"]
+
     # Convert each .ini file to an .xml file.
     xml_files = []
     for ini_file in ini_files:
@@ -853,9 +875,10 @@ def convert_ini_to_xml(ini_files: list):
 
         # Convert the .ini file to .xml.
         # NOTE: assumes XMLGenerator.py is in PATH.
-        cmd = "XMLGenerator.py"
-        args = [cmd, ini_file, xml_file]
-        subprocess.run(args, check=True)
+        cmd = f"XMLGenerator.py {ini_file} {xml_file}"
+        if debug:
+            print(f"cmd = {cmd}")
+        subprocess.run(cmd, check=True, shell=True)
 
         # Add this file to the list of XML files.
         xml_files.append(xml_file)
@@ -867,20 +890,24 @@ def convert_ini_to_xml(ini_files: list):
     return xml_files
 
 
-def create_pbs_scripts(options: dict):
+def create_pbs_scripts(xml_files: list, options: dict, args: dict):
     """Create the PBS job scripts for the run.
 
     Create the PBS job scripts from a template.
 
     Parameters
     ----------
+    xml_files : str
+        Paths to the XML files.
     options : dict
         Dictionary of program options, each entry maps str to str.
+    args : dict
+        Dictionary of command-line options and options from engage
 
     Returns
     -------
     pbs_scripts : list of str
-        Paths to PBS job script.
+        Paths to PBS job scripts.
     submit_all_jobs_script : str
         Path to script which submits all PBS jobs.
 
@@ -889,6 +916,9 @@ def create_pbs_scripts(options: dict):
     TypeError:
         For a non-integral of nodes requested
     """
+    # Local convenience variables.
+    debug = args["debug"]
+
     # Compute the number of nodes to request based on the MPI decomposition
     # and the MPI ranks per node.
     ni = int(options["gamera"]["iPdir"]["N"])
@@ -907,21 +937,27 @@ def create_pbs_scripts(options: dict):
 
     # Create a PBS script for each segment.
     pbs_scripts = []
-    for job in range(int(options["pbs"]["num_segments"])):
+    # for job in range(int(options["pbs"]["num_segments"])):
+    for xml_file in xml_files:
         opt = copy.deepcopy(options)  # Need a copy of options
         runid = opt["simulation"]["job_name"]
-        segment_id = f"{runid}-{job:02d}"
+        filename = os.path.split(xml_file)[-1]
+        if debug:
+            print(f"filename = {filename}")
+        segment_id = filename.replace(".xml", "")
+        if debug:
+            print(f"segment_id = {segment_id}")
         opt["simulation"]["segment_id"] = segment_id
         pbs_content = template.render(opt)
         pbs_script = os.path.join(
-            opt["pbs"]["run_directory"],
-            f"{opt['simulation']['segment_id']}.pbs"
+            opt["pbs"]["run_directory"], f"{segment_id}.pbs"
         )
         pbs_scripts.append(pbs_script)
         with open(pbs_script, "w", encoding="utf-8") as f:
             f.write(pbs_content)
 
     # Create a single script which will submit all of the PBS jobs in order.
+    # Each job only runs if all previouos jobs run successfully.
     submit_all_jobs_script = f"{options['simulation']['job_name']}_pbs.sh"
     with open(submit_all_jobs_script, "w", encoding="utf-8") as f:
         s = pbs_scripts[0]
@@ -976,17 +1012,6 @@ def fetch_select_line(path: str):
 # by main() when this module is run on the command line, or explicitly from a
 # calling function after importing the makeitso module.
 
-# Default values for command-line arguments when none are supplied (such as
-# when makeitso() is called by external code).
-args_default = {
-    'clobber': False,
-    'debug': False,
-    'engage_options_path': None,
-    'mode': 'BASIC',
-    'options_path': None,
-    'verbose': False,
-}
-
 
 def makeitso(args: dict = None):
     """Main program code for makeitso.
@@ -1002,33 +1027,42 @@ def makeitso(args: dict = None):
 
     Returns
     -------
-    None
+    select_line : str
+        The '#PBS -l select' line from the first PBS file created for this run.
+    mpiexec_command : str
+        The mpiexec command used to run MAGE software in the PBS files.
 
     Raises
     ------
     None
     """
-    # Use defaults for unspecified arguments.
+    # Use defaults for unspecified arguments. Merge in additional settings
+    # which are passed in by the caller.
     local_args = copy.deepcopy(args_default)
     if args is not None:
         local_args.update(args)
     args = local_args
 
     # Local convenience variables
-    if args['debug']:
+    if args["debug"]:
         print(f"args = {args}")
-    clobber = args['clobber']
-    debug = args['debug']
-    engage_options_path = args['engage_options_path']
-    mode = args['mode']
-    options_path = args['options_path']
-    verbose = args['verbose']
+    clobber = args["clobber"]
+    debug = args["debug"]
+    mode = args["mode"]
+    options_path = args["options_path"]
+    verbose = args["verbose"]
 
     # ------------------------------------------------------------------------
 
     # Read the option descriptions file, and update it with information from
     # engage stored in the args dict.
-    option_descriptions = load_option_descriptions(args=args)
+    option_descriptions = load_option_descriptions()
+    if debug:
+        print(f"option_descriptions = {option_descriptions}")
+
+    # Update the option descriptions with information passed in from the
+    # calling code.
+    option_descriptions = update_option_descriptions(option_descriptions, args)
     if debug:
         print(f"option_descriptions = {option_descriptions}")
 
@@ -1037,11 +1071,13 @@ def makeitso(args: dict = None):
     # Fetch the run options.
     if options_path:
         # Read the run options from a JSON file.
+        if verbose:
+            print(f"Reading run options from {options_path}.")
         with open(options_path, "r", encoding="utf-8") as f:
             options = json.load(f)
     else:
         # Prompt the user for the run options.
-        options = prompt_user_for_run_options(args, option_descriptions)
+        options = prompt_user_for_run_options(option_descriptions, args)
     if debug:
         print(f"options = {options}")
 
@@ -1059,26 +1095,27 @@ def makeitso(args: dict = None):
     # Run the preprocessing steps.
     if verbose:
         print("Running preprocessing steps.")
-    run_preprocessing_steps(args, options)
+    run_preprocessing_steps(options, args)
 
     # Create the .ini file(s).
     if verbose:
         print("Creating .ini file(s) for run.")
-    ini_files = create_ini_files(args, options)
+    ini_files = create_ini_files(options, args)
     if debug:
         print(f"ini_files = {ini_files}")
 
     # Convert the .ini file(s) to .xml files(s).
     if verbose:
         print("Converting .ini file(s) to .xml file(s).")
-    xml_files = convert_ini_to_xml(ini_files)
+    xml_files = convert_ini_to_xml(ini_files, args)
     if debug:
         print(f"xml_files = {xml_files}")
 
     # Create the PBS job script(s).
     if verbose:
         print("Creating PBS job script(s) for run.")
-    pbs_scripts, all_jobs_script = create_pbs_scripts(options)
+    pbs_scripts, all_jobs_script = create_pbs_scripts(xml_files, options,
+                                                      args)
     if verbose:
         print(f"The PBS job scripts {pbs_scripts} are ready.")
     print(f"The PBS scripts {pbs_scripts} have been created, each with a "
