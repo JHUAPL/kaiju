@@ -55,6 +55,11 @@
             "LEVEL": "BASIC",
             "prompt": "Root directory for the simulation",
             "default": "."
+        },
+        "dtOut": {
+            "LEVEL": "BASIC",
+            "prompt": "(VOLTRON) File output cadence in simulated seconds",
+            "default": "60.0"
         }
     }
 }

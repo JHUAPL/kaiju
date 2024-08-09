@@ -63,6 +63,9 @@ OPTION_DESCRIPTIONS_FILE = os.path.join(
     SUPPORT_FILES_DIRECTORY, "option_engage_descriptions.json"
 )
 
+# Path to template .pbs file.
+PBS_TEMPLATE = os.path.join(SUPPORT_FILES_DIRECTORY, "template-gtr.pbs")
+
 def create_command_line_parser():
     """Create the command-line argument parser.
 
@@ -104,75 +107,139 @@ def create_command_line_parser():
     )
     return parser
 
-def get_run_option(name, description, mode="BASIC"):
-    """Prompt the user for a single run option.
+# def makeitso.get_run_option(name, description, mode="BASIC"):
+#     """Prompt the user for a single run option.
 
-    Prompt the user for a single run option. If no user input is provided,
-    the default value is returned for the option. If valids are provided, the
-    new value is compared against the valids, and rejected if not in the
-    valids list.
+#     Prompt the user for a single run option. If no user input is provided,
+#     the default value is returned for the option. If valids are provided, the
+#     new value is compared against the valids, and rejected if not in the
+#     valids list.
+
+#     Parameters
+#     ----------
+#     name : str, default None
+#         Name of option
+#     description : dict, default None
+#         Dictionary of metadata for the option.
+#     mode : str
+#         User experience mode: "BASIC", "INTERMEDIATE", or "ADVANCED".
+
+#     Returns
+#     -------
+#     value_str : str
+#         Value of option as a string.
+
+#     Raises
+#     ------
+#     None
+#     """
+#     # Extract prompt, default, and valids.
+#     level = description["LEVEL"]
+#     prompt = description.get("prompt", "")
+#     default = description.get("default", None)
+#     valids = description.get("valids", None)
+
+#     # Compare the current mode to the parameter level setting. If the variable
+#     # level is higher than the user mode, just use the default.
+#     if mode == "BASIC" and level in ["INTERMEDIATE", "EXPERT"]:
+#         return default
+#     if mode == "INTERMEDIATE" and level in ["EXPERT"]:
+#         return default
+
+#     # If provided, add the valid values in val1|val2 format to the prompt.
+#     if valids is not None:
+#         vs = "|".join(valids)
+#         prompt += f" ({vs})"
+
+#     # If provided, add the default to the prompt.
+#     if default is not None:
+#         prompt += f" [{default}]"
+
+#     # Prompt the user and fetch the input until a good value is provided.
+#     ok = False
+#     while not ok:
+
+#         # Fetch input from the user.
+#         option_value = input(f"{prompt}: ")
+
+#         # Use the default if no user input provided.
+#         if option_value == "":
+#             option_value = default
+
+#         # Validate the result. If bad, start over.
+#         if valids is not None and option_value not in valids:
+#             print(f"Invalid value for option {name}: {option_value}!")
+#             continue
+
+#         # Keep this result.
+#         ok = True
+
+#     # Return the option as a string.
+#     return str(option_value)
+
+def create_pbs_scripts(gr_options: dict, tiegcm_options: dict):
+    """Create the PBS job scripts for the run.
+
+    Create the PBS job scripts from a template.
 
     Parameters
     ----------
-    name : str, default None
-        Name of option
-    description : dict, default None
-        Dictionary of metadata for the option.
-    mode : str
-        User experience mode: "BASIC", "INTERMEDIATE", or "ADVANCED".
+    gr_options : dict
+        Dictionary of program options from makeitso, each entry maps str to str.
+    gr_options : dict
+        Dictionary of program options from tiegcmrun, each entry maps str to str.
 
     Returns
     -------
-    value_str : str
-        Value of option as a string.
+    pbs_scripts : list of str
+        Paths to PBS job script.
+    submit_all_jobs_script : str
+        Path to script which submits all PBS jobs.
 
     Raises
     ------
-    None
+    TypeError:
+        For a non-integral of nodes requested
     """
-    # Extract prompt, default, and valids.
-    level = description["LEVEL"]
-    prompt = description.get("prompt", "")
-    default = description.get("default", None)
-    valids = description.get("valids", None)
+    # Read the template.
+    with open(PBS_TEMPLATE, "r", encoding="utf-8") as f:
+        template_content = f.read()
+    template = Template(template_content)
 
-    # Compare the current mode to the parameter level setting. If the variable
-    # level is higher than the user mode, just use the default.
-    if mode == "BASIC" and level in ["INTERMEDIATE", "EXPERT"]:
-        return default
-    if mode == "INTERMEDIATE" and level in ["EXPERT"]:
-        return default
+    # Create a PBS script for each segment.
+    pbs_scripts = []
+    for job in range(int(options["pbs"]["num_segments"])):
+        opt = copy.deepcopy(options)  # Need a copy of options
+        runid = opt["simulation"]["job_name"]
+        segment_id = f"{runid}-{job:02d}"
+        opt["simulation"]["segment_id"] = segment_id
+        pbs_content = template.render(opt)
+        pbs_script = os.path.join(
+            opt["pbs"]["run_directory"],
+            f"{opt['simulation']['segment_id']}.pbs"
+        )
+        pbs_scripts.append(pbs_script)
+        with open(pbs_script, "w", encoding="utf-8") as f:
+            f.write(pbs_content)
 
-    # If provided, add the valid values in val1|val2 format to the prompt.
-    if valids is not None:
-        vs = "|".join(valids)
-        prompt += f" ({vs})"
+    # Create a single script which will submit all of the PBS jobs in order.
+    submit_all_jobs_script = f"{options['simulation']['job_name']}_pbs.sh"
+    with open(submit_all_jobs_script, "w", encoding="utf-8") as f:
+        s = pbs_scripts[0]
+        cmd = f"job_id=`qsub {s}`\n"
+        f.write(cmd)
+        cmd = "echo $job_id\n"
+        f.write(cmd)
+        for s in pbs_scripts[1:]:
+            cmd = "old_job_id=$job_id\n"
+            f.write(cmd)
+            cmd = f"job_id=`qsub -W depend=afterok:$old_job_id {s}`\n"
+            f.write(cmd)
+            cmd = "echo $job_id\n"
+            f.write(cmd)
 
-    # If provided, add the default to the prompt.
-    if default is not None:
-        prompt += f" [{default}]"
-
-    # Prompt the user and fetch the input until a good value is provided.
-    ok = False
-    while not ok:
-
-        # Fetch input from the user.
-        option_value = input(f"{prompt}: ")
-
-        # Use the default if no user input provided.
-        if option_value == "":
-            option_value = default
-
-        # Validate the result. If bad, start over.
-        if valids is not None and option_value not in valids:
-            print(f"Invalid value for option {name}: {option_value}!")
-            continue
-
-        # Keep this result.
-        ok = True
-
-    # Return the option as a string.
-    return str(option_value)
+    # Return the paths to the PBS scripts.
+    return pbs_scripts, submit_all_jobs_script
 
 def prompt_user_for_run_options(args):
     """Prompt the user for run options.
@@ -216,14 +283,14 @@ def prompt_user_for_run_options(args):
 
     # Prompt for the name of the job.
     for on in ["job_name"]:
-        o[on] = get_run_option(on, od[on], mode)
+        o[on] = makeitso.get_run_option(on, od[on], mode)
 
 
     # Prompt for the start and stop date of the run. This will also be
     # used as the start and stop date of the data in the boundary condition
     # file, which will be created using CDAWeb data.
     for on in ["start_date", "stop_date"]:
-        o[on] = get_run_option(on, od[on], mode)
+        o[on] = makeitso.get_run_option(on, od[on], mode)
 
     # Compute the total simulation time in seconds, use as segment duration
     # default.
@@ -239,10 +306,10 @@ def prompt_user_for_run_options(args):
     # If so, prompt for the segment duration. If not, use the default
     # for the segment duration (which is the simulation duration).
     for on in ["use_segments"]:
-        o[on] = get_run_option(on, od[on], mode)
+        o[on] = makeitso.get_run_option(on, od[on], mode)
     if o["use_segments"] == "Y":
         for on in ["segment_duration"]:
-            o[on] = get_run_option(on, od[on], mode)
+            o[on] = makeitso.get_run_option(on, od[on], mode)
     else:
         o["segment_duration"] = od["segment_duration"]["default"]
 
@@ -259,7 +326,7 @@ def prompt_user_for_run_options(args):
 
     # Prompt for the remaining parameters.
     for on in ["gamera_grid_type", "hpc_system"]:
-        o[on] = get_run_option(on, od[on], mode)
+        o[on] = makeitso.get_run_option(on, od[on], mode)
 
     #-------------------------------------------------------------------------
     # coupling options
@@ -270,7 +337,7 @@ def prompt_user_for_run_options(args):
     # Prompt for the remaining parameters.
     for on in ["gamera_spin_up_time", "gcm_spin_up_time", 
                "root_directory", "dtOut"]:
-        o[on] = get_run_option(on, od[on], mode)
+        o[on] = makeitso.get_run_option(on, od[on], mode)
     #-------------------------------------------------------------------------
     # Return the options dictionary.
     return options
