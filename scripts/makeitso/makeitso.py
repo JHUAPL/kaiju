@@ -421,6 +421,8 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
         num_segments = simulation_duration/float(o["segment_duration"])
         if num_segments > int(num_segments):
             num_segments = int(num_segments) + 1
+        else:
+            num_segments = int(num_segments)
 
     # Prompt for the remaining parameters.
     for on in ["gamera_grid_type", "gamera_grid_inner_radius",
@@ -774,11 +776,8 @@ def create_ini_files(options: dict, args: dict):
     # Create the .ini files for each PBS job.
     if options["simulation"]["use_segments"] == "Y":
 
-        # Override this value if coupling.
-        t_warmup = 0.0
-
-        # Compute the end time (in seconds) for the simulation.
-        tFin = t_warmup + float(options["voltron"]["time"]["tFin"])
+        # Extract the end time (in seconds) for the simulation.
+        tFin = float(options["voltron"]["time"]["tFin"])
 
         # Create an .ini file for the spinup segment, if requested.
         if options["voltron"]["spinup"]["doSpin"] == "T":
@@ -799,25 +798,6 @@ def create_ini_files(options: dict, args: dict):
             with open(ini_file, "w", encoding="utf-8") as f:
                 f.write(ini_content)
 
-        # If TIEGCM coupling was specified, create an .ini file for the
-        # "warm-up" segment at the start of the run.
-        if "coupling" in args:
-            opt = copy.deepcopy(options)  # Need a copy of options
-            runid = opt["simulation"]["job_name"]
-            segment_id = f"{runid}-WARMUP"
-            opt["simulation"]["segment_id"] = segment_id
-            # If there was a spinup period, start there.
-            if opt["voltron"]["spinup"]["doSpin"] == "T":
-                opt["gamera"]["restart"]["doRes"] = "T"
-            t_warmup = float(args["coupling"]["gamera_spin_up_time"]) + 1.0
-            opt["voltron"]["time"]["tFin"] = str(t_warmup)
-            ini_content = template.render(opt)
-            ini_file = os.path.join(opt["pbs"]["run_directory"],
-                                    f"{segment_id}.ini")
-            ini_files.append(ini_file)
-            with open(ini_file, "w", encoding="utf-8") as f:
-                f.write(ini_content)
-
         # Create an .ini file for each simulation segment. Files for each
         # segment will be numbered starting with 1.
         for job in range(1, int(options["pbs"]["num_segments"]) + 1):
@@ -829,7 +809,7 @@ def create_ini_files(options: dict, args: dict):
             opt["gamera"]["restart"]["doRes"] = "T"
             dT = float(options["simulation"]["segment_duration"])
             # Add 1 to ensure last restart file created
-            tFin_segment = t_warmup + job*dT + 1.0
+            tFin_segment = job*dT + 1.0
             # Last segment may be shorter.
             if tFin_segment > tFin:
                 tFin_segment = tFin
