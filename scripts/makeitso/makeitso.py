@@ -205,6 +205,11 @@ def update_option_descriptions(option_descriptions: dict, args: dict):
             start_date
         )
 
+    # Incorporate any BASIC PBS options from engage.
+    # if "pbs" in args:
+    #     pbs = args["pbs"]
+    #     for k in ["account_name", ]
+
     # Return the option descriptions.
     return option_descriptions
 
@@ -325,7 +330,8 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
     into logical groups. This is done partly to make the organization of the
     parameters more obvious, and partly to allow the values of options to
     depend upon previously-specified options. This is messy, but it is the
-    only way to account for dependencies among the various program options.
+    only way to account for arbitrary dependencies among the various program
+    options, expecially when they are modified by data passed from engage.py.
 
     Parameters
     ----------
@@ -361,10 +367,10 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
     for on in ["job_name"]:
         o[on] = get_run_option(on, od[on], mode)
 
-    # Ask the user if a boundary condition file is available. If so, read the
-    # start and stop date from the boundary condition file. If not, prompt
-    # the user for the start and stop date so that a boundary condition file
-    # can be generated.
+    # Ask the user if a solar wind boundary condition file is available. If
+    # so, read the start and stop date from the boundary condition file. If
+    # not, prompt the user for the start and stop date so that a boundary
+    # condition file can be generated.
     for on in ["bcwind_available"]:
         o[on] = get_run_option(on, od[on], mode)
     if o["bcwind_available"] == "Y":
@@ -378,11 +384,15 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
         # Prompt for the start and stop date of the run. This will also be
         # used as the start and stop date of the data in the boundary condition
         # file, which will be created using CDAWeb data.
+        # Note that the start date should already have been updated to include
+        # the warmup period needed when makeitso is called from engage.
         for on in ["start_date", "stop_date"]:
             o[on] = get_run_option(on, od[on], mode)
 
     # Compute the total simulation time in seconds, use as segment duration
-    # default, if not already specified.
+    # default, if not already specified. This should include any warmup
+    # period requested by engage, but should NOT include any spinup (t < 0)
+    # period.
     start_date = o["start_date"]
     stop_date = o["stop_date"]
     t1 = datetime.datetime.fromisoformat(start_date)
@@ -403,20 +413,14 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
         o["segment_duration"] = od["segment_duration"]["default"]
 
     # Compute the number of segments based on the simulation duration and
-    # segment duration, with 1 additional segment just for spinup. Add 1 if
-    # there is a remainder. If TIEGCM coupling has been specified, insert an
-    # additional "warm-up" segment, starting at t=0.
+    # segment duration, with 1 separate segment just for spinup. Add 1 if
+    # there is a remainder.
     num_segments = 1
     if o["use_segments"] == "Y":
         # Compute the number of simulation segments (t > 0).
         num_segments = simulation_duration/float(o["segment_duration"])
         if num_segments > int(num_segments):
-            num_segments += 1
-        # Add one segment for warmup if TIEGCM coupling was requested.
-        if "coupling" in args:
-            num_segments += 1
-        # Add one segment for spinup.
-        num_segments = int(num_segments) + 1
+            num_segments = int(num_segments) + 1
 
     # Prompt for the remaining parameters.
     for on in ["gamera_grid_type", "gamera_grid_inner_radius",
@@ -703,9 +707,10 @@ def run_preprocessing_steps(options: dict, args: dict):
     debug = args["debug"]
 
     # Create the LFM grid file.
-    # NOTE: Assumes genLFM.py is in PATH.
+    path = os.path.join(os.environ["KAIJUHOME"], "scripts", "preproc",
+                        "genLFM.py")
     cmd = (
-        "genLFM.py"
+        f"{path}"
         f" -gid {options['simulation']['gamera_grid_type']}"
         f" -Rin {options['simulation']['gamera_grid_inner_radius']}"
         f" -Rout {options['simulation']['gamera_grid_outer_radius']}"
@@ -715,10 +720,11 @@ def run_preprocessing_steps(options: dict, args: dict):
     subprocess.run(cmd, check=True, shell=True)
 
     # If needed, create the solar wind file by fetching data from CDAWeb.
-    # NOTE: Assumes cda2wind.py is in PATH.
     if options["simulation"]["bcwind_available"] == "N":
+        path = os.path.join(os.environ["KAIJUHOME"], "scripts", "preproc",
+                            "cda2wind.py")
         cmd = (
-            "cda2wind.py"
+            f"{path}"
             f" -t0 {options['simulation']['start_date']}"
             f" -t1 {options['simulation']['stop_date']}"
             " -interp -bx -f107 100 -kp  3"
@@ -728,8 +734,9 @@ def run_preprocessing_steps(options: dict, args: dict):
         subprocess.run(cmd, check=True, shell=True)
 
     # Create the RCM configuration file.
-    # NOTE: Assumes genRCM.py is in PATH.
-    cmd = "genRCM.py"
+    path = os.path.join(os.environ["KAIJUHOME"], "scripts", "preproc",
+                        "genRCM.py")
+    cmd = path
     if debug:
         print(f"cmd = {cmd}")
     subprocess.run(cmd, check=True, shell=True)
@@ -767,13 +774,22 @@ def create_ini_files(options: dict, args: dict):
     # Create the .ini files for each PBS job.
     if options["simulation"]["use_segments"] == "Y":
 
+        # Override this value if coupling.
+        t_warmup = 0.0
+
+        # Compute the end time (in seconds) for the simulation.
+        tFin = t_warmup + float(options["voltron"]["time"]["tFin"])
+
         # Create an .ini file for the spinup segment, if requested.
         if options["voltron"]["spinup"]["doSpin"] == "T":
             opt = copy.deepcopy(options)  # Need a copy of options
             runid = opt["simulation"]["job_name"]
             segment_id = f"{runid}-SPINUP"
             opt["simulation"]["segment_id"] = segment_id
-            tFin_segment = 1.0  # Just perform spinup in first segment
+            # Just perform spinup in first segment. Use an end time of 1.0
+            # to ensure the restart file from the end of spinup is properly
+            # generated.
+            tFin_segment = 1.0
             opt["voltron"]["time"]["tFin"] = str(tFin_segment)
             opt["gamera"]["restart"]["doRes"] = "F"
             ini_content = template.render(opt)
@@ -785,7 +801,6 @@ def create_ini_files(options: dict, args: dict):
 
         # If TIEGCM coupling was specified, create an .ini file for the
         # "warm-up" segment at the start of the run.
-        t_warmup = 0.0  # Override if coupling.
         if "coupling" in args:
             opt = copy.deepcopy(options)  # Need a copy of options
             runid = opt["simulation"]["job_name"]
@@ -803,19 +818,21 @@ def create_ini_files(options: dict, args: dict):
             with open(ini_file, "w", encoding="utf-8") as f:
                 f.write(ini_content)
 
-        # Create an .ini file for each simulation segment.
-        for job in range(int(options["pbs"]["num_segments"])):
+        # Create an .ini file for each simulation segment. Files for each
+        # segment will be numbered starting with 1.
+        for job in range(1, int(options["pbs"]["num_segments"]) + 1):
             opt = copy.deepcopy(options)  # Need a copy of options
             runid = opt["simulation"]["job_name"]
+            # NOTE: This naming scheme supports a maximum of 99 segments.
             segment_id = f"{runid}-{job:02d}"
             opt["simulation"]["segment_id"] = segment_id
             opt["gamera"]["restart"]["doRes"] = "T"
-            tFin = float(opt["voltron"]["time"]["tFin"])
             dT = float(options["simulation"]["segment_duration"])
-            # Add 1 to ensure last file created
-            tFin_segment = t_warmup + (job + 1)*dT + 1.0
-            if tFin_segment > tFin + t_warmup:    # Last segment may be shorter.
-                tFin_segment = tFin + t_warmup + 1.0
+            # Add 1 to ensure last restart file created
+            tFin_segment = t_warmup + job*dT + 1.0
+            # Last segment may be shorter.
+            if tFin_segment > tFin:
+                tFin_segment = tFin
             opt["voltron"]["time"]["tFin"] = str(tFin_segment)
             ini_content = template.render(opt)
             ini_file = os.path.join(opt["pbs"]["run_directory"],
@@ -875,7 +892,9 @@ def convert_ini_to_xml(ini_files: list, args: dict):
 
         # Convert the .ini file to .xml.
         # NOTE: assumes XMLGenerator.py is in PATH.
-        cmd = f"XMLGenerator.py {ini_file} {xml_file}"
+        path = os.path.join(os.environ["KAIJUHOME"], "scripts", "preproc",
+                            "XMLGenerator.py")
+        cmd = f"{path} {ini_file} {xml_file}"
         if debug:
             print(f"cmd = {cmd}")
         subprocess.run(cmd, check=True, shell=True)
@@ -1023,7 +1042,7 @@ def makeitso(args: dict = None):
     ----------
     args : dict
         Dictionary of command-line options and equivalent options passed from
-        the calling function, and variables set by engage for makeits.
+        the calling function, and variables set by engage for makeitso.
 
     Returns
     -------
@@ -1048,14 +1067,13 @@ def makeitso(args: dict = None):
         print(f"args = {args}")
     clobber = args["clobber"]
     debug = args["debug"]
-    mode = args["mode"]
+    # mode = args["mode"]
     options_path = args["options_path"]
     verbose = args["verbose"]
 
     # ------------------------------------------------------------------------
 
-    # Read the option descriptions file, and update it with information from
-    # engage stored in the args dict.
+    # Read the default option descriptions file.
     option_descriptions = load_option_descriptions()
     if debug:
         print(f"option_descriptions = {option_descriptions}")
