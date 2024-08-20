@@ -909,6 +909,9 @@ def create_pbs_scripts(xml_files: list, options: dict, args: dict):
         Paths to PBS job scripts.
     submit_all_jobs_script : str
         Path to script which submits all PBS jobs.
+    warmup_pbs_scripts : list of str
+        List of PBS job scripts which encompass the MAGE warmup period used
+        when coupling with TIEGCM.
 
     Raises
     ------
@@ -972,8 +975,20 @@ def create_pbs_scripts(xml_files: list, options: dict, args: dict):
             cmd = "echo $job_id\n"
             f.write(cmd)
 
+    # Make a list of the scripts which cover the warmup period.
+    # NOTE: Assumes the warmup period is an integral multiple of the segment
+    # length.
+    # NOTE: Assumes job segments are in use, with only 1 spinup segment.
+    warmup_pbs_scripts = []
+    if "coupling" in args:
+        coupling = args["coupling"]
+        gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
+        segment_duration = float(options["simulation"]["segment_duration"])
+        i_last_warmup_pbs_script = int(gamera_spin_up_time/segment_duration)
+        warmup_pbs_scripts = pbs_scripts[1:i_last_warmup_pbs_script + 1]
+
     # Return the paths to the PBS scripts.
-    return pbs_scripts, submit_all_jobs_script
+    return pbs_scripts, submit_all_jobs_script, warmup_pbs_scripts
 
 
 def fetch_select_line(path: str):
@@ -1112,8 +1127,8 @@ def makeitso(args: dict = None):
     # Create the PBS job script(s).
     if verbose:
         print("Creating PBS job script(s) for run.")
-    pbs_scripts, all_jobs_script = create_pbs_scripts(xml_files, options,
-                                                      args)
+    pbs_scripts, all_jobs_script, warmup_pbs_scripts = create_pbs_scripts(
+        xml_files, options, args)
     if verbose:
         print(f"The PBS job scripts {pbs_scripts} are ready.")
     print(f"The PBS scripts {pbs_scripts} have been created, each with a "
@@ -1122,10 +1137,9 @@ def makeitso(args: dict = None):
           f"script {all_jobs_script} like this:\n"
           f"bash {all_jobs_script}")
 
-    # Return the select line and the mpiexec command used in the PBS scripts.
-    select_line = fetch_select_line(pbs_scripts[0])
-    mpiexec_command = options["pbs"]["mpiexec_command"]
-    return select_line, mpiexec_command
+    # Return the options dict used to create the PBS scripts, and the list
+    # of PBS scripts which constitute the warmup period.
+    return options, warmup_pbs_scripts
 
 
 def main():
