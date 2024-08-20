@@ -834,6 +834,31 @@ def create_ini_files(options: dict, args: dict):
         with open(ini_file, "w", encoding="utf-8") as f:
             f.write(ini_content)
 
+    # If a warmup period was used, rename the .ini files for the segments
+    # which cover the warmup period. Then rename the remaining files to
+    # account for this change.
+    if "coupling" in args:
+
+        # Compute the number of warmup segments.
+        coupling = args["coupling"]
+        gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
+        segment_duration = float(options["simulation"]["segment_duration"])
+        i_last_warmup_ini = int(gamera_spin_up_time/segment_duration)
+
+        # Rename the warmup segments.
+        for i in range(1, i_last_warmup_ini + 1):
+            old_name = ini_files[i]
+            new_name = f"{runid}-WARMUP-{i:02d}.ini"
+            os.rename(old_name, new_name)
+            ini_files[i] = new_name
+
+        # Rename the remaining segments.
+        for i in range(i_last_warmup_ini + 1, len(ini_files)):
+            old_name = ini_files[i]
+            new_name = f"{runid}-{i - i_last_warmup_ini:02d}.ini"
+            os.rename(old_name, new_name)
+            ini_files[i] = new_name
+
     # Return the paths to the .ini files.
     return ini_files
 
