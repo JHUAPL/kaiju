@@ -140,9 +140,12 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
     with open(PBS_TEMPLATE, "r", encoding="utf-8") as f:
         template_content = f.read()
     template = Template(template_content)
-    # Create a PBS script for each segment.
+    
     options = copy.deepcopy(gr_options) 
     
+    # GRT PBS parameters
+    options["pbs"]["mpiexec_command"] = "mpiexec"
+
     # TIEGCM PBS parameters
     options["pbs"]["tie_nodes"] = tiegcm_options["job"]["resource"]["select"]
     options["pbs"]["tie_ncpus"] = tiegcm_options["job"]["resource"]["ncpus"]
@@ -160,7 +163,9 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
     options["pbs"]["voltron_mpiprocs"] = makeitso_options["pbs"]["helper_mpiprocs"]
     options["pbs"]["voltron_ompthreads"] = makeitso_options["pbs"]["helper_ompthreads"]
     options["pbs"]["voltron_mpiranks"] = int(options["pbs"]["gamera_nodes"])*int(options["pbs"]["gamera_mpiprocs"])+int( options["pbs"]["vultron_nodes"])*int(options["pbs"]["voltron_mpiprocs"])
+    options["pbs"]["voltron_scripts"] = makeitso_options["pbs"]["mpiexec_command"].replace("mpiexec ", "")
     
+    # Create a PBS script for each segment.
     pbs_scripts = []
     for job in range(1,int(options["pbs"]["num_segments"])):
         opt = copy.deepcopy(options)  # Need a copy of options
