@@ -1,45 +1,5 @@
 {
 "version": "0.0.0",
-
-    "simulation": {
-        "job_name": {
-            "LEVEL": "BASIC",
-            "prompt": "Name to use for PBS job(s)",
-            "default": "geospace"
-        },
-        "start_date": {
-            "LEVEL": "BASIC",
-            "prompt": "Start date for simulation (yyyy-mm-ddThh:mm:ss)",
-            "default": "2016-08-09T09:00:00"
-        },
-        "stop_date": {
-            "LEVEL": "BASIC",
-            "prompt": "Stop date for simulation (yyyy-mm-ddThh:mm:ss)",
-            "default": "2016-08-09T11:00:00"
-        },
-        "use_segments": {
-            "LEVEL": "BASIC",
-            "prompt": "Do you want to split your job into multiple segments?",
-            "default": "N",
-            "valids": ["Y", "N"]
-        },
-        "segment_duration": {
-            "LEVEL": "BASIC",
-            "prompt": "Segment length in simulated seconds"
-        },
-        "gamera_grid_type": {
-            "LEVEL": "BASIC",
-            "prompt": "GAMERA grid type",
-            "default": "Q",
-            "valids": ["D", "Q", "O", "H"]
-        },
-        "hpc_system": {
-            "LEVEL": "BASIC",
-            "prompt": "Name of HPC system",
-            "default": "pleiades",
-            "valids": ["derecho", "pleiades"]
-        }
-    },
     "coupling": {
         "gamera_spin_up_time": {
             "LEVEL": "INTERMEDIATE",
@@ -55,11 +15,6 @@
             "LEVEL": "BASIC",
             "prompt": "Root directory for the simulation",
             "default": "."
-        },
-        "dtOut": {
-            "LEVEL": "BASIC",
-            "prompt": "(VOLTRON) File output cadence in simulated seconds",
-            "default": "60.0"
         }
     }
 }

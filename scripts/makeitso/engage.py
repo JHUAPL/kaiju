@@ -59,8 +59,12 @@ KAIJUHOME = os.environ["KAIJUHOME"]
 SUPPORT_FILES_DIRECTORY = os.path.join(KAIJUHOME, "scripts", "makeitso")
 
 # Path to option descriptions file.
-OPTION_DESCRIPTIONS_FILE = os.path.join(
+OPTION_ENGAGE_DESCRIPTIONS_FILE = os.path.join(
     SUPPORT_FILES_DIRECTORY, "option_engage_descriptions.json"
+)
+
+OPTION_MAKEITSO_DESCRIPTIONS_FILE = os.path.join(
+    SUPPORT_FILES_DIRECTORY, "option_descriptions.json"
 )
 
 # Path to template .pbs file.
@@ -107,77 +111,8 @@ def create_command_line_parser():
     )
     return parser
 
-# def makeitso.get_run_option(name, description, mode="BASIC"):
-#     """Prompt the user for a single run option.
 
-#     Prompt the user for a single run option. If no user input is provided,
-#     the default value is returned for the option. If valids are provided, the
-#     new value is compared against the valids, and rejected if not in the
-#     valids list.
-
-#     Parameters
-#     ----------
-#     name : str, default None
-#         Name of option
-#     description : dict, default None
-#         Dictionary of metadata for the option.
-#     mode : str
-#         User experience mode: "BASIC", "INTERMEDIATE", or "ADVANCED".
-
-#     Returns
-#     -------
-#     value_str : str
-#         Value of option as a string.
-
-#     Raises
-#     ------
-#     None
-#     """
-#     # Extract prompt, default, and valids.
-#     level = description["LEVEL"]
-#     prompt = description.get("prompt", "")
-#     default = description.get("default", None)
-#     valids = description.get("valids", None)
-
-#     # Compare the current mode to the parameter level setting. If the variable
-#     # level is higher than the user mode, just use the default.
-#     if mode == "BASIC" and level in ["INTERMEDIATE", "EXPERT"]:
-#         return default
-#     if mode == "INTERMEDIATE" and level in ["EXPERT"]:
-#         return default
-
-#     # If provided, add the valid values in val1|val2 format to the prompt.
-#     if valids is not None:
-#         vs = "|".join(valids)
-#         prompt += f" ({vs})"
-
-#     # If provided, add the default to the prompt.
-#     if default is not None:
-#         prompt += f" [{default}]"
-
-#     # Prompt the user and fetch the input until a good value is provided.
-#     ok = False
-#     while not ok:
-
-#         # Fetch input from the user.
-#         option_value = input(f"{prompt}: ")
-
-#         # Use the default if no user input provided.
-#         if option_value == "":
-#             option_value = default
-
-#         # Validate the result. If bad, start over.
-#         if valids is not None and option_value not in valids:
-#             print(f"Invalid value for option {name}: {option_value}!")
-#             continue
-
-#         # Keep this result.
-#         ok = True
-
-#     # Return the option as a string.
-#     return str(option_value)
-
-def create_pbs_scripts(gr_options: dict, tiegcm_options: dict):
+def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scripts: list, tiegcm_options: dict,tiegcm_inp_scripts:list, tiegcm_pbs_scripts:list):
     """Create the PBS job scripts for the run.
 
     Create the PBS job scripts from a template.
@@ -205,14 +140,37 @@ def create_pbs_scripts(gr_options: dict, tiegcm_options: dict):
     with open(PBS_TEMPLATE, "r", encoding="utf-8") as f:
         template_content = f.read()
     template = Template(template_content)
-
     # Create a PBS script for each segment.
+    options = copy.deepcopy(gr_options) 
+    
+    # TIEGCM PBS parameters
+    options["pbs"]["tie_nodes"] = tiegcm_options["job"]["resource"]["select"]
+    options["pbs"]["tie_ncpus"] = tiegcm_options["job"]["resource"]["ncpus"]
+    options["pbs"]["tie_mpiprocs"] = tiegcm_options["job"]["resource"]["mpiprocs"]
+    options["pbs"]["tie_mpiranks"] = tiegcm_options["job"]["nprocs"]
+    options["pbs"]["tie_exe"] = tiegcm_options["model"]["data"]["coupled_modelexe"]
+
+    # GR PBS parameters
+    options["pbs"]["gamera_nodes"] = makeitso_options["pbs"]["select"]
+    options["pbs"]["gamera_ncpus"] = makeitso_options["pbs"]["ncpus"]
+    options["pbs"]["gamera_mpiprocs"] = makeitso_options["pbs"]["mpiprocs"]
+    options["pbs"]["gamera_ompthreads"] = makeitso_options["pbs"]["ompthreads"]
+    options["pbs"]["vultron_nodes"] = makeitso_options["pbs"]["num_segments"]
+    options["pbs"]["voltron_ncpus"] = makeitso_options["pbs"]["num_helpers"]
+    options["pbs"]["voltron_mpiprocs"] = makeitso_options["pbs"]["helper_mpiprocs"]
+    options["pbs"]["voltron_ompthreads"] = makeitso_options["pbs"]["helper_ompthreads"]
+    options["pbs"]["voltron_mpiranks"] = int(options["pbs"]["gamera_nodes"])*int(options["pbs"]["gamera_mpiprocs"])+int( options["pbs"]["vultron_nodes"])*int(options["pbs"]["voltron_mpiprocs"])
+    
     pbs_scripts = []
-    for job in range(int(options["pbs"]["num_segments"])):
+    for job in range(1,int(options["pbs"]["num_segments"])):
         opt = copy.deepcopy(options)  # Need a copy of options
         runid = opt["simulation"]["job_name"]
         segment_id = f"{runid}-{job:02d}"
         opt["simulation"]["segment_id"] = segment_id
+        
+        # TIEGCM input script
+        opt["pbs"]["tie_inp"] = tiegcm_inp_scripts[job-1]
+        
         pbs_content = template.render(opt)
         pbs_script = os.path.join(
             opt["pbs"]["run_directory"],
@@ -223,10 +181,34 @@ def create_pbs_scripts(gr_options: dict, tiegcm_options: dict):
             f.write(pbs_content)
 
     # Create a single script which will submit all of the PBS jobs in order.
-    submit_all_jobs_script = f"{options['simulation']['job_name']}_pbs.sh"
+    submit_all_jobs_script = f"{gr_options['simulation']['job_name']}-pbs.sh"
     with open(submit_all_jobs_script, "w", encoding="utf-8") as f:
+        makeitso_pbs = makeitso_pbs_scripts[0]
+        cmd = f"makeitso_job_id=`qsub {makeitso_pbs}`\n"
+        f.write(cmd)
+        cmd = "echo $makeitso_job_id\n"
+        f.write(cmd)
+        for makeitso_pbs in makeitso_pbs_scripts[1:]:
+            cmd = "old_makeitso_job_id=$makeitso_job_id\n"
+            f.write(cmd)
+            cmd = f"makeitso_job_id=`qsub -W depend=afterok:$old_makeitso_job_id {makeitso_pbs}`\n"
+            f.write(cmd)
+            cmd = "echo $makeitso_job_id\n"
+            f.write(cmd)
+        tiegcm_pbs = tiegcm_pbs_scripts[0]
+        cmd = f"tiegcm_job_id=`qsub {tiegcm_pbs}`\n"
+        f.write(cmd)
+        cmd = "echo $tiegcm_job_id\n"
+        f.write(cmd)
+        for tiegcm_pbs in tiegcm_pbs_scripts[1:]:
+            cmd = "old_tiegcm_job_id=$tiegcm_job_id\n"
+            f.write(cmd)
+            cmd = f"tiegcm_job_id=`qsub -W depend=afterok:$old_tiegcm_job_id {tiegcm_pbs}`\n"
+            f.write(cmd)
+            cmd = "echo $tiegcm_job_id\n"
+            f.write(cmd)
         s = pbs_scripts[0]
-        cmd = f"job_id=`qsub {s}`\n"
+        cmd = f"job_id=`qsub -W depend=afterok:$makeitso_job_id:$tiegcm_job_id {s}`\n"
         f.write(cmd)
         cmd = "echo $job_id\n"
         f.write(cmd)
@@ -269,8 +251,10 @@ def prompt_user_for_run_options(args):
     mode = args.mode
 
     # Read the dictionary of option descriptions.
-    with open(OPTION_DESCRIPTIONS_FILE, "r", encoding="utf-8") as f:
-        option_descriptions = json.load(f)
+    with open(OPTION_MAKEITSO_DESCRIPTIONS_FILE, "r", encoding="utf-8") as f:
+        option_makeitso_descriptions = json.load(f)
+    with open(OPTION_ENGAGE_DESCRIPTIONS_FILE, "r", encoding="utf-8") as f:
+        option_engage_descriptions = json.load(f)
 
     # Initialize the dictionary of program options.
     options = {}
@@ -279,7 +263,7 @@ def prompt_user_for_run_options(args):
 
     # General options for the simulation
     o = options["simulation"] = {}
-    od = option_descriptions["simulation"]
+    od = option_makeitso_descriptions["simulation"]
 
     # Prompt for the name of the job.
     for on in ["job_name"]:
@@ -328,15 +312,41 @@ def prompt_user_for_run_options(args):
     for on in ["gamera_grid_type", "hpc_system"]:
         o[on] = makeitso.get_run_option(on, od[on], mode)
 
+    # ------------------------------------------------------------------------
+
+    # PBS options
+    o = options["pbs"] = {}
+
+    # Common (HPC platform-independent) options
+    od = option_makeitso_descriptions["pbs"]["_common"]
+    od["account_name"]["default"] = os.getlogin()
+    od["kaiju_install_directory"]["default"] = os.environ["KAIJUHOME"]
+    od["kaiju_build_directory"]["default"] = os.path.join(
+        os.environ["KAIJUHOME"], "build_mpi")
+    od["num_segments"]["default"] = str(num_segments)
+    for on in od:
+        o[on] = makeitso.get_run_option(on, od[on], mode)
+
+    # HPC platform-specific options
+    hpc_platform = options["simulation"]["hpc_system"]
+    gamera_grid_type = options["simulation"]["gamera_grid_type"]
+    od = option_makeitso_descriptions["pbs"][hpc_platform]
+    od["select"]["default"] = od["select"]["default"][gamera_grid_type]
+    od["num_helpers"]["default"] = (
+        od["num_helpers"]["default"][gamera_grid_type]
+    )
+    for on in od:
+        o[on] = makeitso.get_run_option(on, od[on], mode)
+
     #-------------------------------------------------------------------------
     # coupling options
     options["coupling"] = {}
     o = options["coupling"]
-    od = option_descriptions["coupling"]
+    od = option_engage_descriptions["coupling"]
 
     # Prompt for the remaining parameters.
     for on in ["gamera_spin_up_time", "gcm_spin_up_time", 
-               "root_directory", "dtOut"]:
+               "root_directory"]:
         o[on] = makeitso.get_run_option(on, od[on], mode)
     #-------------------------------------------------------------------------
     # Return the options dictionary.
@@ -384,7 +394,7 @@ def main():
         print(f"options = {options}")
 
     # Save the options dictionary as a JSON file in the current directory.
-    path = f"{options['simulation']['job_name']}.json"
+    path = f"{options['simulation']['job_name']}-engage.json"
     if os.path.exists(path):
         if not clobber:
             raise FileExistsError(f"Options file {path} exists!")
@@ -393,18 +403,40 @@ def main():
 
     makeitso_args = {'clobber': True, 'debug': True, 'verbose': True}
     makeitso_args.update(options)
-    print(f"makeitso_args = {makeitso_args}")
-    makeitso_select_line, makeitso_exec_command = makeitso.makeitso(makeitso_args)
-    print(f"makeitso_select_line = {makeitso_select_line}")
-    print(f"makeitso_exec_command = {makeitso_exec_command}") 
+    #print(f"makeitso_args = {makeitso_args}")
+
+    makeitso_options, makeitso_pbs_scripts = makeitso.makeitso(makeitso_args)
+
+    # Save the makeitso options dictionary as a JSON file in the current directory.
+ 
+    with open('makeitso_parameters.json', 'w') as f:
+        json.dump(makeitso_options, f, indent=JSON_INDENT)
+        json.dump(makeitso_pbs_scripts, f, indent=JSON_INDENT)
+    
 
     # Run the TIEGCMrun
-    print(options)
-    arguments = [
+    coupled_options = copy.deepcopy(options)
+    coupled_options["vultron"] = makeitso_options.get("voltron", {})
+    print(f"coupled_options={coupled_options}")
+    
+    tiegcm_args = [
     "--coupling",
-    "--engage", json.dumps(options)
-]
-    tiegcmrun.tiegcmrun(arguments)
+    "--engage", json.dumps(coupled_options)
+    ]   
+    
+    tiegcm_options,tiegcm_pbs_scripts,tiegcm_inp_scripts = tiegcmrun.tiegcmrun(tiegcm_args)
+
+   
+    # Save the tiegcm options dictionary as a JSON file in the current directory.
+    with open('tiegcmrun_parameters.json', 'w') as f:
+        json.dump(tiegcm_options, f, indent=JSON_INDENT)
+        json.dump(tiegcm_pbs_scripts, f, indent=JSON_INDENT)
+        json.dump(tiegcm_inp_scripts, f, indent=JSON_INDENT)
+
+    # Create the PBS job scripts.
+    pbs_scripts, submit_all_jobs_script = create_pbs_scripts(options,makeitso_options, makeitso_pbs_scripts, tiegcm_options, tiegcm_inp_scripts, tiegcm_pbs_scripts)
+    print(f"pbs_scripts = {pbs_scripts}")
+    print(f"submit_all_jobs_script = {submit_all_jobs_script}")
     
 
 if __name__ == "__main__":

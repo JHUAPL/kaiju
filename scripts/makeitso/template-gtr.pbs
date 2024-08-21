@@ -6,7 +6,7 @@
 #PBS -A {{ pbs.account_name }}
 #PBS -q {{ pbs.queue }}
 #PBS -l walltime={{ pbs.walltime }}
-#PBS -l select={{ pbs.tiegcmselect }}:{{ pbs.makeitsoselect}}
+#PBS -l select={{ pbs.tie_nodes }}:ncpus={{ pbs.tie_ncpus }}:mpiprocs={{ pbs.tie_mpiprocs }}+{{ pbs.gamera_nodes }}:ncpus={{ pbs.gamera_ncpus }}:mpiprocs={{ pbs.gamera_mpiprocs }}:ompthreads={{ pbs.gamera_ompthreads }}+{{ pbs.voltron_nodes }}:ncpus={{ pbs.voltron_ncpus }}:mpiprocs={{ pbs.voltron_mpiprocs }}:ompthreads={{ pbs.voltron_ompthreads }}
 {% if pbs.job_priority is defined %}#PBS -l job_priority={{ pbs.job_priority }}{% endif %}
 #PBS -m abe
 #PBS -j oe
@@ -54,11 +54,13 @@ cp $PBS_NODEFILE $nodefile
 
 # Copy the main executable.
 cp {{ pbs.kaiju_build_directory }}/bin/voltron_mpi.x ./voltron_mpi.x
+cp {{ pbs.tie_exe }} ./tiegcm.x
 
 # Run the model. Direct output from the program is saved in a text file.
-EXE=./voltron_mpi.x
-OUTPUT_FILE="$EXE-{{ simulation.segment_id }}.out"
-echo "Running $EXE on model $RUNID."
-{{ pbs.mpiexec_command }} {{pbs.tiegcmranks}} : {{pbs.makeitsoranks}} $EXE $RUNID.xml &>> $OUTPUT_FILE
+VULTRON_EXE=./voltron_mpi.x
+TIEGCM_EXE=./tiegcm.x
+OUTPUT_FILE="$VULTRON_EXE-{{ simulation.segment_id }}.out"
+echo "Running $VULTRON_EXE on model $RUNID."
+{{ pbs.mpiexec_command }} -n {{pbs.tie_mpiranks}} $TIEGCM_EXE {{pbs.tie_inp}}: -n {{pbs.voltron_mpiranks}} ${KAIJUHOME}/scripts/preproc/pinCpuCores.sh $VULTRON_EXE $RUNID.xml &>> $OUTPUT_FILE
 
 echo "Job $PBS_JOBID ended at `date` on `hostname`."
