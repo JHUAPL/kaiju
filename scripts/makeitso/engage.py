@@ -159,7 +159,7 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
     options["pbs"]["gamera_mpiprocs"] = makeitso_options["pbs"]["mpiprocs"]
     options["pbs"]["gamera_ompthreads"] = makeitso_options["pbs"]["ompthreads"]
     options["pbs"]["voltron_nodes"] = makeitso_options["pbs"]["select2"]
-    options["pbs"]["voltron_ncpus"] = makeitso_options["pbs"]["num_helpers"]
+    options["pbs"]["voltron_ncpus"] = makeitso_options["pbs"]["ncpus"]
     options["pbs"]["voltron_mpiprocs"] = makeitso_options["pbs"]["helper_mpiprocs"]
     options["pbs"]["voltron_ompthreads"] = makeitso_options["pbs"]["helper_ompthreads"]
     options["pbs"]["voltron_mpiranks"] = int(options["pbs"]["gamera_nodes"])*int(options["pbs"]["gamera_mpiprocs"])+int( options["pbs"]["voltron_nodes"])*int(options["pbs"]["voltron_mpiprocs"])
