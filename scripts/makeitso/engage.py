@@ -346,6 +346,8 @@ def prompt_user_for_run_options(args):
     od["num_helpers"]["default"] = (
         od["num_helpers"]["default"][gamera_grid_type]
     )
+    if hpc_platform == "derecho":
+        od["modules"]["default"] = ["ncarenv/23.09","cmake/3.26.3","craype/2.7.23","intel-classic/2023.2.1","cray-mpich/8.1.27","ncarcompilers/1.0.0","mkl/2023.2.0","hdf5-mpi/1.12.2","netcdf-mpi/4.9.2","esmf/8.6.0"]
     for on in od:
         o[on] = makeitso.get_run_option(on, od[on], mode)
 
