@@ -158,13 +158,13 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
     options["pbs"]["gamera_ncpus"] = makeitso_options["pbs"]["ncpus"]
     options["pbs"]["gamera_mpiprocs"] = makeitso_options["pbs"]["mpiprocs"]
     options["pbs"]["gamera_ompthreads"] = makeitso_options["pbs"]["ompthreads"]
-    options["pbs"]["vultron_nodes"] = makeitso_options["pbs"]["num_segments"]
+    options["pbs"]["voltron_nodes"] = makeitso_options["pbs"]["select2"]
     options["pbs"]["voltron_ncpus"] = makeitso_options["pbs"]["num_helpers"]
     options["pbs"]["voltron_mpiprocs"] = makeitso_options["pbs"]["helper_mpiprocs"]
     options["pbs"]["voltron_ompthreads"] = makeitso_options["pbs"]["helper_ompthreads"]
-    options["pbs"]["voltron_mpiranks"] = int(options["pbs"]["gamera_nodes"])*int(options["pbs"]["gamera_mpiprocs"])+int( options["pbs"]["vultron_nodes"])*int(options["pbs"]["voltron_mpiprocs"])
+    options["pbs"]["voltron_mpiranks"] = int(options["pbs"]["gamera_nodes"])*int(options["pbs"]["gamera_mpiprocs"])+int( options["pbs"]["voltron_nodes"])*int(options["pbs"]["voltron_mpiprocs"])
     options["pbs"]["voltron_scripts"] = makeitso_options["pbs"]["mpiexec_command"].replace("mpiexec ", "")
-    
+
     # Create a PBS script for each segment.
     pbs_scripts = []
     for job in range(1,int(options["pbs"]["num_segments"])):
@@ -186,8 +186,10 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
             f.write(pbs_content)
 
     # Create a single script which will submit all of the PBS jobs in order.
-    submit_all_jobs_script = f"{gr_options['simulation']['job_name']}-pbs.sh"
+    submit_all_jobs_script = f"{gr_options['simulation']['job_name']}_pbs.sh"
     with open(submit_all_jobs_script, "w", encoding="utf-8") as f:
+        cmd = f"# Standalone GR\n"
+        f.write(cmd)
         makeitso_pbs = makeitso_pbs_scripts[0]
         cmd = f"makeitso_job_id=`qsub {makeitso_pbs}`\n"
         f.write(cmd)
@@ -200,6 +202,8 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
             f.write(cmd)
             cmd = "echo $makeitso_job_id\n"
             f.write(cmd)
+        cmd = f"# Standalone TIEGCM\n"
+        f.write(cmd)
         tiegcm_pbs = tiegcm_pbs_scripts[0]
         cmd = f"tiegcm_job_id=`qsub {tiegcm_pbs}`\n"
         f.write(cmd)
@@ -212,6 +216,8 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
             f.write(cmd)
             cmd = "echo $tiegcm_job_id\n"
             f.write(cmd)
+        cmd = f"# Coupled GTR\n"
+        f.write(cmd)
         s = pbs_scripts[0]
         cmd = f"job_id=`qsub -W depend=afterok:$makeitso_job_id:$tiegcm_job_id {s}`\n"
         f.write(cmd)
@@ -421,7 +427,7 @@ def main():
 
     # Run the TIEGCMrun
     coupled_options = copy.deepcopy(options)
-    coupled_options["vultron"] = makeitso_options.get("voltron", {})
+    coupled_options["voltron"] = makeitso_options.get("voltron", {})
     print(f"coupled_options={coupled_options}")
     
     tiegcm_args = [

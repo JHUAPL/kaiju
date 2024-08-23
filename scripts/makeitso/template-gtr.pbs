@@ -57,10 +57,10 @@ cp {{ pbs.kaiju_build_directory }}/bin/voltron_mpi.x ./voltron_mpi.x
 cp {{ pbs.tie_exe }} ./tiegcm.x
 
 # Run the model. Direct output from the program is saved in a text file.
-VULTRON_EXE=./voltron_mpi.x
+VOLTRON_EXE=./voltron_mpi.x
 TIEGCM_EXE=./tiegcm.x
-OUTPUT_FILE="$VULTRON_EXE-{{ simulation.segment_id }}.out"
-echo "Running $VULTRON_EXE on model $RUNID."
-{{ pbs.mpiexec_command }} -n {{pbs.tie_mpiranks}} $TIEGCM_EXE {{pbs.tie_inp}}: -n {{pbs.voltron_mpiranks}} {{ pbs.voltron_scripts }} $VULTRON_EXE $RUNID.xml &>> $OUTPUT_FILE
+OUTPUT_FILE="$VOLTRON_EXE-{{ simulation.segment_id }}.out"
+echo "Running $VOLTRON_EXE on model $RUNID."
+{{ pbs.mpiexec_command }} -n {{pbs.tie_mpiranks}} $TIEGCM_EXE {{pbs.tie_inp}}: -n {{pbs.voltron_mpiranks}} {{ pbs.voltron_scripts }} $voltron_EXE $RUNID.xml &>> $OUTPUT_FILE
 
 echo "Job $PBS_JOBID ended at `date` on `hostname`."
