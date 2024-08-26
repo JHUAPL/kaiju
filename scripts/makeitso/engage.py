@@ -35,13 +35,15 @@ import h5py
 from jinja2 import Template
 
 #import tiegcmrun stuff
+TIEGCMHOME = os.environ["TIEGCMHOME"]
 #sys.path.append('/glade/u/home/wiltbemj/src/tiegcm/tiegcmrun')
-sys.path.append('/glade/u/home/nikhilr/kaiju_engage/tiegcm/')
-from tiegcmrun import tiegcmrun
+sys.path.append(f'{TIEGCMHOME}/tiegcmrun')
+import tiegcmrun
 print(f'tiegcmrum from {tiegcmrun.__file__}')
 
 #import makeitso
-sys.path.append('/glade/u/home/wiltbemj/src/kaiju-private/scripts/makeitso')
+KAIJUHOME = os.environ["KAIJUHOME"]
+sys.path.append(f'{KAIJUHOME}/scripts/makeitso')
 import makeitso
 print(f'makeitso from {makeitso.__file__}')
 # Program constants
@@ -347,7 +349,7 @@ def prompt_user_for_run_options(args):
         od["num_helpers"]["default"][gamera_grid_type]
     )
     if hpc_platform == "derecho":
-        od["modules"]["default"] = ["ncarenv/23.09","cmake/3.26.3","craype/2.7.23","intel-classic/2023.2.1","cray-mpich/8.1.27","ncarcompilers/1.0.0","mkl/2023.2.0","hdf5-mpi/1.12.2","netcdf-mpi/4.9.2","esmf/8.6.0"]
+        od["modules"]["default"] = ["ncarenv/23.09","cmake/3.26.3","craype/2.7.23","intel-classic/2023.2.1","cray-mpich/8.1.27","ncarcompilers/1.0.0","mkl/2023.2.0","hdf5-mpi/1.12.2","netcdf-mpi/4.9.2","esmf/8.6.0","conda"]
     for on in od:
         o[on] = makeitso.get_run_option(on, od[on], mode)
 
@@ -357,9 +359,11 @@ def prompt_user_for_run_options(args):
     o = options["coupling"]
     od = option_engage_descriptions["coupling"]
 
+    od["conda_env"]["default"] = os.environ.get('CONDA_DEFAULT_ENV')
+    print(f'Conda env = {od["conda_env"]["default"]}')
     # Prompt for the remaining parameters.
     for on in ["gamera_spin_up_time", "gcm_spin_up_time", 
-               "root_directory"]:
+               "root_directory","conda_env"]:
         o[on] = makeitso.get_run_option(on, od[on], mode)
     #-------------------------------------------------------------------------
     # Return the options dictionary.

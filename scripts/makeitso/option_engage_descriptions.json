@@ -15,6 +15,11 @@
             "LEVEL": "BASIC",
             "prompt": "Root directory for the simulation",
             "default": "."
+        },
+        "conda_env": {
+            "LEVEL": "BASIC",
+            "prompt": "Conda environment to use for the simulation",
+            "default": null
         }
     }
 }
