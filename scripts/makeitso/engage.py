@@ -232,7 +232,7 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
             f.write(cmd)
             cmd = "echo $job_id\n"
             f.write(cmd)
-
+    os.chmod(submit_all_jobs_script, 0o755)
     # Return the paths to the PBS scripts.
     return pbs_scripts, submit_all_jobs_script
 
@@ -423,7 +423,7 @@ def main():
     #print(f"makeitso_args = {makeitso_args}")
 
     makeitso_options, makeitso_spinup_pbs_scripts, makeitso_warmup_pbs_scripts = makeitso.makeitso(makeitso_args)
-    makeitso_pbs_scripts =  makeitso_spinup_pbs_scripts +  makeitso_spinup_pbs_scripts
+    makeitso_pbs_scripts = makeitso_spinup_pbs_scripts + makeitso_warmup_pbs_scripts
     # Save the makeitso options dictionary as a JSON file in the current directory.
  
     with open('makeitso_parameters.json', 'w') as f:

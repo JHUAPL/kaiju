@@ -1024,9 +1024,9 @@ def create_pbs_scripts(xml_files: list, options: dict, args: dict):
         gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
         segment_duration = float(options["simulation"]["segment_duration"])
         i_last_warmup_pbs_script = int(gamera_spin_up_time/segment_duration)
-        spinup_pbs_scripts = pbs_scripts[0] # Spinup script is first
+        spinup_pbs_scripts = []
+        spinup_pbs_scripts.append(pbs_scripts[0]) # Spinup script is first
         warmup_pbs_scripts = pbs_scripts[1:i_last_warmup_pbs_script + 1] # Warmup scripts
-
     # Return the paths to the PBS scripts.
     return pbs_scripts, submit_all_jobs_script,spinup_pbs_scripts, warmup_pbs_scripts
 
