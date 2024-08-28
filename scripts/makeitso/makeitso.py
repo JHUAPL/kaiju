@@ -206,10 +206,24 @@ def update_option_descriptions(option_descriptions: dict, args: dict):
         )
 
     # Incorporate any BASIC PBS options from engage.
-    # if "pbs" in args:
-    #     pbs = args["pbs"]
-    #     for k in ["account_name", ]
-
+    if "pbs" in args:
+        pbs = args["pbs"]
+        for k in ["account_name", "kaiju_install_directory",
+                 "kaiju_build_directory", "run_directory"]:
+            od = option_descriptions["pbs"]["_common"][k]
+            od["prompt"] = None
+            od["default"] = pbs[k]
+            
+        # Incorporate HPC platform-specific PBS options from engage at basic level.
+        hpc_platform = args["simulation"]["hpc_system"]
+        for k in args["pbs"]:
+            if k in option_descriptions["pbs"][hpc_platform] and option_descriptions["pbs"][hpc_platform][k]["LEVEL"] == "BASIC":
+                od = option_descriptions["pbs"][hpc_platform][k]
+                od["prompt"] = None
+                od["default"] = pbs[k]
+        # Incorporate HPC platform-specific PBS options from engage in default.
+        option_descriptions["pbs"][hpc_platform]["modules"]["default"] = pbs["modules"]
+    
     # Return the option descriptions.
     return option_descriptions
 
@@ -1010,10 +1024,11 @@ def create_pbs_scripts(xml_files: list, options: dict, args: dict):
         gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
         segment_duration = float(options["simulation"]["segment_duration"])
         i_last_warmup_pbs_script = int(gamera_spin_up_time/segment_duration)
-        warmup_pbs_scripts = pbs_scripts[1:i_last_warmup_pbs_script + 1]
+        spinup_pbs_scripts = pbs_scripts[0] # Spinup script is first
+        warmup_pbs_scripts = pbs_scripts[1:i_last_warmup_pbs_script + 1] # Warmup scripts
 
     # Return the paths to the PBS scripts.
-    return pbs_scripts, submit_all_jobs_script, warmup_pbs_scripts
+    return pbs_scripts, submit_all_jobs_script,spinup_pbs_scripts, warmup_pbs_scripts
 
 
 def fetch_select_line(path: str):
@@ -1152,7 +1167,7 @@ def makeitso(args: dict = None):
     # Create the PBS job script(s).
     if verbose:
         print("Creating PBS job script(s) for run.")
-    pbs_scripts, all_jobs_script, warmup_pbs_scripts = create_pbs_scripts(
+    pbs_scripts, all_jobs_script, spinup_pbs_scripts, warmup_pbs_scripts = create_pbs_scripts(
         xml_files, options, args)
     if verbose:
         print(f"The PBS job scripts {pbs_scripts} are ready.")
@@ -1164,7 +1179,7 @@ def makeitso(args: dict = None):
 
     # Return the options dict used to create the PBS scripts, and the list
     # of PBS scripts which constitute the warmup period.
-    return options, warmup_pbs_scripts
+    return options, spinup_pbs_scripts, warmup_pbs_scripts
 
 
 def main():
