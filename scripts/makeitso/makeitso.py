@@ -213,6 +213,7 @@ def update_option_descriptions(option_descriptions: dict, args: dict):
             od = option_descriptions["pbs"]["_common"][k]
             od["prompt"] = None
             od["default"] = pbs[k]
+            print(k, od["default"])
             
         # Incorporate HPC platform-specific PBS options from engage at basic level.
         hpc_platform = args["simulation"]["hpc_system"]
@@ -450,9 +451,13 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
 
     # Common (HPC platform-independent) options
     od = option_descriptions["pbs"]["_common"]
-    od["account_name"]["default"] = os.getlogin()
-    od["kaiju_install_directory"]["default"] = os.environ["KAIJUHOME"]
-    od["kaiju_build_directory"]["default"] = os.path.join(
+    
+    if "default" not in od.get("account_name", {}):
+        od["account_name"]["default"] = os.getlogin()
+    if "default" not in od.get("kaiju_install_directory", {}):    
+        od["kaiju_install_directory"]["default"] = os.environ["KAIJUHOME"]
+    if "default" not in od.get("kaiju_build_directory", {}):
+        od["kaiju_build_directory"]["default"] = os.path.join(
         os.environ["KAIJUHOME"], "build_mpi")
     od["num_segments"]["default"] = str(num_segments)
     for on in od:
