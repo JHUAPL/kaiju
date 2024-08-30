@@ -61,6 +61,6 @@ VOLTRON_EXE=./voltron_mpi.x
 TIEGCM_EXE=./tiegcm.x
 OUTPUT_FILE="$VOLTRON_EXE-{{ simulation.segment_id }}.out"
 echo "Running $VOLTRON_EXE on model $RUNID."
-{{ pbs.mpiexec_command }} -n {{pbs.tie_mpiranks}} $TIEGCM_EXE {{pbs.tie_inp}}: -n {{pbs.voltron_mpiranks}} {{ pbs.voltron_scripts }} $voltron_EXE $RUNID.xml &>> $OUTPUT_FILE
+{{ pbs.mpiexec_command }} -n {{pbs.tie_mpiranks}} $TIEGCM_EXE {{pbs.tie_inp}} : -n {{pbs.voltron_mpiranks}} {{ pbs.voltron_scripts }} $VOLTRON_EXE $RUNID.xml &>> $OUTPUT_FILE
 
 echo "Job $PBS_JOBID ended at `date` on `hostname`."
