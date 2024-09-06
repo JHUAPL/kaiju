@@ -789,6 +789,27 @@ def create_ini_files(options: dict, args: dict):
         template_content = f.read()
     template = Template(template_content)
 
+    # Set default value for padding to tFin for coupling.
+    tfin_padding = 0.0
+    # Engage modifications to parameters.
+    if "coupling" in args:     
+        # Compute the number of warmup segments.
+        coupling = args["coupling"]
+        gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
+        segment_duration = float(options["simulation"]["segment_duration"])
+        i_last_warmup_ini = int(gamera_spin_up_time/segment_duration)
+        # Add padding to tFin for coupling.
+        if coupling["tfin_delta"] == "T":
+            tfin_coupling_padding = float(options["voltron"]["coupling"]["dtCouple"]) - 1
+        else:
+            tfin_coupling_padding = 0.0
+        # Set doGCM to value from engage.
+        if "doGCM" in coupling:
+            doGCM = coupling["doGCM"]
+        else:   
+            doGCM = coupling["doGCM"]
+
+
     # Initialize the list of file paths.
     ini_files = []
 
@@ -829,10 +850,21 @@ def create_ini_files(options: dict, args: dict):
             dT = float(options["simulation"]["segment_duration"])
             # Add 1 to ensure last restart file created
             tFin_segment = job*dT + 1.0
+            # Engage modifications to parameters in coupled segment.
+            if "coupling" in args:
+                if job >= i_last_warmup_ini + 1:
+                    # Set doGCM to value.
+                    opt["voltron"]["coupling"]["doGCM"] = doGCM
+                    # tFin padding different for last segment.
+                    if job == int(options["pbs"]["num_segments"]):
+                        tfin_padding = tfin_coupling_padding 
+                    else:
+                        # Subtract 1 from tFin padding for coupling beacuse to offset the +1.0 for restart file done above.
+                        tfin_padding = tfin_coupling_padding - 1.0
             # Last segment may be shorter.
             if tFin_segment > tFin:
                 tFin_segment = tFin
-            opt["voltron"]["time"]["tFin"] = str(tFin_segment)
+            opt["voltron"]["time"]["tFin"] = str(tFin_segment + tfin_padding)
             ini_content = template.render(opt)
             ini_file = os.path.join(opt["pbs"]["run_directory"],
                                     f"{segment_id}.ini")
@@ -1024,12 +1056,12 @@ def create_pbs_scripts(xml_files: list, options: dict, args: dict):
     # length.
     # NOTE: Assumes job segments are in use, with only 1 spinup segment.
     warmup_pbs_scripts = []
+    spinup_pbs_scripts = []
     if "coupling" in args:
         coupling = args["coupling"]
         gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
         segment_duration = float(options["simulation"]["segment_duration"])
         i_last_warmup_pbs_script = int(gamera_spin_up_time/segment_duration)
-        spinup_pbs_scripts = []
         spinup_pbs_scripts.append(pbs_scripts[0]) # Spinup script is first
         warmup_pbs_scripts = pbs_scripts[1:i_last_warmup_pbs_script + 1] # Warmup scripts
     # Return the paths to the PBS scripts.

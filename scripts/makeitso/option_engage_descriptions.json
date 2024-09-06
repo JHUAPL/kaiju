@@ -20,6 +20,18 @@
             "LEVEL": "BASIC",
             "prompt": "Conda environment to use for the simulation",
             "default": null
+        },
+        "tfin_delta": {
+            "LEVEL": "BASIC",
+            "prompt": "Extend TFIN by dtCouple - 1 seconds",
+            "default": "T",
+            "valids": ["T", "F"]
+        },
+        "doGCM": {
+            "LEVEL": "BASIC",
+            "prompt": "(VOLTRON) Run in GCM mode",
+            "default": "T",
+            "valids": ["T", "F"]
         }
     }
 }

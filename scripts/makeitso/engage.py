@@ -363,7 +363,7 @@ def prompt_user_for_run_options(args):
 
     # Prompt for the remaining parameters.
     for on in ["gamera_spin_up_time", "gcm_spin_up_time", 
-               "root_directory","conda_env"]:
+               "root_directory","conda_env","tfin_delta","doGCM"]:
         o[on] = makeitso.get_run_option(on, od[on], mode)
     #-------------------------------------------------------------------------
     # Return the options dictionary.

@@ -53,7 +53,7 @@ nodefile=nodefile.$PBS_JOBID
 cp $PBS_NODEFILE $nodefile
 
 # Copy the main executable.
-cp {{ pbs.kaiju_build_directory }}/bin/voltron_mpi.x ./voltron_mpi.x
+# cp {{ pbs.kaiju_build_directory }}/bin/voltron_mpi.x ./voltron_mpi.x
 
 # Run the model. Direct output from the program is saved in a text file.
 EXE=./voltron_mpi.x

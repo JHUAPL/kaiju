@@ -525,6 +525,12 @@
                 "default": "T",
                 "valids": ["T", "F"]
             },
+            "doGCM": {
+                "LEVEL": "INTERMEDIATE",
+                "prompt": "(VOLTRON) Run in GCM mode",
+                "default": "F",
+                "valids": ["T", "F"]
+            },
             "qkSquishStride": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(VOLTRON) Set stride for field line tracing for RCM ingestion into gamera (must be integer power of 2)",
