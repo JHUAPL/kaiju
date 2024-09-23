@@ -1,9 +1,8 @@
 !Main data types
 
 module gamtypes
-    use gdefs
-    use ioclock
-    use ioH5
+
+    use basetypes
 
     implicit none
     
@@ -13,9 +12,9 @@ module gamtypes
 
     type :: baseBC_T
         contains
-        procedure baseInit, baseFailBC, baseFailBcDir
+        procedure baseInitBC, baseFailBC, baseFailBcDir
         ! functions which will be over-written by sub-classes
-        procedure :: doInit => baseInit
+        procedure :: doInit => baseInitBC
         procedure :: doBC => baseFailBC
         procedure :: bcDir => baseFailBcDir
     end type baseBC_T
@@ -69,7 +68,13 @@ module gamtypes
 
 !Overall model information
     !Algorithmic/Run options
-    type Model_T
+    type :: Model_T
+        !Output info
+        type (IOClock_T) :: IO
+
+        !Whether this model is controlled by another model
+        logical :: isSub = .false.
+
         character(len=strLen) :: RunID
         integer :: nSpc, nDim, nG !Number of species, dimensions, ghosts
         real(rp) :: CFL, gamma
@@ -89,9 +94,6 @@ module gamtypes
         
         logical :: isLoud = .true. !Whether you can write to console
         integer :: nTh=-1 !Number of threads per node/group
-
-        !Output info
-        type (IOClock_T) :: IO
 
         !Unit information
         type (gUnits_T) :: Units
@@ -153,7 +155,7 @@ module gamtypes
     !Face transforms (Tf) = (Ni+1,Nj+1,Nk+1,9,NDIM)
     !Edge velocity transforms (Te) = (Ni,Nj,Nk,9,NDIM)
     !Edge mag transforms (Teb) = (Ni,Nj,Nk,4,NDIM)
-    type Grid_T
+    type :: Grid_T
         integer :: Nip,Njp,Nkp
         integer :: Ni,Nj,Nk
 
@@ -166,9 +168,6 @@ module gamtypes
         integer :: isDT,jsDT,ksDT
         integer :: ieDT,jeDT,keDT
 
-        ! Whether this should allocate fewer arrays and use less memory
-        !   Note that this option will limit Gamera's capabilities
-        logical :: lowMem = .false.
         ! Information about decomposed/tiled cases
         logical :: isTiled = .false.
         ! Number of ranks in each dimension
@@ -240,8 +239,11 @@ module gamtypes
     end type Grid_T
 
 !State information
-    type State_T
-        real(rp) :: time
+    type :: State_T
+        !Time info
+        real(rp) :: time = -HUGE
+        !real(rp) :: MJD = -HUGE
+
         !Size (local grid) Ni,Nj,Nk,NVAR,(nSpc)
         real(rp), dimension(:,:,:,:,:), allocatable :: Gas
         !Size (local grid) Ni+1,Nj+1,Nk+1,nDim
@@ -277,139 +279,184 @@ module gamtypes
 
     end type Solver_T
 
+    type, extends(BaseOptions_T) :: gamOptions_T
+        procedure(StateIC_T), pointer, nopass :: userInitFunc
+
+        contains
+    end type gamOptions_T
+
+    type, extends(BaseApp_T) :: gamApp_T
+        type(Model_T)  :: Model
+        type(Grid_T)   :: Grid
+        type(State_T)  :: State, oState
+        type(Solver_T) :: Solver
+
+        type(gamOptions_T) :: gOptions
+
+        contains
+
+        procedure :: InitModel => gamInitModel
+        procedure :: InitIO => gamInitIO
+        procedure :: WriteRestart => gamWriteRestart
+        procedure :: ReadRestart => gamReadRestart
+        procedure :: WriteConsoleOutput => gamWriteConsoleOutput
+        procedure :: WriteFileOutput => gamWriteFileOutput
+        procedure :: WriteSlimFileOutput => gamWriteSlimFileOutput
+        procedure :: AdvanceModel => gamAdvanceModel
+        procedure :: Cleanup => gamCleanup
+
+    end type gamApp_T
+
+    !gamapp function placeholders, bodies are in src/gamera/gamtypessub.F90 to prevent circular dependency
+    interface
+        module subroutine gamInitModel(App, Xml)
+            class(gamApp_T), intent(inout) :: App
+            type(XML_Input_T), intent(inout) :: Xml
+        end subroutine gamInitModel
+
+        module subroutine gamInitIO(App, Xml)
+            class(gamApp_T), intent(inout) :: App
+            type(XML_Input_T), intent(inout) :: Xml
+        end subroutine gamInitIO
+
+        module subroutine gamWriteRestart(App, nRes)
+            class(gamApp_T), intent(inout) :: App
+            integer, intent(in) :: nRes
+        end subroutine gamWriteRestart
+
+        module subroutine gamReadRestart(App, resId, nRes)
+            class(gamApp_T), intent(inout) :: App
+            character(len=*), intent(in) :: resId
+            integer, intent(in) :: nRes
+        end subroutine gamReadRestart
+
+        module subroutine gamWriteConsoleOutput(App)
+            class(gamApp_T), intent(inout) :: App
+        end subroutine gamWriteConsoleOutput
+
+        module subroutine gamWriteFileOutput(App, nStep)
+            class(gamApp_T), intent(inout) :: App
+            integer, intent(in) :: nStep
+        end subroutine gamWriteFileOutput
+
+        module subroutine gamWriteSlimFileOutput(App, nStep)
+            class(gamApp_T), intent(inout) :: App
+            integer, intent(in) :: nStep
+        end subroutine gamWriteSlimFileOutput
+
+        module subroutine gamAdvanceModel(App, dt)
+            class(gamApp_T), intent(inout) :: App
+            real(rp), intent(in) :: dt
+        end subroutine gamAdvanceModel
+
+        module subroutine gamCleanup(App)
+            class(gamApp_T), intent(inout) :: App
+        end subroutine gamCleanup
+
+    end interface
+
     !StateIC_T
     !Generic initialization routine: ICs, Grid, Model
     abstract interface
         subroutine StateIC_T(Model,Grid,State,inpXML)
-            Import :: Model_T, Grid_T, State_T, strLen, XML_Input_T
-            type(Model_T) , intent(inout) :: Model
-            type(Grid_T)  , intent(inout) :: Grid
-            type(State_T) , intent(inout) :: State
+            Import :: Model_T, Grid_T, State_T, XML_Input_T
+            class(Model_T) , intent(inout) :: Model
+            class(Grid_T)  , intent(inout) :: Grid
+            class(State_T) , intent(inout) :: State
             type(XML_Input_T), intent(in) :: inpXML
         end subroutine StateIC_T
 
-    end interface
 
     !ScalarFun_T
     !Generic scalar function
-    abstract interface
         subroutine ScalarFun_T(x,y,z,F)
             Import :: rp
             real(rp), intent(in ) :: x,y,z
             real(rp), intent(out) :: F
         end subroutine ScalarFun_T
-    end interface
 
     !VectorField_T
     !Generic vector field
-    abstract interface
         subroutine VectorField_T(x,y,z,Ax,Ay,Az)
             Import :: rp
             real(rp), intent(in ) :: x,y,z
             real(rp), intent(out) :: Ax,Ay,Az
         end subroutine VectorField_T
-    end interface
 
     !GasIC_T
     !Generic (x,y,z) -> primitive hydro variables
-    abstract interface
         subroutine GasIC_T(x,y,z,D,Vx,Vy,Vz,P)
             Import :: rp
             real(rp), intent(in) :: x,y,z
             real(rp), intent(out) :: D,Vx,Vy,Vz,P
         end subroutine GasIC_T
-    end interface
-
-    !BC_T
-    !Boundary condition type
-    !Contained by Grid structure, takes Model/Grid/State
-    abstract interface
-        subroutine BC_T(Model,Grid,State)
-            Import :: Model_T, Grid_T, State_T
-            type(Model_T), intent(in) :: Model
-            type(Grid_T) , intent(in) :: Grid
-            type(State_T), intent(inout) :: State
-
-        end subroutine BC_T
-    end interface
 
     !HackFlux_T
     !User hack function for fluxes
     !Gives user opportunity to change gas/mag fluxes before application
     !Contained by Model structure, takes Model/Grid/gFlx/mFlx
-    abstract interface
         subroutine HackFlux_T(Model,Gr,gFlx,mFlx)
-            Import :: rp,NDIM,NVAR,BLK,Model_T, Grid_T
-            type(Model_T), intent(in) :: Model
-            type(Grid_T) , intent(in) :: Gr
+            Import :: rp,NDIM,NVAR,BLK,Model_T,Grid_T
+            class(Model_T), intent(in) :: Model
+            class(Grid_T) , intent(in) :: Gr
             real(rp)  , intent(inout) :: gFlx(Gr%isg:Gr%ieg,Gr%jsg:Gr%jeg,Gr%ksg:Gr%keg,1:NVAR,1:NDIM,BLK:Model%nSpc)
             real(rp) , intent(inout), optional :: mFlx(Gr%isg:Gr%ieg,Gr%jsg:Gr%jeg,Gr%ksg:Gr%keg,1:NDIM,1:NDIM)
 
         end subroutine HackFlux_T
-    end interface
 
     !HackE_T
     !User hack electric field
     !Gives user opportunity to change State%Efld before application
     !Contained by Model structure, takes Model/Grid/State
-    abstract interface
         subroutine HackE_T(Model,Grid,State)
             Import :: Model_T, Grid_T, State_T
-            type(Model_T), intent(in) :: Model
-            type(Grid_T), intent(inout) :: Grid
-            type(State_T), intent(inout) :: State
+            class(Model_T), intent(in) :: Model
+            class(Grid_T), intent(inout) :: Grid
+            class(State_T), intent(inout) :: State
 
         end subroutine HackE_T
-    end interface
 
     !HackStep_T
     !User-defined function to be called after update w/ latest state
     !Contained by model structure, takes Model/Grid/State and can edit Grid/State
-    abstract interface
         subroutine HackStep_T(Model,Grid,State)
             Import :: Model_T, Grid_T, State_T
-            type(Model_T), intent(in)    :: Model
-            type(Grid_T) , intent(inout) :: Grid
-            type(State_T), intent(inout) :: State
+            class(Model_T), intent(in)    :: Model
+            class(Grid_T) , intent(inout) :: Grid
+            class(State_T), intent(inout) :: State
 
         end subroutine HackStep_T
-    end interface
 
     !HackPredictor_T
     !User-defined function to be called after Predictor to alter half-timestep state
     !Contained by model structure, takes Model/Grid/State and can edit State
-    abstract interface
         subroutine HackPredictor_T(Model,Grid,State)
             Import :: Model_T, Grid_T, State_T
-            type(Model_T), intent(in)    :: Model
-            type(Grid_T) , intent(inout) :: Grid
-            type(State_T), intent(inout) :: State
+            class(Model_T), intent(in)    :: Model
+            class(Grid_T) , intent(inout) :: Grid
+            class(State_T), intent(inout) :: State
 
         end subroutine HackPredictor_T
-    end interface
 
     !HackIO_0_T
     !User-defined function to be called when writing a new gamera h5 output
     !Called after the standard gamera stuff is added to IOChain
-    abstract interface
         subroutine HackIO_0_T(Model,Grid,IOVars)
             Import :: Model_T, Grid_T, IOVAR_T
-            type(Model_T), intent(in)    :: Model
-            type(Grid_T) , intent(in)    :: Grid
+            class(Model_T), intent(in)    :: Model
+            class(Grid_T) , intent(in)    :: Grid
             type(IOVAR_T), dimension(:), intent(inout) :: IOVars
 
         end subroutine HackIO_0_T
-    end interface
 
     !HackIO_T
     !User-defined function to be called when writing a new gamera h5 output slice
     !Called after the standard gamera stuff is added to IOChain
-    abstract interface
         subroutine HackIO_T(Model,Grid,State,IOVars)
             Import :: Model_T, Grid_T, State_T, IOVAR_T
-            type(Model_T), intent(in)    :: Model
-            type(Grid_T) , intent(in)    :: Grid
-            type(State_T), intent(in)    :: State
+            class(Model_T), intent(in)    :: Model
+            class(Grid_T) , intent(in)    :: Grid
+            class(State_T), intent(in)    :: State
             type(IOVAR_T), dimension(:), intent(inout) :: IOVars
 
         end subroutine HackIO_T
@@ -418,20 +465,20 @@ module gamtypes
     contains
 
     !A null initialization function for BCs that don't require initialization
-    subroutine baseInit(bc,Model,Grid,State,xmlInp)
+    subroutine baseInitBC(bc,Model,Grid,State,xmlInp)
         class(baseBC_T), intent(inout) :: bc
-        type(Model_T)  , intent(inout) :: Model
-        type(Grid_T)      , intent(in) :: Grid
-        type(State_T)     , intent(in) :: State
+        class(Model_T)  , intent(inout) :: Model
+        class(Grid_T)      , intent(in) :: Grid
+        class(State_T)     , intent(in) :: State
         type(XML_Input_T) , intent(in) :: xmlInp
-    end subroutine baseInit
+    end subroutine baseInitBC
 
     ! this should never be called
     subroutine baseFailBC(bc,Model,Grid,State)
         class(baseBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
         print *, "Base BC function called. This should never happen"
         stop
     end subroutine baseFailBC

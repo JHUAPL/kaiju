@@ -1,3 +1,4 @@
+# This module set uses Intel Fortran + MPI, but does not use MKL.
 CMAKE_ENV=
 CMAKE_OPTIONS=-DENABLE_MPI=ON -DENABLE_MKL=OFF
 ncarenv/23.06

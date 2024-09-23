@@ -1,7 +1,4 @@
-# Glob all Fortran source files
-file(GLOB volt_mpi_srcs *.F90)
-
-# Define the static library target
+file(GLOB volt_mpi_srcs *.F90 modelInterfaces/*.F90)
 add_library(voltmpilib ${volt_mpi_srcs})
 
 # Link the library with its dependencies

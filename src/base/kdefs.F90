@@ -45,6 +45,7 @@ module kdefs
     real(rp), parameter :: G2T = 1.0D-4 !Gauss->T
     real(rp), parameter :: kev2J = 1.602176634D-16 !keV->J
     real(rp), parameter ::  ev2J = kev2J*(1.0D-3)  ! eV->J
+    real(rp), parameter ::   J2K = 7.242971666663D+22 !J -> Kelvin
     real(rp), parameter :: kev2erg = kev2J*1.0D+7
     real(rp), parameter :: erg2kev = 1.0/kev2erg
     real(rp), parameter :: Re_km = Re_cgs*(1.0D-2)*(1.0D-3) !km

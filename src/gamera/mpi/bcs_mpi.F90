@@ -20,9 +20,9 @@ module bcs_mpi
     !do-nothing BC just so that we can tell that this BC is handled by the MPI halo update
     subroutine mpi_null_bc(bc,Model,Grid,State)
         class(mpiNullBc_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         ! do nothing
 

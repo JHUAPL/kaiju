@@ -227,7 +227,7 @@ add_subdirectory(src/voltron)
 add_custom_target(voltron ALL)
 message("\tAdding executable voltron.x")
 add_executable(voltron.x src/drivers/voltronx.F90)
-target_link_libraries(voltron.x voltlib gamlib remixlib chimplib rcmlib baselib)
+target_link_libraries(voltron.x baselib voltlib gamlib remixlib chimplib rcmlib)
 add_dependencies(voltron voltron.x)
 
 if(ENABLE_MPI)

@@ -12,13 +12,16 @@ contains
   @before
   subroutine setup(this)
       class (MpiTestMethod), intent(inout) :: this
-      character(len=strLen) :: caseFile
 
+      ! basic initialization
       call setMpiReal()
-
-      write(caseFile,'(A,I0,A)') 'blast3d_bc_', this%getNumProcesses(), '.xml'
+      call initClocks()
 
       allocate(gamAppMpi)
+
+      gamAppMpi%gOptions%userInitFunc => initUser
+      gamAppMpi%gOptionsMpi%gamComm = getMpiF08Communicator(this)
+      gamAppMpi%gOptionsMpi%doIO = .false.
 
   end subroutine setup
 
@@ -399,9 +402,11 @@ contains
   @test(npes=[1])
   subroutine testHalo111FFF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_111_FFF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_111_FFF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.false.,.false.,.false.)
 
@@ -415,9 +420,11 @@ contains
   @test(npes=[1])
   subroutine testHalo111TFF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_111_TFF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_111_TFF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.false.,.false.)
 
@@ -431,9 +438,11 @@ contains
   @test(npes=[1])
   subroutine testHalo111TTF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_111_TTF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_111_TTF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.true.,.false.)
 
@@ -447,10 +456,12 @@ contains
   @test(npes=[1])
   subroutine testHalo111TTT(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_111_TTT.xml',.false.)
-      
+      xmlInp = New_XML_Input('blast3d_bc_111_TTT.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
+
       call setPreHaloData(.true.,.true.,.true.)
 
       call haloUpdate(gamAppMpi, gamAppMpi%State)
@@ -463,9 +474,11 @@ contains
   @test(npes=[4])
   subroutine testHalo411FFF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_411_FFF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_411_FFF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.false.,.false.,.false.)
 
@@ -479,9 +492,11 @@ contains
   @test(npes=[4])
   subroutine testHalo411TFF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_411_TFF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_411_TFF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.false.,.false.)
 
@@ -495,9 +510,11 @@ contains
   @test(npes=[4])
   subroutine testHalo411FTF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_411_FTF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_411_FTF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.false.,.true.,.false.)
 
@@ -511,9 +528,11 @@ contains
   @test(npes=[4])
   subroutine testHalo411TTF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_411_TTF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_411_TTF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.true.,.false.)
 
@@ -527,9 +546,11 @@ contains
   @test(npes=[4])
   subroutine testHalo411FTT(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_411_FTT.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_411_FTT.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.false.,.true.,.true.)
 
@@ -543,9 +564,11 @@ contains
   @test(npes=[4])
   subroutine testHalo411TTT(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_411_TTT.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_411_TTT.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.true.,.true.)
 
@@ -559,9 +582,11 @@ contains
   @test(npes=[16])
   subroutine testHalo441FFF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_441_FFF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_441_FFF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.false.,.false.,.false.)
 
@@ -575,9 +600,11 @@ contains
   @test(npes=[16])
   subroutine testHalo441TFF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_441_TFF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_441_TFF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.false.,.false.)
 
@@ -591,9 +618,11 @@ contains
   @test(npes=[16])
   subroutine testHalo441FFT(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_441_FFT.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_441_FFT.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.false.,.false.,.true.)
 
@@ -607,9 +636,11 @@ contains
   @test(npes=[16])
   subroutine testHalo441TTF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_441_TTF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_441_TTF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.true.,.false.)
 
@@ -623,9 +654,11 @@ contains
   @test(npes=[16])
   subroutine testHalo441TFT(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_441_TFT.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_441_TFT.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.false.,.true.)
 
@@ -639,9 +672,11 @@ contains
   @test(npes=[16])
   subroutine testHalo441TTT(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_441_TTT.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_441_TTT.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.true.,.true.)
 
@@ -655,9 +690,11 @@ contains
   @test(npes=[64])
   subroutine testHalo444FFF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_444_FFF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_444_FFF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.false.,.false.,.false.)
 
@@ -671,9 +708,11 @@ contains
   @test(npes=[64])
   subroutine testHalo444TFF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_444_TFF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_444_TFF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.false.,.false.)
 
@@ -687,9 +726,11 @@ contains
   @test(npes=[64])
   subroutine testHalo444TTF(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_444_TTF.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_444_TTF.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.true.,.false.)
 
@@ -703,9 +744,11 @@ contains
   @test(npes=[64])
   subroutine testHalo444TTT(this)
       class (MpiTestMethod), intent(inout) :: this
+      type(XML_Input_T) :: xmlInp
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this), &
-          'blast3d_bc_444_TTT.xml',.false.)
+      xmlInp = New_XML_Input('blast3d_bc_444_TTT.xml','Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi,xmlInp)
 
       call setPreHaloData(.true.,.true.,.true.)
 

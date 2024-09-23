@@ -264,7 +264,10 @@ module gioH5
         !Fill base data
         real(rp), dimension(:,:,:),   allocatable :: gVar,DivBcc,gVar1
         real(rp), dimension(:,:,:,:), allocatable :: gVec
-        real (rp), dimension(:,:,:,:), allocatable :: VecA,VecB !Full-sized arrays
+        real(rp), dimension(:,:,:,:), allocatable :: VecA,VecB !Full-sized arrays
+        real(rp), dimension(:,:,:)  , allocatable :: dVacMask
+        real(rp), dimension(:)      , allocatable :: dVacFloors
+
         real(rp) :: totDivB,MJD
 
         !Check if root variables need to be written
@@ -298,8 +301,15 @@ module gioH5
         allocate(gVar (iMin:iMax,jMin:jMax,kMin:kMax))
         allocate(gVar1(iMin:iMax,jMin:jMax,kMin:kMax))
         allocate(gVec (iMin:iMax,jMin:jMax,kMin:kMax,1:NDIM))
+        allocate(dVacMask(iMin:iMax,jMin:jMax,kMin:kMax))
+        allocate(dVacFloors(0:Model%nSpc))
 
         associate(gamOut=>Model%gamOut)
+
+        dVacFloors(BLK) = 0.0
+        if (Model%doMultiF) then
+            dVacFloors(1:Model%nSpc) = Spcs(:)%dVac+TINY !For zeroing out mass output in degenerate fluids
+        endif
 
         do s=0,Model%nSpc
             if (s == BLK) then
@@ -316,8 +326,21 @@ module gioH5
                 write(PID ,'(A,I0)') "P" , s
             endif
 
+            !Set species density to zero if it's below threshold for that fluid
+            do i=iMin,iMax
+                do j=jMin,jMax
+                    do k=kMin,kMax
+                        if (State%Gas(i,j,k,DEN,s) < dVacFloors(s)) then
+                            dVacMask(i,j,k) = 0.0
+                        else
+                            dVacMask(i,j,k) = State%Gas(i,j,k,DEN,s)
+                        endif
+                    enddo
+               enddo
+            enddo
+
             !Density
-            call GameraOut(dID,gamOut%dID,gamOut%dScl,State%Gas(iMin:iMax,jMin:jMax,kMin:kMax,DEN,s))
+            call GameraOut(dID,gamOut%dID,gamOut%dScl,dVacMask)
 
             !---------------------
             !Calculate Velocities/Pressure

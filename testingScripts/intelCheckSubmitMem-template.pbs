@@ -29,7 +29,7 @@ export KMP_STACKSIZE=128M
 echo 'The active environment variables are:'
 printenv
 
-# Run the Intel checks.
+# Run the Intel memory checks checks.
 MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
 ${MPICOMMAND} inspxe-cl -collect=mi3 -r memResults -- ./voltron_mpi.x tinyCase.xml
 

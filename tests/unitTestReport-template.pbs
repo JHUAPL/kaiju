@@ -43,6 +43,7 @@ source {{ kaijuhome }}/scripts/setupEnvironment.sh
 echo 'Setting environment variables.'
 export MAGE_TEST_SET_ROOT={{ mage_test_set_root }}
 export SLACK_BOT_TOKEN={{ slack_bot_token }}
+export BRANCH_OR_COMMIT={{ branch_or_commit }}
 echo 'The active environment variables are:'
 printenv
 

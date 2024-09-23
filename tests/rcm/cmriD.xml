@@ -1,0 +1,32 @@
+<!-- Example XML file for coupled SST+Gamera+ReMIX+CHIMP -->
+<?xml version="1.0"?>
+<!-- Magnetosphere params, Voltron times in seconds -->
+<Kaiju>
+  <VOLTRON>
+    <time tFin="36000.0"/>
+    <spinup doSpin="T" tSpin="60.0" tIO="0.0"/>
+    <output dtOut="60.0" tsOut="100" doTimer="F"/>
+    <restart dtRes="1800.0"/>
+    <coupling dtCouple="5.0" rDeep="8.0" imType="RCM"/>
+  </VOLTRON>
+  <Gamera>
+    <sim runid="msphere" doH5g="T" H5Grid="lfmD.h5" icType="user" pdmb="1.0" pFloor="1.0e-8" dFloor="1.0e-6" rmeth="7UP"/>
+    <restart doRes="F" resFile="XXXXX.h5"/>
+    <physics doMHD="T" doBoris="T" Ca="10.0"/>
+    <prob Rho0="0.2" P0="0.001"/>
+    <ring gid="lfm" doRing="T" Nr="4" Nc1="8" Nc2="16" Nc3="32" Nc4="32"/>
+    <wind tsfile="bcwind.h5"/>
+    <source doSource="T"/>
+  </Gamera>
+<!-- Remix params -->
+  <REMIX>
+    <grid Np="360" Nt="45" LowLatBoundary="45.0"/>
+    <conductance pedmin="2.0" hallmin="1.0" sigma_ratio="3.0" const_sigma="True" ped0="5.0"/>
+  </REMIX>
+<!-- EB-Tracer (CHIMP) params -->
+  <CHIMP>
+    <units uid="EARTHCODE"/>
+    <fields grType="LFM"/>
+    <domain dtype="SPH" rmin="2.0" rmax="25.0"/>
+  </CHIMP>
+</Kaiju>

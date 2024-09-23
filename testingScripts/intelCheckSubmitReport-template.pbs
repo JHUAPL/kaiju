@@ -21,7 +21,7 @@ module list
 echo 'Loading python environment.'
 mage_test_root='{{ mage_test_root }}'
 export CONDARC="${mage_test_root}/condarc"
-export CONDA_ENVS_PATH="${mage_test_root}/conda"
+export CONDA_ENVS_PATH="${mage_test_root}/.conda"
 mage_miniconda3="${mage_test_root}/miniconda3"
 mage_conda="${mage_miniconda3}/bin/conda"
 __conda_setup="$($mage_conda 'shell.bash' 'hook' 2> /dev/null)"
@@ -39,11 +39,13 @@ conda activate kaiju-3.8-testing
 
 echo 'Setting up MAGE environment.'
 source {{ kaijuhome }}/scripts/setupEnvironment.sh
+source {{ kaipyhome }}/kaipy/scripts/setupEnvironment.sh
 
 echo 'Setting environment variables.'
 export TMPDIR={{ tmpdir }}
 export SLACK_BOT_TOKEN={{ slack_bot_token }}
 export DERECHO_TESTING_ACCOUNT={{ account }}
+export BRANCH_OR_COMMIT={{ branch_or_commit }}
 echo 'The active environment variables are:'
 printenv
 

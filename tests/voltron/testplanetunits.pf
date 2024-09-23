@@ -39,7 +39,7 @@ contains
 
   subroutine checkGamera(vApp, gApp)
     type(voltApp_T), intent(in) :: vApp
-    type(gamApp_T), intent(in) :: gApp
+    class(gamApp_T), intent(in) :: gApp
     
     ! Gam units
     real(rp) :: gv0, gT0, gB0, gP0, M0, GM0_t
@@ -89,15 +89,14 @@ contains
   @test
   subroutine testEarth()
     type(voltApp_T) :: vApp
-    type(gamApp_T) :: gApp
     character(len=strLen) :: xmlName = 'cmriD_Earth.xml'
 
-    call initGamera(gApp, initUser, xmlName)
-    call initVoltron(vApp, gApp, xmlName)
+    vApp%vOptions%gamUserInitFunc => initUser
+    call initVoltron(vApp, xmlName)
 
     ! Run tests
     call checkVoltron(vApp, REarth, RionE*1E6_rp, 9.807_rp, EarthM0g, EarthPsi0, .true.)
-    call checkGamera(vApp, gApp)
+    call checkGamera(vApp, vApp%gApp)
     call checkRCM(vApp)
     !Does REMIX need to be checked? Only relies on msphutil's RadIonosphere() (2021/10/12)
     call checkChimp(vApp)
@@ -107,15 +106,16 @@ contains
   @test
   subroutine testJupiter()
     type(voltApp_T) :: vApp
-    type(gamApp_T) :: gApp
     character(len=strLen) :: xmlName = 'cmriD_Jupiter.xml'
-    real(rp) :: jupCorot = -2.5*1702.9*92.0
-    call initGamera(gApp, initUser, xmlName)
-    call initVoltron(vApp, gApp, xmlName)
+    real(rp) :: jupCorot
+
+    jupCorot = -2.5*1702.9*92.0
+    vApp%vOptions%gamUserInitFunc => initUser
+    call initVoltron(vApp, xmlName)
 
     ! Run tests
     call checkVoltron(vApp, RJupiterXE*REarth, 1.01*RJupiterXE*REarth, 24.79_rp, JupiterM0g, jupCorot, .true.)
-    call checkGamera(vApp, gApp)
+    call checkGamera(vApp, vApp%gApp)
     call checkRCM(vApp)
     !Does REMIX need to be checked? Only relies on msphutil's RadIonosphere() (2021/10/12)
     call checkChimp(vApp)
@@ -125,13 +125,12 @@ contains
   @test
   subroutine testNewPlanet() ! Arbitrary, not real planet
     type(voltApp_T) :: vApp
-    type(gamApp_T) :: gApp
     character(len=strLen) :: xmlName = 'cmriD_NewPlanet.xml'
-
     type(XML_Input_T) :: inpXML
     real(rp) :: corotXML
-    call initGamera(gApp, initUser, xmlName)
-    call initVoltron(vApp, gApp, xmlName)
+
+    vApp%vOptions%gamUserInitFunc => initUser
+    call initVoltron(vApp, xmlName)
 
     ! For this test, we should get corot potential right from xml cause we don't have a real pre-set value for a fake planet.
     ! This does check if Voltron and Gamera are getting the right potential from xml
@@ -142,7 +141,7 @@ contains
 
     ! Run tests
     call checkVoltron(vApp, 1.3*REarth, 1.01*1.3*REarth, 12.0_rp, 0.3*EarthM0g, corotXML, .true.)
-    call checkGamera(vApp, gApp)
+    call checkGamera(vApp, vApp%gApp)
     call checkRCM(vApp)
     !Does REMIX need to be checked? Only relies on msphutil's RadIonosphere() (2021/10/12)
     call checkChimp(vApp)

@@ -1,7 +1,7 @@
 ! Main data objects and functions to perform a gamera simulation
 
 module gamapp_mpi
-    use gamtypes
+    use gamtypes_mpi
     use step
     use init
     use mhdgroup
@@ -12,89 +12,32 @@ module gamapp_mpi
 
     implicit none
 
-    type, extends(GamApp_T) :: gamAppMpi_T
-        type(MPI_Comm) :: gamMpiComm
-        integer, dimension(:), allocatable :: sendRanks, recvRanks
-        logical :: blockHalo = .false.
-
-        ! Gas Data Transfer Variables
-        integer, dimension(:), allocatable :: sendCountsGas
-        type(MPI_Datatype), dimension(:), allocatable :: sendTypesGas
-        integer, dimension(:), allocatable :: recvCountsGas
-        type(MPI_Datatype), dimension(:), allocatable :: recvTypesGas
-        integer(kind=MPI_AN_MYADDR), dimension(:), allocatable :: sendDisplsGas, recvDisplsGas
-
-        ! Magnetic Flux Data Transfer Variables
-        integer, dimension(:), allocatable :: sendCountsMagFlux
-        type(MPI_Datatype), dimension(:), allocatable :: sendTypesMagFlux
-        integer, dimension(:), allocatable :: recvCountsMagFlux
-        type(MPI_Datatype), dimension(:), allocatable :: recvTypesMagFlux
-        integer(kind=MPI_AN_MYADDR), dimension(:), allocatable :: sendDisplsMagFlux, recvDisplsMagFlux
-
-        ! Bxyz Data Transfer Variables
-        integer, dimension(:), allocatable :: sendCountsBxyz
-        type(MPI_Datatype), dimension(:), allocatable :: sendTypesBxyz
-        integer, dimension(:), allocatable :: recvCountsBxyz
-        type(MPI_Datatype), dimension(:), allocatable :: recvTypesBxyz
-        integer(kind=MPI_AN_MYADDR), dimension(:), allocatable :: sendDisplsBxyz, recvDisplsBxyz
-
-        ! Debugging flags
-        logical :: printMagFluxFaceError = .false.
-        real(rp) :: faceError = 0.0_rp
-        logical :: slowestRankPrints = .true.
-
-    end type gamAppMpi_T
-
     contains
 
-    subroutine initGamera_mpi(gamAppMpi, userInitFunc, gamComm, optFilename, doIO)
-        type(gamAppMpi_T), intent(inout) :: gamAppMpi
-        procedure(StateIC_T), pointer, intent(in) :: userInitFunc
-        type(MPI_Comm), intent(in) :: gamComm
-        character(len=*), optional, intent(in) :: optFilename
-        logical, optional, intent(in) :: doIO
+    subroutine initGamera_mpi(gamAppMpi, xmlInp)
+        class(gamAppMpi_T), intent(inout) :: gamAppMpi
+        type(XML_Input_T), intent(inout) :: xmlInp
 
-        character(len=strLen) :: inpXML, kaijuRoot
-        type(XML_Input_T) :: xmlInp
-        logical :: doIOX,doLoud
+        character(len=strLen) :: kaijuRoot
+        logical :: doLoud
         integer :: rank,ierr
+
+        gamAppMpi%Model%isLoud = .true.
 
         ! initialize F08 MPI objects
         gamAppMpi%gamMpiComm = MPI_COMM_NULL
 
-        if(present(optFilename)) then
-            ! read from the prescribed file
-            inpXML = optFilename
-        else
-            !Find input deck
-            call getIDeckStr(inpXML)
-        endif
-        call CheckFileOrDie(inpXML,"Error opening input deck, exiting ...")
-
-        if (present(doIO)) then
-            doIOX = doIO
-        else
-            doIOX = .true.
-        endif
-
-    !Create XML reader
         !Verbose for root Gamera rank only
         !NOTE: Doing this w/ direct MPI call b/c isTiled/etc doesn't get set until later
-        call mpi_comm_rank(gamComm, rank, ierr)
+        call mpi_comm_rank(gamAppMpi%gOptionsMpi%gamComm, rank, ierr)
         if (rank == 0) then
             doLoud = .true.
         else
             doLoud = .false.
         endif
 
-
-        if (doLoud) then
-            write(*,*) 'Reading input deck from ', trim(inpXML)
-            xmlInp = New_XML_Input(trim(inpXML),'Kaiju/Gamera',.true.)
-        else
-            xmlInp = New_XML_Input(trim(inpXML),'Kaiju/Gamera',.false.)
-            call xmlInp%BeQuiet()
-        endif
+        call xmlInp%SetVerbose(doLoud)
+        call xmlInp%SetRootStr('Kaiju/Gamera')
 
         ! try to verify that the XML file has "Kaiju" as a root element
         kaijuRoot = ""
@@ -123,10 +66,10 @@ module gamapp_mpi
 
         !Initialize Grid/State/Model (Hatch Gamera)
         !Will enforce 1st BCs, caculate 1st timestep, set oldState
-        call Hatch_mpi(gamAppMpi,xmlInp,userInitFunc,gamComm)
+        call Hatch_mpi(gamAppMpi,xmlInp,gamAppMpi%gOptions%userInitFunc,gamAppMpi%gOptionsMpi%gamComm)
         call cleanClocks()
 
-        if (doIOX) then
+        if (gamAppMpi%gOptionsMpi%doIO) then
             if (.not. gamAppMpi%Model%isRestart) call fOutput(gamAppMpi%Model,gamAppMpi%Grid,gamAppMpi%State)
             call consoleOutput(gamAppMpi%Model,gamAppMpi%Grid,gamAppMpi%State)
         endif
@@ -543,7 +486,7 @@ module gamapp_mpi
     ! each gamera rank calculates their own DT, and then synchronizes them to use
     ! whoever has the lowest one
     subroutine CalcDT_mpi(gamAppMpi)
-        type(gamAppMpi_T), intent(inout) :: gamAppMpi
+        class(gamAppMpi_T), intent(inout) :: gamAppMpi
         real(rp) :: tmpDT
         integer :: ierr
 

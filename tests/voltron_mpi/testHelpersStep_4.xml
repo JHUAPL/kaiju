@@ -2,9 +2,9 @@
 <!-- Gamera Magnetosphere -->
 <Kaiju>
   <voltron>
-    <time tFin="20.0"/>
+    <time tFin="21.0"/>
     <spinup doSpin="T" tSpin="20.0" tIO="0.0"/>
-    <coupling dtCouple="5.0" rTrc="40.0" imType="RCM" doQkSquish="F" doDynDT="F" doAsyncCoupling="T"/>
+    <coupling dtCouple="5.0" rTrc="40.0" imType="RCM" doQkSquish="F" doDynDT="F" doAsyncCoupling="F"/>
     <restart dtRes="1800.0"/>
     <imag doInit="T"/>
     <ebsquish epsSquish="0.05"/>
@@ -25,6 +25,7 @@
     <wind tsfile="bcwind.h5"/>
     <source doSource="T" doBounceDT="T"/>
     <threading NumTh="18"/>
+    <coupling blockHalo="T"/>
   </Gamera>
 <!-- Remix -->
   <REMIX>

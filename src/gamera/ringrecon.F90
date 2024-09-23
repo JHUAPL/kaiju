@@ -69,13 +69,7 @@ module ringrecon
             mE = mS + dJ - 1
             if (Model%doMultiF) then
                 ngood = count( isG(mS:mE) ) !Number of good elements in chunk
-                if (ngood == 0) then
-                    cycle !Skip this chunk 
-                else if (ngood < dJ) then
-                    !For partially good chunk just do piecewise constant
-                    rW(mS:mE) = sum(rW(mS:mE),mask=isG(mS:mE))/ngood
-                    cycle !Skip remainder
-                endif
+                if (ngood == 0) cycle !Nothing to do
             endif
 
             !Grab stencil for interval LR's
@@ -164,13 +158,7 @@ module ringrecon
             mE = mS + dJ - 1
             if (Model%doMultiF) then
                 ngood = count( isG(mS:mE) ) !Number of good elements in chunk
-                if (ngood == 0) then
-                    cycle !Skip this chunk
-                else if (ngood < dJ) then
-                    !Just do piecewise constant
-                    rW(mS:mE) = (tMass(n)/dJ)*chW(n)
-                    cycle
-                endif
+                if (ngood == 0) cycle
             endif
 
             !Grab stencil for interval LR's

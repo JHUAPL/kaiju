@@ -7,6 +7,7 @@ module step
     use gdefs
     use output
     use multifluid
+    use gridutils
 
     implicit none
 
@@ -115,12 +116,6 @@ module step
                 isBad = .true.
             endif
 
-            !Check for too small dt
-            if (dtMin <= TINY) then
-                write(eStr,*) "<Timestep too small (",dtMin,"), exiting ...>"
-                isDisaster = .true. !We're boned
-            endif
-
             !Check for slower but significant timestep drop
             if ( (Model%dt0>TINY) .and. (dtMin/Model%dt0 <= Model%limDT0) ) then
                 write(eStr,*) "<Timestep less than limDT0 of initial (",Model%dt0,"=>",dtMin,"), exiting ...>"
@@ -131,6 +126,12 @@ module step
                 !Patient is dying, attempt CPR to keep patient alive
                 write(eStr,*) "<Patient is dying, trying to resuscitate. Clear!>"
                 isBad = .true.
+            endif
+
+           !Check for too small dt
+            if (dtMin <= TINY) then
+                write(eStr,*) "<Timestep too small (",dtMin,"), exiting ...>"
+                isDisaster = .true. !We're boned
             endif
 
             !Done testing, now is the time for action!
@@ -267,13 +268,6 @@ module step
 
         integer :: i,j,k
         real(rp) :: dtijk
-
-        if (Model%doMultiF .or. Model%doResistive) then
-            return
-            !write(*,*) 'CPR not yet implemented for these options, bailing ...'
-            !stop
-        endif
-        
         
         !$OMP PARALLEL DO default(shared) collapse(2) &
         !$OMP private(i,j,k,dtijk)
@@ -299,23 +293,32 @@ module step
         type(Grid_T), intent(in) :: Gr
         type(State_T), intent(inout) :: State
         
-
+        integer :: s0,sE,s
         real(rp), parameter :: alpha = 0.9 !Slow-down factor
-        real(rp) :: D,Vf,Va,Cs,MagB
-        real(rp), dimension(NVAR) :: pCon,pW
+
+        real(rp) :: U(NVAR,BLK:Model%nSpc)
+        real(rp) :: D,Vf,Va,Cs,MagB,CsS
+        real(rp), dimension(NVAR) :: pCon,pW,pConS,pWS
         real(rp), dimension(NDIM) :: B
         logical :: doVa,doCs,doVf,isFloored !Which speeds to slow
-    
-    !TODO: Remove this replicated code
-    !Get three speeds, fluid/sound/alfven
-        pCon = State%Gas(i,j,k,:,BLK)
-        call CellC2P(Model,pCon,pW)
-        Vf = norm2(pW(VELX:VELZ))
 
-        call CellPress2Cs(Model,pCon,Cs)
+    !Get three speeds, fluid/sound/alfven
+        U = State%Gas(i,j,k,:,:)
+        pCon = U(:,BLK)
+        call CellC2P(Model,pCon,pW)
+        
+        if (Model%doMultiF) then
+            Cs = MultiFCs   (Model,U)
+            Vf = MultiFSpeed(Model,U)
+        else
+            !Single fluid
+            Vf = norm2(pW(VELX:VELZ))
+            call CellPress2Cs(Model,pCon,Cs)
+        endif
 
         Va = 0.0
         D = pCon(DEN)
+        B = 0.0
 
         if (Model%doMHD) then
             B = State%Bxyz(i,j,k,:)
@@ -340,110 +343,75 @@ module step
         if ( (Vf>=Cs) .and. (Vf>=Va) ) then
             !Fast flow speed
             doVf = .true.
-        else if ( (Cs>=Va) .and. (Cs>=Va) ) then
+        else if ( (Cs>=Va) .and. (Cs>=Vf) ) then
             doCs = .true.
         else if ( (Va>=Cs) .and. (Va>=Vf) ) then
             !Fast Alfven speed
             doVa = .true.
         endif
 
-        !For now disabling doing anything about Va
-        doVa = .false.
-        
-    !Slow down speeds by a bit
-        if (doVf) then
-            !Directly slow speed
-            pW(VELX:VELZ) = alpha*pW(VELX:VELZ)
-        endif
-
-        if (doCs) then
-            !Reduce pressure
-            pW(PRESSURE) = alpha*alpha*pW(PRESSURE)
-        endif
-
-        if (doVa) then
-            !Nudge up density
-            pW(DEN) = pW(DEN)/(alpha*alpha)
-        endif
     !Check for floored cell
         isFloored = (pW(DEN)     <dFloor+TINY) .or. &
                   & (pW(PRESSURE)<pFloor+TINY)
-        if (isFloored) then
-            !This cell was just floored and it's causing us problems, so take away its velocity
-            pW(VELX:VELZ) = 0.0
-        endif          
 
-    !Store changed values
-        call CellP2C(Model,pW,pCon)
-        State%Gas(i,j,k,:,BLK) = pCon
-    end subroutine CellCPR
-
-    subroutine CellDT(Model,Gr,State,i,j,k,dtijk)
-        integer, intent(in) :: i,j,k
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Gr
-        type(State_T), intent(in) :: State
-        real(rp),intent(out) :: dtijk
-
-
-        real(rp) ::  ke,e,P, dt
-        real(rp) :: Vx,Vy,Vz,rho,Bx,By,Bz
-        real(rp) :: dl,MagB,MagV,Vfl,Valf,Cs,vCFL,Diff,Vdiff
-
-        !Get three speeds, fluid/sound/alfven
-        rho = State%Gas(i,j,k,DEN,BLK)
-        Vx  = State%Gas(i,j,k,MOMX,BLK)/rho
-        Vy  = State%Gas(i,j,k,MOMY,BLK)/rho
-        Vz  = State%Gas(i,j,k,MOMZ,BLK)/rho
-        MagV = sqrt(Vx**2.0+Vy**2.0+Vz**2.0)
+        !For now disabling doing anything about Va
+        !Only thing we could do is create mass
+        doVa = .false.
         
-
-        ke = 0.5*rho*(MagV**2.0)
-        e = State%Gas(i,j,k,ENERGY,BLK) - ke
-        P = (Model%gamma-1)*e
-
-        !Handle multifluid case for sound speed/max flow
+    !Slow down speeds by a bit
         if (Model%doMultiF) then
-            Cs = MultiFCs(Model,State%Gas(i,j,k,:,:))
-            MagV = MultiFSpeed(Model,State%Gas(i,j,k,:,:))
+            s0 = 1
+            sE = Model%nSpc
         else
-            Cs = sqrt(Model%gamma*P/rho)
+            s0 = BLK
+            sE = BLK
         endif
 
-        Vfl   = MagV
-        Valf  = 0.0
-        VDiff = 0.0
+        !Loop over species
+        do s=s0,sE
+            if (.not. isGoodFluid(Model,U,s)) cycle
+            !If still here, let's do work
+            pConS = State%Gas(i,j,k,:,s)
+            call CellC2P(Model,pConS,pWS)
 
-        if (Model%doMHD) then
-            Bx = State%Bxyz(i,j,k,XDIR)
-            By = State%Bxyz(i,j,k,YDIR)
-            Bz = State%Bxyz(i,j,k,ZDIR)
-            if (Model%doBackground) then
-                Bx = Bx + Gr%B0(i,j,k,XDIR)
-                By = By + Gr%B0(i,j,k,YDIR)
-                Bz = Bz + Gr%B0(i,j,k,ZDIR)
+            if (doVf) then
+                !Directly slow speed
+                pWS(VELX:VELZ) = alpha*pWS(VELX:VELZ)
             endif
-            !Use B to calculate Alfven speed for CFL speed
-            MagB = sqrt(Bx**2.0+By**2.0+Bz**2.0)
-            Valf = MagB/sqrt(rho)
-            !Boris correct Alfven speed
-            if (Model%doBoris) then
-                Valf = Model%Ca*Valf/sqrt(Model%Ca*Model%Ca + Valf*Valf)
+
+            if (doCs) then
+                !Check this channel Cs
+                call CellPress2Cs(Model,U(:,s),CsS)
+                if ( (CsS>=Va) .and. (CsS>=Vf) ) then
+                    pWS(PRESSURE) = alpha*alpha*pWS(PRESSURE)
+                endif
+
             endif
-            
-            if(Model%doResistive) then
-               ! Asume t ~ x^2/(2Diff)
-               Diff = EdgeScalar2CC(Model,Gr,State%Deta,i,j,k)
-               Vdiff = 2.0d0*Diff/minval((/Gr%di(i,j,k),Gr%dj(i,j,k),Gr%dk(i,j,k)/))
-            end if
+
+            if (doVa) then
+                !Nudge up density
+                pWS(DEN) = pWS(DEN)/(alpha*alpha)
+            endif
+
+            !Finally, check for problem cell
+            if (isFloored) then
+                !This cell was just floored and it's still causing us problems
+                !Let's teach it a lesson
+                pWS(VELX:VELZ) = 0.0
+            endif
+
+            !Now put back
+            call CellP2C(Model,pWS,pConS)
+            U(:,s) = pConS
+        enddo
+
+    !Finish up and store final values
+        if (Model%doMultiF) then
+            call MultiF2Bulk(Model,U,B)
         endif
 
-        vCFL = Vfl + sqrt(Cs**2.0 + Valf**2.0) + Vdiff
-        
-        !Use min length for timestep calculation
-        dl = minval((/Gr%di(i,j,k),Gr%dj(i,j,k),Gr%dk(i,j,k)/))
-        dtijk = Model%CFL*dl/vCFL
+        State%Gas(i,j,k,:,:) = U
 
-    end subroutine CellDT
+    end subroutine CellCPR
 
 end module step

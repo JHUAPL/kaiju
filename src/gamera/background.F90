@@ -93,41 +93,39 @@ module background
                     !Get face stress
                     call GaussianFaceStress(Model,f0,f1,f2,f3,B0,faceStress(i,j,k,KDIR,:))
 
-                    if (.not. Grid%lowMem) then
-                        !Calculate edge integrals and mapping to 1/2 system using velocity mapping
-                        !I edge
-                        call edgeCoords(Model,Grid,i,j,k,IDIR,e1,e2)
+                    !Calculate edge integrals and mapping to 1/2 system using velocity mapping
+                    !I edge
+                    call edgeCoords(Model,Grid,i,j,k,IDIR,e1,e2)
                     
-                        eInt = GaussianEdgeIntegral(Model,e1,e2,B0)
+                    eInt = GaussianEdgeIntegral(Model,e1,e2,B0)
 
-                        Grid%edgB0(i,j,k,1,IDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN1X,IDIR) + &
-                                                   eInt(YDIR)*Grid%Te(i,j,k,TAN1Y,IDIR) + &
-                                                   eInt(ZDIR)*Grid%Te(i,j,k,TAN1Z,IDIR) 
-                        Grid%edgB0(i,j,k,2,IDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN2X,IDIR) + &
-                                                   eInt(YDIR)*Grid%Te(i,j,k,TAN2Y,IDIR) + &
-                                                   eInt(ZDIR)*Grid%Te(i,j,k,TAN2Z,IDIR) 
-                        !J edge
-                        call edgeCoords(Model,Grid,i,j,k,JDIR,e1,e2)
-                        eInt = GaussianEdgeIntegral(Model,e1,e2,B0)
+                    Grid%edgB0(i,j,k,1,IDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN1X,IDIR) + &
+                                               eInt(YDIR)*Grid%Te(i,j,k,TAN1Y,IDIR) + &
+                                               eInt(ZDIR)*Grid%Te(i,j,k,TAN1Z,IDIR) 
+                    Grid%edgB0(i,j,k,2,IDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN2X,IDIR) + &
+                                               eInt(YDIR)*Grid%Te(i,j,k,TAN2Y,IDIR) + &
+                                               eInt(ZDIR)*Grid%Te(i,j,k,TAN2Z,IDIR) 
+                    !J edge
+                    call edgeCoords(Model,Grid,i,j,k,JDIR,e1,e2)
+                    eInt = GaussianEdgeIntegral(Model,e1,e2,B0)
 
-                        Grid%edgB0(i,j,k,1,JDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN1X,JDIR) + &
-                                                   eInt(YDIR)*Grid%Te(i,j,k,TAN1Y,JDIR) + &
-                                                   eInt(ZDIR)*Grid%Te(i,j,k,TAN1Z,JDIR) 
-                        Grid%edgB0(i,j,k,2,JDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN2X,JDIR) + &
-                                                   eInt(YDIR)*Grid%Te(i,j,k,TAN2Y,JDIR) + &
-                                                   eInt(ZDIR)*Grid%Te(i,j,k,TAN2Z,JDIR) 
+                    Grid%edgB0(i,j,k,1,JDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN1X,JDIR) + &
+                                               eInt(YDIR)*Grid%Te(i,j,k,TAN1Y,JDIR) + &
+                                               eInt(ZDIR)*Grid%Te(i,j,k,TAN1Z,JDIR) 
+                    Grid%edgB0(i,j,k,2,JDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN2X,JDIR) + &
+                                               eInt(YDIR)*Grid%Te(i,j,k,TAN2Y,JDIR) + &
+                                               eInt(ZDIR)*Grid%Te(i,j,k,TAN2Z,JDIR) 
 
-                        !K edge
-                        call edgeCoords(Model,Grid,i,j,k,KDIR,e1,e2)
-                        eInt = GaussianEdgeIntegral(Model,e1,e2,B0)
+                    !K edge
+                    call edgeCoords(Model,Grid,i,j,k,KDIR,e1,e2)
+                    eInt = GaussianEdgeIntegral(Model,e1,e2,B0)
 
-                        Grid%edgB0(i,j,k,1,KDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN1X,KDIR) + &
-                                                   eInt(YDIR)*Grid%Te(i,j,k,TAN1Y,KDIR) + &
-                                                   eInt(ZDIR)*Grid%Te(i,j,k,TAN1Z,KDIR) 
-                        Grid%edgB0(i,j,k,2,KDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN2X,KDIR) + &
-                                                   eInt(YDIR)*Grid%Te(i,j,k,TAN2Y,KDIR) + &
-                                                   eInt(ZDIR)*Grid%Te(i,j,k,TAN2Z,KDIR) 
-                    endif
+                    Grid%edgB0(i,j,k,1,KDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN1X,KDIR) + &
+                                               eInt(YDIR)*Grid%Te(i,j,k,TAN1Y,KDIR) + &
+                                               eInt(ZDIR)*Grid%Te(i,j,k,TAN1Z,KDIR) 
+                    Grid%edgB0(i,j,k,2,KDIR) = eInt(XDIR)*Grid%Te(i,j,k,TAN2X,KDIR) + &
+                                               eInt(YDIR)*Grid%Te(i,j,k,TAN2Y,KDIR) + &
+                                               eInt(ZDIR)*Grid%Te(i,j,k,TAN2Z,KDIR) 
 
                     !Add cell center XYZ fields
                     !Get cell corners

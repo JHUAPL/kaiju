@@ -9,7 +9,7 @@ $KAIJUHOME/testingScripts/mage_build_test_modules
 
 This script reads the file build_test.lst from this directory, and
 uses the contents as a list of module list files to use for MAGE build
-tests.
+tests. Each build takes about 10 minutes.
 
 NOTE: These tests are performed on a load-balance-assigned login node on
 derecho. No PBS job is submitted.
@@ -107,19 +107,20 @@ def main():
     slack_on_fail = args.slack_on_fail
     verbose = args.verbose
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     if debug:
         print(f"Starting {sys.argv[0]} at {datetime.datetime.now()}")
         print(f"Current directory is {os.getcwd()}")
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Make a directory to hold all of the build tests.
-    print(f"Creating ${BUILD_TEST_DIRECTORY}.")
+    if verbose:
+        print(f"Creating {BUILD_TEST_DIRECTORY}.")
     os.mkdir(BUILD_TEST_DIRECTORY)
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Do a preliminary cmake run to generate the list of executables.
 
@@ -172,7 +173,8 @@ def main():
     # Run make to build the list of executable targets.
     if verbose:
         print('Running make for executable list generation.')
-    cmd = f"{module_cmd}; make help | grep '\.x'"
+    pattern = r'\.x'
+    cmd = f"{module_cmd}; make help | grep '{pattern}'"
     if debug:
         print(f"cmd = {cmd}")
     try:
@@ -209,7 +211,7 @@ def main():
     if debug:
         print(f"make_cmd = {make_cmd}")
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Make a list of module sets to build with.
 
@@ -220,7 +222,7 @@ def main():
     if debug:
         print(f"module_list_files = {module_list_files}")
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Initalize test results for all module sets to False (failed).
     test_passed = [False]*len(module_list_files)
@@ -229,7 +231,7 @@ def main():
     for (i_test, module_list_file) in enumerate(module_list_files):
         if verbose:
             print('Performing build test with module list file '
-                  f"{module_list_file}")
+                  f"{module_list_file}.")
 
         # Extract the name of the list.
         module_set_name = module_list_file.rstrip('.lst')
@@ -331,7 +333,7 @@ def main():
 
     # End of loop over module sets.
 
-    # -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     # Detail the test results
     test_report_details_string = ''
@@ -348,8 +350,7 @@ def main():
 
     # Summarize the test results.
     test_report_summary_string = (
-        'Summary of build test results from `buildTest.py`'
-        f" for branch or commit or tag `{BRANCH_OR_COMMIT}`: "
+        f"Build test results for `{BRANCH_OR_COMMIT}`: "
     )
     if 'FAILED' in test_report_details_string:
         test_report_summary_string += '*FAILED*'
@@ -361,7 +362,7 @@ def main():
     print(test_report_details_string)
 
     # If a test failed, or loud mode is on, post report to Slack.
-    if (slack_on_fail and 'FAILED' in test_report_details_string) or be_loud:
+    if (slack_on_fail and 'FAILED' in test_report_summary_string) or be_loud:
         slack_client = common.slack_create_client()
         if debug:
             print(f"slack_client = {slack_client}")

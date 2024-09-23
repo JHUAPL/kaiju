@@ -12,9 +12,9 @@ module usergamic
     contains
     
     subroutine initUser(Model,Grid,State,xmlInp)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: xmlInp
 
         write(*,*) 'Attempting to use null user routine, bailing out!'

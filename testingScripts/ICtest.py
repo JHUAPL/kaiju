@@ -11,7 +11,7 @@ $KAIJUHOME/testingScripts/mage_build_test_modules
 
 This script reads the file initial_condition_build_test.lst from this
 directory, and uses the contents as a list of module list files to use for
-MAGE iinitial condition build tests.
+MAGE initial condition build tests. Each build takes about 2 minutes.
 
 NOTE: These tests are performed on a load-balance-assigned login node on
 derecho. No PBS job is submitted.
@@ -122,7 +122,8 @@ def main():
     # ------------------------------------------------------------------------
 
     # Make a directory to hold all of the initial condition build tests.
-    print(f"Creating ${INITIAL_CONDITION_BUILD_TEST_DIRECTORY}.")
+    if verbose:
+        print(f"Creating ${INITIAL_CONDITION_BUILD_TEST_DIRECTORY}.")
     os.mkdir(INITIAL_CONDITION_BUILD_TEST_DIRECTORY)
 
     # ------------------------------------------------------------------------
@@ -296,8 +297,9 @@ def main():
                 if not os.path.isfile(path):
                     missing.append(executable)
             if len(missing) > 0:
-                for executable in missing:
-                    print(f"ERROR: Did not build {executable}.")
+                if verbose:
+                    for executable in missing:
+                        print(f"ERROR: Did not build {executable}.")
             else:
                 test_passed[i_test][j_ic] = True
 
@@ -331,8 +333,7 @@ def main():
 
     # Summarize the test results.
     test_report_summary_string = (
-        'Summary of initial condition build test results from `ICtest.py`'
-        f" for branch or commit or tag `{BRANCH_OR_COMMIT}`: "
+        f"Initial condition build test results for `{BRANCH_OR_COMMIT}`: "
     )
     if 'FAILED' in test_report_details_string:
         test_report_summary_string += '*FAILED*\n'
@@ -344,7 +345,7 @@ def main():
     print(test_report_details_string)
 
     # If a test failed, or loud mode is on, post report to Slack.
-    if (slack_on_fail and 'FAILED' in test_report_details_string) or be_loud:
+    if (slack_on_fail and 'FAILED' in test_report_summary_string) or be_loud:
         slack_client = common.slack_create_client()
         if debug:
             print(f"slack_client = {slack_client}")

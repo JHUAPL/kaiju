@@ -267,9 +267,9 @@ module bcs
     !Lazy, do-nothing boundary
     subroutine lazyBC(bc,Model,Grid,State)
         class(lazyBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         return
     end subroutine lazyBC
@@ -278,9 +278,9 @@ module bcs
     !Standard periodic BCs
     subroutine periodic_ibcI(bc,Model,Grid,State)
         class(periodicInnerIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
         integer :: n,ig,j,k
 
         !$OMP PARALLEL DO default(shared) &
@@ -303,9 +303,9 @@ module bcs
 
     subroutine periodic_obcI(bc,Model,Grid,State)
         class(periodicOuterIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
         integer :: n,ig,j,k
 
         !$OMP PARALLEL DO default(shared) &
@@ -328,9 +328,9 @@ module bcs
 
     subroutine periodic_ibcJ(bc,Model,Grid,State)
         class(periodicInnerJBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
         integer :: n,i,jg,k
 
         !$OMP PARALLEL DO default(shared) &
@@ -353,9 +353,9 @@ module bcs
 
     subroutine periodic_obcJ(bc,Model,Grid,State)
         class(periodicOuterJBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
         integer :: n,i,jg,k
 
         !$OMP PARALLEL DO default(shared) &
@@ -379,9 +379,9 @@ module bcs
 
     subroutine periodic_ibcK(bc,Model,Grid,State)
         class(periodicInnerKBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
         integer :: n,i,j,k,kg
 
         if (Model%do25D) then
@@ -415,9 +415,9 @@ module bcs
 
     subroutine periodic_obcK(bc,Model,Grid,State)
         class(periodicOuterKBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
         integer :: n,i,j,k,kg
 
         if (Model%do25D) then
@@ -453,9 +453,9 @@ module bcs
     !Zeroth extension BCs
     subroutine zeroExten_ibcI(bc,Model,Grid,State)
         class(zeroExtensionInnerIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -477,9 +477,9 @@ module bcs
 
     subroutine zeroExten_obcI(bc,Model,Grid,State)
         class(zeroExtensionOuterIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -502,9 +502,9 @@ module bcs
 
     subroutine zeroExten_ibcJ(bc,Model,Grid,State)
         class(zeroExtensionInnerJBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
         
@@ -527,9 +527,9 @@ module bcs
     !Zero grad BCs
     subroutine zeroExten_obcJ(bc,Model,Grid,State)
         class(zeroExtensionOuterJBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -554,9 +554,9 @@ module bcs
 
     subroutine zeroExten_ibcK(bc,Model,Grid,State)
         class(zeroExtensionInnerKBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -578,9 +578,9 @@ module bcs
 
     subroutine zeroExten_obcK(bc,Model,Grid,State)
         class(ZeroExtensionOuterKBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -606,9 +606,9 @@ module bcs
 ! Reflecting boundary only works for Cartesian grids
     subroutine cartReflect_ibcI(bc,Model,Grid,State)
         class(cartesianReflectingInnerIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -636,9 +636,9 @@ module bcs
 
     subroutine cartReflect_obcI(bc,Model,Grid,State)
         class(cartesianReflectingOuterIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,ig,j,k
 
@@ -664,9 +664,9 @@ module bcs
 
     subroutine cartReflect_ibcJ(bc,Model,Grid,State)
         class(cartesianReflectingInnerJBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
         
@@ -697,9 +697,9 @@ module bcs
 
     subroutine cartReflect_obcJ(bc,Model,Grid,State)
         class(cartesianReflectingOuterJBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -730,9 +730,9 @@ module bcs
 
     subroutine cartReflect_ibcK(bc,Model,Grid,State)
         class(cartesianReflectingInnerKBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -763,9 +763,9 @@ module bcs
    
     subroutine cartReflect_obcK(bc,Model,Grid,State)
         class(cartesianReflectingOuterKBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -798,9 +798,9 @@ module bcs
     !Zero grad BCs
     subroutine zeroGrad_ibcI(bc,Model,Grid,State)
         class(zeroGradientInnerIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -819,9 +819,9 @@ module bcs
 
     subroutine zeroGrad_obcI(bc,Model,Grid,State)
         class(zeroGradientOuterIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,ig,j,k
         real(rp), dimension(NDIM) :: Bxyz
@@ -844,9 +844,9 @@ module bcs
 
     subroutine zeroGrad_ibcJ(bc,Model,Grid,State)
         class(zeroGradientInnerJBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
         
@@ -867,9 +867,9 @@ module bcs
     !Zero grad BCs
     subroutine zeroGrad_obcJ(bc,Model,Grid,State)
         class(zeroGradientOuterJBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -889,9 +889,9 @@ module bcs
 
     subroutine zeroGrad_ibcK(bc,Model,Grid,State)
         class(zeroGradientInnerKBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -909,9 +909,9 @@ module bcs
 
     subroutine zeroGrad_obcK(bc,Model,Grid,State)
         class(zeroGradientOuterKBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,j,k
 
@@ -933,9 +933,9 @@ module bcs
     !Various geometry-specific BCs
     subroutine SphIn(bc,Model,Grid,State)
         class(sphereInBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,ig,j,k
 
@@ -958,9 +958,9 @@ module bcs
     
     subroutine SphOut(bc,Model,Grid,State)   
         class(sphereOutBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,ig,j,k
 
@@ -986,9 +986,9 @@ module bcs
     !Inner-I BC for cylindrical geometry w/ pole
     subroutine cylpole(bc,Model,Grid,State)
         class(cylindricalPoleBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: i,j,k,n
         integer :: Np,Np2,jp
@@ -1019,9 +1019,9 @@ module bcs
     !Routines for X-axis pole on LFM grid
     subroutine lfmIn(bc,Model,Grid,State)
         class(lfmInBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,k
         integer :: ig,jg,kg,ip,jp,kp
@@ -1064,9 +1064,9 @@ module bcs
 
     subroutine lfmOut(bc,Model,Grid,State)
         class(lfmOutBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,i,k
         integer :: ig,jg,kg,ip,jp,kp

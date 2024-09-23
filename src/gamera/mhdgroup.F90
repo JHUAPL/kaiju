@@ -12,7 +12,6 @@ module mhdgroup
     logical, parameter, private :: doBorisGrav = .false.
     
     contains
-    
 
     subroutine AdvanceMHD(Model,Grid,State,oState,Solver,dt)
         type(Model_T), intent(inout) :: Model
@@ -235,7 +234,8 @@ module mhdgroup
         real(rp), intent(in) :: dt
 
         integer :: s,n
-        logical, dimension(Model%nSpc) :: isGood
+        logical , dimension(Model%nSpc) :: isGood
+        real(rp), dimension(NDIM) :: oB
 
         if (Model%doMultiF) then
             isGood = ( U(DEN,1:Model%nSpc) >= Spcs(:)%dVac )
@@ -250,7 +250,8 @@ module mhdgroup
                     U(DEN,s) = U(DEN,s) + dt*dGasH(DEN,s)
                 endif
             enddo
-            call MultiF2Bulk(Model,U)
+            oB = 0.0
+            call MultiF2Bulk(Model,U,oB)
             !Reset bulk delta to sum of component species
             do n=1,NVAR
                 dGasH(n,BLK) = sum(dGasH(n,1:Model%nSpc),mask=isGood)
@@ -323,7 +324,8 @@ module mhdgroup
 
         !Get old D/V
         D0 = U0(DEN      ,BLK)
-        V0 = U0(MOMX:MOMZ,BLK)/max(D0,dFloor)
+        D0 = max(D0,dFloor)
+        V0 = U0(MOMX:MOMZ,BLK)/D0
 
         !B0 = n, B1 = n+1/2, B2 = B
         B1 = 0.5*(B2+B0) !Half-step field
@@ -367,7 +369,8 @@ module mhdgroup
                 
                 !Get old D/V
                 D0s = U0(DEN      ,s)
-                V0s = U0(MOMX:MOMZ,s)/max(D0s,dFloor)
+                D0s = max(D0s,dFloor)
+                V0s = U0(MOMX:MOMZ,s)/D0s
 
                 if (D2s >= Spcs(s)%dVac) then
                     alphaS = alpha*0.5*(D2s+D0s)/D2s
@@ -384,18 +387,22 @@ module mhdgroup
                          + Vec2Para(dPGasS,bhat1)
                          
                     Vtmp = (D0s*V0s + dMom)/D2s
+                    W2(DEN      ) = D2s
+                    W2(VELX:VELZ) = Vperp + Vec2Para(Vtmp,bhat2)
+                    W2(PRESSURE ) = P2s                    
                 else 
-                    !Not a good species, just use bulk flow
+                    !Not a good species
                     Vtmp = V2
+                    W2(DEN      ) = D2s
+                    W2(VELX:VELZ) = 0.0
+                    W2(PRESSURE ) = pFloor
                 endif
-                W2(DEN      ) = D2s
-                W2(VELX:VELZ) = Vperp + Vec2Para(Vtmp,bhat2)
-                W2(PRESSURE ) = P2s
+                
                 call CellP2C(Model,W2,U2(:,s))
             enddo
 
             !Done calculating species conserved quantities, recalculate bulk
-            call MultiF2Bulk(Model,U2)
+            call MultiF2Bulk(Model,U2,bhat2)
 
         endif !Multifluid
 
@@ -409,6 +416,7 @@ module mhdgroup
         real(rp), dimension(NVAR,BLK:Model%nSpc), intent(out) :: pU
 
         real(rp), dimension(NVAR) :: oW,W,pW
+        real(rp), dimension(NDIM) :: B
         integer :: s,s0,sE
         logical, dimension(0:Model%nSpc) :: isGood,isGood1,isGood2
 
@@ -452,7 +460,9 @@ module mhdgroup
 
         if (Model%doMultiF) then
             !Accumulate to bulk
-            call MultiF2Bulk(Model,pU)
+            B = 0.0 !Use zero guide field
+            !TODO: Pass down predicted Bxyz
+            call MultiF2Bulk(Model,pU,B)
         endif
 
     end subroutine CellPredictor

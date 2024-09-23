@@ -9,58 +9,47 @@ program voltronx
 
     implicit none
 
-    type(gamApp_T) :: gApp
     type(voltApp_T) :: vApp
-    procedure(StateIC_T), pointer :: userInitFunc => initUser
+    real(rp) :: nextDT
 
     call initClocks()
 
-    gApp%Model%isLoud = .true.
+    vApp%gApp%Model%isLoud = .true.
+    vApp%vOptions%gamUserInitFunc => initUser
 
-    call initGamera(gApp,userInitFunc,doIO=.false.)
-    call initVoltron(vApp, gApp)
+    call initVoltron(vApp)
 
     do while (vApp%time < vApp%tFin)
         !Start root timer
         call Tic("Omega")
         
-    !Advance Gamera MHD
-        call stepGamera(gApp)
-
-    !Do any updates to Voltron
-        call stepVoltron(vApp,gApp)
+        !Advance voltron models one coupling step
+        nextDT = min(vApp%tFin-vApp%time, vApp%IO%nextIOTime()-vApp%time)
+        call Tic("StepVoltron")
+        call stepVoltron(vApp, nextDT)
+        call Toc("StepVoltron")
         
-    !Coupling
-        call Tic("DeepCoupling")
-        if ( vApp%time >= vApp%DeepT ) then
-            call DeepUpdate(vApp, gApp)
-        endif
-        call Toc("DeepCoupling")
-
-    !Update coupling DTs
-    vApp%DeepDT = vApp%TargetDeepDT
-       
-    !IO checks
+        !IO checks
         call Tic("IO")
         !Console output
-        if (vApp%IO%doConsole(vApp%ts)) then
+        if (vApp%IO%doConsole(vApp%time)) then
             !Using console output from Gamera
-            call consoleOutputV(vApp,gApp)
+            call consoleOutputV(vApp,vApp%gApp)
             !Timing info
             if (vApp%IO%doTimerOut) call printClocks()
             call cleanClocks()
-        elseif (vApp%IO%doTimer(vApp%ts)) then
+        elseif (vApp%IO%doTimer(vApp%time)) then
             if (vApp%IO%doTimerOut) call printClocks()
             call cleanClocks()
         endif
         
         !Data output
         if (vApp%IO%doOutput(vApp%time)) then
-            call fOutputV(vApp,gApp)
+            call fOutputV(vApp,vApp%gApp)
         endif
         !Restart output
         if (vApp%IO%doRestart(vApp%time)) then
-            call resOutputV(vApp,gApp)
+            call resOutputV(vApp,vApp%gApp)
         endif
 
         call Toc("IO")

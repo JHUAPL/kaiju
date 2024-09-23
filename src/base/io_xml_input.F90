@@ -60,8 +60,8 @@ module XML_Data
 contains
 
    logical function Is_Equal(this, xmld)
-      class(XML_Data_T)            :: this
-      type(XML_Data_T), intent(in) :: xmld
+      class(XML_Data_T), intent(in) :: this
+      type(XML_Data_T), intent(in)  :: xmld
 
       Is_Equal = Is_Matched(this, xmld)
       if (trim(toUpper(this%val)) /= trim((toUpper(xmld%val)))) then
@@ -72,8 +72,8 @@ contains
    !-------------------------------------------------------------------
 
    logical function Is_Matched(this, xmld)
-      class(XML_Data_T)            :: this
-      type(XML_Data_T), intent(in) :: xmld
+      class(XML_Data_T), intent(in) :: this
+      type(XML_Data_T), intent(in)  :: xmld
 
       Is_Matched = .true.
       if (trim(toUpper(this%root)) /= trim(toUpper(xmld%root))) then
@@ -396,35 +396,61 @@ module XML_Input
       !   This subroutine should be the most widely used for users as
       !   it does not care about the type the user wishes to set.
       !   Errors will be thrown should a problem arise in dectecting the type
+      procedure :: GetIsVerbose
+      procedure :: SetVerbose
       procedure :: BeQuiet
 
       procedure :: GetFileStr
       procedure :: GetRootStr
+      procedure :: SetRootStr
+
    end type XML_Input_T
 
 contains
 
    subroutine GetFileStr(this,fStr)
-      class(XML_Input_T) :: this
-      character(len=*), intent(out) :: fStr
+      class(XML_Input_T), intent(in) :: this
+      character(len=*), intent(inout)  :: fStr
 
       fStr = this%fname
    end subroutine GetFileStr
 
    subroutine GetRootStr(this,fStr)
-      class(XML_Input_T) :: this
-      character(len=*), intent(out) :: fStr
+      class(XML_Input_T), intent(in) :: this
+      character(len=*), intent(inout)  :: fStr
 
       fStr = this%root
    end subroutine GetRootStr
 
+   subroutine SetRootStr(this,fStr)
+      class(XML_Input_T), intent(inout) :: this
+      character(len=*), intent(in)   :: fStr
+
+      this%root = trim(fStr)
+   end subroutine SetRootStr
+
+   subroutine GetIsVerbose(this, vrbOut)
+      class(XML_Input_T), intent(in) :: this
+      logical, intent(inout) :: vrbOut
+
+      vrbOut = this%vrb
+   end subroutine GetIsVerbose
+
+   subroutine SetVerbose(this, setVrb)
+      class(XML_Input_T), intent(inout) :: this
+      logical, intent(in) :: setVrb
+
+      this%vrb = setVrb
+   end subroutine SetVerbose
+
    subroutine BeQuiet(this)
-      class(XML_Input_T) :: this
-      this%vrb = .false.
+      class(XML_Input_T), intent(inout) :: this
+
+      call SetVerbose(this, .false.)
    end subroutine BeQuiet
 
    subroutine Set_Real_RpSp(this, val, xmlp, dflt)
-      class(XML_Input_T) :: this
+      class(XML_Input_T), intent(in) :: this
       real(rp), intent(inout)     :: val
       character(len=*), intent(in) :: xmlp
       real(sp), intent(in)        :: dflt
@@ -446,7 +472,7 @@ contains
    end subroutine Set_Real_RpSp
 
    subroutine Set_Real_RpDp(this, val, xmlp, dflt)
-      class(XML_Input_T) :: this
+      class(XML_Input_T), intent(in) :: this
       real(rp), intent(inout)     :: val
       character(len=*), intent(in) :: xmlp
       real(dp), intent(in)        :: dflt
@@ -469,7 +495,7 @@ contains
 
 
    subroutine Set_Int(this, val, xmlp, dflt)
-      class(XML_Input_T) :: this
+      class(XML_Input_T), intent(in) :: this
       integer, intent(inout)       :: val
       character(len=*), intent(in) :: xmlp
       integer, intent(in)          :: dflt
@@ -492,7 +518,7 @@ contains
    !------------------------------------------------------------------
 
    subroutine Set_Bool(this, val, xmlp, dflt)
-      class(XML_Input_T) :: this
+      class(XML_Input_T), intent(in) :: this
       logical, intent(inout)       :: val
       character(len=*), intent(in) :: xmlp
       logical, intent(in)          :: dflt
@@ -516,7 +542,7 @@ contains
    !------------------------------------------------------------------
 
    subroutine Set_Str(this, val, xmlp, dflt)
-      class(XML_Input_T) :: this
+      class(XML_Input_T), intent(in) :: this
       character(len=*), intent(inout) :: val
       character(len=*), intent(in)    :: xmlp
       character(len=*), intent(in)    :: dflt
@@ -570,8 +596,8 @@ contains
       type(XML_Input_T) :: New_XML_Input
       character(len=*), intent(in) :: fname
       character(len=*), intent(in) :: root
-      logical, optional :: verbOpt
-      character(len=*), optional :: fileRoot
+      logical, intent(in), optional :: verbOpt
+      character(len=*), intent(in), optional :: fileRoot
 
       integer :: fid
       character(len=strLen) :: buf
@@ -631,7 +657,7 @@ contains
    !------------------------------------------------------------------
 
    logical function Open_File(this)
-      class(XML_Input_T)    :: this
+      class(XML_Input_T), intent(inout) :: this
 
       open (this%fid, file=trim(this%fname), status='old', action='read', iostat=this%fst)
       if (this%fst /= 0) then
@@ -644,7 +670,7 @@ contains
    !------------------------------------------------------------------
 
    logical function Close_File(this)
-      class(XML_Input_T)    :: this
+      class(XML_Input_T), intent(inout) :: this
 
       close (this%fid, iostat=this%fst)
       if (this%fst /= 0) then
@@ -657,7 +683,7 @@ contains
    !------------------------------------------------------------------
 
    logical function Read_File(this)
-     class(XML_Input_T) :: this
+     class(XML_Input_T), intent(inout) :: this
      integer               :: pos
      integer               :: nosg
      integer               :: nxml
@@ -819,10 +845,10 @@ contains
    !------------------------------------------------------------------
 
    subroutine Get_Key_Val(this, str, sout, checkRoot)
-      class(XML_Input_T)   :: this
-      character(len=*)   :: str
-      character(len=strLen), intent(out) :: sout
-      logical, optional :: checkRoot
+      class(XML_Input_T), intent(in)   :: this
+      character(len=*), intent(in)   :: str
+      character(len=strLen), intent(inout) :: sout
+      logical, intent(in), optional :: checkRoot
 
       integer            :: i
       integer            :: pos
@@ -872,7 +898,7 @@ contains
     
       ! check if the search root matches the required root
       if(doRootcheck .and. len(this%mandatoryRoot) > 0) then
-          if(trim(ToUpper(xmld%root)) /= trim(ToUpper(this%mandatoryRoot))) then
+          if(ToUpper(xmld%root) /= ToUpper(this%mandatoryRoot)) then
               write(*,*) "ERROR:"
               write(*,*) "The root of requested XML keys MUST be '", trim(this%mandatoryRoot), "'"
               write(*,*) "The following key was requested with an incorrect root:"
@@ -898,7 +924,7 @@ contains
    !------------------------------------------------------------------
 
    logical function Read_Line(this)
-      class(XML_Input_T) :: this
+      class(XML_Input_T), intent(inout) :: this
       integer          :: bsz
       character(len=strLen) :: buf
 
@@ -914,8 +940,8 @@ contains
    !------------------------------------------------------------------
 
    logical function Exists(this, path)
-      class(XML_Input_T)              :: this
-      character(len=*)                :: path
+      class(XML_Input_T), intent(in)  :: this
+      character(len=*), intent(in)    :: path
       integer                         :: i, matchI
       character(len=strLen)           :: buf
       Exists = .false.
@@ -947,10 +973,10 @@ contains
    !For when you just need that one parameter, right now
    subroutine ReadXmlImmediate(fname, keyIn, valOut, dflt, verbOpt)
       character(len=*), intent(in) :: keyIn
-      character(len=strLen), intent(out) :: valOut
+      character(len=strLen), intent(inout) :: valOut
       character(len=*), intent(in) :: fname
       character(len=*), intent(in) :: dflt
-      logical, optional            :: verbOpt
+      logical, intent(in), optional  :: verbOpt
 
       type(XML_Input_T) :: xmlInp
 

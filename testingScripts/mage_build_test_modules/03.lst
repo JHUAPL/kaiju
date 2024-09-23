@@ -1,3 +1,4 @@
+# This module set uses gfortran and MPI.
 CMAKE_OPTIONS=-DENABLE_MPI=ON
 ncarenv/23.06
 cmake/3.26.3

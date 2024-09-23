@@ -21,10 +21,10 @@
     <ebsquish epsSquish="0.05" />
   </VOLTRON>
   <Gamera>
-    <sim H5Grid="lfmD.h5" doH5g="T" icType="user" pdmb="1.0" rmeth="7UP" runid="geo_mpi" />
+    <sim H5Grid="lfmD.h5" doH5g="T" icType="user" pdmb="1.0" rmeth="7UP" runid="msphereRes" />
     <floors dFloor="1.0e-4" pFloor="1.0e-6" />
     <timestep doCPR="T" limCPR="0.25" />
-    <restart doRes="F" nRes="-1" resID="msphere" />
+    <restart doRes="F" nRes="-1" resID="msphereRes" />
     <physics Ca="10.0" doBoris="T" doMHD="T" />
     <ring doRing="T" gid="lfm" />
     <ringknobs doVClean="T" />

@@ -4,11 +4,11 @@
 
 This script runs a series of tests of the MAGE software using Intel tools.
 
-The Intel Inspector memory checks run in about an hour on two derecho nodes.
+The Intel Inspector memory checks run in about 50 minutes on two derecho nodes.
 
 The Intel Inspector thread checks run in about 45 minutes on two derecho nodes.
 
-The report script runs in about 40 minutes on one derecho node.
+The report script runs in about 2 minutes on one derecho node.
 
 Authors
 -------
@@ -90,11 +90,12 @@ REPORT_PBS_FILENAME = 'intelCheckSubmitReport.pbs'
 TEST_INPUT_FILES = [
     'tinyCase.xml',
     'bcwind.h5',
-    'lfmD.h5',
-    'rcmconfig.h5',
     'memSuppress.sup',
     'threadSuppress.sup',
 ]
+
+# Branch or commit (or tag) used for testing.
+BRANCH_OR_COMMIT = os.environ['BRANCH_OR_COMMIT']
 
 
 def main():
@@ -293,6 +294,42 @@ def main():
             to_path = os.path.join('.', filename)
             shutil.copyfile(from_path, to_path)
 
+        # Generate the LFM grid file.
+        if verbose:
+            print('Creating LFM grid file.')
+        cmd = 'genLFM.py -gid D'
+        if debug:
+            print(f"cmd = {cmd}")
+        try:
+            _ = subprocess.run(cmd, shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print('ERROR: Unable to create LFM grid file for module set '
+                  f"{module_set_name}.\n"
+                  f"e.cmd = {e.cmd}\n"
+                  f"e.returncode = {e.returncode}\n"
+                  'See testing log for output from genLFM.py.\n'
+                  'Skipping remaining steps for module set'
+                  f"{module_set_name}\n")
+            continue
+
+        # Generate the RCM configuration file.
+        if verbose:
+            print('Creating RCM configuration file.')
+        cmd = 'genRCM.py'
+        if debug:
+            print(f"cmd = {cmd}")
+        try:
+            _ = subprocess.run(cmd, shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print('ERROR: Unable to create RCM configuration file'
+                  f" for module set {module_set_name}.\n"
+                  f"e.cmd = {e.cmd}\n"
+                  f"e.returncode = {e.returncode}\n"
+                  'See testing log for output from genRCM.py.\n'
+                  'Skipping remaining steps for module set '
+                  f"{module_set_name}\n")
+            continue
+
         # Assemble common data to fill in the PBS templates.
         pbs_options = {}
         pbs_options['account'] = os.environ['DERECHO_TESTING_ACCOUNT']
@@ -300,20 +337,22 @@ def main():
         pbs_options['job_priority'] = os.environ['DERECHO_TESTING_PRIORITY']
         pbs_options['modules'] = module_names
         pbs_options['kaijuhome'] = KAIJUHOME
+        pbs_options['kaipyhome'] = os.environ["KAIPYHOME"]
         pbs_options['tmpdir'] = os.environ['TMPDIR']
         pbs_options['slack_bot_token'] = os.environ['SLACK_BOT_TOKEN']
         pbs_options['mage_test_root'] = os.environ['MAGE_TEST_ROOT']
+        pbs_options['branch_or_commit'] = BRANCH_OR_COMMIT
 
         # Set options specific to the memory check, then render the template.
         pbs_options['job_name'] = 'mage_intelCheckSubmitMem'
-        pbs_options['walltime'] = '12:00:00'
+        pbs_options['walltime'] = '02:00:00'
         pbs_content = mem_check_pbs_template.render(pbs_options)
         with open(MEM_CHECK_PBS_FILENAME, 'w', encoding='utf-8') as f:
             f.write(pbs_content)
 
         # Set options specific to the thread check, then render the template.
         pbs_options['job_name'] = 'mage_intelCheckSubmitThread'
-        pbs_options['walltime'] = '12:00:00'
+        pbs_options['walltime'] = '02:00:00'
         pbs_content = thread_check_pbs_template.render(pbs_options)
         with open(THREAD_CHECK_PBS_FILENAME, 'w', encoding='utf-8') as f:
             f.write(pbs_content)
@@ -421,36 +460,30 @@ def main():
         f"Test results are on `derecho` in `{INTEL_CHECKS_DIRECTORY}`.\n"
     )
     for (i_module_set, module_list_file) in enumerate(module_list_files):
-        if not submit_ok[i_module_set]:
-            test_report_details_string += (
-                f"Module set `{module_list_file}`: *FAILED*"
-            )
-            continue
-        test_report_details_string += (
-            f"`{MEM_CHECK_PBS_FILENAME}` for module set `{module_list_file}` "
-            f"submitted as PBS job {job_ids[i_module_set][0]}.\n"
+        test_report_details_string = (
+            "Submit Intel Inspector tests for module set "
+            f"`{module_list_file}`: "
         )
-        test_report_details_string += (
-            f"`{THREAD_CHECK_PBS_FILENAME}` for module set "
-            f"`{module_list_file}` submitted as PBS job "
-            f"{job_ids[i_module_set][1]}.\n"
-        )
-        test_report_details_string += (
-            f"`{REPORT_PBS_FILENAME}` for module set `{module_list_file}` "
-            f"submitted as PBS job {job_ids[i_module_set][2]}.\n"
-        )
+        if submit_ok[i_module_set]:
+            test_report_details_string += "*PASSED*"
+        else:
+            test_report_details_string += "*FAILED*"
 
     # Summarize the test results
     test_report_summary_string = (
-        'Intel Inspector tests submitted (`intelChecks.py`).'
+        f"Intel Inspector test submission for `{BRANCH_OR_COMMIT}`: "
     )
+    if 'FAILED' in test_report_details_string:
+        test_report_summary_string += '*FAILED*'
+    else:
+        test_report_summary_string += '*PASSED*'
 
     # Print the test results summary and details.
     print(test_report_summary_string)
     print(test_report_details_string)
 
     # If a test failed, or loud mode is on, post report to Slack.
-    if (slack_on_fail and 'FAILED' in test_report_details_string) or be_loud:
+    if (slack_on_fail and 'FAILED' in test_report_summary_string) or be_loud:
         slack_client = common.slack_create_client()
         if debug:
             print(f"slack_client = {slack_client}")

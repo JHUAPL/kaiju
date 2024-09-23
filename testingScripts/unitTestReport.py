@@ -190,7 +190,7 @@ def main():
     # Detail the test results
     test_report_details_string = ''
     test_report_details_string += (
-        f"Test results are in {os.getcwd()}.\n"
+        f"est results are on `derecho` in {os.getcwd()}.\n"
     )
     if myError:
         test_report_details_string += 'Errors occurred during testing.\n'
@@ -203,12 +203,12 @@ def main():
 
     # Summarize the test results.
     test_report_summary_string = (
-        'Summary of Fortran unit test results from `unitTestReport.py`: '
+        f"Unit test results for `{os.environ['BRANCH_OR_COMMIT']}`: "
     )
     if myError or jobKilled or okFailure:
-        test_report_summary_string += '*FAILED*\n'
+        test_report_summary_string += '*FAILED*'
     else:
-        test_report_summary_string += '*PASSED*\n'
+        test_report_summary_string += '*PASSED*'
 
     # Print the test results summary and details.
     print(test_report_summary_string)

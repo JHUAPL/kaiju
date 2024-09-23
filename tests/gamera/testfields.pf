@@ -5,35 +5,33 @@ module testFields
 
   implicit none
 
-  type(gamApp_T), allocatable :: gApp
-  procedure(StateIC_T), pointer :: userInitFunc => initUser
+  type(gamApp_T), pointer :: gApp
 
 contains
 
   @before
   subroutine setup()
-      allocate(gApp)
+    type(XML_Input_T) :: xmlInp
 
-      call initGamera(gApp,userInitFunc,'lfmbw.xml')
+    ! create instance of gamera app, and perform any needed configuration
+    allocate(gApp)
+    gApp%gOptions%userInitFunc => initUser
 
-      do while (gApp%Model%t < gApp%Model%tFin)
-        call stepGamera(gApp)
+    ! run the gamera app
+    xmlInp = New_XML_Input('lfmbw.xml','Kaiju',.true.)
+    call gApp%InitModel(xmlInp)
+    call gApp%InitIO(xmlInp)
 
-        if (gApp%Model%IO%doConsole(gApp%Model%ts)) then
-            call consoleOutput(gApp%Model,gApp%Grid,gApp%State)
-        endif
-
-        if (gApp%Model%IO%doOutput(gApp%Model%t)) then
-            call fOutput(gApp%Model,gApp%Grid,gApp%State)
-        endif
-
-      end do
+    do while (gApp%Model%t < gApp%Model%tFin)
+        call gApp%AdvanceModel(0.0_rp)
+    end do
 
   end subroutine setup
 
   @after
   subroutine teardown()
       deallocate(gApp)
+      gApp => null()
   end subroutine teardown
 
   subroutine verifyFaces4(var,varName,is,ie,js,je,ks,ke)

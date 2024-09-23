@@ -1281,6 +1281,12 @@
            EWMTauInput%ChorusTauInput%Ne = Ne
 
 
+           if(allocated(EWMTauInput%ChorusTauInput%Kpi)) deallocate(EWMTauInput%ChorusTauInput%Kpi)
+           if(allocated(EWMTauInput%ChorusTauInput%MLTi)) deallocate(EWMTauInput%ChorusTauInput%MLTi)
+           if(allocated(EWMTauInput%ChorusTauInput%Li)) deallocate(EWMTauInput%ChorusTauInput%Li)
+           if(allocated(EWMTauInput%ChorusTauInput%Eki)) deallocate(EWMTauInput%ChorusTauInput%Eki)
+           if(allocated(EWMTauInput%ChorusTauInput%taui)) deallocate(EWMTauInput%ChorusTauInput%taui)
+
            allocate(EWMTauInput%ChorusTauInput%Kpi(Nk))
            allocate(EWMTauInput%ChorusTauInput%MLTi(Nm))
            allocate(EWMTauInput%ChorusTauInput%Li(Nl))

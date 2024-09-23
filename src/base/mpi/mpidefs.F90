@@ -27,6 +27,7 @@ module mpidefs
 
 !MPI Coupling Communicator Id
     integer, parameter :: voltId   = 116
+    integer, parameter :: helperId = 64
     integer, parameter :: gamId    = 45
     integer, parameter :: rcmId    = 34
     integer, parameter :: tgcmId   = 57

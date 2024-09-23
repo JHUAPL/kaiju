@@ -413,11 +413,15 @@ def main():
             f"job {job_ids[i_module_set]}.\n"
         )
 
+
     # Summarize the test results.
+    test_report_summary_string = (
+        f"Weekly dash submission for `{os.environ['BRANCH_OR_COMMIT']}`: "
+    )
     if 'FAILED' in test_report_details_string:
-        test_report_summary_string = 'Weekly dash submission: *FAILED*\n'
+        test_report_summary_string += '*FAILED*'
     else:
-        test_report_summary_string = 'Weekly dash submission: *PASSED*\n'
+        test_report_summary_string += '*PASSED*'
 
     # Print the test results summary and details.
     print(test_report_summary_string)

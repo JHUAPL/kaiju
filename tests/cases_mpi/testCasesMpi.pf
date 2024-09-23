@@ -25,15 +25,19 @@ contains
       class (MpiTestMethod), intent(inout) :: this
 
       type(gamAppMpi_T) :: gameraAppMpi
+      type(XML_Input_T) :: xmlInp
 
       call setMpiReal()
 
-      call initGamera_mpi(gameraAppMpi, initUser, getMpiF08Communicator(this), 'blast3d_large.xml')
+      gameraAppMpi%gOptions%userInitFunc => initUser
+      gameraAppMpi%gOptionsMpi%gamComm = getMpiF08Communicator(this)
+      xmlInp = New_XML_Input('blast3d_large.xml','Kaiju',.true.)
+      call gameraAppMpi%InitModel(xmlInp)
 
       do while ((gameraAppMpi%Model%tFin - gameraAppMpi%Model%t) > 1e-15)
         call stepGamera_mpi(gameraAppMpi)
 
-        if (gameraAppMpi%Model%IO%doConsole(gameraAppMpi%Model%ts)) then
+        if (gameraAppMpi%Model%IO%doConsole(gameraAppMpi%Model%t)) then
             call consoleOutput(gameraAppMpi%Model,gameraAppMpi%Grid,gameraAppMpi%State)
         endif
 

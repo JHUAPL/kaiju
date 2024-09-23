@@ -20,5 +20,5 @@
 30 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'weeklyDash.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-2-development.out 2>&1
 
 # Duplicate dashes for master
-35 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master 'weeklyDash.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-1-master.out 2>&1
-40 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master 'weeklyDash.py -lv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-2-master.out 2>&1
+35 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master 'weeklyDash.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-1-master.out 2>&1
+40 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master 'weeklyDash.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-2-master.out 2>&1

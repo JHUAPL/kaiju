@@ -17,6 +17,9 @@ let numCpus=`lscpu | sed --quiet "s/^CPU(s): \\+\\([0-9]\\+\\)$/\\1/p"`
 let threadsPerCore=`lscpu | sed --quiet "s/^Thread(s) per core: \\+\\([0-9]\\+\\)$/\\1/p"`
 let numCores=$numCpus/$threadsPerCore
 let newNumThreads=$numCores/$PMI_LOCAL_SIZE
+if [[ $newNumThreads -lt 1 ]]; then
+   newNumThreads=1
+fi
 let minThread=$newNumThreads*$PMI_LOCAL_RANK
 let maxThread=$minThread+$newNumThreads-1
 export OMP_NUM_THREADS=$newNumThreads

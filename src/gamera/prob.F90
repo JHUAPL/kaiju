@@ -72,9 +72,9 @@ module prob
     end subroutine
 
     subroutine initOT2D(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         real(rp) :: xc,yc,zc
@@ -120,9 +120,9 @@ module prob
 
     !Initialize field loop advection w/ singularity
     subroutine ringLoop(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         if (.not. Model%doRing) then
@@ -142,9 +142,9 @@ module prob
 
     !Initialize blast wave w/ cylindrical singularity
     subroutine ringBW(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         if (.not. Model%doRing) then
@@ -161,9 +161,9 @@ module prob
 
     !Initialize blast wave w/ multifluid setup
     subroutine initMultiFBW(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         real(rp) :: dScl,pScl
@@ -188,10 +188,9 @@ module prob
     !Initialize all blast wave variants here
     !MHD/Hydro, 2D/3D
     subroutine initBW(Model,Grid,State,inpXML)
-
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         real(rp) :: xc,yc,zc,x0,y0,z0,R
@@ -299,9 +298,9 @@ module prob
     end subroutine initBW
 
     subroutine initSheet(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         procedure(GasIC_T), pointer :: Wxyz
@@ -356,9 +355,9 @@ module prob
 
     !Initialize hydro/MHD KH
     subroutine initKH(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         real(rp) :: xc,yc,zc, Rho,Vx,Vy,KinE,Theta
@@ -435,9 +434,9 @@ module prob
 
     !Initialize field loop advection
     subroutine initLoop(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         procedure(VectorField_T), pointer :: Axyz
@@ -503,9 +502,9 @@ module prob
     ! This is the APJ KH test problem by NcNally et al. [2012], doi:10.1088/0067-0049/201/2/18
     ! The simulation grid is fixed to be [0 1]x[0 1] 
     subroutine initKH_McNally(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         real (rp) :: xc,yc,zc, Rho,Vx,Vy,KinE,Theta
@@ -593,9 +592,9 @@ module prob
     end subroutine initKH_McNally
 
     subroutine initRotor(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         procedure(VectorField_T), pointer :: Axyz
@@ -670,9 +669,9 @@ module prob
     end subroutine initRotor
 
     subroutine initADV1D(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         real (rp) :: xc,yc,zc, Rho,Rho0,Rho1,Rho2,Rho3,Rho4,Vx,Vy,P,KinE
@@ -738,9 +737,9 @@ module prob
 
     !Initialize field loop advection
     subroutine initADV2D(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         procedure(VectorField_T), pointer :: Axyz
@@ -799,9 +798,9 @@ module prob
 
     !Initialize field loop advection
     subroutine initSod(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         real (rp) :: xc,yc,zc, r, Rho,Vx,Vy,P,KinE
@@ -860,9 +859,9 @@ module prob
     ! the domain is square: [0 0.3]x[0 0.3], for (xc+yc)<0.15, rho = p = 1; otherwise rho = 0.125, p = 0.14.
     ! reflectiing boundaries in both x and y directions;
     subroutine initImplosion(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         real (rp) :: xc,yc,zc, Rho,Vx,Vy,P,KinE
@@ -924,9 +923,9 @@ module prob
 !GEM reconnection problem 
     subroutine initGEM(Model,Grid,State,inpXML)
 
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         real(rp) :: xc,yc,zc,lam
@@ -1026,9 +1025,9 @@ module prob
     end subroutine initGEM
 
     subroutine initALFVEN(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         real(rp) :: xc,yc,zc

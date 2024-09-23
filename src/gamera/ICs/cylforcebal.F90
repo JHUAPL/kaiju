@@ -29,9 +29,9 @@ module usergamic
     contains
 
     subroutine initUser(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         logical :: doRotation
@@ -142,9 +142,9 @@ module usergamic
 
     subroutine cylfb_ibcI(bc,Model,Grid,State)
         class(cylfbIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: df,n,ig,j,k
         real(rp) :: x,y,z,Bx,By,Bz,D,P,Vx,Vy,Vz
@@ -191,9 +191,9 @@ module usergamic
 
     subroutine cylfb_obcI(bc,Model,Grid,State)
         class(cylfbOBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: df,n,ig,j,k
         real(rp) :: x,y,z,Bx,By,Bz,D,P,Vx,Vy,Vz

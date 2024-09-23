@@ -32,7 +32,7 @@ module voltio
         class(voltApp_T), intent(inout) :: vApp
 
         !Using console output from Gamera
-        call consoleOutput(gApp%Model,gApp%Grid,gApp%State)
+        call gApp%WriteConsoleOutput()
 
         !Using console output from Voltron
         call consoleOutputVOnly(vApp,gApp,gApp%Model%MJD0)
@@ -58,9 +58,6 @@ module voltio
         real(rp) :: clockRate
         character(len=strLen) :: utStr
         real(rp) :: DelD,DelP,dtIM,BSDst0,AvgBSDst,DPSDst,symh,BSSMRs(4)
-
-        !Augment Gamera console output w/ Voltron stuff
-        call getCPCP(vApp%mix2mhd%mixOutput,cpcp)
 
         dpT = vApp%tilt%evalAt(vApp%time)*180.0/PI
 
@@ -116,7 +113,6 @@ module voltio
             write(*,*) 'VOLTRON'
             write (*,'(a,a)')                    '      UT   = ', trim(utStr)
             write (*, '(a,1f8.3,a)')             '      tilt = ' , dpT, ' [deg]'
-            write (*, '(a,2f8.3,a)')             '      CPCP = ' , cpcp(NORTH), cpcp(SOUTH), ' [kV, N/S]'
             write (*, '(a, f8.3,a)')             '    Sym-H  = ' , symh  , ' [nT]'
             write (*, '(a, f8.3,a)')             '    BSDst  ~ ' , AvgBSDst , ' [nT]'
             write (*, '(a,4f8.2,a)')             '           dSMRs  ~ ' , BSSMRs-AvgBSDst, ' [nT, 12/18/00/06]'
@@ -135,12 +131,8 @@ module voltio
             write (*, '(a,1f7.1,a)' ) '         ', imagWait*100.0,  '% of time processing IMAG'
             write (*, '(a,1f7.1,a)' ) '         ', mixWait*100.0,   '% of time processing Remix'
             if (simRate>TINY) then
-                if (vApp%isSeparate) then
-                    nTh = NumOMP()
-                    write (*, '(a,1f8.3,a,I0,a)')             '    Running @ ', simRate*100.0, '% of real-time (',nTh,' threads)'  
-                else
-                    write (*, '(a,1f8.3,a)'     )             '    Running @ ', simRate*100.0, '% of real-time'
-                endif
+                nTh = NumOMP()
+                write (*, '(a,1f8.3,a,I0,a)')             '    Running @ ', simRate*100.0, '% of real-time (',nTh,' threads)'  
             endif
             
             write(*,'(a)',advance="no") ANSIRESET!, ''
@@ -152,7 +144,7 @@ module voltio
         endif
 
         !Setup for next output
-        vApp%IO%tsNext = vApp%ts + vApp%IO%tsOut
+        vApp%IO%tCon = vApp%IO%tCon + vApp%IO%dtCon
         
         if (vApp%doDynCplDT) then
             call UpdateCouplingCadence(vApp)
@@ -185,7 +177,7 @@ module voltio
         class(voltApp_T), intent(inout) :: vApp
 
         !Write Gamera restart
-        call resOutput(gApp%Model,gApp%Grid,gApp%oState,gApp%State)
+        call gApp%WriteRestart(vApp%IO%nRes)
 
         !Write Voltron restart data
         call resOutputVOnly(vApp,gApp)
@@ -240,17 +232,15 @@ module voltio
 
     end subroutine writeVoltRestart
 
-    subroutine readVoltronRestart(vApp,xmlInp)
+    subroutine readVoltronRestart(vApp,resID, nRes)
         class(voltApp_T), intent(inout) :: vApp
-        type(XML_Input_T), intent(inout) :: xmlInp
+        character(len=*), intent(in) :: resID
+        integer, intent(in) :: nRes
 
-        character(len=strLen) :: ResF,resID,nStr
+        character(len=strLen) :: ResF,nStr
         type(IOVAR_T), dimension(MAXVOLTIOVAR) :: IOVars
         logical :: fExist
-        integer :: nRes,n0
-
-        call xmlInp%Set_Val(resID,"/Kaiju/gamera/restart/resID","msphere")
-        call xmlInp%Set_Val(nRes,"/Kaiju/gamera/restart/nRes" ,-1)
+        integer :: n0
 
         !Get number string
         if (nRes == -1) then
@@ -320,7 +310,7 @@ module voltio
         class(voltApp_T), intent(inout) :: vApp
 
         !Write gamera data
-        call fOutput(gApp%Model,gApp%Grid,gApp%State) !Gamera
+        call gApp%WriteFileOutput(vApp%IO%nOut)
 
         !Write voltron data
         call fOutputVOnly(vApp,gApp)
@@ -348,14 +338,6 @@ module voltio
 
     end subroutine fOutputVOnly
 
-    subroutine getCPCP(mhdvarsin,cpcp)
-        real(rp), dimension(:,:,:,:,:),intent(in) :: mhdvarsin
-        real(rp), intent(out) :: cpcp(2)
-        cpcp(NORTH) = maxval(mhdvarsin(1,:,:,MHDPSI,NORTH))-minval(mhdvarsin(1,:,:,MHDPSI,NORTH))
-        cpcp(SOUTH) = maxval(mhdvarsin(1,:,:,MHDPSI,SOUTH))-minval(mhdvarsin(1,:,:,MHDPSI,SOUTH))
-
-    end subroutine getCPCP
-
     !Output voltron data
     subroutine WriteVolt(vApp,gApp,nOut)
         class(voltApp_T), intent(inout) :: vApp
@@ -366,16 +348,12 @@ module voltio
         integer :: i,j,k
         character(len=strLen) :: gStr
         type(IOVAR_T), dimension(MAXVOLTIOVAR) :: IOVars
-        real(rp) :: cpcp(2),symh
+        real(rp) :: symh
 
-        real(rp), dimension(:,:,:,:), allocatable :: inEijk,inExyz,gJ,gB,Veb
-        real(rp), dimension(:,:,:), allocatable :: psi,D,Cs
-        real(rp), dimension(NDIM) :: Exyz,Bdip,xcc
+        real(rp), dimension(:,:,:,:), allocatable :: gJ,gB
+        real(rp), dimension(:,:,:), allocatable :: D,Cs
         real(rp) :: Csijk,Con(NVAR)
         real(rp) :: BSDst0,AvgBSDst,DPSDst,BSSMRs(4)
-
-        !Get data
-        call getCPCP(vApp%mix2mhd%mixOutput,cpcp)
 
         !Get symh from input time series
         symh = vApp%symh%evalAt(vApp%time)
@@ -384,42 +362,27 @@ module voltio
         !Cell-centers w/ ghosts
         Nj = gApp%Grid%Nj
         Nk = gApp%Grid%Nk
-        Ni = vApp%mix2mhd%PsiShells
+        Ni = PsiSh
 
         !Cell centers
         Njp = gApp%Grid%Njp
         Nkp = gApp%Grid%Nkp
 
-        allocate(inEijk(Ni+1,Gr%jsg:Gr%jeg+1,Gr%ksg:Gr%keg+1,1:NDIM))
-        allocate(inExyz(Ni  ,Gr%jsg:Gr%jeg  ,Gr%ksg:Gr%keg  ,1:NDIM))
-
         !Active cell centers
         allocate(gJ (Ni,Gr%js:Gr%je,Gr%ks:Gr%ke,1:NDIM))
         allocate(gB (Ni,Gr%js:Gr%je,Gr%ks:Gr%ke,1:NDIM))
-        allocate(Veb(Ni,Gr%js:Gr%je,Gr%ks:Gr%ke,1:NDIM))
-        allocate(psi(Ni,Gr%js:Gr%je,Gr%ks:Gr%ke)) !Cell-centered potential
         allocate(D  (Ni,Gr%js:Gr%je,Gr%ks:Gr%ke))
         allocate(Cs (Ni,Gr%js:Gr%je,Gr%ks:Gr%ke))
-
-        call Ion2MHD(gApp%Model,gApp%Grid,vApp%mix2mhd%gPsi,inEijk,inExyz,vApp%mix2mhd%rm2g)
 
         D  = 0.0
         Cs = 0.0
 
         !Subtract dipole before calculating current
         !$OMP PARALLEL DO default(shared) collapse(2) &
-        !$OMP private(i,j,k,Bdip,xcc,Exyz,Con,Csijk)
+        !$OMP private(i,j,k,Con,Csijk)
         do k=Gr%ks,Gr%ke
             do j=Gr%js,Gr%je
                 do i=1,Ni
-                    psi(i,j,k) = 0.125*( vApp%mix2mhd%gPsi(i+1,j  ,k) + vApp%mix2mhd%gPsi(i+1,j  ,k+1) &
-                                       + vApp%mix2mhd%gPsi(i  ,j+1,k) + vApp%mix2mhd%gPsi(i  ,j+1,k+1) &
-                                       + vApp%mix2mhd%gPsi(i+1,j+1,k) + vApp%mix2mhd%gPsi(i+1,j+1,k+1) &
-                                       + vApp%mix2mhd%gPsi(i  ,j  ,k) + vApp%mix2mhd%gPsi(i  ,j  ,k+1) )
-                    xcc = Gr%xyzcc(i,j,k,:)
-                    Bdip = MagsphereDipole(xcc,gApp%Model%MagM0)
-                    Exyz = inExyz(i,j,k,:)
-                    Veb(i,j,k,:) = cross(Exyz,Bdip)/dot_product(Bdip,Bdip)
                     if (i == Ni) then
                         Con = gApp%State%Gas(JpSt,j,k,:,BLK)
                         D (i,j,k) = Con(DEN)
@@ -439,10 +402,6 @@ module voltio
         !Reset IO chain
         call ClearIO(IOVars)
 
-        call AddOutVar(IOVars,"Ex",inExyz(:,Gr%js:Gr%je,Gr%ks:Gr%ke,XDIR))
-        call AddOutVar(IOVars,"Ey",inExyz(:,Gr%js:Gr%je,Gr%ks:Gr%ke,YDIR))
-        call AddOutVar(IOVars,"Ez",inExyz(:,Gr%js:Gr%je,Gr%ks:Gr%ke,ZDIR))
-
         !Add inner currents
         gJ = 0.0
         gJ(Ni,:,:,XDIR:ZDIR) =  vApp%mhd2mix%gJ(1,:,:,XDIR:ZDIR) !Just assuming 1 shell
@@ -459,17 +418,8 @@ module voltio
         call AddOutVar(IOVars,"D" ,D (:,:,:))
         call AddOutVar(IOVars,"Cs",Cs(:,:,:))
 
-
-        call AddOutVar(IOVars,"Vx",Veb(:,:,:,XDIR))
-        call AddOutVar(IOVars,"Vy",Veb(:,:,:,YDIR))
-        call AddOutVar(IOVars,"Vz",Veb(:,:,:,ZDIR))
-
-        call AddOutVar(IOVars,"psi",psi)
         !---------------------
         !Do attributes
-
-        call AddOutVar(IOVars,"cpcpN",cpcp(1))
-        call AddOutVar(IOVars,"cpcpS",cpcp(2))
 
         call AddOutVar(IOVars,"BSDst" ,AvgBSDst)
         call AddOutVar(IOVars,"BSDst0",BSDst0)
@@ -519,7 +469,7 @@ module voltio
             !Identify part of grid that we want
             Nj = gApp%Grid%Njp+1
             Nk = gApp%Grid%Nkp+1
-            Ni = vApp%mix2mhd%PsiShells+1
+            Ni = PsiSh+1
             Ng = 4 !Number of ghosts
 
             call AddOutVar(IOVars,"X",gApp%Grid%xyz(1-Ng:Ni-Ng,1:Nj,1:Nk,XDIR))

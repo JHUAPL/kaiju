@@ -7,9 +7,9 @@ module ioclock
 
     type IOClock_T
         !Output/restart (cadence/next output)
-        real(rp) :: dtOut,tOut
-        real(rp) :: dtRes,tRes
-        integer :: tsOut,tsNext !Timestep console output cadence/next time
+        real(rp) :: dtOut,tOut ! output timing info
+        real(rp) :: dtRes,tRes ! restart timing info
+        real(rp) :: dtCon,tCon ! console output timing info
         integer :: nOut=0,nRes=0 !Output numbering for output/restarts
 
         logical :: doResOut,doConOut,doDataOut,doTimerOut !Logical flags to do various outputs
@@ -22,21 +22,35 @@ module ioclock
             procedure :: doOutput  => doOutputIOClock
             procedure :: doRestart => doRestartIOClock
             procedure :: doTimer => doTimerIOClock
+            procedure :: nextIOTime => doNextIOTime
 
     end type IOClock_T
 
     contains
 
     !Initialize IOClock from an already created XML reader
-    subroutine IOClockInit(this,iXML,time,ts)
+    subroutine IOClockInit(this,iXML,time,ts,isResO)
         class(IOClock_T), intent(inout) :: this
         type(XML_Input_T), intent(in)   :: iXML
         real(rp), intent(in) :: time
         integer, intent(in) :: ts
+        logical, intent(in), optional :: isResO
         
         logical :: slimTimers
+        logical :: isRes
 
-        call iXML%Set_Val(this%tsOut,'output/tsOut' ,100)
+        if(present(isResO)) then
+            isRes = isResO
+        else
+            isRes = .false.
+        endif
+
+        if(iXML%Exists("output/tsOut")) then
+            write (*,*) "Please update the XML to use output/dtCon for console output"
+            write (*,*) "Instead of the no longer used output/tsOut"
+        endif
+
+        call iXML%Set_Val(this%dtCon,'output/dtCon' ,5.0)
         call iXML%Set_Val(this%dtOut,'output/dtOut' ,10.0)
         call iXML%Set_Val(this%dtRes,'restart/dtRes',100.0)
 
@@ -48,11 +62,12 @@ module ioclock
         if(this%doTimerOut) slimTimers = .false.
         call setSlimTimers(slimTimers)
 
-        if (this%tsOut<0) then
+        if (this%dtCon<0) then
             this%doConOut = .false.
+            this%tCon = HUGE
         else
             this%doConOut = .true.
-            this%tsNext = ts
+            this%tCon = time
         endif
 
         !NOTE: Setting it so that first output is @ time
@@ -61,7 +76,7 @@ module ioclock
             this%tOut = HUGE
         else
             this%doDataOut = .true.
-            this%tOut = time
+            if(.not. isRes) this%tOut = time
         endif
 
         if (this%dtRes<0) then
@@ -69,18 +84,18 @@ module ioclock
             this%tRes = HUGE
         else
             this%doResOut = .true.
-            this%tRes = time
+            if(.not. isRes) this%tRes = time
         endif
 
     end subroutine IOClockInit
     
     !Check for various output times
-    function doConsoleIOClock(this,ts)
+    function doConsoleIOClock(this,t)
         class(IOClock_T), intent(in) :: this
-        integer, intent(in) :: ts
+        real(rp), intent(in) :: t
         logical :: doConsoleIOClock
 
-        if (ts>=this%tsNext .and. this%doConOut ) then
+        if (t>=this%tCon .and. this%doConOut ) then
             doConsoleIOClock = .true.
         else
             doConsoleIOClock = .false.
@@ -112,19 +127,32 @@ module ioclock
         endif
     end function doOutputIOClock
 
-    !Only check for tsOut because we need to clean clocks even if not printing
-    function doTimerIOClock(this,ts)
+    function doTimerIOClock(this,t)
         class(IOClock_T), intent(in) :: this
-        integer, intent(in) :: ts
+        real(rp), intent(in) :: t
         logical :: doTimerIOClock
 
-        if (ts>=this%tsNext) then
+        if (t>=this%tCon) then
             doTimerIOClock = .true.
         else
             doTimerIOClock = .false.
         endif
 
     end function doTimerIOClock
+
+    ! Returns the time sim time when sime kind of IO should occur
+    function doNextIOTime(this)
+        class(IOClock_T), intent(in) :: this
+        real(rp) :: doNextIOTime
+
+        doNextIOTime = HUGE
+        ! console output time is a prediction based on current DT and timesteps until output
+        if(this%doConOut) doNextIOTime = min(doNextIOTime, this%tCon)
+        if(this%doResOut) doNextIOTime = min(doNextIOTime, this%tRes)
+        if(this%doDataOut) doNextIOTime = min(doNextIOTime, this%tOut)
+        ! don't check for clock cleaning timer, it's not important enough (?)
+
+    end function doNextIOTime
 
     !Copy ioA=>ioB using tScl scaling
     subroutine IOSync(ioA,ioB,tSclO)
@@ -142,13 +170,12 @@ module ioclock
 
         ioB%tOut = ioA%tOut*tScl
         ioB%tRes = ioA%tRes*tScl
+        ioB%tCon = ioA%tCon*tScl
 
         ioB%dtOut = ioA%dtOut*tScl
         ioB%dtRes = ioA%dtRes*tScl
+        ioB%dtCon = ioA%dtCon*tScl
 
-        ioB%tsOut  = ioA%tsOut
-        ioB%tsNext = ioA%tsNext
-        
     end subroutine IOSync
 
 end module ioclock

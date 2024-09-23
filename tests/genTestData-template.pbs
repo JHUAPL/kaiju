@@ -30,6 +30,6 @@ printenv
 
 echo 'Generating data for testing.'
 MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
-$MPICOMMAND ./voltron_mpi.x geo_mpi.xml >& geo_mpi.out
+$MPICOMMAND ./voltron_mpi.x cmiD_deep_8_genRes.xml >& cmiD_deep_8_genRes.out
 
 echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

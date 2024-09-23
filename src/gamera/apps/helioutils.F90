@@ -163,9 +163,9 @@ module helioutils
         ! 3. Apply to Vr rather than V-vector
         
         class(helioInnerJBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
         
         real(rp), dimension(NDIM) :: xyz,rhat
         real(rp) :: Vr,Vt,Vp,Vx,Vy,Vz
@@ -207,9 +207,9 @@ module helioutils
       subroutine helio_obcJ(bc,Model,Grid,State)
         ! see comment above in helio_ibcJ
         class(helioOuterJBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
         
         real(rp), dimension(NDIM) :: xyz,rhat
         real(rp) :: Vr,Vt,Vp,Vx,Vy,Vz
@@ -252,9 +252,9 @@ module helioutils
         ! A version of Kareem's zerGrad_obcI (see ../bcs.F90)
         ! works better for superfast helio
         class(helioOuterIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,ig,j,k
         real(rp), dimension(NDIM) :: Bxyz

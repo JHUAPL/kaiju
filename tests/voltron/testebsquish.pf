@@ -127,5 +127,32 @@ contains
 
   end subroutine
 
+  @test
+  subroutine testSquishDipole()
+    ! testing that fake projection produces appropriate squish results
+    type(voltApp_T) :: voltronApp
+
+    character(len=strLen) :: caseInput = 'cmriD.xml'
+    real(rp) testValue
+    type(XML_Input_T) :: xmlInp
+
+    voltronApp%vOptions%gamUserInitFunc => initUser
+    call initVoltron(voltronApp, caseInput)
+
+    ! enable debug projection for testing
+    voltronApp%ebTrcApp%ebModel%doDip = .true.
+
+    ! advance to T=0seconds and perform a squish
+    voltronApp%time = 0
+    call SquishStart(voltronApp)
+    call Squish(voltronApp)
+    call SquishEnd(voltronApp)
+
+    @assertEqual(SUM(voltronApp%chmp2mhd%xyzSquish(:,:,:,1)),143412.6753716097_rp,1e-7_rp,'Squish Fake Projection Latitude value is wrong. Check Squish Processing and Output.')
+    @assertEqual(SUM(voltronApp%chmp2mhd%xyzSquish(:,:,:,2)),352685.8263769484_rp,1e-7_rp,'Squish Fake Projection Longitude value is wrong. Check Squish Processing and Output.')
+    @assertEqual(COUNT(voltronApp%chmp2mhd%isGood),112344,'Squish Fake Projection Good Count is wrong. Check Squish Processing and Output.')
+
+  end subroutine
+
 end module testebsquish
 
