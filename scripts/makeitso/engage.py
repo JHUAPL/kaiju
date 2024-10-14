@@ -362,6 +362,7 @@ def prompt_user_for_run_options(args):
 
     od["conda_env"]["default"] = os.environ.get('CONDA_DEFAULT_ENV')
 
+    od["root_directory"]["default"] = os.path.abspath(os.curdir)
     # Prompt for the remaining parameters.
     for on in ["gamera_spin_up_time", "gcm_spin_up_time", 
                "root_directory","conda_env","tfin_delta","doGCM"]:
