@@ -728,7 +728,7 @@ def run_preprocessing_steps(options: dict, args: dict):
     debug = args["debug"]
 
     # Create the LFM grid file.
-    path = os.path.join(os.environ["KAIJUHOME"], "scripts", "preproc",
+    path = os.path.join(os.environ["KAIPYHOME"], "kaipy", "scripts", "preproc",
                         "genLFM.py")
     cmd = (
         f"{path}"
@@ -742,7 +742,7 @@ def run_preprocessing_steps(options: dict, args: dict):
 
     # If needed, create the solar wind file by fetching data from CDAWeb.
     if options["simulation"]["bcwind_available"] == "N":
-        path = os.path.join(os.environ["KAIJUHOME"], "scripts", "preproc",
+        path = os.path.join(os.environ["KAIPYHOME"], "kaipy", "scripts", "preproc",
                             "cda2wind.py")
         cmd = (
             f"{path}"
@@ -755,7 +755,7 @@ def run_preprocessing_steps(options: dict, args: dict):
         subprocess.run(cmd, check=True, shell=True)
 
     # Create the RCM configuration file.
-    path = os.path.join(os.environ["KAIJUHOME"], "scripts", "preproc",
+    path = os.path.join(os.environ["KAIPYHOME"], "kaipy", "scripts", "preproc",
                         "genRCM.py")
     cmd = path
     if debug:
@@ -948,7 +948,7 @@ def convert_ini_to_xml(ini_files: list, args: dict):
 
         # Convert the .ini file to .xml.
         # NOTE: assumes XMLGenerator.py is in PATH.
-        path = os.path.join(os.environ["KAIJUHOME"], "scripts", "preproc",
+        path = os.path.join(os.environ["KAIPYHOME"], "kaipy", "scripts", "preproc",
                             "XMLGenerator.py")
         cmd = f"{path} {ini_file} {xml_file}"
         if debug:
