@@ -112,16 +112,12 @@ contains
 
         !Skip MPI exchange on first restart
         if (present(gcmCplComm) .and. gcm%isRestart) then
-            gcm%isRestart = .False.
+            !gcm%isRestart = .False.
             return
         endif
         !Must MIX export first.  TIEGCM will also import first.
         call Tic("Export")
         if (present(gcmCplComm)) then
-            if (gcm%isRestart) then
-            gcm%isRestart = .False.
-            return
-            endif
             call exportgcm(ion,gcm,mjd,time,gcmCplComm,myRank)
         else
             write(*,*) "Are we trying to Export to Couple GCM?"
