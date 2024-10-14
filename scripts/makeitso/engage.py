@@ -303,6 +303,7 @@ def prompt_user_for_run_options(args):
     # If so, prompt for the segment duration. If not, use the default
     # for the segment duration (which is the simulation duration).
     for on in ["use_segments"]:
+        od[on]["default"] = "Y"
         o[on] = makeitso.get_run_option(on, od[on], mode)
     if o["use_segments"] == "Y":
         for on in ["segment_duration"]:
