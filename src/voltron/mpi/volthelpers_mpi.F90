@@ -1,9 +1,10 @@
 ! Collection of data and objects for additional voltron helper ranks
 
 module volthelpers_mpi
-    use voltmpitypes
+    use volttypes_mpi
+    use clocks
     use mpi_f08
-    use ebsquish, only : SquishBlocksRemain, DoSquishBlock
+    use ebsquish, only : SquishStart, GetSquishBds, SquishBlocksRemain, DoSquishBlock, LoadBalanceBlocks
     use, intrinsic :: ieee_arithmetic, only: IEEE_VALUE, IEEE_SIGNALING_NAN, IEEE_QUIET_NAN
 
     implicit none

@@ -88,12 +88,12 @@ module gcminterp
 
       do h=1,Nh
         do v=1,grid%gcm2mix_nvar
-          write(*,*) "MIXCPL1: ",h,v,grid%nlon,grid%nhlat
+          !write(*,*) "MIXCPL1: ",h,v,grid%nlon,grid%nhlat
           if (.not.allocated(grid%mixInput(h,v)%var)) allocate(grid%mixInput(h,v)%var(ion(h)%G%Np,ion(h)%G%Nt))
           if (.not.allocated(grid%gcmInput(h,v)%var)) allocate(grid%gcmInput(h,v)%var(grid%nlon,grid%nhlat))
         end do
         do v=1,grid%mix2gcm_nvar
-          write(*,*) "MIXCPL2: ",h,v,grid%nlon,grid%nhlat
+          !write(*,*) "MIXCPL2: ",h,v,grid%nlon,grid%nhlat
           if (.not. allocated(grid%gcmOutput(h,v)%var)) allocate(grid%gcmOutput(h,v)%var(grid%nlon,grid%nhlat))
         end do
       enddo

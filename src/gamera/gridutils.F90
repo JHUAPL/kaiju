@@ -7,7 +7,8 @@ module gridutils
     use metric
     use planethelper
     use ringutils
-
+    use multifluid
+    
     implicit none
 
 
@@ -26,6 +27,117 @@ module gridutils
     procedure(CellBxyz_T), pointer :: CellBxyz => gamCellBxyz
 
     contains
+
+    function GetCellDT(Model,Gr,State,i,j,k) result(dtijk)
+        integer, intent(in) :: i,j,k
+        type(Model_T), intent(in) :: Model
+        type(Grid_T), intent(in) :: Gr
+        type(State_T), intent(in) :: State
+        real(rp) :: dtijk
+        call CellDT(Model,Gr,State,i,j,k,dtijk)
+    end function GetCellDT
+
+    function GetCellDT_Sonic(Model,Gr,State,i,j,k) result(dtijk)
+        integer, intent(in) :: i,j,k
+        type(Model_T), intent(in) :: Model
+        type(Grid_T), intent(in) :: Gr
+        type(State_T), intent(in) :: State
+        real(rp) :: dtijk
+        call CellDT_Sonic(Model,Gr,State,i,j,k,dtijk)
+    end function GetCellDT_Sonic
+
+    subroutine CellDT(Model,Gr,State,i,j,k,dtijk)
+        integer, intent(in) :: i,j,k
+        type(Model_T), intent(in) :: Model
+        type(Grid_T), intent(in) :: Gr
+        type(State_T), intent(in) :: State
+        real(rp),intent(out) :: dtijk
+        real(rp) ::  ke,e,P, dt
+        real(rp) :: Vx,Vy,Vz,rho,Bx,By,Bz
+        real(rp) :: dl,MagB,MagV,Vfl,Valf,Cs,vCFL,Diff,Vdiff
+        !Get three speeds, fluid/sound/alfven
+        rho = State%Gas(i,j,k,DEN,BLK)
+        Vx  = State%Gas(i,j,k,MOMX,BLK)/rho
+        Vy  = State%Gas(i,j,k,MOMY,BLK)/rho
+        Vz  = State%Gas(i,j,k,MOMZ,BLK)/rho
+        MagV = sqrt(Vx**2.0+Vy**2.0+Vz**2.0)
+        
+        ke = 0.5*rho*(MagV**2.0)
+        e = State%Gas(i,j,k,ENERGY,BLK) - ke
+        P = (Model%gamma-1)*e
+        !Handle multifluid case for sound speed/max flow
+        if (Model%doMultiF) then
+            Cs = MultiFCs(Model,State%Gas(i,j,k,:,:))
+            MagV = MultiFSpeed(Model,State%Gas(i,j,k,:,:))
+        else
+            Cs = sqrt(Model%gamma*P/rho)
+        endif
+        Vfl   = MagV
+        Valf  = 0.0
+        VDiff = 0.0
+        if (Model%doMHD) then
+            Bx = State%Bxyz(i,j,k,XDIR)
+            By = State%Bxyz(i,j,k,YDIR)
+            Bz = State%Bxyz(i,j,k,ZDIR)
+            if (Model%doBackground) then
+                Bx = Bx + Gr%B0(i,j,k,XDIR)
+                By = By + Gr%B0(i,j,k,YDIR)
+                Bz = Bz + Gr%B0(i,j,k,ZDIR)
+            endif
+            !Use B to calculate Alfven speed for CFL speed
+            MagB = sqrt(Bx**2.0+By**2.0+Bz**2.0)
+            Valf = MagB/sqrt(rho)
+            !Boris correct Alfven speed
+            if (Model%doBoris) then
+                Valf = Model%Ca*Valf/sqrt(Model%Ca*Model%Ca + Valf*Valf)
+            endif
+            
+            if(Model%doResistive) then
+               ! Asume t ~ x^2/(2Diff)
+               Diff = EdgeScalar2CC(Model,Gr,State%Deta,i,j,k)
+               Vdiff = 2.0d0*Diff/minval((/Gr%di(i,j,k),Gr%dj(i,j,k),Gr%dk(i,j,k)/))
+            end if
+        endif
+        vCFL = Vfl + sqrt(Cs**2.0 + Valf**2.0) + Vdiff
+        
+        !Use min length for timestep calculation
+        dl = minval((/Gr%di(i,j,k),Gr%dj(i,j,k),Gr%dk(i,j,k)/))
+        dtijk = Model%CFL*dl/vCFL
+    end subroutine CellDT
+    
+    subroutine CellDT_Sonic(Model,Gr,State,i,j,k,dtijk)
+        integer, intent(in) :: i,j,k
+        type(Model_T), intent(in) :: Model
+        type(Grid_T), intent(in) :: Gr
+        type(State_T), intent(in) :: State
+        real(rp),intent(out) :: dtijk
+        real(rp) ::  ke,e,P, dt
+        real(rp) :: Vx,Vy,Vz,rho
+        real(rp) :: dl,MagV,Cs,vCFL
+        !Get three speeds, fluid/sound/alfven
+        rho = State%Gas(i,j,k,DEN,BLK)
+        Vx  = State%Gas(i,j,k,MOMX,BLK)/rho
+        Vy  = State%Gas(i,j,k,MOMY,BLK)/rho
+        Vz  = State%Gas(i,j,k,MOMZ,BLK)/rho
+        MagV = sqrt(Vx**2.0+Vy**2.0+Vz**2.0)
+        
+        ke = 0.5*rho*(MagV**2.0)
+        e = State%Gas(i,j,k,ENERGY,BLK) - ke
+        P = (Model%gamma-1)*e
+        !Handle multifluid case for sound speed/max flow
+        if (Model%doMultiF) then
+            Cs = MultiFCs(Model,State%Gas(i,j,k,:,:))
+            MagV = MultiFSpeed(Model,State%Gas(i,j,k,:,:))
+        else
+            Cs = sqrt(Model%gamma*P/rho)
+        endif
+        vCFL = Cs
+        
+        !Use min length for timestep calculation
+        dl = minval((/Gr%di(i,j,k),Gr%dj(i,j,k),Gr%dk(i,j,k)/))
+        dtijk = Model%CFL*dl/vCFL
+ 
+    end subroutine CellDT_Sonic
 
     !Given GasIC_T function, initialize State variable for a given Grid
     !sOpt is optional species designation

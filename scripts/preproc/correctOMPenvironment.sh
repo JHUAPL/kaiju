@@ -15,8 +15,12 @@ then
 else
    # split the CPUs on this node between me and the other jobs
    #echo "myHost = $myHost"
-   #echo "numJobsOnMyNode = $numJobsOnMyNode"
+   echo "numJobsOnMyNode = $numJobsOnMyNode"
    let newNumThreads=$OMP_NUM_THREADS/$numJobsOnMyNode
+   if [ $newNumThreads -lt 1 ]
+   then
+      newNumThreads=1
+   fi
    export OMP_NUM_THREADS=$newNumThreads
    #echo "Setting OMP_NUM_THREADS = $OMP_NUM_THREADS"
 fi

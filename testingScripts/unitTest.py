@@ -10,17 +10,28 @@ for unit testing, then a job for the test report.
 There are 5 PBS job scripts used per module set. Each is generated from a
 jinja2 template.
 
-1. genTestData.pbs - Data generation. Runs in about 17 minutes on 5 derecho
-   nodes. Output in PBS job file genTestData.o*, and geo_mpi.out.
+1. genTestData.pbs - Data generation. Runs in about 4-5 minutes on 5 derecho
+   nodes. Output in PBS job file genTestData.o*, and cmiD_deep_8_genRes.out.
 
-2. runCaseTests.pbs - Runs in about 17 minutes on 1 derecho node. Only runs if
+2. runCaseTests.pbs - Runs in about 35 minutes on 1 derecho node. Only runs if
    genTestData.pbs completes successfully. Output in PBS log file
    runCaseTests.o*, caseTests.out, and caseMpiTests.out.
 
 3. runNonCaseTests1.pbs - Runs in about 2 minutes on 1 derecho node. Only runs
    if genTestData.pbs completes successfully. Output in PBS log file
    runNonCaseTests1.o*, gamTests.out, mixTests.out, voltTests.out,
-   baseMpiTests.out, gamMpiTests.out.
+   baseMpiTests.out, gamMpiTests.out. shgrTests.out.
+   NOTE: As of 2024-08-22, voltTests.out will contain errors like this when
+   run on the development branch:
+
+   ...
+   [testebsquish.pf:151]
+   Squish Fake Projection Latitude value is wrong. Check Squish Processing and Output.
+   AssertEqual failure:
+         Expected: <147591.2572518899>
+           Actual: <143412.6753716097>
+       Difference: <-4178.581880280253> (greater than tolerance of .1000000000000000E-06)
+   ...
 
 4. runNonCaseTests2.pbs - Runs in about XX minutes on 2 derecho nodes. Only
    runs if genTestData.pbs completes successfully. Output in PBS log file
@@ -143,6 +154,9 @@ RUN_CASE_TESTS_PBS_SCRIPT = 'runCaseTests.pbs'
 RUN_NON_CASE_TESTS_1_PBS_SCRIPT = 'runNonCaseTests1.pbs'
 RUN_NON_CASE_TESTS_2_PBS_SCRIPT = 'runNonCaseTests2.pbs'
 UNIT_TEST_REPORT_PBS_SCRIPT = 'unitTestReport.pbs'
+
+# Branch or commit (or tag) used for testing.
+BRANCH_OR_COMMIT = os.environ['BRANCH_OR_COMMIT']
 
 # Name of file to hold job list.
 JOB_LIST_FILE = 'jobs.txt'
@@ -388,6 +402,7 @@ def main():
         pbs_options['job_priority'] = os.environ['DERECHO_TESTING_PRIORITY']
         pbs_options['modules'] = module_names
         pbs_options['kaijuhome'] = KAIJUHOME
+        pbs_options['branch_or_commit'] = BRANCH_OR_COMMIT
 
         # Go to the bin directory for testing.
         os.chdir(BUILD_BIN_DIR)
@@ -612,7 +627,7 @@ def main():
     # Detail the test results
     test_report_details_string = ''
     test_report_details_string += (
-        f"Test results are in `{UNIT_TEST_DIRECTORY}`.\n"
+        f"Test results are on `derecho` in `{UNIT_TEST_DIRECTORY}`.\n"
     )
     for (i_module_set, module_list_file) in enumerate(module_list_files):
         if not submit_ok[i_module_set]:
@@ -647,14 +662,13 @@ def main():
         )
 
     # Summarize the test results
+    test_report_summary_string = (
+        f"Unit test submission for `{os.environ['BRANCH_OR_COMMIT']}`: "
+    )
     if 'FAILED' in test_report_details_string:
-        test_report_summary_string = (
-            'Fortran unit test submission: *FAILED*'
-        )
+        test_report_summary_string += '*FAILED*'
     else:
-        test_report_summary_string = (
-            'Fortran unit test submission: *PASSED*'
-        )
+        test_report_summary_string += '*PASSED*'
 
     # Print the test results summary and details.
     print(test_report_summary_string)

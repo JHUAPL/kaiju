@@ -1,17 +1,15 @@
 module testHelpers
   use testHelperMpi
-  use gamapp_mpi
   use voltapp_mpi
-  use gam2voltcomm_mpi
+  use gamCouple_mpi_G2V
   use uservoltic
   use ioH5
 
   implicit none
 
-  logical :: isGamera = .false.
-  type(gamAppMpi_T), allocatable :: gamAppMpi
+  type(gamCouplerMpi_gam_T), allocatable :: gamCplMpi
   type(voltAppMpi_T), allocatable :: voltAppMpi
-  type(gam2voltCommMpi_T), allocatable :: g2vCommMpi
+  logical :: amHelper = .false.
 
 contains
 
@@ -27,28 +25,44 @@ contains
 
       integer :: ierror
       type(MPI_Comm) :: gamComm, voltComm
+      type(XML_Input_T) :: xmlInp
 
       call setMpiReal()
 
       ! hard-coded for 4 gamera ranks for these tests right now
       if(this%getProcessRank() < 4) then
-          isGamera = .true.
-          allocate(gamAppMpi)
-          allocate(g2vCommMpi)
+          allocate(gamCplMpi)
 
           ! make gamera-only mpi communicator
-          call MPI_Comm_Split(getMpiF08Communicator(this), 0, this%getProcessRank(), gamComm, ierror)
+          call MPI_Comm_Split(getMpiF08Communicator(this), gamId, this%getProcessRank(), gamCplMpi%gOptionsMpi%gamComm, ierror)
 
-          call initGamera_mpi(gamAppMpi, initUser, gamComm, trim(caseFile), .false.)
-          call initGam2Volt(g2vCommMpi, gamAppMpi, getMpiF08Communicator(this), trim(caseFile))
-      else
-          isGamera = .false.
+          gamCplMpi%gOptionsCplMpiG%couplingPoolComm = getMpiF08Communicator(this)
+          gamCplMpi%gOptions%userInitFunc => initUser
+          gamCplMpi%gOptionsMpi%doIO = .false.
+          xmlInp = New_XML_Input(trim(caseFile),'Kaiju',.true.)
+          call gamCplMpi%InitModel(xmlInp)
+      elseif(this%getProcessRank() == 4) then
           allocate(voltAppMpi)
+          amHelper = .false.
 
           ! make gamera-only mpi communicator
-          call MPI_Comm_Split(getMpiF08Communicator(this), 1, this%getProcessRank(), voltComm, ierror)
+          call MPI_Comm_Split(getMpiF08Communicator(this), voltId, this%getProcessRank(), voltComm, ierror)
 
-          call initVoltron_mpi(voltAppMpi, initUser, voltComm, getMpiF08Communicator(this), trim(caseFile))
+          voltAppMpi%vOptions%gamUserInitFunc => initUser
+	  allocate(voltAppMpi%vOptionsMpi%couplingPoolComm)
+          voltAppMpi%vOptionsMpi%couplingPoolComm = getMpiF08Communicator(this)
+          call initVoltron_mpi(voltAppMpi, trim(caseFile))
+      else
+          allocate(voltAppMpi)
+          amHelper = .true.
+
+          ! make gamera-only mpi communicator
+          call MPI_Comm_Split(getMpiF08Communicator(this), voltId, this%getProcessRank(), voltComm, ierror)
+
+          voltAppMpi%vOptions%gamUserInitFunc => initUser
+	  allocate(voltAppMpi%vOptionsMpi%couplingPoolComm)
+          voltAppMpi%vOptionsMpi%couplingPoolComm = getMpiF08Communicator(this)
+          call initVoltronHelper_mpi(voltAppMpi, trim(caseFile))
       endif
 
   end subroutine manualSetup
@@ -61,56 +75,34 @@ contains
           call endVoltronWaits(voltAppMpi)
           deallocate(voltAppMpi)
       endif
-      if(allocated(g2vCommMpi)) then
-          call endGam2VoltWaits(g2vCommMpi, gamAppMpi)
-          deallocate(g2vCommMpi)
-      endif
-      if(allocated(gamAppMpi)) deallocate(gamAppMpi)
+      if(allocated(gamCplMpi)) deallocate(gamCplMpi)
 
   end subroutine teardown
 
   subroutine runApplication()
       logical :: helperQuit
 
-      if(isGamera) then
-          do while (g2vCommMpi%time < g2vCommMpi%tFin)
-              call stepGamera_mpi(gamAppMpi)
-              call localStepVoltronTime(g2vCommMpi, gamAppMpi)
-              if( (g2vCommMpi%time >= g2vCommMpi%DeepT .and. g2vCommMpi%doDeep) .or. &
-                  (g2vCommMpi%time >= g2vCommMpi%tFin)) then
-                  call performStepVoltron(g2vCommMpi,gamAppMpi)
-                  if ( g2vCommMpi%time >= g2vCommMpi%DeepT .and. g2vCommMpi%doDeep ) then
-                      call performDeepUpdate(g2vCommMpi, gamAppMpi)
-                  endif
-              endif
-          end do
+      if(allocated(gamCplMpi)) then
+          ! adjust tFin time to gamera units
+          call gamCplMpi%AdvanceModel(gamCplMpi%Model%tFin - gamCplMpi%Model%t)
       else
-          if(voltAppMpi%amHelper) then
+          if(amHelper) then
               helperQuit = .false.
               do while(.not. helperQuit)
                   call helpVoltron(voltAppMpi, helperQuit)
               end do
           else
               do while (voltAppMpi%time < voltAppMpi%tFin)
-                  if(gameraStepReady(voltAppMpi)) then
-                      call stepVoltron_mpi(voltAppMpi)
-                      write (*,'(a,f8.3)') '    Time = ',voltAppMpi%time
-                      if (voltAppMpi%time >= voltAppMpi%DeepT .and. voltAppMpi%doDeep ) then
-                          call DeepUpdate_mpi(voltAppMpi, voltAppMpi%time)
-                      endif
-                  elseif(deepInProgress(voltAppMpi)) then
-                      call doDeepBlock(voltAppMpi)
-                  else
-                      call waitForGameraStep(voltAppMpi)
-                  endif
-              enddo
+                  call stepVoltron_mpi(voltAppMpi, voltAppMpi%tFin-voltAppMpi%time)
+              end do
               if(voltAppMpi%useHelpers) call vhReqHelperQuit(voltAppMpi)
           endif
       endif
 
   end subroutine runApplication
 
-  @test(npes=[8])
+  ! this test doesn't work with current layout, timestepping is tested as part of test below
+  !@test(npes=[8])
   subroutine testHelpTimestepping(this)
       class (MpiTestMethod), intent(inout) :: this
 
@@ -118,11 +110,7 @@ contains
 
       call manualSetup(this, 'testHelpersStep_4.xml')
 
-      if(isGamera) then
-          call runApplication()
-      else
-          call runApplication()
-      endif
+      call runApplication()
 
   end subroutine
 
@@ -143,18 +131,14 @@ contains
 
       call manualSetup(this, 'testHelpersSquish_4.xml')
 
-      if(isGamera) then
-          call runApplication()
-      else
-          call runApplication()
-      endif
+      call runApplication()
 
       ! Now compare distributed squish results to local-only squish results
-      if(.not. isGamera) then
-          if(.not. voltAppMpi%amHelper) then
+      if(allocated(voltAppMpi)) then
+          if(.not. amHelper) then
               
               ! call doImag once to update rTrc and nTrc before doing any squishing
-              call PreDeep(voltAppMpi, voltAppMpi%gAppLocal)
+              call PreDeep(voltAppMpi, voltAppMpi%gApp)
               call DoImag(voltAppMpi)
 
               ! calculate distributed squish from most recent results
@@ -169,7 +153,7 @@ contains
               ! now calculate local-only squish
               voltAppMpi%ebTrcApp%ebSquish%myNumBlocks = -1 ! I do all blocks
               voltAppMpi%ebTrcApp%ebSquish%myFirstBlock = 1 ! ensure I start with the first block
-              call DeepUpdate(voltAppMpi, voltAppMpi%gAppLocal)
+              call DeepUpdate(voltAppMpi, voltAppMpi%gApp)
 
               sqErr = 0
               maxSqErr = 0
@@ -221,11 +205,11 @@ contains
       ! debugging
       !type(IOVAR_T), dimension(12) :: IOVars
 
-      write (*,'(a,I0)') 'Testing HelpSquish ',this%getNumProcesses()
+      write (*,'(a,I0)') 'Testing HelpSquish Dip',this%getNumProcesses()
 
       call manualSetup(this, 'testHelpersSquish_4.xml')
 
-      if(isGamera) then
+      if(allocated(gamCplMpi)) then
           call runApplication()
       else
           voltAppMpi%ebTrcApp%ebModel%doDip = .true.
@@ -233,11 +217,11 @@ contains
       endif
 
       ! Now compare distributed squish results to local-only squish results
-      if(.not. isGamera) then
-          if(.not. voltAppMpi%amHelper) then
+      if(allocated(voltAppMpi)) then
+          if(.not. amHelper) then
 
               ! call doImag once to update rTrc and nTrc before doing any squishing
-              call PreDeep(voltAppMpi, voltAppMpi%gAppLocal)
+              call PreDeep(voltAppMpi, voltAppMpi%gApp)
               call DoImag(voltAppMpi)
 
               ! calculate distributed squish from most recent results
@@ -252,7 +236,7 @@ contains
               ! now calculate local-only squish
               voltAppMpi%ebTrcApp%ebSquish%myNumBlocks = -1 ! I do all blocks
               voltAppMpi%ebTrcApp%ebSquish%myFirstBlock = 1 ! ensure I start with the first block
-              call DeepUpdate(voltAppMpi, voltAppMpi%gAppLocal)
+              call DeepUpdate(voltAppMpi, voltAppMpi%gApp)
 
               sqErr = 0
               maxSqErr = 0

@@ -23,7 +23,7 @@
     <ringknobs doVClean="T"/>
     <wind tsfile="bcwind.h5"/>
     <source doSource="T" doBounceDT="T"/>
-    <threading NumTh="18"/>
+    <threading NumTh="14"/>
   </Gamera>
 <!-- Remix -->
   <REMIX>

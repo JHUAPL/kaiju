@@ -46,9 +46,9 @@ module uservoltic
     contains
 
     subroutine initUser(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
         procedure(GasIC_T), pointer :: Wxyz
         procedure(VectorField_T), pointer :: Axyz
@@ -182,9 +182,9 @@ module uservoltic
 
     !Routines to do every timestep
     subroutine PerStep(Model,Gr,State)
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(inout) :: Gr
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(inout) :: Gr
+        class(State_T), intent(inout) :: State
 
         integer :: nbc
 
@@ -220,9 +220,9 @@ module uservoltic
 
     !Fixes electric field before application
     subroutine EFix(Model,Gr,State)
-        type(Model_T), intent(in)    :: Model
-        type(Grid_T) , intent(inout) :: Gr
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in)    :: Model
+        class(Grid_T) , intent(inout) :: Gr
+        class(State_T), intent(inout) :: State
 
         integer :: nbc
 
@@ -256,8 +256,8 @@ module uservoltic
 
     !Ensure no flux through degenerate faces
     subroutine IonFlux(Model,Gr,gFlx,mFlx)
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Gr
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Gr
         real(rp), intent(inout) :: gFlx(Gr%isg:Gr%ieg,Gr%jsg:Gr%jeg,Gr%ksg:Gr%keg,1:NVAR,1:NDIM,BLK:Model%nSpc)
         real(rp), intent(inout), optional :: mFlx(Gr%isg:Gr%ieg,Gr%jsg:Gr%jeg,Gr%ksg:Gr%keg,1:NDIM,1:NDIM)
 
@@ -295,9 +295,9 @@ module uservoltic
     !Initialization for Ion Inner BC
     subroutine InitIonInner(bc,Model,Grid,State,xmlInp)
         class(IonInnerBC_T), intent(inout) :: bc
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(in) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(in) :: State
         type(XML_Input_T), intent(in) :: xmlInp
 
         integer :: PsiShells
@@ -329,9 +329,9 @@ module uservoltic
     !Inner-I BC for ionosphere
     subroutine IonInner(bc,Model,Grid,State)
         class(IonInnerBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         real(rp) :: Rin,llBC,dA,Rion,MagB0
         real(rp), dimension(NDIM) :: Bd,Exyz,Veb,rHat
@@ -384,7 +384,7 @@ module uservoltic
                         Veb = Vec2Perp(Veb,rHat)
 
                         !Now do spherical wall BC
-                        call SphereWall(Model,State%Gas(ig,j,k,:,:),State%Gas(ip,jp,kp,:,:),Veb)
+                        call SphereWall(Model,State%Gas(ig,j,k,:,:),State%Gas(ip,jp,kp,:,:),Veb,Bd)
 
                     endif !Cell-centered
 
@@ -474,9 +474,9 @@ module uservoltic
     !Push velocity of first active cell
     subroutine PushIon(bc,Model,Grid,State)
         class(IonInnerBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: i,j,k,PsiShells,dN
         real(rp) :: dt
@@ -535,5 +535,4 @@ module uservoltic
 
     end subroutine PushIon
 
-    
 end module uservoltic

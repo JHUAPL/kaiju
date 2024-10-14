@@ -13,13 +13,22 @@ contains
   subroutine setup(this)
       class (MpiTestMethod), intent(inout) :: this
       character(len=strLen) :: caseFile
+      type(XML_Input_T) :: xmlInp
 
+      ! basic initialization
       call setMpiReal()
-
-      write(caseFile,'(A,I0,A)') 'blast3d_', this%getNumProcesses(), '.xml'
+      call initClocks()
 
       allocate(gamAppMpi)
-      call initGamera_mpi(gamAppMpi, initUser, getMpiF08Communicator(this), caseFile, .false.)
+
+      gamAppMpi%gOptions%userInitFunc => initUser
+      gamAppMpi%gOptionsMpi%gamComm = getMpiF08Communicator(this)
+      gamAppMpi%gOptionsMpi%doIO = .false.
+
+      write(caseFile,'(A,I0,A)') 'blast3d_', this%getNumProcesses(), '.xml'
+      xmlInp = New_XML_Input(caseFile,'Kaiju',.true.)
+
+      call initGamera_mpi(gamAppMpi, xmlInp)
 
   end subroutine setup
 

@@ -29,9 +29,9 @@ module usergamic
     contains
 
     subroutine initUser(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
 
         procedure(GasIC_T), pointer :: Wxyz
@@ -140,9 +140,9 @@ module usergamic
     !Inner-I BC 
     subroutine bw_ibcI(bc,Model,Grid,State)
         class(bwiIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,ig,ip,j,k,jp,kp,d
         integer, dimension(NDIM) :: dApm
@@ -192,9 +192,9 @@ module usergamic
     !Outer-I BC
     subroutine bw_obcI(bc,Model,Grid,State)
         class(bwoIBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         integer :: n,ig,di,ip,j,k,jp,kp,d
         integer, dimension(NDIM) :: dApm
@@ -250,9 +250,9 @@ module usergamic
 
     !Fixes cell-centered fields in the predictor
     subroutine PredFix(Model,Gr,State)
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(inout) :: Gr
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(inout) :: Gr
+        class(State_T), intent(inout) :: State
 
         integer :: n,ip,ig,ix,jp,kp,j,k
 

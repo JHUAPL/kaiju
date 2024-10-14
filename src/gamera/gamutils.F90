@@ -297,37 +297,7 @@ module gamutils
 
     end subroutine allocGridVec
 
-    !Converts grid of conserved quantities to primitive
-    subroutine Con2Prim(Model,Grid,Con,Prim)
-        type(Model_T), intent(in) :: Model
-        type(Grid_T),  intent(in) :: Grid
-        real(rp), intent(in) :: Con(Grid%isg:Grid%ieg,Grid%jsg:Grid%jeg,Grid%ksg:Grid%keg,NVAR)
-        real(rp), intent(out) :: Prim(Grid%isg:Grid%ieg,Grid%jsg:Grid%jeg,Grid%ksg:Grid%keg,NVAR)
-
-        integer :: i,j,k
-        real(rp) :: rho,Vx,Vy,Vz,E,KinE
-
-        do k=Grid%ksg, Grid%keg
-            do j=Grid%jsg, Grid%jeg
-                do i=Grid%isg, Grid%ieg
-                    rho = Con(i,j,k,DEN)
-                    Vx = Con(i,j,k,MOMX)/rho
-                    Vy = Con(i,j,k,MOMY)/rho
-                    Vz = Con(i,j,k,MOMZ)/rho
-                    E = Con(i,j,k,ENERGY)
-
-                    KinE = 0.5*rho*(Vx**2.0+Vy**2.0+Vz**2.0)
-                    Prim(i,j,k,DEN) = rho
-                    Prim(i,j,k,VELX) = Vx
-                    Prim(i,j,k,VELY) = Vy
-                    Prim(i,j,k,VELZ) = Vz
-                    Prim(i,j,k,PRESSURE) = (Model%gamma-1)*(E-KinE)
-                enddo
-            enddo
-        enddo
-
-    end subroutine Con2Prim
-
+    !Convert conserved to primitive variables
     subroutine CellC2P(Model,Con,Prim)
         type(Model_T), intent(in) :: Model
         real(rp), intent(in)  :: Con(NVAR)
@@ -350,6 +320,7 @@ module gamutils
         Prim(PRESSURE) = max((Model%gamma-1)*(E-KinE),pFloor)
     end subroutine CellC2P
 
+    !Calculate sound speed (Cs) from conserved variables
     subroutine CellPress2Cs(Model,Con,Cs)
         type(Model_T), intent(in) :: Model
         real(rp), intent(in)  :: Con(NVAR)
@@ -357,7 +328,7 @@ module gamutils
 
         real(rp) :: rho,Vx,Vy,Vz,E,KinE,P
 
-        rho = Con(DEN)
+        rho = max(Con(DEN),dFloor)
         Vx  = Con(MOMX)/rho
         Vy  = Con(MOMY)/rho
         Vz  = Con(MOMZ)/rho
@@ -365,7 +336,7 @@ module gamutils
 
         KinE = 0.5*rho*(Vx**2.0+Vy**2.0+Vz**2.0)
 
-        P = (Model%gamma-1)*(E-KinE)
+        P = max((Model%gamma-1)*(E-KinE),pFloor)
         Cs = sqrt(Model%gamma*P/rho)
     end subroutine CellPress2Cs
 
@@ -417,13 +388,7 @@ module gamutils
         type(Model_T)    , intent(in) :: Model
         type(XML_Input_T), intent(in) :: iXML
 
-
-        if (iXML%Exists("sim/dFloor"   )) call iXML%Set_Val(dFloor,"sim/dFloor"   ,TINY)
-        if (iXML%Exists("floors/dFloor")) call iXML%Set_Val(dFloor,"floors/dFloor",TINY)
-
-        if (iXML%Exists("sim/pFloor"   )) call iXML%Set_Val(pFloor,"sim/pFloor"   ,TINY)
-        if (iXML%Exists("floors/pFloor")) call iXML%Set_Val(pFloor,"floors/pFloor",TINY)
-
+        call SetFloorsWDefs(Model,iXML,TINY,TINY)
     end subroutine SetFloors
 
     subroutine SetFloorsWDefs(Model,iXML,dFDef,pFDef)

@@ -13,6 +13,7 @@ module output
     character(len=strLen), private :: zcsTot = "Omega" !Clock ID to use for ZCS calculation
 
     real(rp), private :: voltWait = 0.0
+    integer, private :: lastTs = -1
 
     !ConOut_T
     !Console output function pointer
@@ -63,9 +64,9 @@ contains
         Model%kzcsMHD = 0.0
         Model%kzcsTOT = 0.0
 
-        if (Model%ts > 0) then
-            ZCs_gam = Model%IO%tsOut*Grid%Nip*Grid%Njp*Grid%Nkp/wTime_gam
-            ZCs_tot = Model%IO%tsOut*Grid%Nip*Grid%Njp*Grid%Nkp/wTime_tot
+        if (Model%ts > 0 .and. lastTs > 0) then
+            ZCs_gam = (Model%ts-lastTs)*Grid%Nip*Grid%Njp*Grid%Nkp/wTime_gam
+            ZCs_tot = (Model%ts-lastTs)*Grid%Nip*Grid%Njp*Grid%Nkp/wTime_tot
 
             voltWait = 0.8*voltWait + 0.2*(readClock('VoltSync'))/(readClock(1)+TINY) ! Weighted average to self-correct
         else
@@ -73,6 +74,7 @@ contains
             ZCs_tot = 0.0
             voltWait = 0
         endif
+        lastTs = Model%ts
         
         Model%kzcsMHD = ZCs_gam*1.0e-3
         Model%kzcsTOT = ZCs_tot*1.0e-3
@@ -101,7 +103,7 @@ contains
         endif
 
         !Setup for next output
-        Model%IO%tsNext = Model%ts + Model%IO%tsOut
+        Model%IO%tCon = Model%IO%tCon + Model%IO%dtCon
         
     end subroutine consoleOutput_STD
 

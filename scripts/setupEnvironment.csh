@@ -9,22 +9,11 @@
  
 set rootdir = `dirname $0`
 set SCRIPT_DIR = `cd $rootdir && pwd`
-echo "SCRIPT_DIR=$SCRIPT_DIR"
- 
  
 # strip off the "/scripts" folder to get to the root of the repository
 set ROOT_DIR = `cd $rootdir/.. && pwd`
-echo "ROOT_DIR=$ROOT_DIR"
- 
- 
+  
 setenv KAIJUHOME $ROOT_DIR
- 
-if (! $?PYTHONPATH) then 
-    setenv PYTHONPATH $KAIJUHOME
-else
-    setenv PYTHONPATH ${PYTHONPATH}:$KAIJUHOME
-endif
- 
- 
-setenv PATH ${PATH}:${KAIJUHOME}/scripts:${KAIJUHOME}/scripts/datamodel:${KAIJUHOME}/scripts/helio:${KAIJUHOME}/scripts/legacy:${KAIJUHOME}/scripts/preproc:${KAIJUHOME}/scripts/postproc:${KAIJUHOME}/scripts/quicklook:$KAIJUHOME/scripts/makeitso:$KAIJUHOME/scripts/makeitso-gamhelio
+  
+setenv PATH ${PATH}:${KAIJUHOME}/scripts:${KAIJUHOME}/scripts/preproc:${KAIJUHOME}/scripts/makeitso:${KAIJUHOME}/scripts/makeitso-gamhelio
  

@@ -112,16 +112,12 @@ contains
 
         !Skip MPI exchange on first restart
         if (present(gcmCplComm) .and. gcm%isRestart) then
-            gcm%isRestart = .False.
+            !gcm%isRestart = .False.
             return
         endif
         !Must MIX export first.  TIEGCM will also import first.
         call Tic("Export")
         if (present(gcmCplComm)) then
-            if (gcm%isRestart) then
-            gcm%isRestart = .False.
-            return
-            endif
             call exportgcm(ion,gcm,mjd,time,gcmCplComm,myRank)
         else
             write(*,*) "Are we trying to Export to Couple GCM?"
@@ -162,10 +158,10 @@ contains
             do v=1,2
             select case(v)
             case (1)
-                write(*,*) "Import GEO stuff"
+                !write(*,*) "Import GEO stuff"
                 call import_gcm_per_grid(gcm%GEO,gcmCplComm,gcmCplRank)
             case (2)
-                write(*,*) "Import APEX stuff"
+                !write(*,*) "Import APEX stuff"
                 call import_gcm_per_grid(gcm%APEX,gcmCplComm,gcmCplRank)
             end select
 
@@ -256,7 +252,7 @@ contains
         if (gcm%mix2gcm_nvar .eq. 0) return
 
         ! Send the coupling data
-        write(*,*) " MIXCPL: ", gcmCplRank,(tgcmId+voltId)*100,gcmCplComm,gcm%nlat,gcm%nlon
+        !write(*,*) " MIXCPL: ", gcmCplRank,(tgcmId+voltId)*100,gcmCplComm,gcm%nlat,gcm%nlon
 
         call mpi_send(gcm%outvar2d, gcm%nlat*gcm%nlon*gcm%mix2gcm_nvar, MPI_DOUBLE_PRECISION, gcmCplRank, (tgcmId+voltId)*100, gcmCplComm, ierr)
 

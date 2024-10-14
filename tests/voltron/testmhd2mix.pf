@@ -20,15 +20,16 @@ contains
   subroutine dipoleTest()
     ! testing that a dipole field from gamera results in 0 FAC in remix
     type(voltApp_T) :: voltronApp
-    type(gamApp_T) :: gameraApp
 
     procedure(VectorField_T), pointer :: Axyz
     character(len=strLen) :: caseInput = 'cmiD.xml'
     real(rp) testValue
+    type(XML_Input_T) :: xmlInp
 
-    call initGamera(gameraApp, initUser, caseInput)
+    voltronApp%vOptions%gamUserInitFunc => initUser
+    call initVoltron(voltronApp, caseInput)
 
-    call initVoltron(voltronApp, gameraApp, caseInput)
+    associate(gameraApp=>voltronApp%gApp)
 
     ! create a dipole field in Gamera. This code is copied from prob.F90
     Axyz => VP_Dipole
@@ -44,6 +45,8 @@ contains
     testValue = sum(abs(voltronApp%remixApp%ion(NORTH)%St%Vars(:,:,FAC))) + sum(abs(voltronApp%remixApp%ion(SOUTH)%St%Vars(:,:,FAC)))
 
     @assertLessThanOrEqual(testValue, 1e-1_rp, 'Remix did not get all 0 FAC from an input dipole field')
+
+    end associate
 
     contains
 

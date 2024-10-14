@@ -1,51 +1,41 @@
-! Main data objects and functions to perform a gamera simulation
+! implementation of subroutines in GameraApp type
 
 module gamapp
     use gamtypes
     use step
     use init
     use mhdgroup
+    use output
 
     implicit none
 
-    type gamApp_T
-        type(Model_T)  :: Model
-        type(Grid_T)   :: Grid
-        type(State_T)  :: State, oState
-        type(Solver_T) :: Solver
-    end type gamApp_T
-
     contains
 
-    subroutine initGamera(gameraApp, userInitFunc, optFilename,doIO)
-        type(gamApp_T), intent(inout) :: gameraApp
-        procedure(StateIC_T), pointer, intent(in) :: userInitFunc
-        character(len=*), optional, intent(in) :: optFilename
-        logical, optional, intent(in) :: doIO
+    subroutine initGamIO(Model, xmlInp)
+        type(Model_T), intent(inout) :: Model
+        type(XML_Input_T), intent(inout) :: xmlInp
 
-        character(len=strLen) :: inpXML,kaijuRoot
-        type(XML_Input_T) :: xmlInp
-        logical :: doIOX
+        logical :: doFatIO
 
-        if(present(optFilename)) then
-            ! read from the prescribed file
-            inpXML = optFilename
-        else
-            !Find input deck
-            call getIDeckStr(inpXML)
+        !Output/Restart (IOCLOCK)
+        call Model%IO%init(xmlInp,Model%t,Model%ts,Model%isRestart)
+        call xmlInp%Set_Val(Model%doDivB ,'output/DivB'    ,.true. )
+        call xmlInp%Set_Val(doFatIO      ,'output/doFatIO' ,.false.)
+        if (doFatIO) then
+            call SetFatIO()
         endif
-        call CheckFileOrDie(inpXML,"Error opening input deck, exiting ...")
+    end subroutine
 
-        if (present(doIO)) then
-            doIOX = doIO
-        else
-            doIOX = .true.
-        endif
+    subroutine initGamera(gameraApp, xmlInp)
+        class(gamApp_T), intent(inout) :: gameraApp
+        type(XML_Input_T), intent(inout) :: xmlInp
 
-        !Create XML reader
-        if (gameraApp%Model%isLoud) write(*,*) 'Gamera Reading input deck from ', trim(inpXML)
-        xmlInp = New_XML_Input(trim(inpXML),'Kaiju/Gamera',.true.)
-        if (.not. gameraApp%Model%isLoud) call xmlInp%BeQuiet()
+        character(len=strLen) :: kaijuRoot
+
+        gameraApp%Model%isLoud = .true.
+
+        call xmlInp%SetRootStr('Kaiju/Gamera')
+        call xmlInp%SetVerbose(.true.)
 
         ! try to verify that the XML file has "Kaiju" as a root element
         kaijuRoot = ""
@@ -70,10 +60,10 @@ module gamapp
 
         !Initialize Grid/State/Model (Hatch Gamera)
         !Will enforce 1st BCs, caculate 1st timestep, set oldState
-        call Hatch(gameraApp%Model,gameraApp%Grid,gameraApp%State,gameraApp%oState,gameraApp%Solver,xmlInp,userInitFunc)
+        call Hatch(gameraApp%Model,gameraApp%Grid,gameraApp%State,gameraApp%oState,gameraApp%Solver,xmlInp,gameraApp%gOptions%userInitFunc)
         call cleanClocks()
 
-        if (doIOX) then
+        if (.not. gameraApp%Model%isSub) then
             if (.not. gameraApp%Model%isRestart) call fOutput(gameraApp%Model,gameraApp%Grid,gameraApp%State)
             call consoleOutput(gameraApp%Model,gameraApp%Grid,gameraApp%State)
         endif
@@ -81,7 +71,7 @@ module gamapp
     end subroutine initGamera
 
     subroutine stepGamera(gameraApp)
-        type(gamApp_T), intent(inout) :: gameraApp
+        class(gamApp_T), intent(inout) :: gameraApp
 
         !update the state variables to the next timestep
         call UpdateStateData(gameraApp)
@@ -122,5 +112,5 @@ module gamapp
 
     end subroutine UpdateStateData
 
-end module gamapp
+end module
 

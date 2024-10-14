@@ -32,6 +32,9 @@ import common
 # Program description.
 DESCRIPTION = 'Create report for Intel Inspector tests.'
 
+# Branch or commit (or tag) used for testing.
+BRANCH_OR_COMMIT = os.environ['BRANCH_OR_COMMIT']
+
 
 def main():
     """Begin main program.
@@ -205,27 +208,38 @@ def main():
     # Detail the test results
     test_report_details_string = ''
     test_report_details_string += (
-        f"Test results are in `{os.getcwd()}`.\n"
+        f"Intel Inspector test results are in `{os.getcwd()}`.\n"
     )
-    test_report_details_string += 'Results of memory tests:\n'
+    test_report_details_string += 'Results of memory tests: '
     with open(memory_errors_file, 'r', encoding='utf-8') as f:
-        test_report_details_string += f.read()
+        if 'Error' in f.read():
+            test_report_details_string += '*FAILED*'
+        else:
+            test_report_details_string += '*PASSED*'
     test_report_details_string += '\n'
-    test_report_details_string += 'Results of thread tests:\n'
+    test_report_details_string += 'Results of thread tests: '
     with open(thread_errors_file, 'r', encoding='utf-8') as f:
-        test_report_details_string += f.read()
+        if 'Error' in f.read():
+            test_report_details_string += '*FAILED*'
+        else:
+            test_report_details_string += '*PASSED*'
+    test_report_details_string += '\n'
 
     # Summarize the test results
     test_report_summary_string = (
-        'Intel Inspector tests complete (`intelChecksReport.py`).'
+        f"Intel Inspector test results for `{BRANCH_OR_COMMIT}`: "
     )
+    if 'FAILED' in test_report_details_string:
+        test_report_summary_string += '*FAILED*'
+    else:
+        test_report_summary_string += '*PASSED*'
 
     # Print the test results summary and details.
     print(test_report_summary_string)
     print(test_report_details_string)
 
     # If a test failed, or loud mode is on, post report to Slack.
-    if (slack_on_fail and 'FAILED' in test_report_details_string) or be_loud:
+    if (slack_on_fail and 'FAILED' in test_report_summary_string) or be_loud:
         slack_client = common.slack_create_client()
         if debug:
             print(f"slack_client = {slack_client}")

@@ -5,7 +5,7 @@
 #PBS -q {{ queue }}
 #PBS -l job_priority={{ job_priority }}
 #PBS -l walltime={{ walltime }}
-#PBS -l select=1:ncpus=128:mpiprocs=9:ompthreads=14
+#PBS -l select=2:ncpus=128:mpiprocs=9:ompthreads=36
 #PBS -j oe
 #PBS -m abe
 

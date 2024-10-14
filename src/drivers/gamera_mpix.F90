@@ -1,20 +1,21 @@
 !Driver for Gamera with MPI decomposition
 
 program gamera_mpix
-    use clocks
     use gamapp_mpi
     use usergamic
     use mpidefs
 
     implicit none
 
-    type(gamAppMpi_T) :: gameraAppMpi
-    procedure(StateIC_T), pointer :: userInitFunc => initUser
+    type(gamAppMpi_T) :: gAppMpi
 
     integer :: ierror, length
     integer :: required=MPI_THREAD_MULTIPLE
     integer :: provided
     character( len = MPI_MAX_ERROR_STRING) :: message
+    character(len=strLen) :: inpXML
+    type(XML_Input_T) :: xmlInp
+    real(rp) :: nextDT
 
     ! initialize MPI
     !Set up MPI with or without thread support
@@ -39,63 +40,59 @@ program gamera_mpix
     ! initialize mpi data type
     call setMpiReal()
 
+    ! set options for gamera
+    gAppMpi%gOptions%userInitFunc => initUser
+    gAppMpi%gOptionsMpi%gamComm = MPI_COMM_WORLD
+
     !call printConfigStamp()
     call initClocks()
 
-    gameraAppMpi%Model%isLoud = .true.
-    
-    ! this is a gamera-only application so all MPI ranks are gamera-only processes
-    call initGamera_mpi(gameraAppMpi,userInitFunc,MPI_COMM_WORLD)
+    call getIDeckStr(inpXML)
+    call CheckFileOrDie(inpXML,"Error opening input deck, exiting ...")
 
-    do while (gameraAppMpi%Model%t < gameraAppMpi%Model%tFin)
-        call Tic("Omega")
-        !Start root timer
+    !Create XML reader
+    write(*,*) 'Reading input deck from ', trim(inpXML)
+    xmlInp = New_XML_Input(trim(inpXML),'Kaiju',.true.)
 
-        call stepGamera_mpi(gameraAppMpi)
+    call gAppMpi%InitModel(xmlInp)
+    call gAppMpi%InitIO(xmlInp)
+
+    do while (gAppMpi%Model%t < gAppMpi%Model%tFin)
+        call Tic("Omega") !Start root timer
+
+        !Step model
+        nextDT = min(gAppMpi%Model%tFin-gAppMpi%Model%t, gAppMpi%Model%IO%nextIOTime()-gAppMpi%Model%t)
+        call gAppMpi%AdvanceModel(nextDT)
 
         !Output if necessary
         call Tic("IO")
-        
-        if (gameraAppMpi%Model%IO%doConsole(gameraAppMpi%Model%ts)) then
-            !Do main console output
-            call consoleOutput_mpi(gameraAppMpi)
 
-            !Do timing info if needed
-            if ( (gameraAppMpi%Model%IO%doTimerOut) .and. debugPrintingRank(gameraAppMpi)) then
-                write (*,'(a,I3,a,I3,a,I3,a)') "Rank (I,J,K) (", &
-                    gameraAppMpi%Grid%Ri,",", &
-                    gameraAppMpi%Grid%Rj,",", &
-                    gameraAppMpi%Grid%Rk,") is printing debug clock info"
-                call printClocks()
-            endif
-            call cleanClocks() !Always clean clocks
-        elseif (gameraAppMpi%Model%IO%doTimer(gameraAppMpi%Model%ts)) then
-            if ( (gameraAppMpi%Model%IO%doTimerOut) .and. debugPrintingRank(gameraAppMpi)) then
-                write (*, '(a,I3,a,I3,a,I3,a)') "Rank (I,J,K) (", &
-                    gameraAppMpi%Grid%Ri,",", &
-                    gameraAppMpi%Grid%Rj,",", &
-                    gameraAppMpi%Grid%Rk,") is printing debug clock info"
-                call printClocks()
-            endif            
-            call cleanClocks() !Always clean clocks
+        if (gAppMpi%Model%IO%doConsole(gAppMpi%Model%t)) then
+            call gAppMpi%WriteConsoleOutput()
+
+            !Timing info
+            if (gAppMpi%Model%IO%doTimerOut) call printClocks()
+            call cleanClocks()
+
+        elseif (gAppMpi%Model%IO%doTimer(gAppMpi%Model%t)) then
+            if (gAppMpi%Model%IO%doTimerOut) call printClocks()
+            call cleanClocks()
         endif
 
-
-        if (gameraAppMpi%Model%IO%doOutput(gameraAppMpi%Model%t)) then
-            call fOutput(gameraAppMpi%Model,gameraAppMpi%Grid,gameraAppMpi%State)
+        if (gAppMpi%Model%IO%doOutput(gAppMpi%Model%t)) then
+            call gAppMpi%WriteFileOutput(gAppMpi%Model%IO%nOut)
         endif
 
-        if (gameraAppMpi%Model%IO%doRestart(gameraAppMpi%Model%t)) then
-            call resOutput(gameraAppMpi%Model,gameraAppMpi%Grid,gameraAppMpi%oState,gameraAppMpi%State)
+        if (gAppMpi%Model%IO%doRestart(gAppMpi%Model%t)) then
+            call gAppMpi%WriteRestart(gAppMpi%Model%IO%nRes)
         endif
 
         call Toc("IO")
-
         call Toc("Omega")
     end do
 
     call MPI_FINALIZE(ierror)
-    write(*,*) "Fin"
+    write(*,*) "Fin Mpi"
 
 end program gamera_mpix
 

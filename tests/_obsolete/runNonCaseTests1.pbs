@@ -1,0 +1,85 @@
+#!/bin/bash
+#PBS -N nonCaseTests1
+#PBS -A P28100045
+#PBS -l walltime=12:00:00
+#PBS -q main
+#PBS -l select=1:ncpus=128:mpiprocs=64:ompthreads=128
+#PBS -j oe
+#PBS -m abe
+
+# NOTE: The user account must be specified on the qsub command line with the
+# -A option,
+# KAIJUROOTDIR and MODULE_LIST must be set as transferred environment
+# variables on the qsub command line.
+# Example qsub command:
+# qsub -A P28100045 -v $HOME/kaiju,MODULE_LIST='module1 module2 ...'
+
+echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
+
+echo 'Setting up MAGE environment.'
+source $KAIJUROOTDIR/scripts/setupEnvironment.sh
+
+echo 'Loading modules.'
+module --force purge
+module load $MODULE_LIST
+echo 'The following modules are loaded:'
+module list
+
+echo 'Setting environment variables.'
+MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
+export OMP_NUM_THREADS=128
+export MPI_TYPE_DEPTH=32
+export KMP_STACKSIZE=128M
+echo 'The active environment variables are:'
+printenv
+
+echo 'Running GAMERA tests.'
+date
+./gamTests > gamTests.out
+date
+echo 'GAMERA tests complete.'
+echo | tail -n 3 ./gamTests.out
+
+echo 'Running REMIX tests.'
+date
+./mixTests > mixTests.out
+date
+echo 'REMIX tests complete.'
+echo | tail -n 3 ./mixTests.out
+
+echo 'Running RCM tests.'
+date
+./rcmTests > rcmTests.out
+date
+echo 'RCM tests complete.'
+echo | tail -n 3 ./rcmTests.out
+
+echo 'Running SHELLGRID tests.'
+date
+./shgrTests > shgrTests.out
+date
+echo 'SHELLGRID tests complete.'
+echo | tail -n 3 ./shgrTests.out
+
+echo 'Running VOLTRON tests.'
+date
+./voltTests > voltTests.out
+date
+echo 'VOLTRON tests complete.'
+echo | tail -n 3 ./voltTests.out
+
+echo 'Running base MPI tests.'
+date
+${MPICOMMAND} ./baseMpiTests > baseMpiTests.out
+date
+echo 'Base MPI tests complete.'
+echo | tail -n 3 ./baseMpiTests.out
+
+echo 'Running GAMERA MPI tests.'
+date
+${MPICOMMAND} ./gamMpiTests > gamMpiTests.out
+date
+echo 'GAMERA MPI tests complete.'
+echo | tail -n 3 ./gamMpiTests.out
+
+echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

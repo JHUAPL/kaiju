@@ -17,6 +17,18 @@ contains
   subroutine lastSerial()
   end subroutine lastSerial
 
+  subroutine caseTestInit(gameraApp, caseFile)
+    class(gamApp_T), intent(inout) :: gameraApp
+    character(len=*), intent(in) :: caseFile
+
+    type(XML_Input_T) :: xmlInp
+
+    gameraApp%gOptions%userInitFunc => initUser
+    xmlInp = New_XML_Input(trim(caseFile),'Kaiju',.true.)
+    call gameraApp%InitModel(xmlInp)
+
+  end subroutine
+
   @test
   subroutine testLoop2D()
     ! a magnetic field should be moved along by the fluid
@@ -24,7 +36,7 @@ contains
     real(rp), dimension(:,:,:), allocatable :: initialMagneticField
     real(rp) :: totalError, initialTotalMagneticField, finalTotalMagneticField
 
-    call initGamera(gameraApp, initUser, 'loop2d.xml')
+    call caseTestInit(gameraApp,'loop2d.xml')
 
     ! save initial magnetic field
     allocate(initialMagneticField(gameraApp%Grid%isg:gameraApp%Grid%ieg+1,gameraApp%Grid%jsg:gameraApp%Grid%jeg+1,gameraApp%Grid%ksg:gameraApp%Grid%keg+1))
@@ -52,7 +64,7 @@ contains
     real(rp), dimension(:,:,:), allocatable :: initialGasDensity
     real(rp) :: totalError, initialTotalDensity, finalTotalDensity
 
-    call initGamera(gameraApp, initUser, 'adv2d.xml')
+    call caseTestInit(gameraApp, 'adv2d.xml')
 
     ! save initial density
     allocate(initialGasDensity(gameraApp%Grid%isg:gameraApp%Grid%ieg,gameraApp%Grid%jsg:gameraApp%Grid%jeg,gameraApp%Grid%ksg:gameraApp%Grid%keg))
@@ -79,7 +91,7 @@ contains
     real(rp), dimension(:,:,:), allocatable :: initialMagneticField
     real(rp) :: totalError, initialTotalMagneticField, finalTotalMagneticField
 
-    call initGamera(gameraApp, initUser, 'alfven.xml')
+    call caseTestInit(gameraApp, 'alfven.xml')
 
     ! save initial magnetic field
     allocate(initialMagneticField(gameraApp%Grid%isg:gameraApp%Grid%ieg+1,gameraApp%Grid%jsg:gameraApp%Grid%jeg+1,gameraApp%Grid%ksg:gameraApp%Grid%keg+1))
@@ -107,7 +119,7 @@ contains
 
     L2Tol = 7.0e-3
 
-    call initGamera(gameraApp, initUser, 'adv1d.xml')
+    call caseTestInit(gameraApp, 'adv1d.xml')
 
     associate(Gr=>gameraApp%Grid,Gas=>gameraApp%State%Gas)
     !Allocate arrays
@@ -141,7 +153,7 @@ contains
 
     L2Tol = 7.0e-3
 
-    call initGamera(gameraApp, initUser, 'adv1d_8cent.xml')
+    call caseTestInit(gameraApp, 'adv1d_8cent.xml')
 
     associate(Gr=>gameraApp%Grid,Gas=>gameraApp%State%Gas)
     !Allocate arrays
@@ -176,7 +188,8 @@ contains
     real(rp) :: dG
     real(rp), dimension(NVAR) :: Gij,Gijp
 
-    call initGamera(gameraApp, initUser, 'ot2d.xml')
+    call caseTestInit(gameraApp, 'ot2d.xml')
+
     !Now advance for period of time specified in XML
     do while ( (gameraApp%Model%t < gameraApp%Model%tFin) )
       call stepGamera(gameraApp)
@@ -213,24 +226,16 @@ contains
   
   @test
   subroutine testRemix()
-    type(gamApp_T) :: gameraApp
     type(voltApp_T) :: voltronApp
     character(len=strLen) :: caseInput = 'cmiD.xml'
 
-    call initGamera(gameraApp, initUser, caseInput)
-    call initVoltron(voltronApp, gameraApp, caseInput)
+    voltronApp%vOptions%gamUserInitFunc => initUser
+    call initVoltron(voltronApp, caseInput)
 
-    ! Manually running for just 1 second of simulation time
-    do while ((1.0 - gameraApp%Model%t*gameraApp%Model%Units%gT0) > 1e-15)
-        call stepGamera(gameraApp)
+    ! run for one coupling interval
+    call stepVoltron(voltronApp, voltronApp%DeepDT)
 
-        if (gameraApp%Model%t >= voltronApp%DeepT) then
-            call convertGameraToRemix(voltronApp%mhd2mix, gameraApp, voltronApp%remixApp)
-            call runRemix(voltronApp)
-            call convertRemixToGamera(voltronApp%mix2mhd, voltronApp%remixApp, gameraApp)
-        endif
-    end do
-    write(*,*) 'End time = ', gameraApp%Model%t
+    write(*,*) 'End time = ', voltronApp%gApp%Model%t
 
   end subroutine testRemix
 

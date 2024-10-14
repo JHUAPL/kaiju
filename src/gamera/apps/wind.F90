@@ -70,9 +70,9 @@ module wind
 
     subroutine InitWind(bc,Model,Grid,State,xmlInp)
         class(WindBC_T), intent(inout) :: bc
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(in) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(in) :: State
         type(XML_Input_T), intent(in) :: xmlInp
 
         real(rp) :: tSpin
@@ -205,13 +205,13 @@ module wind
     !Do outer I BC for solar wind
     subroutine WindBC(bc,Model,Grid,State)
         class(WindBC_T), intent(inout) :: bc
-        type(Model_T), intent(in) :: Model
-        type(Grid_T), intent(in) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(in) :: Model
+        class(Grid_T), intent(in) :: Grid
+        class(State_T), intent(inout) :: State
 
         real(rp) :: t,D,P,wSW,wMHD,swFlx,inFlx,Cx
         integer :: i,j,k,n,ip,jp,kp,ig,jg,kg,s
-        real(rp), dimension(NDIM) :: xcc,V,B,nHat
+        real(rp), dimension(NDIM) :: xcc,V,B,nHat,B_in,B_sw
         real(rp), dimension(NVAR) :: gW,gW_sw,gW_in,gCon
         
         if (.not. Grid%hasUpperBC(IDIR)) return
@@ -225,7 +225,8 @@ module wind
         !$OMP schedule(dynamic) &
         !$OMP private(ip,ig,j,k,n,s) &
         !$OMP private(D,P,wSW,wMHD,swFlx,inFlx) &
-        !$OMP private(xcc,V,B,nHat,gW,gW_sw,gW_in,gCon,Cx)
+        !$OMP private(xcc,V,nHat,gW,gW_sw,gW_in,gCon,Cx) &
+        !$OMP private(B,B_in,B_sw)
         do k=Grid%ksg,Grid%keg+1
             do j=Grid%jsg,Grid%jeg+1
                 ip = Grid%ie
@@ -242,23 +243,25 @@ module wind
                         xcc = Grid%xyzcc(ig,j,k,:)
                         wSW = wgtWind(bc,Model,xcc,t)
                         wMHD = 1.0-wSW
+                        B = 0.0
+                        B_sw = 0.0
+                        B_in = 0.0
                         !Do SW cell centered
                         if (wSW > TINY) then
-                            call GetWindAt(bc,Model,xcc,t,D,P,V,B)
+                            call GetWindAt(bc,Model,xcc,t,D,P,V,B_sw)
                             gW_sw(DEN) = D
                             gW_sw(PRESSURE) = P
                             gW_sw(VELX:VELZ) = V
-
                         endif !SW inflow
 
                         !Do MHD outflow cell-centered
                         if (wMHD>TINY) then
                             !Get values from last physical
                             gCon = State%Gas (ip,j,k,:,BLK)
-                            B    = State%Bxyz(ip,j,k,:)
+                            B_in = State%Bxyz(ip,j,k,:)
 
                             call CellC2P(Model,gCon,gW_in)
-                            call Con2Fast(Model,gCon,B,Cx)
+                            call Con2Fast(Model,gCon,B_in,Cx)
 
                             !Do some work on the flow velocity
                             V = gW_in(VELX:VELZ)
@@ -280,18 +283,25 @@ module wind
 
                         !Mix BCs and set final ghost values
                         gW = wSW*gW_sw + wMHD*gW_in
+                        B  = wSW* B_sw + wMHD* B_in 
                         call CellP2C(Model,gW,gCon)
 
-                        !FIXME: Handle multi-fluid better
                         if (Model%doMultiF) then
                             !Use calculated values for SW fluid
                             State%Gas(ig,j,k,:,SWSPC) = gCon
+
+                            !Do zero grad for rest of fluids
                             do s=SWSPC+1,Model%nSpc
-                                !Lazy zero grad for rest
-                                State%Gas(ig,j,k,:,s) = State%Gas(ip,j,k,:,s)
+                                gCon = State%Gas(ip,j,k,:,s) !Get con from active
+                                call CellC2P(Model,gCon,gW_in) !Convert to prim
+                                !Set V=0, b/c perp component will get forced to bulk and Vpar=0
+                                gW_in(VELX:VELZ) = 0.0
+                                call CellP2C(Model,gW_in,gCon)
+                                State%Gas(ig,j,k,:,s) = gCon
                             enddo !Fluid loop
+
                             !Now accumulate
-                            call MultiF2Bulk(Model,State%Gas(ig,j,k,:,:))
+                            call MultiF2Bulk(Model,State%Gas(ig,j,k,:,:),B)
                         else
                             !Just set bulk
                             State%Gas(ig,j,k,:,BLK) = gCon
@@ -436,7 +446,7 @@ module wind
                     call CellP2C(Model,gW,gCon)
                     if (Model%doMultiF) then
                         State%Gas(ip,j,k,:,SWSPC) = gCon
-                        call MultiF2Bulk(Model,State%Gas(ip,j,k,:,:))
+                        call MultiF2Bulk(Model,State%Gas(ip,j,k,:,:),B)
                     else
                         State%Gas(ip,j,k,:,BLK) = gCon
                     endif !Multifluid
@@ -464,7 +474,7 @@ module wind
                         call CellP2C(Model,gW,gCon)
                         if (Model%doMultiF) then
                             State%Gas(i,j,k,:,SWSPC) = gCon
-                            call MultiF2Bulk(Model,State%Gas(i,j,k,:,:))
+                            call MultiF2Bulk(Model,State%Gas(i,j,k,:,:),B)
                         else
                             State%Gas(i,j,k,:,BLK) = gCon
                         endif

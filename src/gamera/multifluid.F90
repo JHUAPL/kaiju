@@ -49,60 +49,125 @@ module multifluid
     end subroutine InitMultiF
 
     !Convert multi-species conserved variables into bulk flow quantities
-    subroutine MultiF2Bulk(Model,U)
+    !(and enforce Vperp equality w/ provided B)
+
+    subroutine MultiF2Bulk(Model,U,B)
         type(Model_T), intent(in) :: Model
         real(rp), intent(inout) :: U(NVAR,BLK:Model%nSpc)
+        real(rp), intent(in) :: B(NDIM)
 
-        integer :: n
-        logical, dimension(Model%nSpc) :: isGood
+        logical , dimension(Model%nSpc) :: isGood
+        real(rp), dimension(NDIM) :: Vblk,bhat,Vperp,Vs
         real(rp), dimension(NVAR) :: pW,pCon
-        real(rp), dimension(NDIM) :: Vblk
-
-        !Start by getting bulk flow speed
-        pCon = U(:,BLK)
-        call CellC2P(Model,pCon,pW)
-        Vblk = pW(VELX:VELZ)
-
+        integer :: n
+        
         !Which fluids in this cell are good
         isGood = ( U(DEN,1:Model%nSpc) >= Spcs(:)%dVac )
         
-        do n=1,Model%nSpc
-            if (.not. isGood(n)) then
-                !Enforce global (not species specific floors)
-                pCon = U(:,n)
-                call CellC2P(Model,pCon,pW)
-                pW(DEN)      = max(pW(DEN),dFloor)
-                pW(PRESSURE) = max(pW(PRESSURE),pFloor)
-                pW(VELX:VELZ) = Vblk
-                call CellP2C(Model,pW,pCon)
-                U(:,n) = pCon !Put touched up values back in
+        if (.not. any(isGood)) then
+        !Well this is awkward, let's see if we can figure something out
+            !Fix up the first fluid
+            pW(DEN) = max(Spcs(1)%dVac,dFloor)+TINY
+            pW(VELX:VELZ) = 0.0
+            pW(PRESSURE) = pFloor
+            call CellP2C(Model,pW,U(:,1))
+            !Nuke the rest
+            if (Model%nSpc>1) then
+                do n=2,Model%nSpc
+                    pW(DEN) = dFloor
+                    pW(VELX:VELZ) = 0.0
+                    pW(PRESSURE) = pFloor
+                    call CellP2C(Model,pW,U(:,n))
+                enddo
             endif
-        enddo
+            isGood = ( U(DEN,1:Model%nSpc) >= Spcs(:)%dVac )
+        endif
 
+        !Sum conserved quantities to get bulk
         do n=1,NVAR
             U(n,BLK) = sum(U(n,1:Model%nSpc),mask=isGood)
         enddo
-        
+
+        !Now get perp velocity from bulk
+        pCon = U(:,BLK)
+        call CellC2P(Model,pCon,pW)
+        Vblk  = pW(VELX:VELZ)
+        bhat  = normVec(B)
+        Vperp = Vec2Perp(Vblk,bhat) !Bulk perp velocity
+
+        do n=1,Model%nSpc
+            pCon = U(:,n)
+            call CellC2P(Model,pCon,pW)
+
+            if (isGood(n)) then
+                !Enforce vperp agreement
+                Vs = pW(VELX:VELZ)
+                pW(VELX:VELZ) = Vperp + dot_product(Vs,bhat)*bhat
+            else
+                !no good, either set velocity to bulk/perp/0
+                !Should vacuum move at the bulk speed?
+                pW(VELX:VELZ) = 0.0
+                !pW(VELX:VELZ) = Vblk
+                pW(PRESSURE)  = pFloor
+            endif
+
+            call CellP2C(Model,pW,pCon)
+            U(:,n) = pCon
+        enddo
+
+        !Finish up and get outta here
+        do n=1,NVAR
+            U(n,BLK) = sum(U(n,1:Model%nSpc),mask=isGood)
+        enddo
+
     end subroutine MultiF2Bulk
     
     !Convert full Gas state to bulk, ie include loop
-    subroutine State2Bulk(Model,Grid,State)
+    subroutine State2Bulk(Model,Grid,State,doGhostsO)
         type(Model_T), intent(in) :: Model
         type(Grid_T), intent(in) :: Grid
         type(State_T), intent(inout) :: State
+        logical, optional, intent(in) :: doGhostsO
 
         integer :: i,j,k
+        integer :: iMin,iMax,jMin,jMax,kMin,kMax
+        real(rp), dimension(NDIM) :: B
+
+        logical :: doGhosts = .true.
+
+        if (present(doGhostsO)) then
+            doGhosts = doGhostsO
+        endif
+
+        if (doGhosts) then
+            iMin = Grid%isg
+            iMax = Grid%ieg
+            jMin = Grid%jsg
+            jMax = Grid%jeg
+            kMin = Grid%ksg
+            kMax = Grid%keg
+        else
+            iMin = Grid%is
+            iMax = Grid%ie
+            jMin = Grid%js
+            jMax = Grid%je
+            kMin = Grid%ks
+            kMax = Grid%ke
+        endif
 
         !$OMP PARALLEL DO default(shared) collapse(2) &
-        !$OMP private(i,j,k)
-        do k=Grid%ksg,Grid%keg
-            do j=Grid%jsg,Grid%jeg
-                do i=Grid%isg,Grid%ieg
-                    call MultiF2Bulk(Model,State%Gas(i,j,k,:,:))
+        !$OMP private(i,j,k,B)
+        do k=kMin,kMax
+            do j=jMin,jMax
+                do i=iMin,iMax
+                    B = State%Bxyz(i,j,k,:)
+                    if (Model%doBackground) then
+                        B = B + Grid%B0(i,j,k,:)
+                    endif
+                    call MultiF2Bulk(Model,State%Gas(i,j,k,:,:),B)
                 enddo
             enddo
         enddo
-
     end subroutine State2Bulk
     
     function MultiFCs(Model,U) result(MaxCs)
@@ -113,6 +178,7 @@ module multifluid
         integer :: n
         real(rp) :: Csn
         logical, dimension(Model%nSpc) :: isGood
+        
         !Which fluids in this cell are good
         isGood = ( U(DEN,1:Model%nSpc) >= Spcs(:)%dVac )
         MaxCs = 0.0
@@ -151,4 +217,23 @@ module multifluid
 
     end function MultiFSpeed
 
+    !Answers the age old question, is fluid s0 good?
+    function isGoodFluid(Model,U,s0)
+        type(Model_T), intent(in) :: Model
+        real(rp), intent(in) :: U(NVAR,BLK:Model%nSpc)
+        integer , intent(in) :: s0
+        logical :: isGoodFluid
+
+        if ( (s0 > Model%nSpc) .or. (s0 < 0) ) then
+            isGoodFluid = .false.
+            return
+        endif
+        if (s0 == BLK) then
+            !Bulk is always good, otherwise you fucked up
+            isGoodFluid = .true.
+            return
+        endif
+        isGoodFluid = U(DEN,s0) >= Spcs(s0)%dVac
+    end function isGoodFluid
+    
 end module multifluid

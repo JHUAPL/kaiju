@@ -13,15 +13,25 @@ contains
   subroutine setup(this)
       class (MpiTestMethod), intent(inout) :: this
 
+      type(XML_Input_T) :: xmlInp
+
       call setMpiReal()
 
       allocate(gamAppMpi)
 
-      call initGamera_mpi(gamAppMpi,initUser,getMpiF08Communicator(this),'lfmbw_241.xml',.false.)
+      ! set options for gamera app
+      gamAppMpi%gOptions%userInitFunc => initUser
+      gamAppMpi%gOptionsMpi%gamComm = getMpiF08Communicator(this)
+      gamAppMpi%gOptionsMpi%doIO = .false.
 
-      do while ((gamAppMpi%Model%tFin - gamAppMpi%Model%t) > 1e-15)
-           call stepGamera_mpi(gamAppMpi)
-      enddo
+      ! run the gamera app
+      xmlInp = New_XML_Input('lfmbw_241.xml','Kaiju',.true.)
+      call gamAppMpi%InitModel(xmlInp)
+      call gamAppMpi%InitIO(xmlInp)
+
+      do while (gamAppMpi%Model%t < gamAppMpi%Model%tFin)
+          call gamAppMpi%AdvanceModel(0.0_rp)
+      end do
 
   end subroutine setup
 
@@ -30,6 +40,7 @@ contains
       class (MpiTestMethod), intent(inout) :: this
 
       deallocate(gamAppMpi)
+
   end subroutine teardown
 
   subroutine copyFaces4(var,is,ie,js,je,ks,ke)

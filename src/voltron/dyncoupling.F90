@@ -79,7 +79,8 @@ module dyncoupling
         class(voltApp_T), intent(inout) :: vApp
         real(rp), intent(in) :: newDeep
 
-        vApp%TargetDeepDT = newDeep
+        ! temporary unsupported, needs to be modified to support new coupling
+        !vApp%TargetDeepDT = newDeep
     end subroutine resetDeepCoupling
 
 

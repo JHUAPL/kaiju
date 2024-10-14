@@ -1,17 +1,14 @@
 module testVMpiDeep
   use testHelperMpi
-  use gamapp_mpi
   use voltapp_mpi
-  use gam2voltcomm_mpi
+  use gamCouple_mpi_G2V
   use uservoltic
   use ioH5
 
   implicit none
 
-  logical :: isGamera = .false.
-  type(gamAppMpi_T), allocatable :: gamAppMpi
+  type(gamCouplerMpi_gam_T), allocatable :: gamCplMpi
   type(voltAppMpi_T), allocatable :: voltAppMpi
-  type(gam2voltCommMpi_T), allocatable :: g2vCommMpi
 
 contains
 
@@ -22,30 +19,33 @@ contains
 
       integer :: ierror
       type(MPI_Comm) :: gamComm, voltComm
+      type(XML_Input_T) :: xmlInp
 
       call setMpiReal()
 
       write(caseFile,'(A,I0,A)') 'cmiD_deep_', this%getNumProcesses()-1, '.xml'
 
-
       if(this%getProcessRank() < (this%getNumProcesses()-1)) then
-          isGamera = .true.
-          allocate(gamAppMpi)
-          allocate(g2vCommMpi)
+          allocate(gamCplMpi)
 
           ! make gamera-only mpi communicator
-          call MPI_Comm_Split(getMpiF08Communicator(this), 0, this%getProcessRank(), gamComm, ierror)
+          call MPI_Comm_Split(getMpiF08Communicator(this), gamId, this%getProcessRank(), gamCplMpi%gOptionsMpi%gamComm, ierror)
 
-          call initGamera_mpi(gamAppMpi, initUser, gamComm, caseFile, .false.)
-          call initGam2Volt(g2vCommMpi, gamAppMpi, getMpiF08Communicator(this), caseFile)
+          gamCplMpi%gOptionsCplMpiG%couplingPoolComm = getMpiF08Communicator(this)
+          gamCplMpi%gOptions%userInitFunc => initUser
+          gamCplMpi%gOptionsMpi%doIO = .false.
+          xmlInp = New_XML_Input(trim(caseFile),'Kaiju',.true.)
+          call gamCplMpi%InitModel(xmlInp)
       else
-          isGamera = .false.
           allocate(voltAppMpi)
 
           ! make gamera-only mpi communicator
-          call MPI_Comm_Split(getMpiF08Communicator(this), 1, this%getProcessRank(), voltComm, ierror)
+          call MPI_Comm_Split(getMpiF08Communicator(this), voltId, this%getProcessRank(), voltComm, ierror)
 
-          call initVoltron_mpi(voltAppMpi, initUser, voltComm, getMpiF08Communicator(this), caseFile)
+          voltAppMpi%vOptions%gamUserInitFunc => initUser
+	  allocate(voltAppMpi%vOptionsMpi%couplingPoolComm)
+          voltAppMpi%vOptionsMpi%couplingPoolComm = getMpiF08Communicator(this)
+          call initVoltron_mpi(voltAppMpi, trim(caseFile))
       endif
 
   end subroutine setup
@@ -58,11 +58,7 @@ contains
           call endVoltronWaits(voltAppMpi)
           deallocate(voltAppMpi)
       endif
-      if(allocated(g2vCommMpi)) then
-          call endGam2VoltWaits(g2vCommMpi, gamAppMpi)
-          deallocate(g2vCommMpi)
-      endif
-      if(allocated(gamAppMpi)) deallocate(gamAppMpi)
+      if(allocated(gamCplMpi)) deallocate(gamCplMpi)
 
   end subroutine teardown
 
@@ -82,23 +78,23 @@ contains
       lVal = 8000
       mVal = 160000
 
-      if(isGamera) then
+      if(allocated(gamCplMpi)) then
           ! clear all cells
-          gamAppMpi%State%Gas(:,:,:,:,:) = 0
-          gamAppMpi%State%Bxyz(:,:,:,:) = 0
+          gamCplMpi%State%Gas(:,:,:,:,:) = 0
+          gamCplMpi%State%Bxyz(:,:,:,:) = 0
 
           ! set values for gas
-          do i=gamAppMpi%Grid%is,gamAppMpi%Grid%ie
-              do j=gamAppMpi%Grid%js,gamAppMpi%Grid%je
-                  do k=gamAppMpi%Grid%ks,gamAppMpi%Grid%ke
+          do i=gamCplMpi%Grid%is,gamCplMpi%Grid%ie
+              do j=gamCplMpi%Grid%js,gamCplMpi%Grid%je
+                  do k=gamCplMpi%Grid%ks,gamCplMpi%Grid%ke
                       do l=1,NVAR
-                          do m=0,gamAppMpi%Model%nSpc
-                              gamAppMpi%State%Gas(i,j,k,l,m) = &
+                          do m=0,gamCplMpi%Model%nSpc
+                              gamCplMpi%State%Gas(i,j,k,l,m) = &
                                   mVal*m + &
                                   lVal*l + &
-                                  kVal*(k+gamAppMpi%Grid%ijkShift(KDIR)) + &
-                                  jVal*(j+gamAppMpi%Grid%ijkShift(JDIR)) + &
-                                  iVal*(i+gamAppMpi%Grid%ijkShift(IDIR))
+                                  kVal*(k+gamCplMpi%Grid%ijkShift(KDIR)) + &
+                                  jVal*(j+gamCplMpi%Grid%ijkShift(JDIR)) + &
+                                  iVal*(i+gamCplMpi%Grid%ijkShift(IDIR))
                           enddo
                       enddo
                   enddo
@@ -106,43 +102,48 @@ contains
           enddo
 
           ! set values for bxyz
-          do i=gamAppMpi%Grid%is,gamAppMpi%Grid%ie
-              do j=gamAppMpi%Grid%js,gamAppMpi%Grid%je
-                  do k=gamAppMpi%Grid%ks,gamAppMpi%Grid%ke
+          do i=gamCplMpi%Grid%is,gamCplMpi%Grid%ie
+              do j=gamCplMpi%Grid%js,gamCplMpi%Grid%je
+                  do k=gamCplMpi%Grid%ks,gamCplMpi%Grid%ke
                       do l=1,NDIM
-                          gamAppMpi%State%Bxyz(i,j,k,l) = &
+                          gamCplMpi%State%Bxyz(i,j,k,l) = &
                               lVal*l + &
-                              kVal*(k+gamAppMpi%Grid%ijkShift(KDIR)) + &
-                              jVal*(j+gamAppMpi%Grid%ijkShift(JDIR)) + &
-                              iVal*(i+gamAppMpi%Grid%ijkShift(IDIR))
+                              kVal*(k+gamCplMpi%Grid%ijkShift(KDIR)) + &
+                              jVal*(j+gamCplMpi%Grid%ijkShift(JDIR)) + &
+                              iVal*(i+gamCplMpi%Grid%ijkShift(IDIR))
                       enddo
                   enddo
               enddo
           enddo
 
           ! send the data to voltron
-          call sendDeepData(g2vCommMpi, gamAppMpi)
+          call sendVoltronCplDataMpi(gamCplMpi)
       else
           ! clear all cells
-          voltAppMpi%gAppLocal%State%Gas(:,:,:,:,:) = 0
-          voltAppMpi%gAppLocal%State%Bxyz(:,:,:,:) = 0
+          voltAppMpi%gApp%State%Gas(:,:,:,:,:) = 0
+          voltAppMpi%gApp%State%Bxyz(:,:,:,:) = 0
 
-          ! receive the data from gamera
-          call recvDeepData_mpi(voltAppMpi)
+          SELECT type(cpl=>voltAppMpi%gApp)
+              TYPE IS (gamCouplerMpi_volt_T)
+                  ! receive the data from gamera
+                  call recvGameraCplDataMpi(cpl)
+              CLASS DEFAULT
+                  @assertTrue(.false., "Voltron Allocated non-mpi Gamera coupler for MPI Voltron Coupling Test. Failure")
+          ENDSELECT
 
           ! check gas values
-          do i=voltAppMpi%gAppLocal%Grid%is,voltAppMpi%gAppLocal%Grid%ie
-              do j=voltAppMpi%gAppLocal%Grid%js,voltAppMpi%gAppLocal%Grid%je
-                  do k=voltAppMpi%gAppLocal%Grid%ks,voltAppMpi%gAppLocal%Grid%ke
+          do i=voltAppMpi%gApp%Grid%is,voltAppMpi%gApp%Grid%ie
+              do j=voltAppMpi%gApp%Grid%js,voltAppMpi%gApp%Grid%je
+                  do k=voltAppMpi%gApp%Grid%ks,voltAppMpi%gApp%Grid%ke
                       do l=1,NVAR
-                          do m=0,voltAppMpi%gAppLocal%Model%nSpc
+                          do m=0,voltAppMpi%gApp%Model%nSpc
                               checkVal = mVal*m + &
                                   lVal*l + &
                                   iVal*i + &
                                   jVal*j + &
                                   kVal*k
                               write (checkMessage,'(A,I0,A,I0,A,I0,A,I0,A,I0,A)') 'voltron gas wrong at (',i,',',j,',',k,',',l,',',m,')'
-                              @assertEqual(checkVal,voltAppMpi%gAppLocal%State%Gas(i,j,k,l,m), trim(checkMessage))
+                              @assertEqual(checkVal,voltAppMpi%gApp%State%Gas(i,j,k,l,m), trim(checkMessage))
                           enddo
                       enddo
                   enddo
@@ -150,16 +151,16 @@ contains
           enddo
 
           ! check bxyz values
-          do i=voltAppMpi%gAppLocal%Grid%is,voltAppMpi%gAppLocal%Grid%ie
-              do j=voltAppMpi%gAppLocal%Grid%js,voltAppMpi%gAppLocal%Grid%je
-                  do k=voltAppMpi%gAppLocal%Grid%ks,voltAppMpi%gAppLocal%Grid%ke
+          do i=voltAppMpi%gApp%Grid%is,voltAppMpi%gApp%Grid%ie
+              do j=voltAppMpi%gApp%Grid%js,voltAppMpi%gApp%Grid%je
+                  do k=voltAppMpi%gApp%Grid%ks,voltAppMpi%gApp%Grid%ke
                       do l=1,NDIM
                           checkVal = lVal*l + &
                               iVal*i + &
                               jVal*j + &
                               kVal*k
                           write (checkMessage,'(A,I0,A,I0,A,I0,A,I0,A)') 'voltron bxyz wrong at (',i,',',j,',',k,',',l,')'
-                          @assertEqual(checkVal, voltAppMpi%gAppLocal%State%Bxyz(i,j,k,l), trim(checkMessage))
+                          @assertEqual(checkVal, voltAppMpi%gApp%State%Bxyz(i,j,k,l), trim(checkMessage))
                       enddo
                   enddo
               enddo
@@ -185,26 +186,26 @@ contains
       lVal = 8000
       mVal = 160000
 
-      if(isGamera) then
+      if(allocated(gamCplMpi)) then
           ! clear all cells
-          gamAppMpi%Grid%Gas0(:,:,:,:,:) = 0
+          gamCplMpi%Grid%Gas0(:,:,:,:,:) = 0
 
           ! receive the data from voltron
-          call recvDeepData(g2vCommMpi, gamAppMpi)
+          call recvDeepCplDataMpi(gamCplMpi)
 
           ! check gas0 values
-          do i=gamAppMpi%Grid%isg,gamAppMpi%Grid%ieg
-              do j=gamAppMpi%Grid%jsg,gamAppMpi%Grid%jeg
-                  do k=gamAppMpi%Grid%ksg,gamAppMpi%Grid%keg
+          do i=gamCplMpi%Grid%isg,gamCplMpi%Grid%ieg
+              do j=gamCplMpi%Grid%jsg,gamCplMpi%Grid%jeg
+                  do k=gamCplMpi%Grid%ksg,gamCplMpi%Grid%keg
                       do l=1,NVAR
-                          do m=0,gamAppMpi%Model%nSpc
+                          do m=0,gamCplMpi%Model%nSpc
                               checkVal = mVal*m + &
                                   lVal*l + &
-                                  kVal*(k+gamAppMpi%Grid%ijkShift(KDIR)) + &
-                                  jVal*(j+gamAppMpi%Grid%ijkShift(JDIR)) + &
-                                  iVal*(i+gamAppMpi%Grid%ijkShift(IDIR))
+                                  kVal*(k+gamCplMpi%Grid%ijkShift(KDIR)) + &
+                                  jVal*(j+gamCplMpi%Grid%ijkShift(JDIR)) + &
+                                  iVal*(i+gamCplMpi%Grid%ijkShift(IDIR))
                               write (checkMessage,'(A,I0,A,I0,A,I0,A,I0,A,I0,A)') 'gamera gas0 wrong at (',i,',',j,',',k,',',l,',',m,')'
-                              @assertEqual(checkVal,gamAppMpi%Grid%Gas0(i,j,k,l,m), trim(checkMessage))
+                              @assertEqual(checkVal,gamCplMpi%Grid%Gas0(i,j,k,l,m), trim(checkMessage))
                           enddo
                       enddo
                   enddo
@@ -212,15 +213,15 @@ contains
           enddo
       else
           ! clear all cells
-          voltAppMpi%gAppLocal%Grid%Gas0(:,:,:,:,:) = 0
+          voltAppMpi%gApp%Grid%Gas0(:,:,:,:,:) = 0
 
           ! set gas0 values
-          do i=voltAppMpi%gAppLocal%Grid%isg,voltAppMpi%gAppLocal%Grid%ieg
-              do j=voltAppMpi%gAppLocal%Grid%jsg,voltAppMpi%gAppLocal%Grid%jeg
-                  do k=voltAppMpi%gAppLocal%Grid%ksg,voltAppMpi%gAppLocal%Grid%keg
+          do i=voltAppMpi%gApp%Grid%isg,voltAppMpi%gApp%Grid%ieg
+              do j=voltAppMpi%gApp%Grid%jsg,voltAppMpi%gApp%Grid%jeg
+                  do k=voltAppMpi%gApp%Grid%ksg,voltAppMpi%gApp%Grid%keg
                       do l=1,NVAR
-                          do m=0,voltAppMpi%gAppLocal%Model%nSpc
-                              voltAppMpi%gAppLocal%Grid%Gas0(i,j,k,l,m) = mVal*m + &
+                          do m=0,voltAppMpi%gApp%Model%nSpc
+                              voltAppMpi%gApp%Grid%Gas0(i,j,k,l,m) = mVal*m + &
                                   lVal*l + &
                                   iVal*i + &
                                   jVal*j + &
@@ -231,8 +232,13 @@ contains
               enddo
           enddo
 
-          ! send the data to gamera
-          call sendDeepData_mpi(voltAppMpi)
+          SELECT type(cpl=>voltAppMpi%gApp)
+              TYPE IS (gamCouplerMpi_volt_T)
+                  ! send the data to gamera
+                  call sendDeepCplDataMpi(cpl)
+              CLASS DEFAULT
+                  @assertTrue(.false., "Voltron Allocated non-mpi Gamera coupler for MPI Voltron Coupling Test. Failure")
+          ENDSELECT
 
       endif
   end subroutine testVolt2MhdDeepCopy
@@ -245,19 +251,26 @@ contains
     procedure(VectorField_T), pointer :: Axyz
     real(rp) testValue
 
-    if(isGamera) then
+    if(allocated(gamCplMpi)) then
         ! create a dipole field in Gamera. This code is copied from prob.F90
         Axyz => VP_Dipole
-        call VectorPot2Flux(gamAppMpi%Model,gamAppMpi%Grid,gamAppMpi%State,Axyz)
+        call VectorPot2Flux(gamCplMpi%Model,gamCplMpi%Grid,gamCplMpi%State,Axyz)
 
-        call bFlux2Fld(gamAppMpi%Model, gamAppMpi%Grid, gamAppMpi%State%magFlux, gamAppMpi%State%Bxyz)
+        call bFlux2Fld(gamCplMpi%Model, gamCplMpi%Grid, gamCplMpi%State%magFlux, gamCplMpi%State%Bxyz)
 
-        call sendDeepData(g2vCommMpi, gamAppMpi)
+        ! send the data to voltron
+        call sendVoltronCplDataMpi(gamCplMpi)
 
     else
-        call recvDeepData_mpi(voltAppMpi)
+        SELECT type(cpl=>voltAppMpi%gApp)
+            TYPE IS (gamCouplerMpi_volt_T)
+                ! receive the data from gamera
+                call recvGameraCplDataMpi(cpl)
+            CLASS DEFAULT
+                @assertTrue(.false., "Voltron Allocated non-mpi Gamera coupler for MPI Voltron Coupling Test. Failure")
+        ENDSELECT
 
-        call convertGameraToRemix(voltAppMpi%mhd2mix, voltAppMpi%gAppLocal, voltAppMpi%remixApp)
+        call convertGameraToRemix(voltAppMpi%mhd2mix, voltAppMpi%gApp, voltAppMpi%remixApp)
 
         call mapGameraToRemix(voltAppMpi%mhd2mix, voltAppMpi%remixApp)
 

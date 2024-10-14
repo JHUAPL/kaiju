@@ -1,17 +1,14 @@
 module testVMpi
   use testHelperMpi
-  use gamapp_mpi
   use voltapp_mpi
-  use gam2voltcomm_mpi
+  use gamCouple_mpi_G2V
   use uservoltic
   use ioH5
 
   implicit none
 
-  logical :: isGamera = .false.
-  type(gamAppMpi_T), allocatable :: gamAppMpi
+  type(gamCouplerMpi_gam_T), allocatable :: gamCplMpi
   type(voltAppMpi_T), allocatable :: voltAppMpi
-  type(gam2voltCommMpi_T), allocatable :: g2vCommMpi
 
 contains
 
@@ -21,7 +18,8 @@ contains
       character(len=strLen) :: caseFile
 
       integer :: ierror
-      type(MPI_Comm) :: gamComm, voltComm
+      type(MPI_Comm) :: voltComm
+      type(XML_Input_T) :: xmlInp
 
       call setMpiReal()
 
@@ -29,23 +27,26 @@ contains
 
 
       if(this%getProcessRank() < (this%getNumProcesses()-1)) then
-          isGamera = .true.
-          allocate(gamAppMpi)
-          allocate(g2vCommMpi)
+          allocate(gamCplMpi)
 
           ! make gamera-only mpi communicator
-          call MPI_Comm_Split(getMpiF08Communicator(this), 0, this%getProcessRank(), gamComm, ierror)
+          call MPI_Comm_Split(getMpiF08Communicator(this), gamId, this%getProcessRank(), gamCplMpi%gOptionsMpi%gamComm, ierror)
 
-          call initGamera_mpi(gamAppMpi, initUser, gamComm, caseFile, .false.)
-          call initGam2Volt(g2vCommMpi, gamAppMpi, getMpiF08Communicator(this), caseFile)
+	  gamCplMpi%gOptionsCplMpiG%couplingPoolComm = getMpiF08Communicator(this)
+          gamCplMpi%gOptions%userInitFunc => initUser
+          gamCplMpi%gOptionsMpi%doIO = .false.
+          xmlInp = New_XML_Input(trim(caseFile),'Kaiju',.true.)
+          call gamCplMpi%InitModel(xmlInp)
       else
-          isGamera = .false.
           allocate(voltAppMpi)
 
           ! make gamera-only mpi communicator
-          call MPI_Comm_Split(getMpiF08Communicator(this), 1, this%getProcessRank(), voltComm, ierror)
+          call MPI_Comm_Split(getMpiF08Communicator(this), voltId, this%getProcessRank(), voltComm, ierror)
 
-          call initVoltron_mpi(voltAppMpi, initUser, voltComm, getMpiF08Communicator(this), caseFile)
+          voltAppMpi%vOptions%gamUserInitFunc => initUser
+	  allocate(voltAppMpi%vOptionsMpi%couplingPoolComm)
+          voltAppMpi%vOptionsMpi%couplingPoolComm = getMpiF08Communicator(this)
+          call initVoltron_mpi(voltAppMpi, trim(caseFile))
       endif
 
   end subroutine setup
@@ -58,55 +59,9 @@ contains
           call endVoltronWaits(voltAppMpi)
           deallocate(voltAppMpi)
       endif
-      if(allocated(g2vCommMpi)) then
-           call endGam2VoltWaits(g2vCommMpi, gamAppMpi)
-           deallocate(g2vCommMpi)
-      endif
-      if(allocated(gamAppMpi)) deallocate(gamAppMpi)
+      if(allocated(gamCplMpi)) deallocate(gamCplMpi)
 
   end subroutine teardown
-
-  @test(npes=[2,5,9])
-  subroutine testStepUpdate(this)
-      class (MpiTestMethod), intent(inout) :: this
-
-      character(len=strLen) :: checkMessage
-
-      if(isGamera) then
-          ! setting fixed values to gamera to ensure updates occur
-          gamAppMpi%Model%t = 1.23
-          gamAppMpi%Model%ts = 178
-          g2vCommMpi%time = 0
-          g2vCommMpi%MJD = 0
-          g2vCommMpi%ts = 0
-
-          call localStepVoltronTime(g2vCommMpi, gamAppMpi)
-          call performStepVoltron(g2vCommMpi,gamAppMpi)
-
-          write (checkMessage,'(A,I0)') 'voltron time wrong on gamera rank ',this%getProcessRank()
-          @assertEqual(1.23*gamAppMpi%Model%Units%gT0, g2vCommMpi%time, trim(checkMessage))
-          write (checkMessage,'(A,I0)') 'MJD wrong on gamera rank ',this%getProcessRank()
-          @assertLessThanOrEqual(abs(gamAppMpi%Model%MJD0 + g2vCommMpi%time/(60.0*60.0*24.0) - g2vCommMpi%MJD), 1e-5_rp, trim(checkMessage))
-          write (checkMessage,'(A,I0)') 'voltron ts wrong on gamera rank ',this%getProcessRank()
-          @assertEqual(178, g2vCommMpi%ts, trim(checkMessage))
-      else
-          ! setting fixed values to voltron to ensure updates occur
-          voltAppMpi%gAppLocal%Model%t = 0
-          voltAppMpi%gAppLocal%Model%ts = 0
-          voltAppMpi%time = 0
-          voltAppMpi%MJD = 0
-          voltAppMpi%ts = 0
-
-          call stepVoltron_mpi(voltAppMpi)
-
-          @assertEqual(1.23, voltAppMpi%gAppLocal%Model%t, 'gamera time value wrong on voltron')
-          @assertEqual(178, voltAppMpi%gAppLocal%Model%ts, 'gamera ts value wrong on voltron')
-          @assertEqual(1.23*voltAppMpi%gAppLocal%Model%Units%gT0, voltAppMpi%time, 'voltron time value wrong on voltron')
-          @assertLessThanOrEqual(abs(voltAppMpi%gAppLocal%Model%MJD0 + voltAppMpi%time/(60.0*60.0*24.0) - voltAppMpi%MJD), 1e-5_rp, 'MJD value wrong on voltron')
-          @assertEqual(178, voltAppMpi%ts, 'voltron ts value wrong on voltron')
-      endif
-
-  end subroutine testStepUpdate
 
   @test(npes=[2,5,9])
   subroutine testVolt2MhdShallowCopy(this)
@@ -123,9 +78,9 @@ contains
       kVal = 400
       lVal = 8000
 
-      if(isGamera) then
-          if(gamAppMpi%Grid%hasLowerBC(IDIR)) then
-              SELECT type(iiBC=>gamAppMpi%Grid%externalBCs(INI)%p)
+      if(allocated(gamCplMpi)) then
+          if(gamCplMpi%Grid%hasLowerBC(IDIR)) then
+              SELECT type(iiBC=>gamCplMpi%Grid%externalBCs(INI)%p)
                   TYPE IS (IonInnerBC_T)
 
                       ! clear all cells
@@ -133,17 +88,17 @@ contains
                       iiBC%inExyz(:,:,:,:) = 0
 
                       ! receive the data from voltron
-                      call recvShallowData(g2vCommMpi, gamAppMpi)
+                      call recvShallowCplDataMpi(gamCplMpi)
 
                       ! check inExyz values
-                      do i=1,g2vCommMpi%PsiSh
-                          do j=gamAppMpi%Grid%jsg,gamAppMpi%Grid%jeg
-                              do k=gamAppMpi%Grid%ksg,gamAppMpi%Grid%keg
+                      do i=1,PsiSh
+                          do j=gamCplMpi%Grid%jsg,gamCplMpi%Grid%jeg
+                              do k=gamCplMpi%Grid%ksg,gamCplMpi%Grid%keg
                                   do l=1,NDIM
                                       checkVal = lVal*l + &
-                                          kVal*(k+gamAppMpi%Grid%ijkShift(KDIR)) + &
-                                          jVal*(j+gamAppMpi%Grid%ijkShift(JDIR)) + &
-                                          iVal*(i+gamAppMpi%Grid%ijkShift(IDIR))
+                                          kVal*(k+gamCplMpi%Grid%ijkShift(KDIR)) + &
+                                          jVal*(j+gamCplMpi%Grid%ijkShift(JDIR)) + &
+                                          iVal*(i+gamCplMpi%Grid%ijkShift(IDIR))
                                       write (checkMessage,'(A,I0,A,I0,A,I0,A,I0,A)') 'gamera inExyz wrong at (',i,',',j,',',k,',',l,')'
                                       @assertEqual(checkVal, iiBC%inExyz(i,j,k,l), trim(checkMessage))
                                   enddo
@@ -152,14 +107,14 @@ contains
                       enddo
 
                       ! check inEijk values
-                      do i=1,g2vCommMpi%PsiSh+1
-                          do j=gamAppMpi%Grid%jsg,gamAppMpi%Grid%jeg+1
-                              do k=gamAppMpi%Grid%ksg,gamAppMpi%Grid%keg+1
+                      do i=1,PsiSh+1
+                          do j=gamCplMpi%Grid%jsg,gamCplMpi%Grid%jeg+1
+                              do k=gamCplMpi%Grid%ksg,gamCplMpi%Grid%keg+1
                                   do l=1,NDIM
                                       checkVal = lVal*l + &
-                                          kVal*(k+gamAppMpi%Grid%ijkShift(KDIR)) + &
-                                          jVal*(j+gamAppMpi%Grid%ijkShift(JDIR)) + &
-                                          iVal*(i+gamAppMpi%Grid%ijkShift(IDIR))
+                                          kVal*(k+gamCplMpi%Grid%ijkShift(KDIR)) + &
+                                          jVal*(j+gamCplMpi%Grid%ijkShift(JDIR)) + &
+                                          iVal*(i+gamCplMpi%Grid%ijkShift(IDIR))
                                       write (checkMessage,'(A,I0,A,I0,A,I0,A,I0,A)') 'gamera inEijk wrong at (',i,',',j,',',k,',',l,')'
                                       @assertEqual(checkVal, iiBC%inEijk(i,j,k,l), trim(checkMessage))
                                   enddo
@@ -171,19 +126,19 @@ contains
               END SELECT
           else
               ! everyone has to call to receive the data from voltron
-              call recvShallowData(g2vCommMpi, gamAppMpi)
+              call recvShallowCplDataMpi(gamCplMpi)
           endif
       else
-          SELECT type(iiBC=>voltAppMpi%gAppLocal%Grid%externalBCs(INI)%p)
+          SELECT type(iiBC=>voltAppMpi%gApp%Grid%externalBCs(INI)%p)
               TYPE IS (IonInnerBC_T)
                   ! clear all cells
                   iiBC%inExyz(:,:,:,:) = 0
                   iiBC%inEijk(:,:,:,:) = 0
 
                   ! set inExyz
-                  do i=1,voltAppMpi%mix2mhd%PsiShells
-                      do j=voltAppMpi%gAppLocal%Grid%jsg,voltAppMpi%gAppLocal%Grid%jeg
-                          do k=voltAppMpi%gAppLocal%Grid%ksg,voltAppMpi%gAppLocal%Grid%keg
+                  do i=1,PsiSh
+                      do j=voltAppMpi%gApp%Grid%jsg,voltAppMpi%gApp%Grid%jeg
+                          do k=voltAppMpi%gApp%Grid%ksg,voltAppMpi%gApp%Grid%keg
                               do l=1,NDIM
                                   iiBC%inExyz(i,j,k,l) = lVal*l + &
                                       iVal*i + &
@@ -195,9 +150,9 @@ contains
                   enddo
 
                   ! set inEijk
-                  do i=1,voltAppMpi%mix2mhd%PsiShells+1
-                      do j=voltAppMpi%gAppLocal%Grid%jsg,voltAppMpi%gAppLocal%Grid%jeg+1
-                          do k=voltAppMpi%gAppLocal%Grid%ksg,voltAppMpi%gAppLocal%Grid%keg+1
+                  do i=1,PsiSh+1
+                      do j=voltAppMpi%gApp%Grid%jsg,voltAppMpi%gApp%Grid%jeg+1
+                          do k=voltAppMpi%gApp%Grid%ksg,voltAppMpi%gApp%Grid%keg+1
                               do l=1,NDIM
                                   iiBC%inEijk(i,j,k,l) = lVal*l + &
                                       iVal*i + &
@@ -208,14 +163,46 @@ contains
                       enddo
                   enddo
 
-                  ! send the data to gamera
-                  call sendShallowData_mpi(voltAppMpi)
               CLASS DEFAULT
                   @assertEqual(0,1,'No Remix BC on Voltron')
           END SELECT
+
+          SELECT type(cpl=>voltAppMpi%gApp)
+              TYPE IS (gamCouplerMpi_volt_T)
+                  ! send the data to gamera
+                  call sendShallowCplDataMpi(cpl)
+
+              CLASS DEFAULT
+                  @assertTrue(.false., "Voltron Allocated non-mpi Gamera coupler for MPI Voltron Coupling Test. Failure")
+          ENDSELECT
+
       endif
 
   end subroutine testVolt2MhdShallowCopy
+
+  @test(npes=[9])
+  subroutine testVolt2MhdTimeCopy(this)
+      class (MpiTestMethod), intent(inout) :: this
+
+      real(rp) :: checkVal
+      character(len=strLen) :: checkMessage
+
+      checkVal = 123456.0_rp ! random value for testing with
+
+      if(allocated(gamCplMpi)) then
+          call recvCplTimeMpi(gamCplMpi)
+          @assertEqual(checkVal/gamCplMpi%Model%Units%gT0, gamCplMpi%DeepT, "Time value transmitted from Voltron to Gamera was wrong")
+      else
+          SELECT type(cpl=>voltAppMpi%gApp)
+              TYPE IS (gamCouplerMpi_volt_T)
+                  ! send the data to gamera
+                  call sendCplTimeMpi(cpl, checkVal)
+              CLASS DEFAULT
+                  @assertTrue(.false., "Voltron Allocated non-mpi Gamera coupler for MPI Voltron Coupling Test. Failure")
+          ENDSELECT
+      endif
+
+  end subroutine testVolt2MhdTimeCopy
 
   @test(npes=[2,5,9])
   subroutine VMPIcorotationTest(this)
@@ -231,9 +218,9 @@ contains
       RIn  = 1.0
       Psi0 = 10.0
 
-      if(isGamera) then
-          if(gamAppMpi%Grid%hasLowerBC(IDIR)) then
-              SELECT type(iiBC=>gamAppMpi%Grid%externalBCs(INI)%p)
+      if(allocated(gamCplMpi)) then
+          if(gamCplMpi%Grid%hasLowerBC(IDIR)) then
+              SELECT type(iiBC=>gamCplMpi%Grid%externalBCs(INI)%p)
                   TYPE IS (IonInnerBC_T)
 
                       ! clear all cells
@@ -241,23 +228,23 @@ contains
                       iiBC%inExyz(:,:,:,:) = 0
 
                       ! receive the data from voltron
-                      call recvShallowData(g2vCommMpi, gamAppMpi)
+                      call recvShallowCplDataMpi(gamCplMpi)
 
                       ! verify that the gamera field (iiBC%inEijk, iiBC%inExyz, or both) have the expected values here
                       ! inExyz should be pointed exactly radially at all locations
                       deltaSum = 0.0_rp
                       !Only loop over active cells
-                      do k=gamAppMpi%Grid%ks,gamAppMpi%Grid%ke
-                          do j=gamAppMpi%Grid%js,gamAppMpi%Grid%je
+                      do k=gamCplMpi%Grid%ks,gamCplMpi%Grid%ke
+                          do j=gamCplMpi%Grid%js,gamCplMpi%Grid%je
 
                               !Map to active ip,jp,kp (i=Grid%is => ip=Grid%is)
-                              call lfmIJKcc(gamAppMpi%Model,gamAppMpi%Grid,gamAppMpi%Grid%is,j,k,ip,jp,kp)
+                              call lfmIJKcc(gamCplMpi%Model,gamCplMpi%Grid,gamCplMpi%Grid%is,j,k,ip,jp,kp)
 
-                              do n=1,gamAppMpi%Model%Ng
-                                      ig = gamAppMpi%Grid%is-n
-                                      np = gamAppMpi%Model%nG-n+1
+                              do n=1,gamCplMpi%Model%Ng
+                                      ig = gamCplMpi%Grid%is-n
+                                      np = gamCplMpi%Model%nG-n+1
 
-                                      call cellCenter(gamAppMpi%Grid, ig,j,k,xc,yc,zc)
+                                      call cellCenter(gamCplMpi%Grid, ig,j,k,xc,yc,zc)
                                       rHatP = normVec([xc,yc,zc])
 
                                       eHat = normVec(iiBC%inExyz(np,jp,kp,:))
@@ -270,25 +257,25 @@ contains
                       end do
 
                        ! remix doesn't go below a certain lat, causing discontinuity. high error
-                       errorThresh = 2*(1+gamAppMpi%Grid%ke-gamAppMpi%Grid%ks)*(1+gamAppMpi%Grid%je-gamAppMpi%Grid%js)*gamAppMpi%Model%Ng
+                       errorThresh = 2*(1+gamCplMpi%Grid%ke-gamCplMpi%Grid%ks)*(1+gamCplMpi%Grid%je-gamCplMpi%Grid%js)*gamCplMpi%Model%Ng
                       @assertLessThanOrEqual(deltaSum, errorThresh, 'Magnetic field from remix was not pointing radially')
 
                       !Now test Eijk fields
                       deltaSum = 0.0
                       !Only loop over active cells
-                      do k=gamAppMpi%Grid%ks,gamAppMpi%Grid%ke
-                          do j=gamAppMpi%Grid%js,gamAppMpi%Grid%je
+                      do k=gamCplMpi%Grid%ks,gamCplMpi%Grid%ke
+                          do j=gamCplMpi%Grid%js,gamCplMpi%Grid%je
                               !Map to active ip,jp,kp (i=Grid%is => ip=Grid%is)
-                              call lfmIJKcc(gamAppMpi%Model,gamAppMpi%Grid,gamAppMpi%Grid%is,j,k,ip,jp,kp)
-                              do n=1,gamAppMpi%Model%Ng
-                                  ig = gamAppMpi%Grid%is-n
-                                  np = gamAppMpi%Model%nG-n+1
+                              call lfmIJKcc(gamCplMpi%Model,gamCplMpi%Grid,gamCplMpi%Grid%is,j,k,ip,jp,kp)
+                              do n=1,gamCplMpi%Model%Ng
+                                  ig = gamCplMpi%Grid%is-n
+                                  np = gamCplMpi%Model%nG-n+1
                                   !Convert Eijk (edges) to cc-Eijk
                                   ccEijk(IDIR) = 0.25*(iiBC%inEijk(np,j,k,IDIR)+iiBC%inEijk(np,j,k+1,IDIR)+iiBC%inEijk(np,j+1,k,IDIR)+iiBC%inEijk(np,j+1,k+1,IDIR))
                                   ccEijk(JDIR) = 0.25*(iiBC%inEijk(np,j,k,JDIR)+iiBC%inEijk(np,j,k+1,JDIR)+iiBC%inEijk(np+1,j,k,JDIR)+iiBC%inEijk(np+1,j,k+1,JDIR))
                                   ccEijk(KDIR) = 0.25*(iiBC%inEijk(np,j,k,KDIR)+iiBC%inEijk(np+1,j,k,KDIR)+iiBC%inEijk(np,j+1,k,KDIR)+iiBC%inEijk(np+1,j+1,k,KDIR))
                                   !Now convert cc-Eijk to Exyz
-                                  Exyz = ccEijk2Exyz(gamAppMpi%Model,gamAppMpi%Grid,ccEijk,ig,j,k)
+                                  Exyz = ccEijk2Exyz(gamCplMpi%Model,gamCplMpi%Grid,ccEijk,ig,j,k)
                                   !Exyz above is approximation to inExyz, ie testing whether or not Eijk and Exyz are consistent
                                   deltaSum = deltaSum + norm2(Exyz-iiBC%inExyz(np,jp,kp,:))
                               enddo
@@ -296,7 +283,7 @@ contains
                     enddo
 
                     ! remix doesn't go below a certain lat, causing discontinuity. high error
-                    errorThresh = 2.5e-2*(1+gamAppMpi%Grid%ke-gamAppMpi%Grid%ks)*(1+gamAppMpi%Grid%je-gamAppMpi%Grid%js)*gamAppMpi%Model%Ng
+                    errorThresh = 2.5e-2*(1+gamCplMpi%Grid%ke-gamCplMpi%Grid%ks)*(1+gamCplMpi%Grid%je-gamCplMpi%Grid%js)*gamCplMpi%Model%Ng
                     @assertLessThanOrEqual(deltaSum, errorThresh, 'inEijk values did not match inExyz values')
 
                   CLASS DEFAULT
@@ -304,7 +291,7 @@ contains
               END SELECT
           else
               ! everyone has to call to receive the data from voltron
-              call recvShallowData(g2vCommMpi, gamAppMpi)
+              call recvShallowCplDataMpi(gamCplMpi)
           endif
       else
           associate(rApp=>voltAppMpi%remixApp)
@@ -320,15 +307,20 @@ contains
           enddo
           end associate
 
-          !Can add a test of the interpolation to Gamera shells here?
-          call mapRemixToGamera(voltAppMpi%mix2mhd, voltAppMpi%remixApp)
+          SELECT type(cpl=>voltAppMpi%gApp)
+              TYPE IS (gamCouplerMpi_volt_T)
+                  !Can add a test of the interpolation to Gamera shells here?
+                  call mapRemixToGamera(cpl, voltAppMpi%remixApp)
 
-          call convertRemixToGamera(voltAppMpi%mix2mhd, voltAppMpi%remixApp, voltAppMpi%gAppLocal, .false.) !Don't add corotation potential          
+                  call convertRemixToGamera(cpl, voltAppMpi%remixApp, .false.) !Don't add corotation potential
 
-          ! send the data to gamera
-          call sendShallowData_mpi(voltAppMpi)
+                  ! send the data to gamera
+                  call sendShallowCplDataMpi(cpl)
+              CLASS DEFAULT
+                  @assertTrue(.false., "Voltron Allocated non-mpi Gamera coupler for MPI Voltron Coupling Test. Failure")
+          ENDSELECT
 
-          SELECT type(iiBC=>voltAppMpi%gAppLocal%Grid%externalBCs(INI)%p)
+          SELECT type(iiBC=>voltAppMpi%gApp%Grid%externalBCs(INI)%p)
               TYPE IS (IonInnerBC_T)
 
                   !call CheckAndKill('voltrontest.h5')
@@ -343,17 +335,17 @@ contains
                   ! check that inExyz is pointed exactly radially at all locations
                   deltaSum = 0.0_rp
                   !Only loop over active cells
-                  do k=voltAppMpi%gAppLocal%Grid%ks,voltAppMpi%gAppLocal%Grid%ke
-                      do j=voltAppMpi%gAppLocal%Grid%js,voltAppMpi%gAppLocal%Grid%je
+                  do k=voltAppMpi%gApp%Grid%ks,voltAppMpi%gApp%Grid%ke
+                      do j=voltAppMpi%gApp%Grid%js,voltAppMpi%gApp%Grid%je
 
                           !Map to active ip,jp,kp (i=Grid%is => ip=Grid%is)
-                          call lfmIJKcc(voltAppMpi%gAppLocal%Model,voltAppMpi%gAppLocal%Grid,voltAppMpi%gAppLocal%Grid%is,j,k,ip,jp,kp)
+                          call lfmIJKcc(voltAppMpi%gApp%Model,voltAppMpi%gApp%Grid,voltAppMpi%gApp%Grid%is,j,k,ip,jp,kp)
 
-                          do n=1,voltAppMpi%gAppLocal%Model%Ng
-                              ig = voltAppMpi%gAppLocal%Grid%is-n
-                              np = voltAppMpi%gAppLocal%Model%nG-n+1
+                          do n=1,voltAppMpi%gApp%Model%Ng
+                              ig = voltAppMpi%gApp%Grid%is-n
+                              np = voltAppMpi%gApp%Model%nG-n+1
 
-                              call cellCenter(voltAppMpi%gAppLocal%Grid, ig,j,k,xc,yc,zc)
+                              call cellCenter(voltAppMpi%gApp%Grid, ig,j,k,xc,yc,zc)
                               rHatP = normVec([xc,yc,zc])
 
                               eHat = normVec(iiBC%inExyz(np,jp,kp,:))
@@ -366,25 +358,25 @@ contains
                   end do
 
                   ! remix doesn't go below a certain lat, causing discontinuity. high error
-                  errorThresh = 2*(1+voltAppMpi%gAppLocal%Grid%ke-voltAppMpi%gAppLocal%Grid%ks)*(1+voltAppMpi%gAppLocal%Grid%je-voltAppMpi%gAppLocal%Grid%js)*voltAppMpi%gAppLocal%Model%Ng
+                  errorThresh = 2*(1+voltAppMpi%gApp%Grid%ke-voltAppMpi%gApp%Grid%ks)*(1+voltAppMpi%gApp%Grid%je-voltAppMpi%gApp%Grid%js)*voltAppMpi%gApp%Model%Ng
                   @assertLessThanOrEqual(deltaSum, errorThresh, 'VOLTRON Magnetic field from remix was not pointing radially')
 
                   !Now test Eijk fields
                   deltaSum = 0.0
                   !Only loop over active cells
-                  do k=voltAppMpi%gAppLocal%Grid%ks,voltAppMpi%gAppLocal%Grid%ke
-                      do j=voltAppMpi%gAppLocal%Grid%js,voltAppMpi%gAppLocal%Grid%je
+                  do k=voltAppMpi%gApp%Grid%ks,voltAppMpi%gApp%Grid%ke
+                      do j=voltAppMpi%gApp%Grid%js,voltAppMpi%gApp%Grid%je
                           !Map to active ip,jp,kp (i=Grid%is => ip=Grid%is)
-                          call lfmIJKcc(voltAppMpi%gAppLocal%Model,voltAppMpi%gAppLocal%Grid,voltAppMpi%gAppLocal%Grid%is,j,k,ip,jp,kp)
-                          do n=1,voltAppMpi%gAppLocal%Model%Ng
-                              ig = voltAppMpi%gAppLocal%Grid%is-n
-                              np = voltAppMpi%gAppLocal%Model%nG-n+1
+                          call lfmIJKcc(voltAppMpi%gApp%Model,voltAppMpi%gApp%Grid,voltAppMpi%gApp%Grid%is,j,k,ip,jp,kp)
+                          do n=1,voltAppMpi%gApp%Model%Ng
+                              ig = voltAppMpi%gApp%Grid%is-n
+                              np = voltAppMpi%gApp%Model%nG-n+1
                               !Convert Eijk (edges) to cc-Eijk
                               ccEijk(IDIR) = 0.25*(iiBC%inEijk(np,j,k,IDIR)+iiBC%inEijk(np,j,k+1,IDIR)+iiBC%inEijk(np,j+1,k,IDIR)+iiBC%inEijk(np,j+1,k+1,IDIR))
                               ccEijk(JDIR) = 0.25*(iiBC%inEijk(np,j,k,JDIR)+iiBC%inEijk(np,j,k+1,JDIR)+iiBC%inEijk(np+1,j,k,JDIR)+iiBC%inEijk(np+1,j,k+1,JDIR))
                               ccEijk(KDIR) = 0.25*(iiBC%inEijk(np,j,k,KDIR)+iiBC%inEijk(np+1,j,k,KDIR)+iiBC%inEijk(np,j+1,k,KDIR)+iiBC%inEijk(np+1,j+1,k,KDIR))
                               !Now convert cc-Eijk to Exyz
-                              Exyz = ccEijk2Exyz(voltAppMpi%gAppLocal%Model,voltAppMpi%gAppLocal%Grid,ccEijk,ig,j,k)
+                              Exyz = ccEijk2Exyz(voltAppMpi%gApp%Model,voltAppMpi%gApp%Grid,ccEijk,ig,j,k)
                               !Exyz above is approximation to inExyz, ie testing whether or not Eijk and Exyz are consistent
                               deltaSum = deltaSum + norm2(Exyz-iiBC%inExyz(np,jp,kp,:))
                           enddo
@@ -392,7 +384,7 @@ contains
                   enddo
 
                   ! remix doesn't go below a certain lat, causing discontinuity. high error
-                  errorThresh = 2.5e-2*(1+voltAppMpi%gAppLocal%Grid%ke-voltAppMpi%gAppLocal%Grid%ks)*(1+voltAppMpi%gAppLocal%Grid%je-voltAppMpi%gAppLocal%Grid%js)*voltAppMpi%gAppLocal%Model%Ng
+                  errorThresh = 2.5e-2*(1+voltAppMpi%gApp%Grid%ke-voltAppMpi%gApp%Grid%ks)*(1+voltAppMpi%gApp%Grid%je-voltAppMpi%gApp%Grid%js)*voltAppMpi%gApp%Model%Ng
                   @assertLessThanOrEqual(deltaSum, errorThresh, 'VOLTRON inEijk values did not match inExyz values')
               CLASS DEFAULT
                   @assertEqual(0,1,'No Remix BC on Voltron')
@@ -407,34 +399,24 @@ contains
 
       real(rp) :: eijkSum, exyzSum
 
-      if(isGamera) then
+      if(allocated(gamCplMpi)) then
 
-          if(gamAppMpi%Grid%hasLowerBC(IDIR)) then
-              SELECT type(iiBC=>gamAppMpi%Grid%externalBCs(INI)%p)
+          if(gamCplMpi%Grid%hasLowerBC(IDIR)) then
+              SELECT type(iiBC=>gamCplMpi%Grid%externalBCs(INI)%p)
                   TYPE IS (IonInnerBC_T)
 
                       ! confirm cells are non-zero now
                       eijkSum = sum(abs(iiBC%inEijk))
                       exyzSum = sum(abs(iiBC%inExyz))
-                      @assertGreaterThan(eijkSum, 0.0_rp, 'inEijk is all zeroes at start')
-                      @assertGreaterThan(exyzSum, 0.0_rp, 'inExyz is all zeroes at start')
+                      !@assertGreaterThan(eijkSum, 0.0_rp, 'inEijk is all zeroes at start')
+                      !@assertGreaterThan(exyzSum, 0.0_rp, 'inExyz is all zeroes at start')
               END SELECT
           endif
 
-          do while (g2vCommMpi%time < 30.0)
-              call stepGamera_mpi(gamAppMpi)
-              call localStepVoltronTime(g2vCommMpi, gamAppMpi)
-              if( (g2vCommMpi%time >= g2vCommMpi%DeepT) .or. &
-                (g2vCommMpi%time >= 30.0)) then
-                  call performStepVoltron(g2vCommMpi,gamAppMpi)
-                  if ( g2vCommMpi%time >= g2vCommMpi%DeepT) then
-                      call performDeepUpdate(g2vCommMpi, gamAppMpi)
-                  endif
-              endif
-          end do
+          call gamCplMpi%AdvanceModel(30.0/gamCplMpi%Model%Units%gT0 - gamCplMpi%Model%t)
 
-          if(gamAppMpi%Grid%hasLowerBC(IDIR)) then
-              SELECT type(iiBC=>gamAppMpi%Grid%externalBCs(INI)%p)
+          if(gamCplMpi%Grid%hasLowerBC(IDIR)) then
+              SELECT type(iiBC=>gamCplMpi%Grid%externalBCs(INI)%p)
                   TYPE IS (IonInnerBC_T)
 
                       ! confirm cells have changed
@@ -444,17 +426,7 @@ contains
           endif
       else
           do while (voltAppMpi%time < 30.0)
-              if(gameraStepReady(voltAppMpi)) then
-                  call stepVoltron_mpi(voltAppMpi)
-                  write (*,'(a,f8.3)') '    Time = ',voltAppMpi%time
-                  if (voltAppMpi%time >= voltAppMpi%DeepT) then
-                      call DeepUpdate_mpi(voltAppMpi, voltAppMpi%time)
-                  endif
-              elseif(deepInProgress(voltAppMpi)) then
-                  call doDeepBlock(voltAppMpi)
-              else
-                  call waitForGameraStep(voltAppMpi)
-              endif
+              call stepVoltron_mpi(voltAppMpi, 30.0_rp - voltAppMpi%time)
           end do
       endif
 

@@ -76,10 +76,11 @@ module usergamic
     !> Initialize the run
     !> Set initial conditions
     subroutine initUser(Model,Grid,State,inpXML)
-        type(Model_T), intent(inout) :: Model
-        type(Grid_T), intent(inout) :: Grid
-        type(State_T), intent(inout) :: State
+        class(Model_T), intent(inout) :: Model
+        class(Grid_T), intent(inout) :: Grid
+        class(State_T), intent(inout) :: State
         type(XML_Input_T), intent(in) :: inpXML
+
         procedure(GasIC_T), pointer :: Wxyz
         procedure(HackStep_T), pointer :: tsHack
         procedure(HackE_T), pointer :: eHack
@@ -254,9 +255,9 @@ module usergamic
     !> Calculate user defined Efield at the inner boundary
     subroutine wsaBC(bc,Model,Grid,State)
       class(SWInnerBC_T), intent(inout) :: bc
-      type(Model_T), intent(in) :: Model
-      type(Grid_T), intent(in) :: Grid
-      type(State_T), intent(inout) :: State
+      class(Model_T), intent(in) :: Model
+      class(Grid_T), intent(in) :: Grid
+      class(State_T), intent(inout) :: State
       procedure(HackE_T), pointer :: eHack
 
       ! local variables
@@ -379,9 +380,9 @@ module usergamic
 
     !> Set user defined tangential Efield to enforce rotating WSA map
     subroutine EFix(Model,Gr,State)
-      type(Model_T), intent(in) :: Model
-      type(Grid_T), intent(inout) :: Gr
-      type(State_T), intent(inout) :: State
+      class(Model_T), intent(in) :: Model
+      class(Grid_T), intent(inout) :: Gr
+      class(State_T), intent(inout) :: State
 
       if (Gr%hasLowerBC(IDIR)) then
           State%Efld(Gr%is,:,:,JDIR) = inEijk(1,:,:,JDIR)*Gr%edge(Gr%is  ,:,:,JDIR)
@@ -467,8 +468,8 @@ module usergamic
     !> Writing Modified Julian Date at the center of WSA map to the root of h5 file
     !> MJDc is required to set the GAMERA Helio coordinate system
     subroutine writeMJDcH5Root(Model,Grid,IOVars)
-        type(Model_T), intent(in)    :: Model
-        type(Grid_T) , intent(in)    :: Grid
+        class(Model_T), intent(in)    :: Model
+        class(Grid_T) , intent(in)    :: Grid
         type(IOVAR_T), dimension(:), intent(inout) :: IOVars
 
         call AddOutVar(IOVars,"MJDc", MJD_c)

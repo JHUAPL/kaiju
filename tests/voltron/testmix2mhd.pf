@@ -3,7 +3,6 @@ module testmix2mhd
   use voltapp
   use gamapp
   use uservoltic
-  use mix2mhd_interface
   use ioH5
 
   implicit none
@@ -22,13 +21,13 @@ contains
   subroutine corotationTest()
     ! testing that a corotation potential from remix results in a corotation field in gamera
     type(voltApp_T) :: voltronApp
-    type(gamApp_T) :: gameraApp
 
     character(len=strLen) :: caseInput = 'cmiD.xml'
     real(rp), dimension(NDIM) :: rHatP,eHat,xyz,Exyz,ccEijk
     real(rp) :: deltaSum,lambda,rval,xc,yc,zc
     real(rp) :: Psi0,RIn,errorThresh
     integer :: h,ip,it,k,j,jp,kp,n,np,i,ig
+    type(XML_Input_T) :: xmlInp
 
     !type(IOVAR_T), dimension(MAXMIXIOVAR) :: debugHDF
 
@@ -37,9 +36,8 @@ contains
     RIn  = 1.0
     Psi0 = 10.0
 
-    call initGamera(gameraApp, initUser, caseInput)
-
-    call initVoltron(voltronApp, gameraApp, caseInput)
+    voltronApp%vOptions%gamUserInitFunc => initUser
+    call initVoltron(voltronApp, caseInput)
 
     associate(rApp=>voltronApp%remixApp)
     do h=1,2
@@ -55,29 +53,27 @@ contains
     end associate
 
     !Can add a test of the interpolation to Gamera shells here?
-    call mapRemixToGamera(voltronApp%mix2mhd, voltronApp%remixApp)
-
-    call convertRemixToGamera(voltronApp%mix2mhd, voltronApp%remixApp, gameraApp, .false.) !Don't add corotation potential
+    call CouplePotentialToMhd(voltronApp)
 
     ! find the remix BC to verify the resulting Gamera data
-    SELECT type(iiBC=>gameraApp%Grid%externalBCs(INI)%p)
+    SELECT type(iiBC=>voltronApp%gApp%Grid%externalBCs(INI)%p)
         TYPE IS (IonInnerBC_T)
 
             ! verify that the gamera field (iiBC%inEijk, iiBC%inExyz, or both) have the expected values here
             ! inExyz should be pointed exactly radially at all locations
             deltaSum = 0.0_rp
             !Only loop over active cells
-            do k=gameraApp%Grid%ks,gameraApp%Grid%ke
-                do j=gameraApp%Grid%js,gameraApp%Grid%je
+            do k=voltronApp%gApp%Grid%ks,voltronApp%gApp%Grid%ke
+                do j=voltronApp%gApp%Grid%js,voltronApp%gApp%Grid%je
 
                     !Map to active ip,jp,kp (i=Grid%is => ip=Grid%is)
-                    call lfmIJKcc(gameraApp%Model,gameraApp%Grid,gameraApp%Grid%is,j,k,ip,jp,kp)
+                    call lfmIJKcc(voltronApp%gApp%Model,voltronApp%gApp%Grid,voltronApp%gApp%Grid%is,j,k,ip,jp,kp)
 
-                    do n=1,gameraApp%Model%Ng
-                        ig = gameraApp%Grid%is-n
-                        np = gameraApp%Model%nG-n+1
+                    do n=1,voltronApp%gApp%Model%Ng
+                        ig = voltronApp%gApp%Grid%is-n
+                        np = voltronApp%gApp%Model%nG-n+1
 
-                        call cellCenter(gameraApp%Grid, ig,j,k,xc,yc,zc)
+                        call cellCenter(voltronApp%gApp%Grid, ig,j,k,xc,yc,zc)
                         rHatP = normVec([xc,yc,zc])
 
                         eHat = normVec(iiBC%inExyz(np,jp,kp,:))
@@ -90,25 +86,25 @@ contains
             end do
 
             ! remix doesn't go below a certain lat, causing discontinuity. high error
-            errorThresh = 2*(1+gameraApp%Grid%ke-gameraApp%Grid%ks)*(1+gameraApp%Grid%je-gameraApp%Grid%js)*gameraApp%Model%Ng
+            errorThresh = 2*(1+voltronApp%gApp%Grid%ke-voltronApp%gApp%Grid%ks)*(1+voltronApp%gApp%Grid%je-voltronApp%gApp%Grid%js)*voltronApp%gApp%Model%Ng
             @assertLessThanOrEqual(deltaSum, errorThresh, 'Magnetic field from remix was not pointing radially')
 
              !Now test Eijk fields
             deltaSum = 0.0
             !Only loop over active cells
-            do k=gameraApp%Grid%ks,gameraApp%Grid%ke
-                do j=gameraApp%Grid%js,gameraApp%Grid%je
+            do k=voltronApp%gApp%Grid%ks,voltronApp%gApp%Grid%ke
+                do j=voltronApp%gApp%Grid%js,voltronApp%gApp%Grid%je
                     !Map to active ip,jp,kp (i=Grid%is => ip=Grid%is)
-                    call lfmIJKcc(gameraApp%Model,gameraApp%Grid,gameraApp%Grid%is,j,k,ip,jp,kp)
-                    do n=1,gameraApp%Model%Ng
-                        ig = gameraApp%Grid%is-n
-                        np = gameraApp%Model%nG-n+1
+                    call lfmIJKcc(voltronApp%gApp%Model,voltronApp%gApp%Grid,voltronapp%gApp%Grid%is,j,k,ip,jp,kp)
+                    do n=1,voltronApp%gApp%Model%Ng
+                        ig = voltronApp%gApp%Grid%is-n
+                        np = voltronApp%gApp%Model%nG-n+1
                         !Convert Eijk (edges) to cc-Eijk
                         ccEijk(IDIR) = 0.25*(iiBC%inEijk(np,j,k,IDIR)+iiBC%inEijk(np,j,k+1,IDIR)+iiBC%inEijk(np,j+1,k,IDIR)+iiBC%inEijk(np,j+1,k+1,IDIR))
                         ccEijk(JDIR) = 0.25*(iiBC%inEijk(np,j,k,JDIR)+iiBC%inEijk(np,j,k+1,JDIR)+iiBC%inEijk(np+1,j,k,JDIR)+iiBC%inEijk(np+1,j,k+1,JDIR))
                         ccEijk(KDIR) = 0.25*(iiBC%inEijk(np,j,k,KDIR)+iiBC%inEijk(np+1,j,k,KDIR)+iiBC%inEijk(np,j+1,k,KDIR)+iiBC%inEijk(np+1,j+1,k,KDIR))
                         !Now convert cc-Eijk to Exyz
-                        Exyz = ccEijk2Exyz(gameraApp%Model,gameraApp%Grid,ccEijk,ig,j,k)
+                        Exyz = ccEijk2Exyz(voltronApp%gApp%Model,voltronApp%gApp%Grid,ccEijk,ig,j,k)
                         !Exyz above is approximation to inExyz, ie testing whether or not Eijk and Exyz are consistent
                         deltaSum = deltaSum + norm2(Exyz-iiBC%inExyz(np,jp,kp,:))
                     enddo
@@ -116,7 +112,7 @@ contains
           enddo
 
           ! remix doesn't go below a certain lat, causing discontinuity. high error
-          errorThresh = 2e-2*(1+gameraApp%Grid%ke-gameraApp%Grid%ks)*(1+gameraApp%Grid%je-gameraApp%Grid%js)*gameraApp%Model%Ng
+          errorThresh = 2e-2*(1+voltronApp%gApp%Grid%ke-voltronApp%gApp%Grid%ks)*(1+voltronApp%gApp%Grid%je-voltronApp%gApp%Grid%js)*voltronApp%gApp%Model%Ng
           @assertLessThanOrEqual(deltaSum, errorThresh, 'inEijk values did not match inExyz values')
 
         CLASS DEFAULT

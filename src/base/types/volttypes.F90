@@ -9,6 +9,8 @@ module volttypes
     use ebtypes
     use gcmtypes
     use helpertypes
+    use basetypes
+    use gamtypes
 
     implicit none
 
@@ -27,15 +29,6 @@ module volttypes
         enumerator :: IMDEN=1,IMX1,IMX2,IMTSCL,IMPR
     endenum
     integer, parameter :: NVARIMAG = 5
-
-    ! data for remix -> gamera conversion
-    type mix2Mhd_T
-        real(rp), dimension(:,:,:,:,:), allocatable :: mixOutput
-        real(rp), dimension(:,:,:), allocatable :: gPsi
-        type(Map_T), allocatable, dimension(:,:) :: PsiMaps
-        integer :: PsiStart = PsiSt, PsiShells = PsiSh !Coming from cmidefs
-        real(rp) :: rm2g
-    end type mix2Mhd_T
 
     ! data for imag => remix for conductance
     type imag2Mix_T
@@ -60,7 +53,6 @@ module volttypes
         real(rp), dimension(:,:,:,:,:), allocatable :: mixInput
         real(rp), dimension(:,:,:,:), allocatable :: gJ,gBAvg
         type(Map_T), allocatable, dimension(:,:) :: Jmaps
-        integer :: JStart = JpSt, JShells = JpSh !Coming from cmidefs
         real(rp) :: dtAvg,wAvg
     end type mhd2mix_T
 
@@ -89,14 +81,14 @@ module volttypes
     type innerMagBase_T
         contains
 
-        procedure baseInit
+        procedure baseInitImag
         procedure baseAdvance
         procedure baseEval
         procedure baseIO
         procedure baseRestart
 
         ! functions to be over-written by specific inner magnetosphere implementations
-        procedure :: doInit => baseinit
+        procedure :: doInit => baseInitImag
         procedure :: doAdvance => baseAdvance
         procedure :: doEval => baseEval
         procedure :: doIO => baseIO
@@ -105,7 +97,71 @@ module volttypes
 
     end type innerMagBase_T
 
-    type voltApp_T
+
+    integer, parameter :: mix2mhd_varn = 1  ! for now just the potential is sent back
+
+    type, extends(gamApp_T) :: gamCoupler_T
+
+        ! data for coupling remix to gamera
+        real(rp), dimension(:,:,:,:,:), allocatable :: mixOutput
+        real(rp), dimension(:,:,:), allocatable :: gPsi
+        type(Map_T), allocatable, dimension(:,:) :: PsiMaps
+        real(rp) :: rm2g
+        real(rp) :: Rion
+
+        ! data for coupling imag to gamera
+        real(rp), dimension(:,:,:,:), allocatable :: SrcNC !Node-centered source terms
+
+        ! data for coupler
+        character(len=strLen) :: vh5File
+
+        contains
+
+        ! only over-riding specific functions
+        !procedure :: InitModel => gamCplInitModel
+        procedure :: InitIO => gamCplInitIO
+        procedure :: WriteRestart => gamCplWriteRestart
+        procedure :: ReadRestart => gamCplReadRestart
+        procedure :: WriteConsoleOutput => gamCplWriteConsoleOutput
+        procedure :: WriteFileOutput => gamCplWriteFileOutput
+        procedure :: WriteSlimFileOutput => gamCplWriteSlimFileOutput
+        !procedure :: AdvanceModel => gamCplAdvanceModel
+
+        ! add new coupling function which can be over-ridden by children
+        procedure :: InitMhdCoupler => gamInitMhdCoupler
+        procedure :: StartUpdateMhdData => gamStartUpdateMhdData
+        procedure :: FinishUpdateMhdData => gamFinishUpdateMhdData
+
+    end type gamCoupler_T
+
+    type, extends(gamCoupler_T) :: SHgamCoupler_T
+
+        contains
+
+        ! only over-riding specific functions
+        procedure :: InitModel => SHgamCplInitModel
+        procedure :: InitIO => SHgamCplInitIO
+        procedure :: WriteRestart => SHgamCplWriteRestart
+        procedure :: ReadRestart => SHgamCplReadRestart
+        procedure :: WriteConsoleOutput => SHgamCplWriteConsoleOutput
+        procedure :: WriteFileOutput => SHgamCplWriteFileOutput
+        procedure :: WriteSlimFileOutput => SHgamCplWriteSlimFileOutput
+        procedure :: AdvanceModel => SHgamCplAdvanceModel
+
+        ! add new coupling function which can be over-ridden by children
+        procedure :: InitMhdCoupler => SHgamInitMhdCoupler
+        procedure :: StartUpdateMhdData => SHgamStartUpdateMhdData
+        procedure :: FinishUpdateMhdData => SHgamFinishUpdateMhdData
+
+    end type SHgamCoupler_T
+
+    type, extends(BaseOptions_T) :: VoltOptions_T
+        procedure(StateIC_T), pointer, nopass :: gamUserInitFunc
+
+        contains
+    end type VoltOptions_T
+
+    type :: voltApp_T
 
         !Planet information
         type(planet_T) :: planet
@@ -115,7 +171,6 @@ module volttypes
         real(rp) :: time, MJD,tFin
         real(rp) :: BSDst=0.0 !Most recent bsdst calculated
         integer :: ts
-        logical :: isSeparate = .false. ! whether Voltron is running in a separate application from gamera
 
         !Voltron output/restart info
         type (IOClock_T) :: IO
@@ -125,7 +180,6 @@ module volttypes
         !Apps
         type(mixApp_T) :: remixApp
         type(mhd2Mix_T) :: mhd2mix
-        type(mix2Mhd_T) :: mix2mhd
 
         type(ebTrcApp_T)  :: ebTrcApp
         type(mhd2Chmp_T)  :: mhd2chmp
@@ -139,7 +193,7 @@ module volttypes
         !Deep coupling information
         real(rp) :: DeepT ! Time of next deep coupling
         real(rp) :: DeepDT ! Time between deep couplings
-        real(rp) :: TargetDeepDT ! Desired deep step from Voltron
+        !real(rp) :: TargetDeepDT ! Desired deep step from Voltron
         logical  :: doDeep = .false. !Whether to do deep coupling
         real(rp) :: rTrc  !Radius to do tracing (ebSquish) inside of
         integer  :: nTrc = MaxFL !Max number of tracer steps to take (ebSquish)
@@ -155,12 +209,132 @@ module volttypes
 
         !Have special flag to indicate this is Earth, which is special
         logical :: isEarth = .false.
+
+        !Local gamera object to couple to
+        class(gamCoupler_T), allocatable :: gApp
+        logical :: doSerialMHD = .true.
+
+        !voltron specific options
+        type(VoltOptions_T) :: vOptions
+
     end type voltApp_T
+
+    ! interface for coupling functions
+    interface
+        module subroutine gamCplInitIO(App, Xml)
+            class(gamCoupler_T), intent(inout) :: App
+            type(XML_Input_T), intent(inout) :: Xml
+        end subroutine
+
+        module subroutine gamCplWriteRestart(App, nRes)
+            class(gamCoupler_T), intent(inout) :: App
+            integer, intent(in) :: nRes
+        end subroutine
+
+        module subroutine gamCplReadRestart(App, resId, nRes)
+            class(gamCoupler_T), intent(inout) :: App
+            character(len=*), intent(in) :: resId
+            integer, intent(in) :: nRes
+        end subroutine
+
+        module subroutine gamCplWriteConsoleOutput(App)
+            class(gamCoupler_T), intent(inout) :: App
+        end subroutine
+
+        module subroutine gamCplWriteFileOutput(App, nStep)
+            class(gamCoupler_T), intent(inout) :: App
+            integer, intent(in) :: nStep
+        end subroutine
+
+        module subroutine gamCplWriteSlimFileOutput(App, nStep)
+            class(gamCoupler_T), intent(inout) :: App
+            integer, intent(in) :: nStep
+        end subroutine
+
+        module subroutine gamInitMhdCoupler(App, voltApp)
+            class(gamCoupler_T), intent(inout) :: App
+            class(voltApp_T), intent(inout) :: voltApp
+        end subroutine
+
+        module subroutine gamStartUpdateMhdData(App, voltApp)
+            class(gamCoupler_T), intent(inout) :: App
+            class(voltApp_T), intent(inout) :: voltApp
+        end subroutine
+
+        module subroutine gamFinishUpdateMhdData(App, voltApp)
+            class(gamCoupler_T), intent(inout) :: App
+            class(voltApp_T), intent(inout) :: voltApp
+        end subroutine
+
+    end interface
+
+    ! functions for squish helper specific gamera coupler
+    interface
+        module subroutine SHgamCplInitModel(App, Xml)
+            class(SHgamCoupler_T), intent(inout) :: App
+            type(XML_Input_T), intent(inout) :: Xml
+        end subroutine
+
+        module subroutine SHgamCplInitIO(App, Xml)
+            class(SHgamCoupler_T), intent(inout) :: App
+            type(XML_Input_T), intent(inout) :: Xml
+        end subroutine
+
+        module subroutine SHgamCplWriteRestart(App, nRes)
+            class(SHgamCoupler_T), intent(inout) :: App
+            integer, intent(in) :: nRes
+        end subroutine
+
+        module subroutine SHgamCplReadRestart(App, resId, nRes)
+            class(SHgamCoupler_T), intent(inout) :: App
+            character(len=*), intent(in) :: resId
+            integer, intent(in) :: nRes
+        end subroutine
+
+        module subroutine SHgamCplWriteConsoleOutput(App)
+            class(SHgamCoupler_T), intent(inout) :: App
+        end subroutine
+
+        module subroutine SHgamCplWriteFileOutput(App, nStep)
+            class(SHgamCoupler_T), intent(inout) :: App
+            integer, intent(in) :: nStep
+        end subroutine
+
+        module subroutine SHgamCplWriteSlimFileOutput(App, nStep)
+            class(SHgamCoupler_T), intent(inout) :: App
+            integer, intent(in) :: nStep
+        end subroutine
+
+        module subroutine SHgamCplAdvanceModel(App, dt)
+            class(SHgamCoupler_T), intent(inout) :: App
+            real(rp), intent(in) :: dt
+        end subroutine
+
+        module subroutine SHgamCplCleanup(App)
+            class(SHgamCoupler_T), intent(inout) :: App
+        end subroutine
+
+        module subroutine SHgamInitMhdCoupler(App, voltApp)
+            class(SHgamCoupler_T), intent(inout) :: App
+            class(voltApp_T), intent(inout) :: voltApp
+        end subroutine
+
+        module subroutine SHgamStartUpdateMhdData(App, voltApp)
+            class(SHgamCoupler_T), intent(inout) :: App
+            class(voltApp_T), intent(inout) :: voltApp
+        end subroutine
+
+        module subroutine SHgamFinishUpdateMhdData(App, voltApp)
+            class(SHgamCoupler_T), intent(inout) :: App
+            class(voltApp_T), intent(inout) :: voltApp
+        end subroutine
+
+    end interface
 
     contains
 
     ! null default subroutines for inner mag base type
-    subroutine baseInit(imag,iXML,isRestart,vApp)
+    subroutine baseInitImag(imag,iXML,isRestart,vApp)
         class(innerMagBase_T), intent(inout) :: imag
         type(XML_Input_T), intent(in) :: iXML
         logical, intent(in) :: isRestart

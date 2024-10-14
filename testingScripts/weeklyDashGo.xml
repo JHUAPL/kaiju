@@ -2,7 +2,7 @@
 <!-- XML for weekly dash -->
 <Kaiju>
   <VOLTRON>
-    <time tFin="32405.0"/>
+    <time tFin="32407.0"/>
     <spinup doSpin="T" tSpin="7200.0"/>
     <output dtOut="300.0" tsOut="100"/>
     <coupling dtCouple="5.0" imType="RCM" doQkSquish="T" qkSquishStride="2" doAsyncCoupling="F"/>

@@ -87,11 +87,14 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
     #Production with Debug Info
     set(PRODWITHDEBUGINFO "-traceback -debug all -align array64byte -align rec32byte -no-prec-div -fast-transcendentals")
 	#Debug
-    if(NOT DISABLE_DEBUG_BOUNDS_CHECKS)
-        set(DEBUG "-traceback -check bounds -check uninit -debug all -gen-interfaces -warn interfaces -fp-stack-check")
-    else()
-        set(DEBUG "-traceback -debug all -gen-interfaces -warn interfaces")
-    endif()
+        set(DEBUG "-traceback -debug all -gen-interfaces")
+        if(NOT DISABLE_DEBUG_BOUNDS_CHECKS)
+                string(APPEND DEBUG " -check bounds -check uninit -fp-stack-check -fstack-security-check")
+        endif()
+        if(NOT PFUNIT_FOUND)
+                # Known bug with warning interfaces and PFUNIT
+                string(APPEND DEBUG " -warn interfaces")
+        endif()
 
 	#Now do OS-dep options
 	if (CMAKE_SYSTEM_NAME MATCHES Darwin)

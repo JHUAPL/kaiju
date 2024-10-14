@@ -17,6 +17,7 @@
     <prob Rho0="0.1" P0="0.001" rCut="16.0" lCut="8.0"/>
     <ring gid="lfm" doRing="T" Nr="3" Nc1="8" Nc2="16" Nc3="32"/>
     <wind tsfile="bcwind.h5"/>
+    <coupling blockHalo="T"/>
   </Gamera>
 <!-- Remix -->
   <REMIX>

@@ -24,7 +24,6 @@ module rcmimag
     
     implicit none
 
-    logical, private, parameter :: doFakeTube=.false. !Only for testing
     integer, parameter, private :: MHDPad = 0 !Number of padding cells between RCM domain and MHD ingestion
     logical , private :: doTrickyTubes = .true.  !Whether to poison bad flux tubes
     real(rp), private :: imagScl = 1.5 !Safety factor for RCM=>ebsquish
@@ -46,6 +45,8 @@ module rcmimag
 
         ! Holder for field line data
         type(fLine_T), dimension(:,:), allocatable :: rcmFLs
+
+        logical :: doFakeTube=.false. !Only for testing
 
         contains
 
@@ -113,6 +114,8 @@ module rcmimag
         call iXML%Set_Val(imagScl ,"imag/safeScl",imagScl)
         call iXML%Set_Val(bMin_C  ,"imag/bMin_C" ,bMin_C )
         call iXML%Set_Val(wImag_C ,"imag/wImag_C",wImag_C)
+
+        call iXML%Set_Val(imag%doFakeTube, "imag/doFakeTube",.false.)
 
         if (isRestart) then
 
@@ -232,7 +235,7 @@ module rcmimag
         call Toc("MAP_RCMMIX")
 
         call Tic("RCM_TUBES")
-        if (doFakeTube) write(*,*) "Using fake flux tubes for testing!"
+        if (imag%doFakeTube) write(*,*) "Using fake flux tubes for testing!"
             
     !Load RCM tubes
        !$OMP PARALLEL DO default(shared) collapse(2) &
@@ -252,7 +255,7 @@ module rcmimag
                     !Use mocked up values
                     call DipoleTube(vApp,lat,lon,ijTube,imag%rcmFLs(i,j))
                 else
-                    if (doFakeTube) then
+                    if (imag%doFakeTube) then
                         call FakeTube   (vApp,lat,lon,ijTube,imag%rcmFLs(i,j))
                     else
                         !Trace through MHD

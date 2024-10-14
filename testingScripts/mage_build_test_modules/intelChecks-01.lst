@@ -1,3 +1,4 @@
+# This module set is used for running Intel Inspector checks.
 CMAKE_ENV=
 CMAKE_OPTIONS=-DENABLE_MPI=ON -DALLOW_INVALID_COMPILERS=ON
 ncarenv/23.09

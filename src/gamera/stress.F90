@@ -18,8 +18,7 @@ module stress
     !Signs for left/right going fluxes @ interfaces
     integer, parameter, dimension(2), private :: SgnLR=[-1,1]
     logical, parameter, private :: doNuke = .true. !Do nuclear option
-    logical, parameter, private :: doHogs11 = .true. !Do // magnetic hogs diffusion
-    logical, parameter, private :: doCCB0 = .true. !Whether to do volume-averaged/cell-center or face-center B0 force
+    logical, parameter, private :: doHogsMF = .false. !Whether to MF-scale hogs term
 
     !cLim: Vile magic number, when to apply nuclear option (v>cLim*Ca)
     !LFM uses 1.5
@@ -48,7 +47,7 @@ module stress
         real(rp), intent(out) :: dGasH(Gr%isg:Gr%ieg,Gr%jsg:Gr%jeg,Gr%ksg:Gr%keg,1:NVAR,BLK:Model%nSpc)
         real(rp), optional, intent(out) :: dGasM(Gr%isg:Gr%ieg,Gr%jsg:Gr%jeg,Gr%ksg:Gr%keg,1:NDIM)
 
-        integer :: i,iB,j,k,d,nFlx
+        integer :: i,iB,j,k,d,nFlx,nv
         integer :: ks,ke !For 2.5D handling
         logical :: doMaxwell
         real(rp) :: dV
@@ -151,28 +150,45 @@ module stress
         call Tic("Flux2Deltas")
 
         !$OMP PARALLEL DO default(shared) collapse (2) &
-        !$OMP private(i,j,k,dV)
+        !$OMP private(i,j,k,dV,nv)
         do k=Gr%ks,Gr%ke
             do j=Gr%js,Gr%je
                 do i=Gr%is,Gr%ie
                     dV = Gr%volume(i,j,k)
-                    !Do all species here
                     !Fluxes have already been scaled by face areas!
-                    dGasH(i,j,k,1:NVAR,:) = (  gFlx(i,j,k,1:NVAR,IDIR,:) - gFlx(i+1,j,k,1:NVAR,IDIR,:) &
-                                             + gFlx(i,j,k,1:NVAR,JDIR,:) - gFlx(i,j+1,k,1:NVAR,JDIR,:) &
-                                             + gFlx(i,j,k,1:NVAR,KDIR,:) - gFlx(i,j,k+1,1:NVAR,KDIR,:) )/dV
+                    if (Model%doMultiF) then
+                        !Do all species here
+                        do nv=1,NVAR
+                            dGasH(i,j,k,nv,1:Model%nSpc) = (  gFlx(i,j,k,nv,IDIR,1:Model%nSpc) - gFlx(i+1,j,k,nv,IDIR,1:Model%nSpc) &
+                                                            + gFlx(i,j,k,nv,JDIR,1:Model%nSpc) - gFlx(i,j+1,k,nv,JDIR,1:Model%nSpc) &
+                                                            + gFlx(i,j,k,nv,KDIR,1:Model%nSpc) - gFlx(i,j,k+1,nv,KDIR,1:Model%nSpc) )/dV
+                            !Accumulate to bulk
+                            dGasH(i,j,k,nv,BLK) = sum(dGasH(i,j,k,nv,1:Model%nSpc))
+                        enddo
+                        
+
+                    else
+                        do nv=1,NVAR
+                            dGasH(i,j,k,nv,BLK) = (  gFlx(i,j,k,nv,IDIR,BLK) - gFlx(i+1,j,k,nv,IDIR,BLK) &
+                                                   + gFlx(i,j,k,nv,JDIR,BLK) - gFlx(i,j+1,k,nv,JDIR,BLK) &
+                                                   + gFlx(i,j,k,nv,KDIR,BLK) - gFlx(i,j,k+1,nv,KDIR,BLK) )/dV
+
+                        enddo !nv
+                    endif !MultiF
+                    
 
                     if (doMaxwell) then
                         dGasM(i,j,k,XDIR:ZDIR) = (  mFlx(i,j,k,XDIR:ZDIR,IDIR) - mFlx(i+1,j,k,XDIR:ZDIR,IDIR) &
                                                   + mFlx(i,j,k,XDIR:ZDIR,JDIR) - mFlx(i,j+1,k,XDIR:ZDIR,JDIR) &
                                                   + mFlx(i,j,k,XDIR:ZDIR,KDIR) - mFlx(i,j,k+1,XDIR:ZDIR,KDIR) )/dV
                         
-                        if (Model%doBackground .and. doCCB0) then
+                        if (Model%doBackground) then
                             !Add background field force terms
                             dGasM(i,j,k,XDIR:ZDIR) = dGasM(i,j,k,XDIR:ZDIR) + Gr%dpB0(i,j,k,XDIR:ZDIR)
                         endif
 
                     endif !doMax
+
                 enddo ! i loop
             enddo !J loop
         enddo !K loop
@@ -197,40 +213,39 @@ module stress
         !Block variables, local to thread
         !Reconstruction stencils
         real(rp) :: VolB(vecLen,recLen)
-        real(rp) :: ConB(vecLen,recLen,NVAR)
+        real(rp) :: ConB(vecLen,recLen,NVAR,0:Model%nSpc)
         real(rp) :: MagB(vecLen,recLen,NDIM)
         real(rp) :: TfB (vecLen,NDIM*NDIM) !Face transform
         real(rp) :: faB (vecLen) !Face area in this direction
 
         !Limiting stencils
-        real(rp) :: nConB(vecLen,limLen,NVAR)
+        real(rp) :: nConB(vecLen,limLen,NVAR,0:Model%nSpc)
         real(rp) :: nMagB(vecLen,limLen,NDIM)
 
         !Reconstructed values, L/Rs
-        real(rp) :: PrimLRB(vecLen,NVAR,2), MagLRB(vecLen,NDIM,2)
+        real(rp), dimension(vecLen,NVAR,0:Model%nSpc) :: PrimL,PrimR
+        real(rp), dimension(vecLen,NDIM) :: MagL,MagR
+        
         !Misc.
         real(rp) :: gFlxB(vecLen,NVAR), mFlxB(vecLen,NDIM) !Gas/Mag-kinetic fluxes
-        real(rp) :: VnB(vecLen,2) !L/R normal velocities @ interfaces
         real(rp) :: dW(vecLen,NVAR) !R-L values for HOGs flux
         real(rp) :: VaD(vecLen) !Diffusive Alfven speed @ interface for hogs
         real(rp) :: B0(vecLen,NDIM), B0n(vecLen), Bn(vecLen)
-        real(rp) :: bbD(vecLen), dVel(vecLen,NDIM)
-        logical :: doFlx(vecLen,2) !Whether L/R wrt interface are good
+        real(rp) :: bbD(vecLen)
+        logical, dimension(vecLen) :: doFlxL,doFlxR !Whether L/R wrt interface are good
 
         !Scalar holders
-        real(rp) :: vL,vR,Vn
-        real(rp) :: RhoML,RhoMR
-        real(rp), dimension(NDIM) :: deeP,bAvg,bhat
-
+        real(rp) :: vL,vR,Vn,alphaS
+        real(rp), dimension(NDIM) :: deeP,deeV
+        real(rp), dimension(NVAR) :: dCon
         !Indices
         integer :: ie,iMax,isB,ieB,iG !Vector direction indices
-        integer :: i,nv,q,s
-        logical :: isBulk,doI
+        integer :: i,nv,s
+        logical :: doI
 
         !DIR$ attributes align : ALIGN :: VolB,ConB,MagB,TfB,faB,nConB,nMagB
-        !DIR$ attributes align : ALIGN :: PrimLRB,MagLRB,gFlxB,mFlxB
-        !DIR$ attributes align : ALIGN :: VnB,dW,VaD,B0,B0n,Bn
-        !DIR$ attributes align : ALIGN :: bbD,dVel
+        !DIR$ attributes align : ALIGN :: PrimL,PrimR,MagL,MagR,gFlxB,mFlxB
+        !DIR$ attributes align : ALIGN :: dW,VaD,B0,B0n,Bn,bbD
         !DIR$ ASSUME_ALIGNED gFlx: ALIGN
         !DIR$ ASSUME_ALIGNED mFlx: ALIGN
 
@@ -247,22 +262,19 @@ module stress
         !Zero out accumulators
         gFlxB = 0.0
         mFlxB = 0.0
-        dW = 0.0
-        VaD = 0.0
-        bbD = 0.0
-        dVel = 0.0
-        VolB = 0.0
-        MagB = 0.0
-        ConB = 0.0
+        dW    = 0.0
+        VaD   = 0.0
+        bbD   = 0.0
+        VolB  = 0.0
+        MagB  = 0.0
+        ConB  = 0.0
         nMagB = 0.0
         nConB = 0.0
-        TfB = 0.0
-        B0 = 0.0
-        Bn = 0.0
-        B0n = 0.0
+        TfB   = 0.0
+        B0    = 0.0
+        Bn    = 0.0
+        B0n   = 0.0
 
-
-        doFlx(:,:) = .true.
     !Load non-species data into local work arrays
     !---------------------------
         !Get geometric information, Need recLen/2 radius about each i,j,k in brickette
@@ -277,12 +289,14 @@ module stress
             do nv=1,NDIM
                 call recLoadBlock(Model,Gr, MagB(:,:,nv),hfState%Bxyz(:,:,:,nv),iB,j,k,iMax,dN)
                 if (Model%doLFMLim) then
+                    !Limit on n state
                     call limLoadBlock(Model,Gr,nMagB(:,:,nv), nState%Bxyz(:,:,:,nv),iB,j,k,iMax,dN)
                 else
+                    !Limit on predictor state
                     call limLoadBlock(Model,Gr,nMagB(:,:,nv),hfState%Bxyz(:,:,:,nv),iB,j,k,iMax,dN)
                 endif
             enddo
-            call BlockLRs(VolB,nMagB,MagB,MagLRB(:,:,LEFT),MagLRB(:,:,RIGHT),NDIM)
+            call BlockLRs(VolB,nMagB,MagB,MagL(:,:),MagR(:,:),NDIM)
 
             Bn(1:iMax) = hfState%magFlux(isB:ieB,j,k,dN)/faB(1:iMax)
             if (Model%doBackground) then
@@ -292,132 +306,117 @@ module stress
 
         endif
 
-    !Loop over all species (including bulk) and calculate gas flux.  Calculate mag flux when doing bulk species
+    !Loop over all species (including bulk) and load stencils
     !---------------------------
+        do s=BLK,Model%nSpc
+            do nv=1,NVAR
+                call recLoadBlock(Model,Gr, ConB(:,:,nv,s),hfState%Gas(:,:,:,nv,s),iB,j,k,iMax,dN)
+                if (Model%doLFMLim) then
+                    call limLoadBlock(Model,Gr,nConB(:,:,nv,s), nState%Gas(:,:,:,nv,s),iB,j,k,iMax,dN)
+                else
+                    call limLoadBlock(Model,Gr,nConB(:,:,nv,s),hfState%Gas(:,:,:,nv,s),iB,j,k,iMax,dN)
+                endif
+            enddo !nv
+        enddo !s
+
+    !Calculate LR's for all species
+    !---------------------------
+        do s=BLK,Model%nSpc
+            call BlockStateLRs(Model,VolB,nConB(:,:,:,s),ConB(:,:,:,s),PrimL(:,:,s),PrimR(:,:,s))    
+        enddo
+
+    !Do mag fluxes
+    !---------------------------
+        if (Model%doMHD) then
+            !VaD gets calculated here and is then available for hydro hogs terms later
+            call MagKinFlux(Model,LEFT ,PrimL(:,:,BLK),MagL,Bn,TfB,mFlxB,B0,B0n,bbD,VaD)
+            call MagKinFlux(Model,RIGHT,PrimR(:,:,BLK),MagR,Bn,TfB,mFlxB,B0,B0n,bbD,VaD)
+
+            if (Model%doBoris) then
+                do i=1,iMax
+                    !Get dVee (delta-LR V)
+                    deeV = PrimR(i,VELX:VELZ,BLK) - PrimL(i,VELX:VELZ,BLK)
+                    deeP = bbD(i)*deeV/(Model%Ca**2.0)
+
+                    !Now add mag hogs to mag fluxes
+                    mFlxB(i,XDIR:ZDIR) = mFlxB(i,XDIR:ZDIR) - Model%cHogM*VaD(i)*deeP
+
+                    !Some old notes
+                    !Calculate del(rho_m v), the magnetic momentum
+                    !Two choices here: 
+                    !1) Delta mag momentum or Magmass x delta-vee
+                    !2) Total direction or perp to field
+
+                enddo !i
+            endif !Boris hogs
+
+            !Store mag fluxes into main array, multiply by face area *HERE*
+            do nv=1,NDIM
+                do i=1,iMax
+                    iG = isB+i-1 !Global index
+                    mFlx(iG,j,k,nv,dN) = faB(i)*mFlxB(i,nv)
+                enddo !i
+            enddo !nv
+        endif !doMHD
+
+    !Do hydro fluxes
+    !---------------------------
+        !Loop over all species (including bulk) and calculate gas flux
         do s=BLK,Model%nSpc
             !Reset accumulators
             gFlxB = 0.0
             dW = 0.0
-            dVel = 0.0
 
-            doFlx(:,:) = .true.
-
-            if (s == BLK) then
-                isBulk = .true.
+            if (Model%doMultiF .and. (s>BLK)) then
+                doFlxL = ( PrimL(:,DEN,s) >= Spcs(s)%dVac )
+                doFlxR = ( PrimR(:,DEN,s) >= Spcs(s)%dVac )
             else
-                isBulk = .false.
+                doFlxL = .true.
+                doFlxR = .true.
             endif
-        !Load conserved quantities for this species and get LR's
-        !---------------------------
+
+            if ( .not. (any(doFlxL) .or. any(doFlxR)) ) cycle !Nothing good here
+
+            !If we're still here, let's get to work
+            call GasKinFlux(Model,LEFT ,PrimL(:,:,s),TfB,gFlxB,dW,doFlxL)
+            call GasKinFlux(Model,RIGHT,PrimR(:,:,s),TfB,gFlxB,dW,doFlxR)
+
+            !Hydro hogs, note: VaD has already been calculated
             do nv=1,NVAR
-                call recLoadBlock(Model,Gr, ConB(:,:,nv),hfState%Gas(:,:,:,nv,s),iB,j,k,iMax,dN)
-                if (Model%doLFMLim) then
-                    call limLoadBlock(Model,Gr,nConB(:,:,nv), nState%Gas(:,:,:,nv,s),iB,j,k,iMax,dN)
-                else
-                    call limLoadBlock(Model,Gr,nConB(:,:,nv),hfState%Gas(:,:,:,nv,s),iB,j,k,iMax,dN)
-                endif
-            enddo
-            call BlockStateLRs(Model,VolB,nConB,ConB,PrimLRB(:,:,LEFT),PrimLRB(:,:,RIGHT))
-
-            if (.not. isBulk) then
-                !For non-bulk species, test both sides of interface
-                doFlx(:,:) = ( PrimLRB(:,DEN,:) >= Spcs(s)%dVac )
-            endif
-
-            !TODO: Maybe move this check up after first loadblock?
-            if (.not. isBulk) then
-                !For non-bulk species, test both sides of interface
-                doFlx(:,:) = ( PrimLRB(:,DEN,:) >= Spcs(s)%dVac )
-
-                !Bail out of this species if no good interfaces
-                if (.not. any(doFlx)) cycle
-            endif
-
-        !Reynolds stress fluxes (all species)
-        !---------------------------
-            do q=1,2 !L/R directions
-                call GasKinFlux(Model,q,PrimLRB(:,:,q),TfB,gFlxB,dW,dVel,VnB(:,q),doFlx(:,q))
-            enddo
-
-            if (isBulk .and. Model%doMHD) then
-            !Maxwell stress fluxes (only bulk)
-            !---------------------------
-                !Don't worry about doFlx because bulk is always good
-                do q=1,2 !L/R directions
-                    call MagKinFlux(Model,q,PrimLRB(:,:,q),MagLRB(:,:,q),Bn,VnB(:,q), &
-                                   & TfB,mFlxB,B0,B0n,bbD,VaD)
-                enddo
-            endif !Maxwell fluxes
-
-        !HOGS diffusive terms (all species), must be after calculation of diffusive alfven speeds
-        !---------------------------
-            if (Model%doHogs .and. Model%doMHD) then
-                !Hydro hogs
-                do nv=1,NVAR
-                    do i=1,iMax
-                        if ( doFlx(i,LEFT) .or. doFlx(i,RIGHT) ) then
-                            gFlxB(i,nv) = gFlxB(i,nv) - Model%cHogH*VaD(i)*dW(i,nv)
+                do i=1,iMax
+                    if ( doFlxL(i) .and. doFlxR(i) ) then
+                        if (Model%doMultiF .and. doHogsMF) then
+                            alphaS = ( PrimL(i,DEN,s) + PrimR(i,DEN,s) )/( PrimL(i,DEN,BLK) + PrimR(i,DEN,BLK) )
+                        else
+                            alphaS = 1.0
                         endif
-                    enddo
-                enddo
+                        gFlxB(i,nv) = gFlxB(i,nv) - alphaS*Model%cHogH*VaD(i)*dW(i,nv)
+                    endif
+                enddo !i
+            enddo !nv
 
-                !Boris hogs (only do for bulk species)
-                if (Model%doBoris .and. isBulk) then
-                    do i=1,iMax
+            !Do super diffusion if interface speed is too much faster than "light" (all species)
+            if (doNuke .and. Model%doBoris) then
+                !Loop over interfaces, check if average interface velocity is > Ca
+                do i=1,iMax
+                    !Vn = sqrt( (vL^2 + vR^2 )/2 )
+                    vL = norm2(PrimL(i,VELX:VELZ,s))
+                    vR = norm2(PrimR(i,VELX:VELZ,s))
+                    Vn = sqrt(vL**2.0 + vR**2.0)/sqrt(2.0)
+                    doI = (Vn >= cLim*Model%Ca) .and. ( doFlxL(i) .and. doFlxR(i) )
 
-                        deeP = bbD(i)*dVel(i,XDIR:ZDIR)/(Model%Ca**2.0)
+                    if (doI) then
+                        !Go nuts and add a shit-ton of diffusion
+                        !Use diffusive speed of Ca, and Delta of cell values i,i-1 (instead of L/R's)
+                        dCon = ConB(i,Nr2+1,:,s) - ConB(i,Nr2,:,s)
+                        gFlxB(i,:) = gFlxB(i,:) - Model%Ca*dCon
 
-                        if (.not. doHogs11) then
-                        !Limit to perp component
-                            !Get average XYZ field @ interface
-                            bAvg = B0(i,XDIR:ZDIR) + 0.5*( MagLRB(i,XDIR:ZDIR,LEFT) + MagLRB(i,XDIR:ZDIR,RIGHT) )
-                            bhat = normVec(bAvg)
-                            !Pull out parallel component
-                            deeP = Vec2Perp(deeP,bhat)
-                        endif
+                    endif !Going nuts
+                enddo !i
 
-                        !Now apply mag hogs
-                        mFlxB(i,XDIR:ZDIR) = mFlxB(i,XDIR:ZDIR) - Model%cHogM*VaD(i)*deeP
+            endif !nuke
 
-                        ! !Calculate del(rho_m v), the magnetic momentum
-                        ! !Two choices here: 
-                        ! !1) Delta mag momentum or Magmass x delta-vee
-                        ! !2) Total direction or perp to field
-
-                        ! RhoML = norm2( B0(i,XDIR:ZDIR) + MagLRB(i,XDIR:ZDIR,LEFT ) )**2.0/(Model%Ca**2.0)
-                        ! RhoMR = norm2( B0(i,XDIR:ZDIR) + MagLRB(i,XDIR:ZDIR,RIGHT) )**2.0/(Model%Ca**2.0)
-                        ! deeP = RhoMR*PrimLRB(i,VELX:VELZ,RIGHT) - RhoML*PrimLRB(i,VELX:VELZ,LEFT)
-
-                    enddo
-                endif !Boris HOGS
-
-                !Do super diffusion if interface speed is too much faster than "light" (all species)
-                if (doNuke .and. Model%doBoris) then
-                    !Loop over interfaces, check if average interface velocity is > Ca
-                    do i=1,iMax
-                        !Vn = sqrt( (vL^2 + vR^2 )/2 )
-                        vL = norm2(PrimLRB(i,VELX:VELZ,LEFT))
-                        vR = norm2(PrimLRB(i,VELX:VELZ,RIGHT))
-                        Vn = sqrt(vL**2.0 + vR**2.0)/sqrt(2.0)
-                        doI = (Vn >= cLim*Model%Ca) .and. ( doFlx(i,LEFT) .and. doFlx(i,RIGHT) )
-
-                        if (doI) then
-                            !Go nuts and add a shit-ton of diffusion
-                            !Use diffusive speed of Ca, and Delta of cell values i,i-1 (instead of L/R's)
-                            gFlxB(i,DEN   ) = gFlxB(i,DEN   ) - Model%Ca*( ConB(i,Nr2+1,DEN   ) - ConB(i,Nr2,DEN   ) )
-                            gFlxB(i,MOMX  ) = gFlxB(i,MOMX  ) - Model%Ca*( ConB(i,Nr2+1,MOMX  ) - ConB(i,Nr2,MOMX  ) )
-                            gFlxB(i,MOMY  ) = gFlxB(i,MOMY  ) - Model%Ca*( ConB(i,Nr2+1,MOMY  ) - ConB(i,Nr2,MOMY  ) )
-                            gFlxB(i,MOMZ  ) = gFlxB(i,MOMZ  ) - Model%Ca*( ConB(i,Nr2+1,MOMZ  ) - ConB(i,Nr2,MOMZ  ) )
-                            gFlxB(i,ENERGY) = gFlxB(i,ENERGY) - Model%Ca*( ConB(i,Nr2+1,ENERGY) - ConB(i,Nr2,ENERGY) )
-
-                        endif !Going nuts
-                    enddo
-                endif !Nuclear option
-
-            endif !HOGS
-
-        !Store fluxes into main arrays, multiply by face area *HERE*
-        !---------------------------
+            !Store gas fluxes into main array, multiply by face area *HERE*
             do nv=1,NVAR
                 do i=1,iMax
                     iG = isB+i-1 !Global index
@@ -425,27 +424,16 @@ module stress
                 enddo
             enddo
 
-            if (isBulk .and. Model%doMHD) then
-                do nv=1,NDIM
-                    do i=1,iMax
-                        iG = isB+i-1 !Global index
-                        mFlx(iG,j,k,nv,dN) = faB(i)*mFlxB(i,nv)
-                    enddo
-                enddo
-            endif !Mag fluxes
-
-        !Done with this species, move on
-        enddo !Main species loop
+        enddo !species
 
     end subroutine Fluxes
 
     !Calculate 1-sided Reynolds flux
-    subroutine GasKinFlux(Model,q,PrimLRB,TfB,gFlxB,dW,dVel,VnB,doFlx)
+    subroutine GasKinFlux(Model,q,PrimLRB,TfB,gFlxB,dW,doFlx)
         type(Model_T), intent(in) :: Model
         integer, intent(in) :: q
         real(rp), intent(in) :: PrimLRB(vecLen,NVAR), TfB(vecLen,NDIM*NDIM)
-        real(rp), intent(inout) :: gFlxB(vecLen,NVAR), dW(vecLen,NVAR), dVel(vecLen,NDIM)
-        real(rp), intent(out) :: VnB(vecLen)
+        real(rp), intent(inout) :: gFlxB(vecLen,NVAR), dW(vecLen,NVAR)
         logical, intent(in) :: doFlx(vecLen)
 
         integer :: i
@@ -456,8 +444,6 @@ module stress
         !DIR$ ASSUME_ALIGNED TfB: ALIGN
         !DIR$ ASSUME_ALIGNED gFlxB: ALIGN
         !DIR$ ASSUME_ALIGNED dW: ALIGN
-        !DIR$ ASSUME_ALIGNED dVel: ALIGN
-        !DIR$ ASSUME_ALIGNED VnB: ALIGN
 
         !Bail out if none of these cells have "real" fluid in this species
         if (.not. any(doFlx)) return
@@ -473,7 +459,7 @@ module stress
                 E = 0.5*D*(Vx**2.0 + Vy**2.0 + Vz**2.0) + P/(Model%gamma-1)
                 lambda = D/(2*P)
 
-                !Rotate into face normal, save normal
+                !Rotate into face normal
                 Vn  =  TfB(i,NORMX)*Vx + &
                 &      TfB(i,NORMY)*Vy + &
                 &      TfB(i,NORMZ)*Vz
@@ -483,8 +469,6 @@ module stress
                 Vt2 =  TfB(i,TAN2X)*Vx + &
                 &      TfB(i,TAN2Y)*Vy + &
                 &      TfB(i,TAN2Z)*Vz
-
-                VnB(i) = Vn
 
                 !Calculate first/second moments
                 Vn0 = 0.5*erfc(SgnLR(q)*sqrt(lambda)*Vn)
@@ -521,32 +505,28 @@ module stress
                 dW(i,MOMZ)   = dW(i,MOMZ)   + SgnLR(q)*D*Vz
                 dW(i,ENERGY) = dW(i,ENERGY) + SgnLR(q)*E
 
-                !Accumulate dVel for mag hogs
-                dVel(i,XDIR) = dVel(i,XDIR) + SgnLR(q)*Vx
-                dVel(i,YDIR) = dVel(i,YDIR) + SgnLR(q)*Vy
-                dVel(i,ZDIR) = dVel(i,ZDIR) + SgnLR(q)*Vz
             endif !doFlx(i)
         enddo !i loop
         
     end subroutine GasKinFlux
 
-    subroutine MagKinFlux(Model,q,PrimLRB,MagLRB,Bn,VnB,TfB,mFlxB,B0,B0n,bbD,VaD)
+    subroutine MagKinFlux(Model,q,PrimLRB,MagLRB,Bn,TfB,mFlxB,B0,B0n,bbD,VaD)
         type(Model_T), intent(in) :: Model
         integer, intent(in) :: q
         real(rp), intent(in) :: PrimLRB(vecLen,NVAR), MagLRB(vecLen,NDIM), TfB(vecLen,NDIM*NDIM)
-        real(rp), dimension(vecLen), intent(in) :: Bn,B0n,VnB
+        real(rp), dimension(vecLen), intent(in) :: Bn,B0n
         real(rp), intent(in) :: B0(vecLen,NDIM)
         real(rp), intent(inout) :: mFlxB(vecLen,NDIM), bbD(vecLen), VaD(vecLen)
 
         integer :: i
         real(rp) :: D,P,Bx,By,Bz,dPb,Va2,Vac2,Nx,Ny,Nz
+        real(rp) :: Vx,Vy,Vz,Vn
         real(rp) :: B0x,B0y,B0z,BdB0,Pb0
         real(rp) :: lambda, Vn0
 
         !DIR$ ASSUME_ALIGNED PrimLRB: ALIGN
         !DIR$ ASSUME_ALIGNED MagLRB: ALIGN
         !DIR$ ASSUME_ALIGNED Bn: ALIGN
-        !DIR$ ASSUME_ALIGNED VnB: ALIGN
         !DIR$ ASSUME_ALIGNED TfB: ALIGN
         !DIR$ ASSUME_ALIGNED mFlxB: ALIGN
         !DIR$ ASSUME_ALIGNED B0: ALIGN
@@ -581,18 +561,25 @@ module stress
                 Vac2 = Va2
             endif
 
+            !Get normal velocity
+            Vx = PrimLRB(i,VELX)
+            Vy = PrimLRB(i,VELY)
+            Vz = PrimLRB(i,VELZ)
+            Nx = TfB(i,NORMX)
+            Ny = TfB(i,NORMY)
+            Nz = TfB(i,NORMZ)
+
+            Vn  =  Nx*Vx + Ny*Vy + Nz*Vz
+
             !Calculate 1st moment
             !lambda = D/2*P_tot, Va2 = B.B/D = 2*Pb/D
             lambda = 1/(2*P/D + Vac2)
-            Vn0 = 0.5*erfc(SgnLR(q)*sqrt(lambda)*VnB(i)) !Expensive
+            Vn0 = 0.5*erfc(SgnLR(q)*sqrt(lambda)*Vn) !Expensive
 
             !Accumulate Va for diffusive Alfven speed for hogs
             VaD(i) = VaD(i) + 0.5*sqrt(Vac2)
 
             !Now calculate fluxes
-            Nx = TfB(i,NORMX)
-            Ny = TfB(i,NORMY)
-            Nz = TfB(i,NORMZ)
 
             !Accumulate for L/R-moving
             mFlxB(i,XDIR) = mFlxB(i,XDIR) + Vn0*( dPb*Nx - Bx*Bn(i) )
@@ -606,14 +593,6 @@ module stress
                 mFlxB(i,XDIR) = mFlxB(i,XDIR) + Vn0*( -B0x*Bn(i) - Bx*B0n(i) + BdB0*Nx )
                 mFlxB(i,YDIR) = mFlxB(i,YDIR) + Vn0*( -B0y*Bn(i) - By*B0n(i) + BdB0*Ny )
                 mFlxB(i,ZDIR) = mFlxB(i,ZDIR) + Vn0*( -B0z*Bn(i) - Bz*B0n(i) + BdB0*Nz )
-                if (.not. doCCB0) then
-                    !Add B0 JxB force to faces instead of cell center
-                    Pb0 = 0.5*(B0x**2.0 + B0y**2.0 + B0z**2.0)
-                    mFlxB(i,XDIR) = mFlxB(i,XDIR) + Vn0*( Pb0*Nx - B0x*B0n(i) )
-                    mFlxB(i,YDIR) = mFlxB(i,YDIR) + Vn0*( Pb0*Ny - B0y*B0n(i) )
-                    mFlxB(i,ZDIR) = mFlxB(i,ZDIR) + Vn0*( Pb0*Nz - B0z*B0n(i) )
-
-                endif !doCCB0
             endif
 
         enddo
