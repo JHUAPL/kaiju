@@ -418,7 +418,7 @@ def main():
     with open(path, "w", encoding="utf-8") as f:
         json.dump(options, f, indent=JSON_INDENT)
 
-    makeitso_args = {'clobber': True, 'debug': True, 'verbose': True}
+    makeitso_args = {'clobber': True, 'debug': False, 'verbose': False}
     makeitso_args.update(options)
     #print(f"makeitso_args = {makeitso_args}")
 
@@ -435,7 +435,6 @@ def main():
     # Run the TIEGCMrun
     coupled_options = copy.deepcopy(options)
     coupled_options["voltron"] = makeitso_options.get("voltron", {})
-    print(f"coupled_options={coupled_options}")
     
     tiegcm_args = [
     "--coupling",
