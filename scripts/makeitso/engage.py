@@ -153,8 +153,10 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
     options["pbs"]["tie_ncpus"] = tiegcm_options["job"]["resource"]["ncpus"]
     options["pbs"]["tie_mpiprocs"] = tiegcm_options["job"]["resource"]["mpiprocs"]
     options["pbs"]["tie_mpiranks"] = tiegcm_options["job"]["nprocs"]
-    options["pbs"]["tie_exe"] = tiegcm_options["model"]["data"]["coupled_modelexe"]
-
+    options["pbs"]["tie_exe"] = tiegcm_options["model"]["data"]["coupled_modelexe"] 
+    if tiegcm_options["simulation"]["hpc_system"] == "pleiades":
+        options["pbs"]["model"] = tiegcm_options["job"]["resource"]["model"]    
+    
     # GR PBS parameters
     options["pbs"]["gamera_nodes"] = makeitso_options["pbs"]["select"]
     options["pbs"]["gamera_ncpus"] = makeitso_options["pbs"]["ncpus"]
@@ -167,6 +169,47 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
     options["pbs"]["voltron_mpiranks"] = int(options["pbs"]["gamera_nodes"])*int(options["pbs"]["gamera_mpiprocs"])+int( options["pbs"]["voltron_nodes"])*int(options["pbs"]["voltron_mpiprocs"])
     options["pbs"]["voltron_scripts"] = makeitso_options["pbs"]["mpiexec_command"].replace("mpiexec ", "")
 
+    if tiegcm_options["simulation"]["hpc_system"] == "derecho":
+        options["pbs"]["mpiexec_command"] = "mpiexec"
+        options["pbs"]["mpiexec_option"] = "-n"
+    elif tiegcm_options["simulation"]["hpc_system"] == "pleiades":
+        options["pbs"]["mpiexec_command"] = "mpiexec_mpt"
+        options["pbs"]["mpiexec_option"] = "-np"
+        options["pbs"]["tie_scripts"] = "correctOMPenvironment.sh $NODEFILE_1 omplace"
+        options["pbs"]["voltron_scripts"] = "correctOMPenvironment.sh $NODEFILE_2 omplace"
+        options["pbs"]["nodecommand"] = """
+# This section creates two node files based on the master node file.
+# Each node file should include the nodes that contribute to an executable.
+# Currently, head corresponds to TIEGCM ranks and tail are the GR ranks
+# A more robust system is needed in the future. GR ranks is G + helper R
+export NODEFILE_1=${NODEFILE}.1
+export NODEFILE_2=${NODEFILE}.2
+head -n 144 $NODEFILE > $NODEFILE_1
+tail -n 19 $NODEFILE > $NODEFILE_2
+wc -l $NODEFILE
+
+export NODEFILE_T=${NODEFILE}.T
+cat $NODEFILE_1 $NODEFILE_2 > $NODEFILE_T
+echo ""
+echo "Original Nodes"
+cat $PBS_NODEFILE
+echo ""
+
+echo ""
+echo "New Nodes"
+cat $NODEFILE_T
+echo ""
+
+export PBS_NODEFILE=$NODEFILE_T
+
+echo ""
+echo "PBS_NODEFILE = "
+echo $PBS_NODEFILE
+echo ""
+
+echo "Running tiegcm and voltron at the same time"
+"""
+    
     # Create a PBS script for each segment.
     pbs_scripts = []
     for job in range(1,int(options["pbs"]["num_segments"])):

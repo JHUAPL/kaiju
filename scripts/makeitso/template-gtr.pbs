@@ -6,8 +6,14 @@
 #PBS -A {{ pbs.account_name }}
 #PBS -q {{ pbs.queue }}
 #PBS -l walltime={{ pbs.walltime }}
+{%- if pbs.model is defined %}
+#PBS -l select={{ pbs.tie_nodes }}:ncpus={{ pbs.tie_ncpus }}:mpiprocs={{ pbs.tie_mpiprocs }}:model={{ pbs.model }}+{{ pbs.gamera_nodes }}:ncpus={{ pbs.gamera_ncpus }}:mpiprocs={{ pbs.gamera_mpiprocs }}:ompthreads={{ pbs.gamera_ompthreads }}:model={{ pbs.model }}+{{ pbs.voltron_nodes }}:ncpus={{ pbs.voltron_ncpus }}:mpiprocs={{ pbs.voltron_mpiprocs }}:ompthreads={{ pbs.voltron_ompthreads }}:model={{ pbs.model }}
+{%- else %}
 #PBS -l select={{ pbs.tie_nodes }}:ncpus={{ pbs.tie_ncpus }}:mpiprocs={{ pbs.tie_mpiprocs }}+{{ pbs.gamera_nodes }}:ncpus={{ pbs.gamera_ncpus }}:mpiprocs={{ pbs.gamera_mpiprocs }}:ompthreads={{ pbs.gamera_ompthreads }}+{{ pbs.voltron_nodes }}:ncpus={{ pbs.voltron_ncpus }}:mpiprocs={{ pbs.voltron_mpiprocs }}:ompthreads={{ pbs.voltron_ompthreads }}
-{% if pbs.job_priority is defined %}#PBS -l job_priority={{ pbs.job_priority }}{% endif %}
+{%- endif %}
+{%- if pbs.job_priority is defined %}
+#PBS -l job_priority={{ pbs.job_priority }}
+{%- endif %}
 #PBS -m abe
 #PBS -j oe
 
@@ -52,6 +58,10 @@ printenv
 nodefile=nodefile.$PBS_JOBID
 cp $PBS_NODEFILE $nodefile
 
+{%- if pbs.nodecommand is defined %}
+{{ pbs.nodecommand }}
+{%- endif %}
+
 # Copy the main executable.
 # cp {{ pbs.kaiju_build_directory }}/bin/voltron_mpi.x ./voltron_mpi.x
 # cp {{ pbs.tie_exe }} ./tiegcm.x
@@ -61,6 +71,6 @@ VOLTRON_EXE=./voltron_mpi.x
 TIEGCM_EXE=./tiegcm.x
 OUTPUT_FILE="$VOLTRON_EXE-{{ simulation.segment_id }}.out"
 echo "Running $VOLTRON_EXE on model $RUNID."
-{{ pbs.mpiexec_command }} -n {{pbs.tie_mpiranks}} $TIEGCM_EXE {{pbs.tie_inp}} : -n {{pbs.voltron_mpiranks}} {{ pbs.voltron_scripts }} $VOLTRON_EXE $RUNID.xml &>> $OUTPUT_FILE
+{{ pbs.mpiexec_command }} {{pbs.mpiexec_option}} {{pbs.tie_mpiranks}} {%- if pbs.tie_scripts is defined %} {{ pbs.tie_scripts }} {%- endif %} $TIEGCM_EXE {{pbs.tie_inp}} : {{pbs.mpiexec_option}} {{pbs.voltron_mpiranks}} {%- if pbs.voltron_scripts is defined %} {{ pbs.voltron_scripts }} {%- endif %} $VOLTRON_EXE $RUNID.xml &>> $OUTPUT_FILE
 
 echo "Job $PBS_JOBID ended at `date` on `hostname`."
