@@ -11,7 +11,9 @@
 {%- else %}
 #PBS -l select={{ pbs.tie_nodes }}:ncpus={{ pbs.tie_ncpus }}:mpiprocs={{ pbs.tie_mpiprocs }}+{{ pbs.gamera_nodes }}:ncpus={{ pbs.gamera_ncpus }}:mpiprocs={{ pbs.gamera_mpiprocs }}:ompthreads={{ pbs.gamera_ompthreads }}+{{ pbs.voltron_nodes }}:ncpus={{ pbs.voltron_ncpus }}:mpiprocs={{ pbs.voltron_mpiprocs }}:ompthreads={{ pbs.voltron_ompthreads }}
 {%- endif %}
-{%- if pbs.job_priority is defined %}#PBS -l job_priority={{ pbs.job_priority }}{%- endif %}
+{%- if pbs.job_priority is defined %}
+#PBS -l job_priority={{ pbs.job_priority }}
+{%- endif %}
 #PBS -m abe
 #PBS -j oe
 
