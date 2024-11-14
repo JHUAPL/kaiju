@@ -1,0 +1,178 @@
+module testebmpi
+  use testHelperMpi
+  use voltapp_mpi
+  use gamCouple_mpi_G2V
+  use uservoltic
+
+  implicit none
+
+  type(gamCouplerMpi_gam_T), allocatable :: gamCplMpi
+  type(voltAppMpi_T), allocatable :: voltAppMpi
+
+contains
+
+  @before
+  subroutine setup(this)
+      class (MpiTestMethod), intent(inout) :: this
+      character(len=strLen) :: caseFile
+
+      integer :: ierror
+      type(MPI_Comm) :: voltComm
+      type(XML_Input_T) :: xmlInp
+
+      call setMpiReal()
+
+      write(caseFile,'(A,I0,A)') 'cmiD_deep_', this%getNumProcesses()-1, '.xml'
+
+
+      if(this%getProcessRank() < (this%getNumProcesses()-1)) then
+          allocate(gamCplMpi)
+
+          ! make gamera-only mpi communicator
+          call MPI_Comm_Split(getMpiF08Communicator(this), gamId, this%getProcessRank(), gamCplMpi%gOptionsMpi%gamComm, ierror)
+
+	  gamCplMpi%gOptionsCplMpiG%couplingPoolComm = getMpiF08Communicator(this)
+          gamCplMpi%gOptions%userInitFunc => initUser
+          gamCplMpi%gOptionsMpi%doIO = .false.
+          xmlInp = New_XML_Input(trim(caseFile),'Kaiju',.true.)
+          call gamCplMpi%InitModel(xmlInp)
+      else
+          allocate(voltAppMpi)
+
+          ! make gamera-only mpi communicator
+          call MPI_Comm_Split(getMpiF08Communicator(this), voltId, this%getProcessRank(), voltComm, ierror)
+
+          voltAppMpi%vOptions%gamUserInitFunc => initUser
+	  allocate(voltAppMpi%vOptionsMpi%couplingPoolComm)
+          voltAppMpi%vOptionsMpi%couplingPoolComm = getMpiF08Communicator(this)
+          call initVoltron_mpi(voltAppMpi, trim(caseFile))
+      endif
+
+  end subroutine setup
+
+  @after
+  subroutine teardown(this)
+      class (MpiTestMethod), intent(inout) :: this
+
+      if(allocated(voltAppMpi)) then
+          call endVoltronWaits(voltAppMpi)
+          deallocate(voltAppMpi)
+      endif
+      if(allocated(gamCplMpi)) deallocate(gamCplMpi)
+
+  end subroutine teardown
+
+
+  ! helper subroutine to check squish data in Gas0
+  subroutine testGas0(Gr, locStr)
+    type(Grid_T), intent(in) :: Gr
+    character(len=*), intent(in) :: locStr
+
+    real(rp) :: Qs(8),xyz(NDIM), X1cc, X2cc
+    real(rp), allocatable :: SrcX12(:,:,:,:)
+    character(len=strLen) :: checkMessage
+    integer :: i,j,k,jmin,jmax
+
+    !Testing code to run on each gamera mpi rank
+    allocate(SrcX12(Gr%isg:Gr%ieg+1,Gr%jsg:Gr%jeg+1,Gr%ksg:Gr%keg+1,2))
+
+    !Calculate corner projections
+    do k=Gr%ksg,Gr%keg+1
+        do j=Gr%jsg,Gr%jeg+1
+            do i=Gr%isg,Gr%ieg+1
+                xyz = Gr%xyz(i,j,k,:) !Corner
+                SrcX12(i,j,k,1) = rad2deg*InvLatitude(xyz)
+                SrcX12(i,j,k,2) = rad2deg*katan2(xyz(YDIR),xyz(XDIR))
+            enddo
+        enddo
+    enddo
+
+    if(Gr%hasLowerBC(JDIR)) then
+        jMin = Gr%js+1
+    else
+        jMin = Gr%jsg
+    endif
+    if(Gr%hasUpperBC(JDIR)) then
+        jMax = Gr%je-1
+    else
+        jMax = Gr%jeg
+    endif
+
+    !Now check against each cell center Gas0 value
+    do k=Gr%ksg,Gr%keg
+        do j=jMin,jMax ! singularities get averaged, don't test them
+            do i=Gr%isg,Gr%ieg
+                !Define cell center value to be appropriate 8-point of corners
+                if(Gr%Gas0(i,j,k,IMDEN,BLK) /= 0 .or. Gr%Gas0(i,j,k,IMX1,BLK) /= 0 .or. &
+                   Gr%Gas0(i,j,k,IMX2,BLK) /= 0  .or. Gr%Gas0(i,j,k,IMPR,BLK) /= 0) then
+                    !Gas0 data is tasty/valid
+                    call SquishCorners(SrcX12(i:i+1,j:j+1,k:k+1,1),Qs)
+                    X1cc = ArithMean(Qs)
+                    call SquishCorners(SrcX12(i:i+1,j:j+1,k:k+1,2),Qs)
+                    X2cc = CircMeanDeg(Qs)
+
+                    write (checkMessage,'(A,A,A,I0,A,I0,A,I0,A)'), 'Gas0 Latitude is wrong on ',trim(locStr),' at  (',i,',',j,',',k,')'
+                    @assertEqual(X1cc,Gr%Gas0(i,j,k,IMX1,BLK),1e-17_rp,trim(checkMessage))
+                    write (checkMessage,'(A,A,A,I0,A,I0,A,I0,A)'), 'Gas0 Longitude is wrong on ',trim(locStr),' at  (',i,',',j,',',k,')'
+                    @assertEqual(X2cc,Gr%Gas0(i,j,k,IMX2,BLK),1e-17_rp,trim(checkMessage))
+                endif
+            enddo
+        enddo
+    enddo
+
+    deallocate(SrcX12)
+
+  end subroutine
+
+  @test(npes=[2,5,9])
+  subroutine VMPIsquishDipoleTest(this)
+      class (MpiTestMethod), intent(inout) :: this
+
+      character(len=strLen) :: locStr, checkMessage
+      integer :: i,j,k
+
+      if(allocated(gamCplMpi)) then
+
+          ! receive data from voltron
+          call recvDeepCplDataMpi(gamCplMpi)
+
+          ! check Gas0 data
+          write (locStr,'(A,I0,A,I0,A,I0,A)'), 'Gam(',gamCplMpi%Grid%Ri,',',gamCplMpi%Grid%Rj,',',gamCplMpi%Grid%Rk,')'
+          call testGas0(gamCplMpi%Grid, locStr)
+
+      else
+
+          ! enable debug projection and tubes for testing
+          voltAppMpi%ebTrcApp%ebModel%doDip = .true.
+          select type(rcmApp=>voltAppMpi%imagApp)
+              type is (rcmIMAG_T)
+                  rcmApp%doFakeTube = .true.
+              class default
+                  @assertTrue(.false., 'IMAG type must be RCM for the MPI squish test')
+          end select
+          ! disable quick squishing
+          voltAppMpi%qkSquishStride = 1
+          voltAppMpi%doQkSquish = .false.
+
+          @assertTrue(voltAppMpi%ebTrcApp%ebSquish%myNumBlocks < 0, 'Helpers must be disabled for MPI squish test')
+
+          ! advance to T=0seconds and perform a deep coupling
+          voltAppMpi%time = 0
+          call DeepUpdate_mpi(voltAppMpi)
+
+          SELECT type(cpl=>voltAppMpi%gApp)
+              TYPE IS (gamCouplerMpi_volt_T)
+                  ! send the data to gamera
+                  call sendDeepCplDataMpi(cpl)
+              CLASS DEFAULT
+                  @assertTrue(.false., "Voltron Allocated non-mpi Gamera coupler for MPI squish test. Failure")
+          ENDSELECT
+
+          ! check results on voltron side
+          call testGas0(voltAppMpi%gApp%Grid, 'Voltron')
+
+      endif
+  end subroutine VMPIsquishDipoleTest
+
+end module testebmpi
+

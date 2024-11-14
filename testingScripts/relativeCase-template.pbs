@@ -1,0 +1,73 @@
+#!/bin/bash
+
+#PBS -N {{ job_name }}
+#PBS -A {{ account }}
+#PBS -q {{ queue }}
+#PBS -l job_priority={{ job_priority }}
+{% if is_mpi %}
+#PBS -l select={{ gamera_ranks }}:ncpus=128:mpiprocs={{ gamera_per_node }}:ompthreads=64+3:ncpus=128:mpiprocs=1:ompthreads=128
+{% else %}
+#PBS -l select=1:ncpus=128:ompthreads=128
+{% endif %}
+#PBS -l walltime={{ walltime }}
+#PBS -j oe
+#PBS -m abe
+
+echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
+
+echo 'Loading modules.'
+module --force purge
+{%- for module in modules %}
+module load {{ module }}
+{%- endfor %}
+module list
+
+echo 'Loading python environment.'
+mage_test_root='{{ mage_test_root }}'
+export CONDARC="${mage_test_root}/.condarc"
+export CONDA_ENVS_PATH="${mage_test_root}/.conda"
+mage_miniconda3="${mage_test_root}/miniconda3"
+mage_conda="${mage_miniconda3}/bin/conda"
+__conda_setup="$($mage_conda 'shell.bash' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "$mage_miniconda3/etc/profile.d/conda.sh" ]; then
+        . "$mage_miniconda3/etc/profile.d/conda.sh"
+    else
+        export PATH="$mage_miniconda3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+conda activate kaiju-3.8-testing
+
+echo 'Setting up MAGE environment.'
+source {{ kaijuhome }}/scripts/setupEnvironment.sh
+
+echo 'Setting environment variables.'
+export TMPDIR={{ tmpdir }}
+export SLACK_BOT_TOKEN={{ slack_bot_token }}
+export OMP_NUM_THREADS=128
+export MPI_TYPE_DEPTH=32
+export KMP_STACKSIZE=128M
+export MAGE_TEST_ROOT=$mage_test_root
+export MAGE_TEST_SET_ROOT={{ mage_test_set_root }}
+export BRANCH_OR_COMMIT={{ branch_or_commit }}
+export JOBNAME={{ job_name }}
+echo 'The active environment variables are:'
+printenv
+
+{% if copy_case_folder and copy_case_runid %}
+#Copy data from another case for restart
+cp ../{{ copy_case_folder }}/{{ copy_case_runid }}*.h5 .
+{% endif %}
+
+# Run the model.
+{% if is_mpi %}
+MPICOMMAND="mpiexec $KAIJUHOME/scripts/preproc/pinCpuCores.sh"
+$MPICOMMAND ./voltron_mpi.x relativeCaseGo.xml >& $JOBNAME.out
+{% else %}
+./voltron.x relativeCaseGo.xml >& $JOBNAME.out
+{% endif %}
+
+echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

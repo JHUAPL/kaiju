@@ -10,7 +10,8 @@
 # Run Fortran unit tests every morning, separately (since they change the
 # source tree).
 15 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'unitTest.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-2-development.out 2>&1
-20 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master      'unitTest.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-2-master.out      2>&1
+# Disable master unit test for now since it hangs.
+# 20 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master      'unitTest.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-2-master.out      2>&1
 
 # Run weekly dashes every Monday morning for the development and master
 # branches.

@@ -14,7 +14,6 @@ program voltronx
 
     call initClocks()
 
-    vApp%gApp%Model%isLoud = .true.
     vApp%vOptions%gamUserInitFunc => initUser
 
     call initVoltron(vApp)
