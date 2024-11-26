@@ -66,7 +66,7 @@ module voltapp_mpi
             call getIDeckStr(inpXML)
         endif
         call CheckFileOrDie(inpXML,"Error opening input deck in initVoltron_mpi, exiting ...")
-        xmlInp = New_XML_Input(trim(inpXML),'Kaiju/Gamera',.true.)
+        xmlInp = New_XML_Input(trim(inpXML),'Kaiju/Voltron',.true.)
 
         ! initialize F08 MPI objects
         vApp%vHelpComm = MPI_COMM_NULL

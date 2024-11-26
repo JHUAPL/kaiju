@@ -128,7 +128,7 @@ submodule (volttypes) gamCplTypessub
         real(rp) :: stepDT
 
         ! update to DeepT time
-        stepDT = voltApp%DeepT - voltApp%time
+        stepDT = (voltApp%DeepT / App%Model%Units%gT0) - App%model%t
 
         call App%AdvanceModel(stepDT)
 

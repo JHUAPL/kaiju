@@ -22,7 +22,6 @@ contains
     type(voltApp_T) :: voltronApp
 
     character(len=strLen) :: caseInput = 'cmriD.xml'
-    real(rp) testValue
     type(XML_Input_T) :: xmlInp
     integer :: i,j
     character(len=strLen) :: checkMessage

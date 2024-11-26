@@ -474,17 +474,16 @@ module ebsquish
         x2 = 0.0
         xE = 0.0
         
+        if (ebApp%ebModel%doDip) then
+            isGood = .true.
+            x1 = InvLatitude(xyz)
+            x2 = katan2(xyz(YDIR),xyz(XDIR))
+            return
+        endif
+
         !Do quick short-cut to save us some effort
         isGood = inShueMP_SM(xyz,ShueScl)
         if (.not. isGood) return
-        
-        if (ebApp%ebModel%doDip) then
-            isGood = .true.
-            xyz0 = DipoleShift(xyz,norm2(xyz)+startEps)
-            x1 = InvLatitude(xyz0)
-            x2 = katan2(xyz0(YDIR),xyz0(XDIR))
-            return
-        endif
 
         ! trap for when we're within epsilon of the inner boundary
         ! (really, it's probably only the first shell of nodes at R=Rinner_boundary that doesn't trace correctly)

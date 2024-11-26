@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<!-- XML for weekly dash -->
+<Kaiju>
+  <VOLTRON>
+    <time tFin="7201.0"/>
+    <spinup doSpin="T" tSpin="3600.0"/>
+    <output dtOut="60.0" tsOut="100"/>
+    <coupling dtCouple="5.0" imType="RCM" doQkSquish="F" qkSquishStride="2" doAsyncCoupling="F" doSerial="{{ serial_coupling }}"/>
+    <restart dtRes="3600.0"/>
+    <imag doInit="T"/>
+    <threading NumTh="128"/>
+    <helpers numHelpers="2" useHelpers="T" doSquishHelp="T"/>
+  </VOLTRON>
+  <Gamera>
+    <sim runid="{{ runid }}" doH5g="T" H5Grid="lfmD.h5" icType="user" pdmb="1.0" rmeth="7UP"/>
+    <floors dFloor="1.0e-4" pFloor="1.0e-6"/>
+    <timestep doCPR="T" limCPR="0.25"/>
+    <restart doRes="{{ do_restart }}" resID="{{ restart_runid }}" nRes="{{ restart_number }}"/>
+    <physics doMHD="T" doBoris="T" Ca="10.0"/>
+    <ring gid="lfm" doRing="T" doAggressive="F"/>
+    <ringknobs doVClean="T"/>
+    <wind tsfile="bcwind.h5"/>
+    <source doSource="T" doWolfLim="T" doBounceDT="T" nBounce="1.0"/>
+    <iPdir N="{{ num_i_ranks }}" bcPeriodic="F"/>
+    <jPdir N="{{ num_j_ranks }}" bcPeriodic="F"/>
+    <kPdir N="1" bcPeriodic="T"/>
+    <threading NumTh="{{ num_g_th }}"/>
+    <coupling blockHalo="T" />
+  </Gamera>
+  <CHIMP>
+    <units uid="EARTHCODE"/>
+    <fields grType="LFM"/>
+    <domain dtype="MAGE"/>
+    <tracer epsds="0.05"/>
+  </CHIMP>
+  <REMIX>
+    <conductance doStarlight="T" doRamp="F"/>
+    <precipitation aurora_model_type="LINMRG" alpha="0.2" beta="0.4" doAuroralSmooth="F"/>
+  </REMIX>
+  <RCM>
+    <rcmdomain domType="ELLIPSE"/>
+    <ellipse xSun="12.5" yDD="15.0" xTail="-20.0" isDynamic="T"/>
+    <grid LowLat="30.0" HiLat="75.0" doLatStretch="F"/>
+    <plasmasphere isDynamic="T" initKp="2" doRefill="T" tAvg="600.0"/>
+  </RCM>
+</Kaiju>

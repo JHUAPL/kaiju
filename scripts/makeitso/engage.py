@@ -177,18 +177,18 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
         options["pbs"]["mpiexec_option"] = "-np"
         options["pbs"]["tie_scripts"] = "correctOMPenvironment.sh $NODEFILE_1 omplace"
         options["pbs"]["voltron_scripts"] = "correctOMPenvironment.sh $NODEFILE_2 omplace"
-        options["pbs"]["nodecommand"] = """
+        options["pbs"]["nodecommand"] = f"""
 # This section creates two node files based on the master node file.
 # Each node file should include the nodes that contribute to an executable.
 # Currently, head corresponds to TIEGCM ranks and tail are the GR ranks
 # A more robust system is needed in the future. GR ranks is G + helper R
-export NODEFILE_1=${NODEFILE}.1
-export NODEFILE_2=${NODEFILE}.2
-head -n 144 $NODEFILE > $NODEFILE_1
-tail -n 19 $NODEFILE > $NODEFILE_2
+export NODEFILE_1=${{NODEFILE}}.1
+export NODEFILE_2=${{NODEFILE}}.2
+head -n {options["pbs"]["tie_mpiranks"]} $NODEFILE > $NODEFILE_1
+tail -n {options["pbs"]["voltron_mpiranks"]} $NODEFILE > $NODEFILE_2
 wc -l $NODEFILE
 
-export NODEFILE_T=${NODEFILE}.T
+export NODEFILE_T=${{NODEFILE}}.T
 cat $NODEFILE_1 $NODEFILE_2 > $NODEFILE_T
 echo ""
 echo "Original Nodes"
@@ -388,12 +388,12 @@ def prompt_user_for_run_options(args):
     hpc_platform = options["simulation"]["hpc_system"]
     gamera_grid_type = options["simulation"]["gamera_grid_type"]
     od = option_makeitso_descriptions["pbs"][hpc_platform]
+    oed = option_engage_descriptions["pbs"][hpc_platform]
     od["select"]["default"] = od["select"]["default"][gamera_grid_type]
     od["num_helpers"]["default"] = (
         od["num_helpers"]["default"][gamera_grid_type]
     )
-    if hpc_platform == "derecho":
-        od["modules"]["default"] = ["ncarenv/23.09","cmake/3.26.3","craype/2.7.31","intel-classic/2023.2.1","cray-mpich/8.1.27","ncarcompilers/1.0.0","mkl/2023.2.0","hdf5-mpi/1.12.2","netcdf-mpi/4.9.2","esmf/8.6.0","conda"]
+    od["modules"]["default"] = oed["modules"]["default"]
     for on in od:
         o[on] = makeitso.get_run_option(on, od[on], mode)
 
