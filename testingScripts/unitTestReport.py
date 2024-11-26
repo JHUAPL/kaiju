@@ -136,10 +136,10 @@ def main():
         # NOTE: This needs to be reorganized.
 
         # Compute the names of the job log files.
-        job_file_0 = f"genTestData.o{job_ids[0]}"
-        job_file_1 = f"runCaseTests.o{job_ids[1]}"
-        job_file_2 = f"runNonCaseTests1.o{job_ids[2]}"
-        job_file_3 = f"runNonCaseTests2.o{job_ids[3]}"  # SKIP FOR NOW
+        job_file_0 = f"genTestData.o{job_ids[0]}"  # 0 OKs
+        job_file_1 = f"runCaseTests.o{job_ids[1]}" # 2 OKs
+        job_file_2 = f"runNonCaseTests1.o{job_ids[2]}"  # 7 OKs
+        job_file_3 = f"runNonCaseTests2.o{job_ids[3]}"  # 1 OK
         if debug:
             print(f"job_file_0 = {job_file_0}")
             print(f"job_file_1 = {job_file_1}")
@@ -165,7 +165,7 @@ def main():
                 jobKilled = True
 
         # There should be exactly 8 OKs.
-        if okCount != 6:
+        if okCount != 10:
             okFailure = True
         else:
             okFailure = False

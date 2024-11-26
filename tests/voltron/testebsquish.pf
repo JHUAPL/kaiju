@@ -133,14 +133,19 @@ contains
     type(voltApp_T) :: voltronApp
 
     character(len=strLen) :: caseInput = 'cmriD.xml'
-    real(rp) testValue
+    real(rp) :: xyz(3), invlat, invlon
+    character(len=strLen) :: checkMessage
     type(XML_Input_T) :: xmlInp
+    integer :: i,j,k
 
     voltronApp%vOptions%gamUserInitFunc => initUser
     call initVoltron(voltronApp, caseInput)
 
+    associate(ebGr=>voltronApp%ebTrcApp%ebState%ebGr)
+
     ! enable debug projection for testing
     voltronApp%ebTrcApp%ebModel%doDip = .true.
+
 
     ! advance to T=0seconds and perform a squish
     voltronApp%time = 0
@@ -148,9 +153,25 @@ contains
     call Squish(voltronApp)
     call SquishEnd(voltronApp)
 
-    @assertEqual(SUM(voltronApp%chmp2mhd%xyzSquish(:,:,:,1)),143412.6753716097_rp,1e-7_rp,'Squish Fake Projection Latitude value is wrong. Check Squish Processing and Output.')
-    @assertEqual(SUM(voltronApp%chmp2mhd%xyzSquish(:,:,:,2)),352685.8263769484_rp,1e-7_rp,'Squish Fake Projection Longitude value is wrong. Check Squish Processing and Output.')
-    @assertEqual(COUNT(voltronApp%chmp2mhd%isGood),112344,'Squish Fake Projection Good Count is wrong. Check Squish Processing and Output.')
+    @assertEqual(COUNT(norm2(ebGr%xyz(ebGr%is:voltronApp%iDeep+1,ebGr%js:ebGr%je+1,ebGr%ks:ebGr%ke+1,:),4) <= voltronApp%rTrc),COUNT(voltronApp%chmp2mhd%isGood),'Squish Fake Projection Good Count is wrong. Check Squish Processing and Output.')
+
+    do k=ebGr%ks,ebGr%ke+1
+      do j=ebGr%js+1,ebGr%je ! js and je+1 are smoothed singularities, not checked
+        do i=ebGr%is,voltronApp%iDeep+1
+          if(voltronApp%chmp2mhd%isGood(i,j,k)) then
+            xyz = ebGr%xyz(i,j,k,XDIR:ZDIR)
+            invlat = InvLatitude(xyz)
+            invlon = katan2(xyz(YDIR),xyz(XDIR))
+            write (checkMessage,'(A,I0,A,I0,A,I0,A)'), 'Squish Fake Projection Latitude is wrong at (',i,',',j,',',k,'). Check Squish Processing and Output.'
+            @assertEqual(invlat,voltronApp%chmp2mhd%xyzSquish(i,j,k,1),1e-17_rp,trim(checkMessage))
+            write (checkMessage,'(A,I0,A,I0,A,I0,A)'), 'Squish Fake Projection Longitude is wrong at (',i,',',j,',',k,'). Check Squish Processing and Output.'
+            @assertEqual(invlon,voltronApp%chmp2mhd%xyzSquish(i,j,k,2),1e-17_rp,trim(checkMessage))
+          endif
+        enddo
+      enddo
+    enddo
+
+  end associate
 
   end subroutine
 
