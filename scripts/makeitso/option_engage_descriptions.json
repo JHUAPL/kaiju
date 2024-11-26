@@ -43,6 +43,7 @@
                     "ncarenv/23.09",
                     "cmake/3.26.3",
                     "craype/2.7.31",
+                    "intel-classic/2023.2.1",
                     "cray-mpich/8.1.27",
                     "ncarcompilers/1.0.0",
                     "mkl/2023.2.0",
