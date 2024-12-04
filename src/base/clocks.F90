@@ -180,7 +180,7 @@ module clocks
         do n=1,nclk
             kClocks(n)%tElap = 0
             ! if the clock is active, reset the tic to right now
-            if(kClocks(n)%isOn) call Tic(kClocks(n)%cID)
+            if(kClocks(n)%isOn) call Tic(kClocks(n)%cID, .true.)
         enddo
 
     end subroutine cleanClocks

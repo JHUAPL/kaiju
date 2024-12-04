@@ -123,10 +123,6 @@ module voltapp
         !Time options
         call xmlInp%Set_Val(vApp%tFin,'time/tFin',1.0_rp)
         
-        !Recalculate timestep after correcting Gamera's end time
-        gApp%Model%dt = CalcDT(gApp%Model,gApp%Grid,gApp%State)
-        if (gApp%Model%dt0<TINY) gApp%Model%dt0 = gApp%Model%dt
-
         call vApp%IO%init(xmlInp,vApp%time,vApp%ts)
         
         !Deep coupling
@@ -146,6 +142,9 @@ module voltapp
             write (*,*) "Increasing the ending time by a fraction of a second to create a buffer"
             vApp%tFin = vApp%tFin + 0.25_rp
         endif
+
+        !Correct Gamera's end time
+        gApp%Model%tFin = vApp%tFin/gApp%Model%Units%gT0
 
         !Coupling is unified, so adding a separate XML option to control "deep" parts
         call xmlInp%Set_Val(vApp%doDeep, "coupling/doDeep", .true.)
@@ -169,8 +168,9 @@ module voltapp
             call xmlInp%Set_Val(resID,"/Kaiju/gamera/restart/resID","msphere")
             call xmlInp%Set_Val(nRes,"/Kaiju/gamera/restart/nRes" ,-1)
             call readVoltronRestart(vApp, resID, nRes)
-            vApp%IO%tOut = floor(vApp%time/vApp%IO%dtOut)*vApp%IO%dtOut
-            vApp%IO%tRes = vApp%time + vApp%IO%dtRes
+            vApp%IO%tOut = floor(vApp%time/vApp%IO%dtOut)*vApp%IO%dtOut + vApp%IO%dtOut
+            vApp%IO%tRes = floor(vApp%time/vApp%IO%dtRes)*vApp%IO%dtRes + vApp%IO%dtRes
+
             vApp%IO%tCon = vApp%time
         else
             ! non-restart initialization
@@ -197,7 +197,15 @@ module voltapp
             !Set first deep coupling (defaulting to coupling immediately)
             call xmlInp%Set_Val(vApp%DeepT, "coupling/tCouple", vApp%time)
             vApp%IO%tCon = vApp%time
+
+            ! correct Gamera start time
+            gApp%Model%t = vApp%time / gApp%Model%Units%gT0
+
         endif
+
+        !Recalculate timestep after correcting Gamera's start and end time
+        gApp%Model%dt = CalcDT(gApp%Model,gApp%Grid,gApp%State)
+        if (gApp%Model%dt0<TINY) gApp%Model%dt0 = gApp%Model%dt
 
         if (vApp%doDeep) then
             !Whether to do fast eb-squishing

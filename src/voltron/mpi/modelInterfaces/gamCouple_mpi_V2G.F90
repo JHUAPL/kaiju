@@ -473,7 +473,10 @@ module gamCouple_mpi_V2G
 
         ! over-ride some of the initial voltron parameters on the gamera ranks
         ! local gamera has correct values from the above parent init function
-        call mpi_bcast(App%Model%t, 1, MPI_MYFLOAT, App%myRank, App%couplingComm, ierr)
+        if(.not. App%Model%isRestart) then
+            ! don't over-ride restart time
+            call mpi_bcast(App%Model%t, 1, MPI_MYFLOAT, App%myRank, App%couplingComm, ierr)
+        endif
         call mpi_bcast(App%Model%tFin, 1, MPI_MYFLOAT, App%myRank, App%couplingComm, ierr)
         call mpi_bcast(App%Model%MJD0, 1, MPI_MYFLOAT, App%myRank, App%couplingComm, ierr)
 
