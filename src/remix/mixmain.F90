@@ -146,8 +146,10 @@ module mixmain
           !write(*,*) "GRID TRANSFORM!"
           if (I(h)%St%hemisphere .eq. NORTH) then
             call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=1)
+            call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=1)
           else
             call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=-1)
+            call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=-1)
           endif
           !write(*,*) "GRID TRANSFORM!!"
         end if
