@@ -16,11 +16,13 @@ Eric Winter
 
 # Import standard modules.
 import argparse
+import glob
 import os
 import subprocess
 import sys
 
 # Import 3rd-party modules.
+from bs4 import BeautifulSoup
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -213,7 +215,7 @@ def read_build_module_list_file(list_file):
         lines.pop(0)  # Remove cmake options line.
 
     # Save the remaining lines as a module or file list.
-    module_or_file_names = lines
+    module_or_file_names = [line.rstrip() for line in lines]
 
     # Return the file contents.
     return module_or_file_names, cmake_environment, cmake_options
@@ -399,3 +401,134 @@ def slack_send_image(slack_client, image_file_path, initial_comment='',
         response = e.response
         print(f"response = {response}", file=sys.stderr)
     return response
+
+
+def determine_first_gamera_result_file(xml_file: str):
+    """Determine the path to the first file of GAMERA results for a run.
+
+    Determine the path to the first file of GAMERA results for a run.
+
+    Parameters
+    ----------
+    xml_file : str
+        Path to run XML file to read.
+
+    Returns
+    -------
+    first_file : str
+        Path to first file of gamera results for this run.
+
+    Raises
+    ------
+    None
+    """
+    # Read the run ID for this run.
+    runid = extract_runid(xml_file)
+
+    # Extract the results directory.
+    results_dir = os.path.split(xml_file)[0]
+
+    # Compute the name of the first GAMERA results file. The file to use
+    # is the first file from the sorted list of files which match the
+    # pattern.
+    gam_h5_pattern = os.path.join(results_dir, f"{runid}_*.gam.h5")
+    gam_h5_files = glob.glob(gam_h5_pattern)
+    gam_h5_files.sort()
+    first_file = gam_h5_files[0]
+
+    # Return the path to the first GAMERA results file.
+    return first_file
+
+
+def extract_runid(xml_file: str):
+    """Extract the run ID from the MAGE XML file for a run.
+
+    Extract the run ID from the MAGE XML file for a run.
+
+    Parameters
+    ----------
+    xml_file : str
+        Path to MAGE XML file to read.
+
+    Returns
+    -------
+    runid : str
+        Run ID for current run
+
+    Raises
+    ------
+    None
+    """
+    # Read the XML file for this MAGE run.
+    with open(xml_file, "r", encoding="utf-8") as f:
+        xml_data = f.read()
+    bs_data = BeautifulSoup(xml_data, "xml")
+
+    # Extract the run ID.
+    Kaiju_element = bs_data.find("Kaiju")
+    Gamera_element = Kaiju_element.find("Gamera")
+    sim_element = Gamera_element.find("sim")
+    runid = sim_element.get("runid")
+
+    # Return the run IDs.
+    return runid
+
+
+def determine_voltron_result_file(xml_file: str):
+    """Determine the path to the voltron results file for a run.
+
+    Determine the path to the voltron results file for a run.
+
+    Parameters
+    ----------
+    xml_file : str
+        Path to run XML file to read.
+
+    Returns
+    -------
+    voltron_file : str
+        Path to file of voltron results for this run.
+
+    Raises
+    ------
+    None
+    """
+    # Read the run ID for this run.
+    runid = extract_runid(xml_file)
+
+    # Compute the name of the voltron results file.
+    results_dir = os.path.split(xml_file)[0]
+    voltron_file = os.path.join(results_dir, f"{runid}.volt.h5")
+
+    # Return the path to the voltron results file.
+    return voltron_file
+
+
+def determine_remix_result_file(xml_file: str):
+    """Determine the path to the remix results file for a run.
+
+    Determine the path to the remix results file for a run.
+
+    Parameters
+    ----------
+    xml_file : str
+        Path to run XML file to read.
+
+    Returns
+    -------
+    remix_file : str
+        Path to file of remix results for this run.
+
+    Raises
+    ------
+    None
+    """
+    # Read the run ID for this run.
+    runid = extract_runid(xml_file)
+
+    # Compute the name of the remix results file.
+    results_dir = os.path.split(xml_file)[0]
+    remix_file = os.path.join(results_dir, f"{runid}.mix.h5")
+
+    # Return the path to the remix results file.
+    return remix_file

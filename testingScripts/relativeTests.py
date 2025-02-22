@@ -72,6 +72,11 @@ POSTPROC_TEMPLATE = os.path.join(
     TEST_SCRIPTS_DIRECTORY, 'relCasePost-template.pbs'
 )
 
+# Path to jinja2 template file for combined Slack report PBS script.
+SLACK_REPORT_TEMPLATE = os.path.join(
+    TEST_SCRIPTS_DIRECTORY, 'relCaseReport-template.pbs'
+)
+
 
 # Path to jinja2 template file for XML file
 XML_TEMPLATE = os.path.join(
@@ -106,9 +111,40 @@ def processComparativeResults(case1_jobid, case2_jobid, caseName, pbsTemplate, p
               f"e.returncode = {e.returncode}\n"
               'See test log for output.\n',
               file=sys.stderr)
+    job_id = cproc.stdout.rstrip()
+    if debug:
+        print(f"job_id = {job_id}")
+    return job_id
+
+
+def create_combined_report(postproc_job_id_1, postproc_job_id_2, caseName, pbsTemplate, pbs_options):
+    # Render the job template.
+    pbs_content = pbsTemplate.render(pbs_options)
+    pbsFilename = f"{caseName}.pbs"
+    with open(pbsFilename, 'w', encoding='utf-8') as f:
+        f.write(pbs_content)
+    # Submit the job
+    if verbose:
+        print('Submitting combined Slack report job.')
+    cmd = f"qsub -W depend=afterok:{postproc_job_id_1}:{postproc_job_id_2} {pbsFilename}"
+    if debug:
+        print(f"cmd = {cmd}")
+    try:
+        cproc = subprocess.run(cmd, shell=True, check=True,
+                               text=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print('ERROR: qsub failed.\n'
+              f"e.cmd = {e.cmd}\n"
+              f"e.returncode = {e.returncode}\n"
+              'See test log for output.\n',
+              file=sys.stderr)
     job_id = cproc.stdout.split('.')[0]
     if debug:
         print(f"job_id = {job_id}")
+
+    # Return the job ID.
+    return job_id
+
 
 def generateAndRunCase(caseName,pbsTemplate,pbs_options,xmlTemplate,xml_options,wait_job_id=None):
     os.mkdir(caseName)
@@ -128,7 +164,7 @@ def generateAndRunCase(caseName,pbsTemplate,pbs_options,xmlTemplate,xml_options,
     shutil.copy2('../bcwind.h5', './bcwind.h5')
     # Submit the job
     if verbose:
-        print('Submitting comparative tests model run.')
+        print(f"Submitting comparative tests model run for case {caseName}.")
     cmd = f"qsub {PBS_SCRIPT}"
     if wait_job_id is not None:
         cmd = f"qsub -W depend=afterok:{wait_job_id} {PBS_SCRIPT}"
@@ -435,6 +471,15 @@ def main():
 
     # ------------------------------------------------------------------------
 
+    # Read the template for the PBS script used for posting reports to Slack.
+    with open(SLACK_REPORT_TEMPLATE, 'r', encoding='utf-8') as f:
+        template_content = f.read()
+    slack_report_template = Template(template_content)
+    if debug:
+        print(f"slack_report_template = {slack_report_template}")
+
+    # ------------------------------------------------------------------------
+
 
     # Read the template for the XML file used for the test data generation.
     with open(XML_TEMPLATE, 'r', encoding='utf-8') as f:
@@ -633,14 +678,14 @@ def main():
         if debug:
             base_pbs_options['report_options'] += ' -d'
         base_pbs_options['report_options'] += ' -l'  # Always report.
-        if slack_on_fail:
-            base_pbs_options['report_options'] += ' -s'
+        # if slack_on_fail:
+        #     base_pbs_options['report_options'] += ' -s'
         if is_test:
             base_pbs_options['report_options'] += ' -t'
         if verbose:
             base_pbs_options['report_options'] += ' -v'
-        if allTests:
-            base_pbs_options['report_options'] += ' -a'
+        # if allTests:
+        #     base_pbs_options['report_options'] += ' -a'
 
         # Create space to store job ids and submit OKs
         job_ids.append([])
@@ -679,8 +724,10 @@ def main():
             postProcOpts['ts'] = '0'
             postProcOpts['te'] = '120'
             postProcOpts['dt'] = '60'
-            processComparativeResults(job_id_s_r, job_id_m32_r, postProcOpts['caseName'], postproc_template, postProcOpts)
-            
+            postproc_job_id_1 = processComparativeResults(job_id_s_r, job_id_m32_r, postProcOpts['caseName'], postproc_template, postProcOpts)
+            job_ids[i_module_set].append(postproc_job_id_1)
+            submit_ok[i_module_set].append(True)
+
             postProcOpts = base_pbs_options
             postProcOpts['caseName'] = 'MpiRestartComp'
             postProcOpts['frameFolder'] = 'vidData'
@@ -691,8 +738,16 @@ def main():
             postProcOpts['ts'] = '50'
             postProcOpts['te'] = '120'
             postProcOpts['dt'] = '60'
-            processComparativeResults(job_id_m32_r, job_id_m32r_r, postProcOpts['caseName'], postproc_template, postProcOpts)
-            
+            postproc_job_id_2 = processComparativeResults(job_id_m32_r, job_id_m32r_r, postProcOpts['caseName'], postproc_template, postProcOpts)
+            job_ids[i_module_set].append(postproc_job_id_2)
+            submit_ok[i_module_set].append(True)
+
+            # Generate the combined report.
+            postProcOpts = base_pbs_options
+            report_job_id = create_combined_report(postproc_job_id_1, postproc_job_id_2, "combined_report", slack_report_template, base_pbs_options)
+            job_ids[i_module_set].append(report_job_id)
+            submit_ok[i_module_set].append(True)
+
         else:
             if debug:
                 print("Performing full test suite")

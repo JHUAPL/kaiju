@@ -49,10 +49,9 @@ echo "The kaipy software is located at ${KAIPYHOME}."
 echo 'Setting environment variables.'
 export TMPDIR={{ tmpdir }}
 export SLACK_BOT_TOKEN={{ slack_bot_token }}
-export OMP_NUM_THREADS=128
 export MPI_TYPE_DEPTH=32
 export KMP_STACKSIZE=128M
-export MAGE_TEST_ROOT="{{ mage_test_root }}"
+export MAGE_TEST_ROOT={{ mage_test_root }}
 export MAGE_TEST_SET_ROOT={{ mage_test_set_root }}
 export BRANCH_OR_COMMIT={{ branch_or_commit }}
 
@@ -88,6 +87,9 @@ echo 'Generating the RCM configuration file.'
 {{ genRCM_cmd }}
 echo "The RCM configuration file is `ls rcmconfig.h5`."
 
+# Moved this setting here to avoid error from genLFM.py.
+export OMP_NUM_THREADS=128
+
 # Run the model.
 MPICOMMAND="{{ mpiexec_cmd }}"
 cmd="$MPICOMMAND {{ voltron_cmd }} >& weeklyDashGo.out"
@@ -95,8 +97,9 @@ echo "Model run command is:"
 echo $cmd
 eval $cmd
 
-# Run the comparison. Always post results to Slack.
-cmd="python $KAIJUHOME/testingScripts/compare_mage_runs.py -lv --run_xml_list_file=/glade/u/home/ewinter/mage_testing/test_runs/reference_runs.txt --run_description='Weekly dash results' `pwd`/weeklyDashGo.xml >& compare_mage_runs.out"
+# Run the comparison. Post results to Slack if any test fails.
+reference_run=`cat /glade/u/home/ewinter/mage_testing/test_runs/derecho_configuration_check_runs.txt`
+cmd="python $KAIJUHOME/testingScripts/compare_mage_runs_numerical.py -dltv --run_description='`derecho` configuration check' $reference_run `pwd`/weeklyDashGo.xml >& compare_mage_runs_numerical.out"
 echo "Run comparison command is:"
 echo $cmd
 eval $cmd

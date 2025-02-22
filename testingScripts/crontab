@@ -2,24 +2,37 @@
 # ensures proper remote argument parsing.
 
 # Run build, initial condition, and Intel Inspector tests every morning on the
-# development and master branches. These tests do not require PBS jobs and do
-# not modify the source tree.
-05 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'buildTest.py -lv,ICtest.py -lv,intelChecks.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-1-development.out 2>&1
-10 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master      'buildTest.py -lv,ICtest.py -lv,intelChecks.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-1-master.out      2>&1
+# development and master branches.
+# The build and initial condition tests do not require PBS jobs and do not
+# modify the source tree. The Intel Inspector tests *do* require PBS jobs.
+# All three tests are run in Slack-on-fail (-s) mode, so their results are
+# only posted to Slack when a test fails, on the kaijudev channel.
+# The intelChecks.py script is also run in slack-on-fail (-s) mode, so that the
+# The report generated for the Intel checks is also run in -s mode.
+05 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'buildTest.py -sv,ICtest.py -sv,intelChecks.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-1-development.out 2>&1
+10 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master      'buildTest.py -sv,ICtest.py -sv,intelChecks.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-1-master.out      2>&1
 
 # Run Fortran unit tests every morning, separately (since they change the
-# source tree).
+# source tree). Job submission reports to Slack only on failure, report run
+# in Slack-on-fail (-s) mode.
 15 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'unitTest.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-2-development.out 2>&1
 # Disable master unit test for now since it hangs.
 # 20 00 * * * ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master      'unitTest.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/nightly-tests-2-master.out      2>&1
 
-# Run weekly dashes every Monday morning for the development and master
-# branches.
+# Run a weekly dash every Sunday morning for the development branch and
+# compare to reference development run listed in reference_runs.txt.
+# Submission-only reports to Slack on failure, report always posted to Slack.
+25 00 * * 0 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'weeklyDash.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-1-development.out 2>&1
 
-# Duplicate dashes for development
-25 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'weeklyDash.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-1-development.out 2>&1
-30 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'weeklyDash.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-2-development.out 2>&1
+# Run the weekly derecho configuration check on Sunday morning. Report only
+# sent to Slack on failure.
+30 00 * * 0 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master 'derecho_configuration_check.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/derecho_configuration_check.out 2>&1
 
-# Duplicate dashes for master
-35 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master 'weeklyDash.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-1-master.out 2>&1
-40 00 * * 1 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b master 'weeklyDash.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/weeklyDash-2-master.out 2>&1
+# Run the weekly MAGE reproducibility check check on Sunday morning. Report
+# only sent to Slack on failure.
+35 00 * * 0 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'mage_reproducibility_check.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/mage_reproducibility_check.out 2>&1
+
+# Run the weekly relative comparison check on Sunday morning. Submission
+# report only sent to Slack on failure, comparison report and movies always
+# sent.
+40 00 * * 0 ssh derecho "/glade/u/home/ewinter/scratch/mage_testing/kaiju-private/ewinter-derecho_testing/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'relativeTests.py -sv'" >> /glade/u/home/ewinter/scratch/mage_testing/logs/derecho_relativeTests.out 2>&1

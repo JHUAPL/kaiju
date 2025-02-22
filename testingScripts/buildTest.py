@@ -61,7 +61,8 @@ MODULE_LIST_DIRECTORY = os.path.join(TEST_SCRIPTS_DIRECTORY,
 
 # Path to module list file to use when generating the list of executables
 # Use a module set without MKL.
-EXECUTABLE_LIST_MODULE_LIST = os.path.join(MODULE_LIST_DIRECTORY, '04.lst')
+EXECUTABLE_LIST_MODULE_LIST = os.path.join(MODULE_LIST_DIRECTORY,
+                                           'intel_mpich.lst')
 
 # Path to file containing list of module sets to use for build tests
 BUILD_TEST_LIST_FILE = os.path.join(MODULE_LIST_DIRECTORY, 'build_test.lst')
@@ -216,9 +217,8 @@ def main():
     # Make a list of module sets to build with.
 
     # Read the list of  module sets to use for build tests.
-    with open(BUILD_TEST_LIST_FILE, encoding='utf-8') as f:
-        lines = f.readlines()
-    module_list_files = [_.rstrip() for _ in lines]
+    module_list_files, _, _ = common.read_build_module_list_file(
+        BUILD_TEST_LIST_FILE)
     if debug:
         print(f"module_list_files = {module_list_files}")
 

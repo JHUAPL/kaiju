@@ -131,9 +131,8 @@ def main():
     # Make a list of module sets to build with.
 
     # Read the list of  module sets to use for build tests.
-    with open(INITIAL_CONDITION_BUILD_TEST_LIST_FILE, encoding='utf-8') as f:
-        lines = f.readlines()
-    module_list_files = [_.rstrip() for _ in lines]
+    module_list_files, _, _ = common.read_build_module_list_file(
+        INITIAL_CONDITION_BUILD_TEST_LIST_FILE)
     if debug:
         print(f"module_list_files = {module_list_files}")
 

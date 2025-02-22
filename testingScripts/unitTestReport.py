@@ -164,8 +164,11 @@ def main():
             elif 'job killed' in line:
                 jobKilled = True
 
-        # There should be exactly 8 OKs.
-        if okCount != 10:
+        # There should be exactly 10 OKs.
+        OK_COUNT_EXPECTED = 10
+        if verbose:
+            print(f"Found {okCount} OKs, expected {OK_COUNT_EXPECTED}.")
+        if okCount != OK_COUNT_EXPECTED:
             okFailure = True
         else:
             okFailure = False
@@ -190,7 +193,7 @@ def main():
     # Detail the test results
     test_report_details_string = ''
     test_report_details_string += (
-        f"est results are on `derecho` in {os.getcwd()}.\n"
+        f"Test results are on `derecho` in {os.getcwd()}.\n"
     )
     if myError:
         test_report_details_string += 'Errors occurred during testing.\n'

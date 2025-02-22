@@ -1,10 +1,10 @@
 #!/bin/bash
 
-#PBS -N postProcessComp
+#PBS -N relCaseReport
 #PBS -A {{ account }}
-#PBS -q casper@casper-pbs
+#PBS -q main
 #PBS -l job_priority={{ job_priority }}
-#PBS -l select=1:ncpus=9:ompthreads=9:mem=96GB
+#PBS -l select=1:ncpus=128
 #PBS -l walltime=1:00:00
 #PBS -j oe
 #PBS -m abe
@@ -37,8 +37,6 @@ source {{ kaipyhome }}/kaipy/scripts/setupEnvironment.sh
 echo 'Setting environment variables.'
 export TMPDIR={{ tmpdir }}
 export SLACK_BOT_TOKEN={{ slack_bot_token }}
-export OMP_NUM_THREADS=9
-#export MPI_TYPE_DEPTH=32
 export KMP_STACKSIZE=128M
 export MAGE_TEST_ROOT=$mage_test_root
 export MAGE_TEST_SET_ROOT={{ mage_test_set_root }}
@@ -47,8 +45,8 @@ export JOBNAME={{ job_name }}
 echo 'The active environment variables are:'
 printenv
 
-# Process the data and generate the output video
-python $KAIPYHOME/kaipy/scripts/quicklook/gamerrVid.py -d1 {{ case1F }} -id1 {{ case1id }} -d2 {{ case2F }} -id2 {{ case2id }} -o {{ frameFolder }}/{{ caseName }} -ts {{ ts }} -te {{ te }} -dt {{ dt }} -Nth 9 >& {{ caseName }}.out
+# Generate the report.
+$KAIJUHOME/testingScripts/combined_relative_tests_report.py -lv relMpi32ResRelease relMpi32Release relSerialRelease relMpi32Release
 
 echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."
 

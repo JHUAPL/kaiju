@@ -569,7 +569,8 @@ def main():
         pbs_options['report_options'] = ''
         if debug:
             pbs_options['report_options'] += ' -d'
-        pbs_options['report_options'] += ' -l'  # Always post report.
+        if be_loud:
+            pbs_options['report_options'] += ' -l'
         if slack_on_fail:
             pbs_options['report_options'] += ' -s'
         if is_test:
