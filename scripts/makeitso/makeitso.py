@@ -213,7 +213,6 @@ def update_option_descriptions(option_descriptions: dict, args: dict):
             od = option_descriptions["pbs"]["_common"][k]
             od["prompt"] = None
             od["default"] = pbs[k]
-            print(k, od["default"])
             
         # Incorporate HPC platform-specific PBS options from engage at basic level.
         hpc_platform = args["simulation"]["hpc_system"]
