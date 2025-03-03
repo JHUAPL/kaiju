@@ -236,13 +236,27 @@ module gcminterp
       type(gcm_grid_T), intent(inout) :: gcm
       type(Map_T) :: Map
       
-      real(rp), dimension(:,:), allocatable :: F
+      real(rp), dimension(:,:), allocatable :: F,F1,F2
       integer :: h,v
 
       do h=1,GCMhemispheres
         call mix_set_map(ion(h)%G,gcm%SM(h),gcm%r2tMaps(h))
         do v=1,gcm%mix2gcm_nvar
-          call mix_map_grids(gcm%r2tMaps(h),ion(h)%St%Vars(:,:,gcm%outlist(v)),F)
+          if (gcm%outlist(v) .eq. AVG_ENG) then
+            ! If we want average energy, do the interpolation and mapping on energy flux instead
+            call mix_map_grids(gcm%r2tMaps(h),ion(h)%St%Vars(:,:,AVG_ENG)*ion(h)%St%Vars(:,:,NUM_FLUX),F1)
+            call mix_map_grids(gcm%r2tMaps(h),ion(h)%St%Vars(:,:,NUM_FLUX),F2)
+
+            ! Catch any dvide by 0
+            where (F2 <= 0.0_rp)
+                F = F1 / F2
+            elsewhere
+                F = 0.0_rp  ! or handle it as needed
+            end where
+          else
+            call mix_map_grids(gcm%r2tMaps(h),ion(h)%St%Vars(:,:,gcm%outlist(v)),F)
+          endif
+
           gcm%gcmOutput(h,v)%var(:,:) = F
         end do
       end do

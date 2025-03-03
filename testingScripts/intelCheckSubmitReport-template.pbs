@@ -20,7 +20,7 @@ module list
 
 echo 'Loading python environment.'
 mage_test_root='{{ mage_test_root }}'
-export CONDARC="${mage_test_root}/condarc"
+export CONDARC="${mage_test_root}/.condarc"
 export CONDA_ENVS_PATH="${mage_test_root}/.conda"
 mage_miniconda3="${mage_test_root}/miniconda3"
 mage_conda="${mage_miniconda3}/bin/conda"

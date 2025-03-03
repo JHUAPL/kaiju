@@ -4,7 +4,7 @@
 #PBS -A {{ account }}
 #PBS -q {{ queue }}
 #PBS -l job_priority={{ job_priority }}
-#PBS -l select=8:ncpus=128:mpiprocs=2:ompthreads=64+3:ncpus=128:mpiprocs=1:ompthreads=128
+#PBS -l select=1:ncpus=128
 #PBS -l walltime={{ walltime }}
 #PBS -j oe
 #PBS -m abe
@@ -59,44 +59,8 @@ export BRANCH_OR_COMMIT={{ branch_or_commit }}
 echo 'The active environment variables are:'
 printenv
 
-# Build the code.
-cmd="{{ cmake_cmd }}"
-echo $cmd
-eval $cmd
-cmd="{{ make_cmd }}"
-echo $cmd
-eval $cmd
-
-# Move to the bin directory.
-cd bin
-
-# Copy the run XML file.
-cp ../weeklyDashGo.xml .
-
-# Generate the LFM grid file.
-echo 'Generating LFM grid file.'
-{{ genLFM_cmd }}
-echo "The LFM grid file is `ls lfm?.h5`."
-
-# Generate the solar wind boundary condition file.
-echo 'Generating the solar wind boundary condition file.'
-{{ cda2wind_cmd }}
-echo "The solar wind boundary condition file is `ls bcwind.h5`."
-
-# Generate the RCM configuration file.
-echo 'Generating the RCM configuration file.'
-{{ genRCM_cmd }}
-echo "The RCM configuration file is `ls rcmconfig.h5`."
-
-# Run the model.
-MPICOMMAND="{{ mpiexec_cmd }}"
-cmd="$MPICOMMAND {{ voltron_cmd }} >& weeklyDashGo.out"
-echo "Model run command is:"
-echo $cmd
-eval $cmd
-
-# Run the comparison. Always post results to Slack.
-cmd="python $KAIJUHOME/testingScripts/compare_mage_runs.py -lv --run_xml_list_file=/glade/u/home/ewinter/mage_testing/test_runs/reference_runs.txt --run_description='Weekly dash results' `pwd`/weeklyDashGo.xml >& compare_mage_runs.out"
+# Run the comparison.
+cmd="python $KAIJUHOME/testingScripts/compare_mage_runs_numerical.py -sv --run_description='MAGE reproducibility check' {{ xml1 }} {{ xml2 }} >& compare_mage_runs_numerical.out"
 echo "Run comparison command is:"
 echo $cmd
 eval $cmd

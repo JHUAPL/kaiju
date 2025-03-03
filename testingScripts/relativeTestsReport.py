@@ -157,13 +157,13 @@ def main():
             'Results attached as replies to this '
             'message.\n'
         )
-        message += (
-            f"Test results are in {os.getcwd()}.\n"
-        )
         slack_response = common.slack_send_message(
             slack_client, message, is_test=is_test)
         if slack_response['ok']:
             parent_ts = slack_response['ts']
+            message += (
+                f"Test results are in {os.getcwd()}.\n"
+            )
             message = (
                 'All results are from a Double Resolution Run using'
                 ' various Gamera and Voltron settings.'
@@ -174,7 +174,8 @@ def main():
             slack_response = common.slack_send_message(
                 slack_client, message, thread_ts=parent_ts, is_test=is_test)
             slack_response = common.slack_send_image(
-                slack_client, f"{cn}.mp4", initial_comment=cn,
+                slack_client, os.path.join("vidData", f"{cn}.mp4"),
+                initial_comment=cn,
                 thread_ts=parent_ts, is_test=is_test
             )
 

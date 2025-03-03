@@ -20,7 +20,7 @@ program voltronx
 
     do while (vApp%time < vApp%tFin)
         !Start root timer
-        call Tic("Omega")
+        call Tic("Omega", .true.)
         
         !Advance voltron models one coupling step
         nextDT = min(vApp%tFin-vApp%time, vApp%IO%nextIOTime()-vApp%time)
@@ -29,7 +29,7 @@ program voltronx
         call Toc("StepVoltron")
         
         !IO checks
-        call Tic("IO")
+        call Tic("IO", .true.)
         !Console output
         if (vApp%IO%doConsole(vApp%time)) then
             !Using console output from Gamera
@@ -51,9 +51,9 @@ program voltronx
             call resOutputV(vApp,vApp%gApp)
         endif
 
-        call Toc("IO")
+        call Toc("IO", .true.)
 
-        call Toc("Omega")
+        call Toc("Omega", .true.)
 
     end do
     write(*,*) "Fin"

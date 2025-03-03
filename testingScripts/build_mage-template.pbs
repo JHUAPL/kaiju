@@ -1,0 +1,36 @@
+#!/bin/bash
+
+#PBS -N {{ job_name }}
+#PBS -A {{ account }}
+#PBS -q {{ queue }}
+#PBS -l job_priority={{ job_priority }}
+#PBS -l select=1:ncpus=128
+#PBS -l walltime={{ walltime }}
+#PBS -j oe
+#PBS -m abe
+
+# This script just builds the MAGE software.
+
+echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
+
+echo 'Loading modules.'
+module --force purge
+{%- for module in modules %}
+module load {{ module }}
+{%- endfor %}
+echo 'The currently loaded modules are:'
+module list
+
+echo 'Setting environment variables.'
+echo 'The active environment variables are:'
+printenv
+
+# Build the code.
+cmd="{{ cmake_cmd }}"
+echo $cmd
+eval $cmd
+cmd="{{ make_cmd }}"
+echo $cmd
+eval $cmd
+
+echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

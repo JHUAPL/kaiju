@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-"""Run the a MAGE weekly dash test.
+"""Run the derecho configuration change check.
 
-This script runs the a MAGE weekly dash test.
+Run the derecho configuration change check. This script runs a PBS job which
+builds and runs a MAGE model and numerically compares it to a reference run.
 
 Authors
 -------
-Jeff Garretson
 Eric Winter
 
 """
@@ -29,7 +29,7 @@ import common
 # Program constants
 
 # Program description.
-DESCRIPTION = "Run a MAGE weekly dash test."
+DESCRIPTION = "Run the derecho configuration change check."
 
 # Home directory of kaiju installation
 KAIJUHOME = os.environ["KAIJUHOME"]
@@ -42,22 +42,23 @@ DEFAULT_MODULE_SET_FILE = os.path.join(
 # Root of directory tree for this set of tests.
 MAGE_TEST_SET_ROOT = os.environ["MAGE_TEST_SET_ROOT"]
 
-# Directory for weekly dash results
-WEEKLY_DASH_DIRECTORY = os.path.join(MAGE_TEST_SET_ROOT, "weeklyDash")
+# Directory for derecho configuration check results
+DERECHO_CONFIGURATION_CHECK = os.path.join(MAGE_TEST_SET_ROOT,
+                                           "derecho_configuration_check")
 
 # Path to directory containing the test scripts
 TEST_SCRIPTS_DIRECTORY = os.path.join(KAIJUHOME, "testingScripts")
 
 # Path to jinja2 template file for PBS script.
 PBS_TEMPLATE_FILE = os.path.join(
-    TEST_SCRIPTS_DIRECTORY, "weeklyDash-template.pbs"
+    TEST_SCRIPTS_DIRECTORY, "derecho_configuration_check-template.pbs"
 )
 
 # Prefix for weekly dash directory name
-WEEKLY_DASH_DIRECTORY_PREFIX = "weeklyDash_"
+DERECHO_CONFIGURATION_CHECK_PREFIX = "derecho_configuration_check_"
 
 # Name of rendered PBS script.
-WEEKLY_DASH_PBS_SCRIPT = "weeklyDash.pbs"
+DERECHO_CONFIGURATION_CHECK_PBS_SCRIPT = "derecho_configuration_check.pbs"
 
 # List of weekly dash test files to copy
 WEEKLY_DASH_TEST_FILES = [
@@ -65,10 +66,10 @@ WEEKLY_DASH_TEST_FILES = [
 ]
 
 
-def weekly_dash(args: dict):
-    """Perform a single weekly dash run.
+def derecho_configuration_check(args: dict):
+    """Run the derecho configuration change check.
 
-    Perform a single weekly dash run.
+    Run the derecho configuration change check.
 
     Parameters
     ----------
@@ -124,8 +125,8 @@ def weekly_dash(args: dict):
     # ------------------------------------------------------------------------
 
     # Make a directory for this build, and go there.
-    dir_name = f"{WEEKLY_DASH_DIRECTORY_PREFIX}{module_set_name}"
-    build_directory = os.path.join(WEEKLY_DASH_DIRECTORY, dir_name)
+    dir_name = f"{DERECHO_CONFIGURATION_CHECK_PREFIX}{module_set_name}"
+    build_directory = os.path.join(DERECHO_CONFIGURATION_CHECK, dir_name)
     if verbose:
         print(f"Creating and moving to build directory {build_directory}.")
     os.makedirs(build_directory)
@@ -198,13 +199,15 @@ def weekly_dash(args: dict):
 
     # Render the job template.
     pbs_content = pbs_template.render(pbs_options)
-    with open(WEEKLY_DASH_PBS_SCRIPT, "w", encoding="utf-8") as f:
+    with open(DERECHO_CONFIGURATION_CHECK_PBS_SCRIPT, "w",
+              encoding="utf-8") as f:
         f.write(pbs_content)
 
     # Submit the weekly dash job.
     if verbose:
-        print(f"Submitting weekly dash job {WEEKLY_DASH_PBS_SCRIPT}.")
-    cmd = f"qsub {WEEKLY_DASH_PBS_SCRIPT}"
+        print("Submitting weekly dash job "
+              f"{DERECHO_CONFIGURATION_CHECK_PBS_SCRIPT}.")
+    cmd = f"qsub {DERECHO_CONFIGURATION_CHECK_PBS_SCRIPT}"
     cproc = subprocess.run(cmd, shell=True, check=True, text=True,
                            capture_output=True)
     jobid = cproc.stdout.split(".")[0]
@@ -230,8 +233,8 @@ def weekly_dash(args: dict):
 
     # Summarize the test results.
     test_summary = (
-        f"Weekly dash for `{os.environ['BRANCH_OR_COMMIT']}` using module "
-        f"set `{module_set_file}` submitted as job {jobid}."
+        f"`derecho` configuration check for `{os.environ['BRANCH_OR_COMMIT']}`"
+        f" using module set `{module_set_file}` submitted as job {jobid}."
     )
 
     # Print the test results summary and details.
@@ -279,8 +282,8 @@ def main():
     # Convert the arguments from Namespace to dict.
     args = vars(args)
 
-    # # Pass the command-line arguments to the main function as a dict.
-    weekly_dash(args)
+    # Pass the command-line arguments to the main function as a dict.
+    derecho_configuration_check(args)
 
 
 if __name__ == "__main__":

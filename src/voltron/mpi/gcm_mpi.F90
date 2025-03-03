@@ -209,6 +209,7 @@ contains
         write(*,*) "MIX: EXPORT GCM"
 
         ! Prepare the export data
+        call Tic("Transform")
         do g = 1,2
             select case (g)
             case (1)
@@ -218,27 +219,32 @@ contains
             end select
 
         end do
+        call Toc("Transform")
 
         !! Calculate the auroral boundary in APEX coordinates
         !call calculate_auroral_boundary(gcm%APEX,auroralbc)
 
-            if (gcmCplComm /= MPI_COMM_NULL) then
-            do g = 1,2
-                select case (g)
-                case (1)
-                call export_gcm_per_grid(gcm%GEO,gcmCplComm,gcmCplRank)
-                case(2)
-                call export_gcm_per_grid(gcm%APEX,gcmCplComm,gcmCplRank)
-                end select
-            enddo
+        call Tic("Exchange")
 
-            !call mpi_send(auroralbc,gcm%APEX%nlon*2, MPI_DOUBLE_PRECISION, gcmCplRank,(tgcmId+voltId)*100, gcmCplComm, ierr)
-            !    if(ierr /= MPI_Success) then
-            !        call MPI_Error_string( ierr, message, length, ierr)
-            !        print *,message(1:length)
-            !        call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
-            !    end if
-            endif
+        if (gcmCplComm /= MPI_COMM_NULL) then
+        do g = 1,2
+            select case (g)
+            case (1)
+            call export_gcm_per_grid(gcm%GEO,gcmCplComm,gcmCplRank)
+            case(2)
+            call export_gcm_per_grid(gcm%APEX,gcmCplComm,gcmCplRank)
+            end select
+        enddo
+
+        !call mpi_send(auroralbc,gcm%APEX%nlon*2, MPI_DOUBLE_PRECISION, gcmCplRank,(tgcmId+voltId)*100, gcmCplComm, ierr)
+        !    if(ierr /= MPI_Success) then
+        !        call MPI_Error_string( ierr, message, length, ierr)
+        !        print *,message(1:length)
+        !        call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
+        !    end if
+        endif
+        
+        call Toc("Exchange")
     end subroutine exportgcmmpi
 
     subroutine export_gcm_per_grid(gcm,gcmCplComm,gcmCplRank)

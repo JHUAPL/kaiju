@@ -92,9 +92,6 @@ submodule (volttypes) gamCplTypessub
         allocate(App%SrcNC(App%Grid%is:voltApp%chmp2mhd%iMax+1,App%Grid%js:App%Grid%je+1,App%Grid%ks:App%Grid%ke+1,1:NVARIMAG))
 
         ! over-ride some Gamera parameters with Voltron values
-        App%Model%t = voltApp%time / App%Model%Units%gT0
-        App%Model%tFin = voltApp%tFin / App%Model%Units%gT0
-
         tsMJD%wID = voltApp%tilt%wID
         call tsMJD%initTS("MJD",doLoudO=.false.)
         App%Model%MJD0 = tsMJD%evalAt(0.0_rp) !Evaluate at T=0
@@ -130,7 +127,9 @@ submodule (volttypes) gamCplTypessub
         ! update to DeepT time
         stepDT = (voltApp%DeepT / App%Model%Units%gT0) - App%model%t
 
+        call Tic("GameraSync", .true.)
         call App%AdvanceModel(stepDT)
+        call Toc("GameraSync", .true.)
 
     end subroutine
 

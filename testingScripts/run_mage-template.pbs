@@ -59,20 +59,6 @@ export BRANCH_OR_COMMIT={{ branch_or_commit }}
 echo 'The active environment variables are:'
 printenv
 
-# Build the code.
-cmd="{{ cmake_cmd }}"
-echo $cmd
-eval $cmd
-cmd="{{ make_cmd }}"
-echo $cmd
-eval $cmd
-
-# Move to the bin directory.
-cd bin
-
-# Copy the run XML file.
-cp ../weeklyDashGo.xml .
-
 # Generate the LFM grid file.
 echo 'Generating LFM grid file.'
 {{ genLFM_cmd }}
@@ -92,12 +78,6 @@ echo "The RCM configuration file is `ls rcmconfig.h5`."
 MPICOMMAND="{{ mpiexec_cmd }}"
 cmd="$MPICOMMAND {{ voltron_cmd }} >& weeklyDashGo.out"
 echo "Model run command is:"
-echo $cmd
-eval $cmd
-
-# Run the comparison. Always post results to Slack.
-cmd="python $KAIJUHOME/testingScripts/compare_mage_runs.py -lv --run_xml_list_file=/glade/u/home/ewinter/mage_testing/test_runs/reference_runs.txt --run_description='Weekly dash results' `pwd`/weeklyDashGo.xml >& compare_mage_runs.out"
-echo "Run comparison command is:"
 echo $cmd
 eval $cmd
 
