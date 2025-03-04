@@ -48,6 +48,8 @@ module apex
 !   and magnetic local time.
 !
   implicit none
+
+  private
   real(rp),parameter :: re = 6371.2,            & ! Reference radius of IGRF
                     eps = 1.e-5,            & ! Small number
                     fltnvrs = 298.257223563   ! Inverse flatness of geoid
@@ -117,6 +119,11 @@ module apex
     ds           ! Step size (Km) Computed in subprogram linapx.
   real(rp) ::         & ! limits beyond which east-west gradients are computed
     glatmn,glatmx   ! differently to avoid potential underflow (apex_mka)
+
+    
+  public :: init_apex
+  public :: apex_mall
+  public :: apex_q2g
 contains
 
 !-----------------------------------------------------------------------
