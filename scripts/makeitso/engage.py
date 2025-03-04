@@ -402,8 +402,9 @@ def prompt_user_for_run_options(args):
         od["num_helpers"]["default"][gamera_grid_type]
     )
     od["modules"] = oed["modules"]
-    od["moduledir"] = oed["moduledir"]
-    od["local_modules"] = oed["local_modules"]
+    if hpc_platform == "pleiades":
+        od["moduledir"] = oed["moduledir"]
+        od["local_modules"] = oed["local_modules"]
     for on in od:
         o[on] = makeitso.get_run_option(on, od[on], mode)
 
