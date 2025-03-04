@@ -21,6 +21,7 @@ module voltapp
     use gcminterp
     use gcmtypes
     use planethelper
+    use apex, only : init_apex
     
     implicit none
 
@@ -373,9 +374,8 @@ module voltapp
             call DisableSymLinks()
         endif
 
-        if (vApp%doGCM) then
-          call init_apex(vApp%MJD,vApp%gcm%altmax)
-        endif
+        ! Setting apex reference altitude
+        call init_apex(vApp%MJD,vApp%gcm%altmax)
 
         if(present(optFilename)) then
             ! read from the prescribed file
