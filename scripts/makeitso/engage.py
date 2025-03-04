@@ -104,8 +104,16 @@ def create_command_line_parser():
         help="User mode (BASIC|INTERMEDIATE|EXPERT) (default: %(default)s)."
     )
     parser.add_argument(
-        "--options_path", "-o", default=None,
-        help="Path to JSON file of options (default: %(default)s)"
+        "--engage_options_path", "-eo", default=None,
+        help="Path to engage JSON file of options (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--makeitso_options_path", "-mo", default=None,
+        help="Path to makeitso JSON file of options (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--tiegcm_options_path", "-to", default=None,
+        help="Path to tiegcm JSON file of options (default: %(default)s)"
     )
     parser.add_argument(
         "--verbose", "-v", action="store_true",
@@ -393,7 +401,9 @@ def prompt_user_for_run_options(args):
     od["num_helpers"]["default"] = (
         od["num_helpers"]["default"][gamera_grid_type]
     )
-    od["modules"]["default"] = oed["modules"]["default"]
+    od["modules"] = oed["modules"]
+    od["moduledir"] = oed["moduledir"]
+    od["local_modules"] = oed["local_modules"]
     for on in od:
         o[on] = makeitso.get_run_option(on, od[on], mode)
 
@@ -441,30 +451,65 @@ def main():
         print(f"args = {args}")
     clobber = args.clobber
     debug = args.debug
-    options_path = args.options_path
+    engage_options_path = args.engage_options_path
+    makeitso_options_path = args.makeitso_options_path
+    tiegcm_options_path = args.tiegcm_options_path
     verbose = args.verbose
 
-    # Fetch the run options.
-    if options_path:
+    # Fetch the engage run options.
+    if engage_options_path:
         # Read the run options from a JSON file.
-        with open(options_path, "r", encoding="utf-8") as f:
-            options = json.load(f)
+        with open(engage_options_path, "r", encoding="utf-8") as f:
+            engage_options = json.load(f)
     else:
         # Prompt the user for the run options.
-        options = prompt_user_for_run_options(args)
+        engage_options = prompt_user_for_run_options(args)
     if debug:
         print(f"options = {options}")
 
     # Save the options dictionary as a JSON file in the current directory.
-    path = f"{options['simulation']['job_name']}-engage.json"
+    path = f"{engage_options['simulation']['job_name']}-engage.json"
     if os.path.exists(path):
         if not clobber:
             raise FileExistsError(f"Options file {path} exists!")
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(options, f, indent=JSON_INDENT)
+        json.dump(engage_options, f, indent=JSON_INDENT)
 
     makeitso_args = {'clobber': True, 'debug': False, 'verbose': False}
-    makeitso_args.update(options)
+
+    if makeitso_options_path:
+        # Read the run options from a JSON file.
+        with open(makeitso_options_path, "r", encoding="utf-8") as f:
+            makeitso_options = json.load(f)
+        # Simulation parameters are passed from engage to makeitso
+        for parameter in engage_options["simulation"]:
+            makeitso_options["simulation"][parameter] = engage_options["simulation"][parameter]
+        # Coupling parameters are passed from engage to makeitso
+        gamera_spin_up_time = engage_options["coupling"]["gamera_spin_up_time"]
+        dt = datetime.timedelta(seconds=gamera_spin_up_time)
+        start_date = engage_options["simulation"]["start_date"]
+        stop_date = engage_options["simulation"]["stop_date"]
+        t0 = datetime.datetime.fromisoformat(start_date)
+        t1 = datetime.datetime.fromisoformat(stop_date)
+        t0 -= dt
+        start_date = datetime.datetime.isoformat(t0)
+        makeitso_options["simulation"]["start_date"] = start_date
+        # PBS parameters are passed from engage to makeitso
+        pbs = engage_options["pbs"]
+        for k in pbs:
+            if k not in ["num_segments"]:
+                makeitso_options["pbs"][k] = pbs[k]
+        segment_duration = float(engage_options["simulation"]["segment_duration"])
+        makeitso_options["pbs"]["num_segments"] = str(int((t1-t0).total_seconds()/segment_duration))
+        select2 = 1 + int(makeitso_options["pbs"]["num_helpers"])
+        makeitso_options["pbs"]["select2"] = str(select2)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(makeitso_options, f, indent=JSON_INDENT)
+        makeitso_args = {'clobber': True, 'debug': False, 'verbose': False, 'options_path': path}
+        makeitso_args.update(engage_options)
+    else:
+        makeitso_args = {'clobber': True, 'debug': False, 'verbose': False}
+        makeitso_args.update(engage_options)
     #print(f"makeitso_args = {makeitso_args}")
 
     makeitso_options, makeitso_spinup_pbs_scripts, makeitso_warmup_pbs_scripts = makeitso.makeitso(makeitso_args)
@@ -478,12 +523,18 @@ def main():
     
 
     # Run the TIEGCMrun
-    coupled_options = copy.deepcopy(options)
+    coupled_options = copy.deepcopy(engage_options)
     coupled_options["voltron"] = makeitso_options.get("voltron", {})
     
+    if tiegcm_options_path:
+        # Read the run options from a JSON file.
+        with open(tiegcm_options_path, "r", encoding="utf-8") as f:
+            tiegcm_options = json.load(f)
+
     tiegcm_args = [
     "--coupling",
-    "--engage", json.dumps(coupled_options)
+    "--engage", json.dumps(coupled_options),
+    "--options", tiegcm_options_path
     ]   
     
     tiegcm_options,tiegcm_pbs_scripts,tiegcm_inp_scripts = tiegcmrun.tiegcmrun(tiegcm_args)
@@ -496,7 +547,7 @@ def main():
         json.dump(tiegcm_inp_scripts, f, indent=JSON_INDENT)
 
     # Create the PBS job scripts.
-    pbs_scripts, submit_all_jobs_script = create_pbs_scripts(options,makeitso_options, makeitso_pbs_scripts, tiegcm_options, tiegcm_inp_scripts, tiegcm_pbs_scripts)
+    pbs_scripts, submit_all_jobs_script = create_pbs_scripts(engage_options,makeitso_options, makeitso_pbs_scripts, tiegcm_options, tiegcm_inp_scripts, tiegcm_pbs_scripts)
     print(f"pbs_scripts = {pbs_scripts}")
     print(f"submit_all_jobs_script = {submit_all_jobs_script}")
     

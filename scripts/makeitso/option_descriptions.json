@@ -254,6 +254,16 @@
                     "hdf5/1.8.18_mpt"
                 ]
             },
+            "moduledir": {
+                "LEVEL": "EXPERT",
+                "prompt": "Module directory",
+                "default": null
+            },
+            "local_modules": {
+                "LEVEL": "EXPERT",
+                "prompt": "Commands to add local module PATH",
+                "default": null
+            },
             "environment_variables": {
                 "LEVEL": "EXPERT",
                 "prompt": "Additional environment variable settings",

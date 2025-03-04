@@ -223,7 +223,9 @@ def update_option_descriptions(option_descriptions: dict, args: dict):
                 od["default"] = pbs[k]
         # Incorporate HPC platform-specific PBS options from engage in default.
         option_descriptions["pbs"][hpc_platform]["modules"]["default"] = pbs["modules"]
-    
+        if hpc_platform == "pleiades":
+            option_descriptions["pbs"][hpc_platform]["moduledir"]["default"] = pbs["moduledir"]
+            option_descriptions["pbs"][hpc_platform]["local_modules"]["default"] = pbs["local_modules"]
     # Return the option descriptions.
     return option_descriptions
 

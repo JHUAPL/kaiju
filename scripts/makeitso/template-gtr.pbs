@@ -30,10 +30,17 @@ cd $PBS_O_WORKDIR
 
 # Load the required modules for kaiju.
 module purge
+{%- for moduledir in pbs.moduledir %}
+module use -a {{ moduledir }}
+{%- endfor %}
 {%- for module in pbs.modules %}
 module load {{ module }}
 {%- endfor %}
 module list
+
+{%- for local_modules in pbs.local_modules %}
+{{ local_modules }}
+{%- endfor %}
 
 # Define the kaiju installation location.
 export KAIJU_INSTALL_DIR={{ pbs.kaiju_install_directory }}
