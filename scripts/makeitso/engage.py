@@ -504,6 +504,8 @@ def main():
         makeitso_options["pbs"]["num_segments"] = str(int((t1-t0).total_seconds()/segment_duration))
         select2 = 1 + int(makeitso_options["pbs"]["num_helpers"])
         makeitso_options["pbs"]["select2"] = str(select2)
+        makeitso_options["gamera"]["sim"]["runid"] = engage_options["simulation"]["job_name"]
+        makeitso_options["gamera"]["restart"]["resID"] = engage_options["simulation"]["job_name"]
         with open(path, "w", encoding="utf-8") as f:
             json.dump(makeitso_options, f, indent=JSON_INDENT)
         makeitso_args = {'clobber': True, 'debug': False, 'verbose': False, 'options_path': path}
