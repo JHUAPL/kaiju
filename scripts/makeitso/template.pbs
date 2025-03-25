@@ -4,6 +4,9 @@
 
 #PBS -N {{ simulation.segment_id }}
 #PBS -A {{ pbs.account_name }}
+{%- if pbs.group_list|default('', true) and pbs.group_list != "None" %}
+#PBS -W group_list={{ pbs.group_list }}
+{%- endif %}
 #PBS -q {{ pbs.queue }}
 #PBS -l walltime={{ pbs.walltime }}
 #PBS -l select={{ pbs.select }}:ncpus={{ pbs.ncpus }}:mpiprocs={{ pbs.mpiprocs }}:ompthreads={{ pbs.ompthreads }}{{ pbs.other }}+{{ pbs.select2 }}:ncpus={{ pbs.ncpus }}:mpiprocs={{ pbs.helper_mpiprocs }}:ompthreads={{ pbs.helper_ompthreads }}{{ pbs.other }}

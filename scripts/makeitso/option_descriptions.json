@@ -182,6 +182,11 @@
             }
         },
         "pleiades": {
+            "group_list": {
+                "LEVEL": "BASIC",
+                "prompt": "PBS group list",
+                "default": null
+            },
             "queue": {
                 "LEVEL": "BASIC",
                 "prompt": "PBS queue name",

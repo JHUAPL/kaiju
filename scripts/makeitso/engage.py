@@ -469,7 +469,7 @@ def main():
         print(f"options = {options}")
 
     # Save the options dictionary as a JSON file in the current directory.
-    path = f"{engage_options['simulation']['job_name']}-engage.json"
+    path = f"engage_parameters.json"
     if os.path.exists(path):
         if not clobber:
             raise FileExistsError(f"Options file {path} exists!")
@@ -506,6 +506,7 @@ def main():
         makeitso_options["pbs"]["select2"] = str(select2)
         makeitso_options["gamera"]["sim"]["runid"] = engage_options["simulation"]["job_name"]
         makeitso_options["gamera"]["restart"]["resID"] = engage_options["simulation"]["job_name"]
+        path = f"makeitso_parameters.json"
         with open(path, "w", encoding="utf-8") as f:
             json.dump(makeitso_options, f, indent=JSON_INDENT)
         makeitso_args = {'clobber': True, 'debug': False, 'verbose': False, 'options_path': path}
@@ -521,8 +522,8 @@ def main():
  
     with open('makeitso_parameters.json', 'w') as f:
         json.dump(makeitso_options, f, indent=JSON_INDENT)
-        json.dump(makeitso_spinup_pbs_scripts, f, indent=JSON_INDENT)
-        json.dump(makeitso_warmup_pbs_scripts, f, indent=JSON_INDENT)
+        #json.dump(makeitso_spinup_pbs_scripts, f, indent=JSON_INDENT)
+        #json.dump(makeitso_warmup_pbs_scripts, f, indent=JSON_INDENT)
     
 
     # Run the TIEGCMrun
@@ -546,8 +547,8 @@ def main():
     # Save the tiegcm options dictionary as a JSON file in the current directory.
     with open('tiegcmrun_parameters.json', 'w') as f:
         json.dump(tiegcm_options, f, indent=JSON_INDENT)
-        json.dump(tiegcm_pbs_scripts, f, indent=JSON_INDENT)
-        json.dump(tiegcm_inp_scripts, f, indent=JSON_INDENT)
+        #json.dump(tiegcm_pbs_scripts, f, indent=JSON_INDENT)
+        #json.dump(tiegcm_inp_scripts, f, indent=JSON_INDENT)
 
     # Create the PBS job scripts.
     pbs_scripts, submit_all_jobs_script = create_pbs_scripts(engage_options,makeitso_options, makeitso_pbs_scripts, tiegcm_options, tiegcm_inp_scripts, tiegcm_pbs_scripts)

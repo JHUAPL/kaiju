@@ -4,6 +4,9 @@
 
 #PBS -N {{ simulation.segment_id }}
 #PBS -A {{ pbs.account_name }}
+{%- if pbs.group_list|default('', true) and pbs.group_list != "None" %}
+#PBS -W group_list={{ pbs.group_list }}
+{%- endif %}
 #PBS -q {{ pbs.queue }}
 #PBS -l walltime={{ pbs.walltime }}
 {%- if pbs.model is defined %}
@@ -62,8 +65,8 @@ echo "The active environment variables are:"
 printenv
 
 # Copy the node file for use by the placer command.
-nodefile=nodefile.$PBS_JOBID
-cp $PBS_NODEFILE $nodefile
+NODEFILE=nodefile.$PBS_JOBID
+cp $PBS_NODEFILE $NODEFILE
 
 {%- if pbs.nodecommand is defined %}
 {{ pbs.nodecommand }}
