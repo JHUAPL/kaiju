@@ -186,19 +186,17 @@ def update_option_descriptions(option_descriptions: dict, args: dict):
             od["prompt"] = None
             od["default"] = simulation[k]
 
-    # If TIEGCM coupling is specified, move the start date of the
-    # simulation back by gamera_spin_up_time seconds. The stop date of the
-    # simulation remains unchanged. Note that if "coupling" exists,
-    # "simulation" *MUST* also exist, and *MUST* contain the dict keys
-    # shown below.
+    # If TIEGCM coupling is specified, the prompt for stat date is set to None.
+    # Note that if "coupling" exists, "simulation" *MUST* also exist, 
+    # and *MUST* contain the dict keys shown below.
     if "coupling" in args:
         coupling = args["coupling"]
         simulation = args["simulation"]
-        gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
-        dt = datetime.timedelta(seconds=gamera_spin_up_time)
+        gr_warm_up_time = float(coupling["gr_warm_up_time"])
+        #dt = datetime.timedelta(seconds=gr_warm_up_time)
         start_date = simulation["start_date"]
         t0 = datetime.datetime.fromisoformat(start_date)
-        t0 -= dt
+        #t0 -= dt
         start_date = datetime.datetime.isoformat(t0)
         option_descriptions["simulation"]["start_date"]["prompt"] = None
         option_descriptions["simulation"]["start_date"]["default"] = (
@@ -793,12 +791,26 @@ def create_ini_files(options: dict, args: dict):
     # Set default value for padding to tFin for coupling.
     tfin_padding = 0.0
     # Engage modifications to parameters.
+    # If TIEGCM coupling is specified, warmup segments are calculated
+    # based on gr_warm_up_time and segment duration. If the segment
+    # duration is not evenly divisible by gr_warm_up_time, the
+    # warmup segment duration is set to gr_warm_up_time/4.
+    # The number of warmup segments is set to gr_warm_up_time/
+    # warmup_segment_duration. 
     if "coupling" in args:     
-        # Compute the number of warmup segments.
         coupling = args["coupling"]
-        gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
+        gr_warm_up_time = float(coupling["gr_warm_up_time"])
         segment_duration = float(options["simulation"]["segment_duration"])
-        i_last_warmup_ini = int(gamera_spin_up_time/segment_duration)
+        i_last_warmup_ini = (gr_warm_up_time/segment_duration)
+        if i_last_warmup_ini == int(i_last_warmup_ini):
+            warmup_segment_duration = segment_duration
+        else:
+            warmup_segment_duration = gr_warm_up_time/4
+            if warmup_segment_duration != int(warmup_segment_duration):
+                print("Error: gr_warm_up_time is not evenly divisible by 4.")
+                raise ValueError("Invalid gr_warm_up_time value.")
+            i_last_warmup_ini = (gr_warm_up_time/warmup_segment_duration)
+        i_last_warmup_ini = int(i_last_warmup_ini)
         # Add padding to tFin for coupling.
         if coupling["tfin_delta"] == "T":
             tfin_coupling_padding = float(options["voltron"]["coupling"]["dtCouple"]) - 1
@@ -839,6 +851,38 @@ def create_ini_files(options: dict, args: dict):
             with open(ini_file, "w", encoding="utf-8") as f:
                 f.write(ini_content)
 
+        # Create an .ini file for the warmup segment, if requested.
+        # NOTE: This is a special case for the GTR runs. The
+        # gr_warm_up_time is used to determine the end time of the
+        # warmup segment
+        if "coupling" in args:
+            tFin_warmup = float(coupling["gr_warm_up_time"]) + 1.0
+            for job in range(1, i_last_warmup_ini + 1):
+                opt = copy.deepcopy(options)
+                runid = opt["simulation"]["job_name"]
+                # NOTE: This naming scheme supports a maximum of 99 segments.
+                segment_id = f"{runid}-WARMUP-{job:02d}"
+                opt["simulation"]["segment_id"] = segment_id
+                opt["gamera"]["restart"]["doRes"] = "T"
+                dT = warmup_segment_duration #float(options["simulation"]["segment_duration"])
+                # Add 1 to ensure last restart file created
+                tFin_segment = job*dT + 1.0
+                if tFin_segment > tFin_warmup:
+                    tFin_segment = tFin_warmup
+                opt["voltron"]["time"]["tFin"] = str(tFin_segment)
+                dtRes = float(options["voltron"]["restart"]["dtRes"])
+                if job > 1:
+                    nRes = int(((tFin_segment - 1) - dT )/dtRes) 
+                else:
+                    nRes = 0
+                opt["gamera"]["restart"]["nRes"] = str(nRes)
+                ini_content = template.render(opt)
+                ini_file = os.path.join(opt["pbs"]["run_directory"],
+                                        f"{segment_id}.ini")
+                ini_files.append(ini_file)
+                with open(ini_file, "w", encoding="utf-8") as f:
+                    f.write(ini_content)
+            
         # Create an .ini file for each simulation segment. Files for each
         # segment will be numbered starting with 1.
         for job in range(1, int(options["pbs"]["num_segments"]) + 1):
@@ -849,22 +893,31 @@ def create_ini_files(options: dict, args: dict):
             opt["simulation"]["segment_id"] = segment_id
             opt["gamera"]["restart"]["doRes"] = "T"
             dT = float(options["simulation"]["segment_duration"])
-            # Add 1 to ensure last restart file created
-            tFin_segment = job*dT + 1.0
+            dtRes = float(options["voltron"]["restart"]["dtRes"])
+            # tfin_delta is the warmup time to add to tFin for coupling.
+            if "coupling" in args:
+                # tFin for coupling is different.
+                tfin_delta = float(coupling["gr_warm_up_time"])
+            else:
+                tfin_delta = 0.0
+            # Add 1 to ensure last restart file created    
+            tFin_segment = job*dT + tfin_delta + 1.0
+            nRes = int(((tFin_segment - 1) - dT )/dtRes) 
+            # Last segment may be shorter.
+            if tFin_segment > tFin + tfin_delta:
+                tFin_segment = tFin + tfin_delta
+                nRes = int((tFin_segment)/dtRes) 
+            opt["gamera"]["restart"]["nRes"] = str(nRes)   
             # Engage modifications to parameters in coupled segment.
             if "coupling" in args:
-                if job >= i_last_warmup_ini + 1:
-                    # Set doGCM to value.
-                    opt["voltron"]["coupling"]["doGCM"] = doGCM
-                    # tFin padding different for last segment.
-                    if job == int(options["pbs"]["num_segments"]):
-                        tfin_padding = tfin_coupling_padding 
-                    else:
-                        # Subtract 1 from tFin padding for coupling beacuse to offset the +1.0 for restart file done above.
-                        tfin_padding = tfin_coupling_padding - 1.0
-            # Last segment may be shorter.
-            if tFin_segment > tFin:
-                tFin_segment = tFin
+                opt["voltron"]["coupling"]["doGCM"] = doGCM
+                # tFin padding different for last segment.
+                if job == int(options["pbs"]["num_segments"]):
+                    tfin_padding = tfin_coupling_padding 
+                else:
+                    # Subtract 1 from tFin padding for coupling beacuse to offset the +1.0 for restart file done above.
+                    tfin_padding = tfin_coupling_padding - 1.0
+            
             opt["voltron"]["time"]["tFin"] = str(tFin_segment + tfin_padding)
             ini_content = template.render(opt)
             ini_file = os.path.join(opt["pbs"]["run_directory"],
@@ -889,13 +942,14 @@ def create_ini_files(options: dict, args: dict):
     # If a warmup period was used, rename the .ini files for the segments
     # which cover the warmup period. Then rename the remaining files to
     # account for this change.
+    '''
     if "coupling" in args:
 
         # Compute the number of warmup segments.
         coupling = args["coupling"]
-        gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
+        gr_warm_up_time = float(coupling["gr_warm_up_time"])
         segment_duration = float(options["simulation"]["segment_duration"])
-        i_last_warmup_ini = int(gamera_spin_up_time/segment_duration)
+        i_last_warmup_ini = int(gr_warm_up_time/segment_duration)
 
         # Rename the warmup segments.
         for i in range(1, i_last_warmup_ini + 1):
@@ -910,7 +964,7 @@ def create_ini_files(options: dict, args: dict):
             new_name = f"{runid}-{i - i_last_warmup_ini:02d}.ini"
             os.rename(old_name, new_name)
             ini_files[i] = new_name
-
+    '''
     # Return the paths to the .ini files.
     return ini_files
 
@@ -1060,9 +1114,9 @@ def create_pbs_scripts(xml_files: list, options: dict, args: dict):
     spinup_pbs_scripts = []
     if "coupling" in args:
         coupling = args["coupling"]
-        gamera_spin_up_time = float(coupling["gamera_spin_up_time"])
+        gr_warm_up_time = float(coupling["gr_warm_up_time"])
         segment_duration = float(options["simulation"]["segment_duration"])
-        i_last_warmup_pbs_script = int(gamera_spin_up_time/segment_duration)
+        i_last_warmup_pbs_script = int(gr_warm_up_time/segment_duration)
         spinup_pbs_scripts.append(pbs_scripts[0]) # Spinup script is first
         warmup_pbs_scripts = pbs_scripts[1:i_last_warmup_pbs_script + 1] # Warmup scripts
     # Return the paths to the PBS scripts.

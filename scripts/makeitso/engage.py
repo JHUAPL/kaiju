@@ -418,7 +418,7 @@ def prompt_user_for_run_options(args):
 
     od["root_directory"]["default"] = os.path.abspath(os.curdir)
     # Prompt for the remaining parameters.
-    for on in ["gamera_spin_up_time", "gcm_spin_up_time", 
+    for on in ["gr_warm_up_time", "gcm_spin_up_time", 
                "root_directory","conda_env","tfin_delta","doGCM"]:
         o[on] = makeitso.get_run_option(on, od[on], mode)
     #-------------------------------------------------------------------------
@@ -486,8 +486,8 @@ def main():
         for parameter in engage_options["simulation"]:
             makeitso_options["simulation"][parameter] = engage_options["simulation"][parameter]
         # Coupling parameters are passed from engage to makeitso
-        gamera_spin_up_time = engage_options["coupling"]["gamera_spin_up_time"]
-        dt = datetime.timedelta(seconds=gamera_spin_up_time)
+        gr_warm_up_time = engage_options["coupling"]["gr_warm_up_time"]
+        dt = datetime.timedelta(seconds=gr_warm_up_time)
         start_date = engage_options["simulation"]["start_date"]
         stop_date = engage_options["simulation"]["stop_date"]
         t0 = datetime.datetime.fromisoformat(start_date)

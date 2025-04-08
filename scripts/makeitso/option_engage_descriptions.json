@@ -1,9 +1,9 @@
 {
 "version": "0.0.0",
     "coupling": {
-        "gamera_spin_up_time": {
+        "gr_warm_up_time": {
             "LEVEL": "INTERMEDIATE",
-            "prompt": "Gamera spin-up time in simulated seconds",
+            "prompt": "GR warmup time in simulated seconds",
             "default": 14400
         },
         "gcm_spin_up_time": {
