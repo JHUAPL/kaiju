@@ -248,7 +248,7 @@ module gcminterp
             call mix_map_grids(gcm%r2tMaps(h),ion(h)%St%Vars(:,:,NUM_FLUX),F2)
 
             ! Catch any dvide by 0
-            where (F2 <= 0.0_rp)
+            where (F2 > 0.0_rp)
                 F = F1 / F2
             elsewhere
                 F = 0.0_rp  ! or handle it as needed
