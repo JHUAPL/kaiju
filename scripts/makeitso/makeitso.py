@@ -903,10 +903,6 @@ def create_ini_files(options: dict, args: dict):
             # Add 1 to ensure last restart file created    
             tFin_segment = job*dT + tfin_delta + 1.0
             nRes = int(((tFin_segment - 1) - dT )/dtRes) 
-            # Last segment may be shorter.
-            if tFin_segment > tFin + tfin_delta:
-                tFin_segment = tFin + tfin_delta
-                nRes = int((tFin_segment)/dtRes) 
             opt["gamera"]["restart"]["nRes"] = str(nRes)   
             # Engage modifications to parameters in coupled segment.
             if "coupling" in args:
