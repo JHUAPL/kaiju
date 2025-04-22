@@ -378,7 +378,7 @@
                 "prompt": "Timestep slice output interval (simulated hours)",
                 "default": "10.0"
             },
-            "tsOut": {
+            "dtCon": {
                 "LEVEL": "EXPERT",
                 "prompt": "Screen output interval (timesteps)",
                 "default": "50.0"

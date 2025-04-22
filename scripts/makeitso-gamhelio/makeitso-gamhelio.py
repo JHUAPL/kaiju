@@ -31,6 +31,7 @@ import datetime
 import json
 import os
 import subprocess
+import sys
 
 # Import 3rd-party modules.
 from astropy.io import fits
@@ -487,14 +488,14 @@ def run_preprocessing_steps(options):
         f.write(ini_content)
 
     # Create the grid and inner boundary conditions files.
-    # NOTE: Assumes wsa2gamera.py is in PATH.
-    cmd = "wsa2gamera.py"
+    cmd = os.path.join(os.environ["KAIPYHOME"], "kaipy", "scripts", "preproc",
+                       "wsa2gamera.py")
     args = [cmd, "wsa2gamera.ini"]
     with open("wsa2gamera.log", "w", encoding="utf-8") as fl:
-        subprocess.run(
-            args, check=True,
-            stdout=fl, stderr=fl
-        )
+        status = subprocess.run(args, stdout=fl, stderr=fl)
+        if status.returncode == 1:
+            print("Error in wsa2gamera! See wsa2gamera.log for details.")
+            sys.exit(1)
 
 
 def create_ini_files(options):
@@ -618,8 +619,8 @@ def convert_ini_to_xml(ini_files):
         xml_file = ini_file.replace(".ini", ".xml")
 
         # Convert the .ini file to .xml.
-        # NOTE: assumes XMLGenerator.py is in PATH.
-        cmd = "XMLGenerator.py"
+        cmd = os.path.join(os.environ["KAIPYHOME"], "kaipy", "scripts",
+                           "preproc", "XMLGenerator.py")
         args = [cmd, ini_file, xml_file]
         subprocess.run(args, check=True)
 

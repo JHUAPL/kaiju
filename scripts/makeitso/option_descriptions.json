@@ -512,7 +512,7 @@
                 "prompt": "(VOLTRON) File output cadence in simulated seconds",
                 "default": "60.0"
             },
-            "tsOut": {
+            "dtCon": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(VOLTRON) Cadence for status updates on screen in simulated seconds",
                 "default": "300.0"
