@@ -909,12 +909,12 @@ def create_ini_files(options: dict, args: dict):
                 opt["voltron"]["coupling"]["doGCM"] = doGCM
                 # tFin padding different for last segment.
                 if job == int(options["pbs"]["num_segments"]):
-                    tfin_padding = tfin_coupling_padding 
+                    tfin_padding = -1.0
                 else:
                     # Subtract 1 from tFin padding for coupling beacuse to offset the +1.0 for restart file done above.
                     tfin_padding = tfin_coupling_padding - 1.0
-            
             opt["voltron"]["time"]["tFin"] = str(tFin_segment + tfin_padding)
+            print(f'Creating job {job} with tFin_seg = {opt["voltron"]["time"]["tFin"]}')
             ini_content = template.render(opt)
             ini_file = os.path.join(opt["pbs"]["run_directory"],
                                     f"{segment_id}.ini")
