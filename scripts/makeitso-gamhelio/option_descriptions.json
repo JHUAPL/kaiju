@@ -386,7 +386,7 @@
             "doTimer": {
                 "LEVEL": "EXPERT",
                 "prompt": "Code timing output enabled",
-                "default": "T",
+                "default": "F",
                 "valids": ["T", "t", "F", "f"]
             }
         },
@@ -471,6 +471,11 @@
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "Index of restart file to use (-1 for latest (XXXXX-symlink) restart file)",
                 "default": "-1"
+            },
+            "dtRes": {
+                "LEVEL": "INTERMEDIATE",
+                "prompt": "Cadence for restart file generation in simulated seconds",
+                "default": "1800"
             },
             "resID": {
                 "LEVEL": "INTERMEDIATE",
