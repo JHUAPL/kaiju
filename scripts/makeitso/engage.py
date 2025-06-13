@@ -598,7 +598,7 @@ def main():
         # Voltron options
         o = makeitso_options["voltron"]["helpers"]
         od = option_makeitso_descriptions["voltron"]["helpers"]
-        num_helpers = makeitso_options["pbs"]["num_helpers"]
+        num_helpers = int(makeitso_options["pbs"]["num_helpers"])
         if num_helpers == 0:
             o["useHelpers"] = "F"
         else:
