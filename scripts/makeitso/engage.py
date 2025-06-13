@@ -220,7 +220,7 @@ echo "Running tiegcm and voltron at the same time"
     
     # Create a PBS script for each segment.
     pbs_scripts = []
-    for job in range(1,int(options["pbs"]["num_segments"])):
+    for job in range(1,int(options["pbs"]["num_segments"])+1):
         opt = copy.deepcopy(options)  # Need a copy of options
         runid = opt["simulation"]["job_name"]
         segment_id = f"{runid}-{job:02d}"
@@ -363,13 +363,12 @@ def prompt_user_for_run_options(args):
         o["segment_duration"] = od["segment_duration"]["default"]
 
     # Compute the number of segments based on the simulation duration and
-    # segment duration, with 1 additional segment just for spinup. Add 1 if
-    # there is a remainder.
+    # segment duration, add 1 if there is a remainder.
     if o["use_segments"] == "Y":
         num_segments = simulation_duration/float(o["segment_duration"])
         if num_segments > int(num_segments):
             num_segments += 1
-        num_segments = int(num_segments) + 1
+        num_segments = int(num_segments)
     else:
         num_segments = 1
 
@@ -459,9 +458,63 @@ def main():
 
     # Fetch the engage run options.
     if engage_options_path:
+        # Read the dictionary of option descriptions.
+        with open(OPTION_MAKEITSO_DESCRIPTIONS_FILE, "r", encoding="utf-8") as f:
+            option_makeitso_descriptions = json.load(f)
+        with open(OPTION_ENGAGE_DESCRIPTIONS_FILE, "r", encoding="utf-8") as f:
+            option_engage_descriptions = json.load(f)
         # Read the run options from a JSON file.
         with open(engage_options_path, "r", encoding="utf-8") as f:
             engage_options = json.load(f)
+        #-------------------------------------------------------------------------
+
+        # General options for the simulation
+        o = engage_options["simulation"]
+        date_format = '%Y-%m-%dT%H:%M:%S'
+        start_date = o["start_date"]
+        stop_date = o["stop_date"]
+        t1 = datetime.datetime.strptime(start_date, date_format)
+        t2 = datetime.datetime.strptime(stop_date, date_format)
+        simulation_duration = float((t2 - t1).total_seconds())
+        segment_duration = float(o["segment_duration"])
+        gamera_grid_type = o["gamera_grid_type"]
+        hpc_system = o["hpc_system"]
+        # ------------------------------------------------------------------------
+
+        # PBS options
+        o = engage_options["pbs"]
+        
+        # HPC platform-specific options
+        hpc_platform = engage_options["simulation"]["hpc_system"]
+        gamera_grid_type = engage_options["simulation"]["gamera_grid_type"]
+        od = option_makeitso_descriptions["pbs"][hpc_platform]
+        oed = option_engage_descriptions["pbs"][hpc_platform]
+        od["select"]["default"] = od["select"]["default"][gamera_grid_type]
+        od["num_helpers"]["default"] = (
+            od["num_helpers"]["default"][gamera_grid_type]
+        )
+        od["modules"] = oed["modules"]
+        if hpc_platform == "pleiades":
+            od["moduledir"] = oed["moduledir"]
+            od["local_modules"] = oed["local_modules"]
+        for on in od:
+            if on not in o:
+                o[on] = od[on]["default"]
+
+        if engage_options["simulation"]["use_segments"] == "Y":
+            num_segments = simulation_duration/segment_duration
+            if num_segments > int(num_segments):
+                num_segments += 1
+            num_segments = int(num_segments)
+        else:
+            num_segments = 1
+        o["num_segments"] = str(num_segments)
+
+        #-------------------------------------------------------------------------
+        # coupling options
+        o = engage_options["coupling"]
+        if "conda_env" not in engage_options["coupling"]:
+            o["conda_env"] = os.environ.get('CONDA_DEFAULT_ENV')
     else:
         # Prompt the user for the run options.
         engage_options = prompt_user_for_run_options(args)
@@ -477,22 +530,28 @@ def main():
         json.dump(engage_options, f, indent=JSON_INDENT)
 
     makeitso_args = {'clobber': True, 'debug': False, 'verbose': False}
-
+    # Fetch the makeitso run options.
     if makeitso_options_path:
+        # Read the dictionary of option descriptions.
+        with open(OPTION_MAKEITSO_DESCRIPTIONS_FILE, "r", encoding="utf-8") as f:
+            option_makeitso_descriptions = json.load(f)
+        with open(OPTION_ENGAGE_DESCRIPTIONS_FILE, "r", encoding="utf-8") as f:
+            option_engage_descriptions = json.load(f)
         # Read the run options from a JSON file.
         with open(makeitso_options_path, "r", encoding="utf-8") as f:
             makeitso_options = json.load(f)
-        # Simulation parameters are passed from engage to makeitso
+        # ------------------------------------------------------------------------
+
+        # Simulation options
         for parameter in engage_options["simulation"]:
             makeitso_options["simulation"][parameter] = engage_options["simulation"][parameter]
+        gamera_grid_type = makeitso_options["simulation"]["gamera_grid_type"]
         # Coupling parameters are passed from engage to makeitso
         gr_warm_up_time = engage_options["coupling"]["gr_warm_up_time"]
-        dt = datetime.timedelta(seconds=gr_warm_up_time)
         start_date = engage_options["simulation"]["start_date"]
         stop_date = engage_options["simulation"]["stop_date"]
         t0 = datetime.datetime.fromisoformat(start_date)
         t1 = datetime.datetime.fromisoformat(stop_date)
-        t0 -= dt
         start_date = datetime.datetime.isoformat(t0)
         makeitso_options["simulation"]["start_date"] = start_date
         # PBS parameters are passed from engage to makeitso
@@ -500,12 +559,53 @@ def main():
         for k in pbs:
             if k not in ["num_segments"]:
                 makeitso_options["pbs"][k] = pbs[k]
+
         segment_duration = float(engage_options["simulation"]["segment_duration"])
+        makeitso_options["voltron"]["time"]["tFin"] = int((t1-t0).total_seconds())
         makeitso_options["pbs"]["num_segments"] = str(int((t1-t0).total_seconds()/segment_duration))
         select2 = 1 + int(makeitso_options["pbs"]["num_helpers"])
         makeitso_options["pbs"]["select2"] = str(select2)
-        makeitso_options["gamera"]["sim"]["runid"] = engage_options["simulation"]["job_name"]
+
+        # ------------------------------------------------------------------------
+
+        # GAMERA options
+        o = makeitso_options["gamera"]["sim"]
+        od = option_makeitso_descriptions["gamera"]["sim"]
+
+        o["runid"] = engage_options["simulation"]["job_name"]
+        o["H5Grid"] = (
+            f"lfm{gamera_grid_type}.h5"
+        )
+        # <iPdir> options
+        o = makeitso_options["gamera"]["iPdir"]
+        od = option_makeitso_descriptions["gamera"]["iPdir"]
+        o["N"] = od["N"]["default"][gamera_grid_type]
+
+        # <jPdir> options
+        o = makeitso_options["gamera"]["jPdir"] 
+        od = option_makeitso_descriptions["gamera"]["jPdir"]
+        o["N"] = od["N"]["default"][gamera_grid_type]
+
+        # <kPdir> options
+        o = makeitso_options["gamera"]["kPdir"]
+        od = option_makeitso_descriptions["gamera"]["kPdir"]
+        o["N"] = od["N"]["default"][gamera_grid_type]
+
         makeitso_options["gamera"]["restart"]["resID"] = engage_options["simulation"]["job_name"]
+        
+        # ------------------------------------------------------------------------
+
+        # Voltron options
+        o = makeitso_options["voltron"]["helpers"]
+        od = option_makeitso_descriptions["voltron"]["helpers"]
+        num_helpers = makeitso_options["pbs"]["num_helpers"]
+        if num_helpers == 0:
+            o["useHelpers"] = "F"
+        else:
+            o["useHelpers"] = "T"
+        o["numHelpers"] = num_helpers
+        
+
         path = f"makeitso_parameters.json"
         with open(path, "w", encoding="utf-8") as f:
             json.dump(makeitso_options, f, indent=JSON_INDENT)
@@ -514,7 +614,7 @@ def main():
     else:
         makeitso_args = {'clobber': True, 'debug': False, 'verbose': False}
         makeitso_args.update(engage_options)
-    #print(f"makeitso_args = {makeitso_args}")
+    
 
     makeitso_options, makeitso_spinup_pbs_scripts, makeitso_warmup_pbs_scripts = makeitso.makeitso(makeitso_args)
     makeitso_pbs_scripts = makeitso_spinup_pbs_scripts + makeitso_warmup_pbs_scripts
@@ -522,14 +622,12 @@ def main():
  
     with open('makeitso_parameters.json', 'w') as f:
         json.dump(makeitso_options, f, indent=JSON_INDENT)
-        #json.dump(makeitso_spinup_pbs_scripts, f, indent=JSON_INDENT)
-        #json.dump(makeitso_warmup_pbs_scripts, f, indent=JSON_INDENT)
     
 
     # Run the TIEGCMrun
     coupled_options = copy.deepcopy(engage_options)
     coupled_options["voltron"] = makeitso_options.get("voltron", {})
-    
+    # Fetch the tiegcmrun options.
     if tiegcm_options_path:
         # Read the run options from a JSON file.
         with open(tiegcm_options_path, "r", encoding="utf-8") as f:
