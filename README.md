@@ -5,9 +5,18 @@ To build:
 Create a build folder.
 From inside the build folder, call cmake on the base kaiju directory.
 From inside the build folder, call "make" to build the application.
+## Using Python Tools
 
-To use Python tools:
-Assuming $KAIJUDIR is base installation directory, add $KAIJUDIR/scripts to $PATH and $KAIJUDIR to $PYTHONPATH.  
+To install the Python tools, run:
+```bash
+pip install kaipy
+```
 
-For help, see the wiki at
-https://bitbucket.org/aplkaiju/kaiju/wiki/Home
+## Documentation
+
+For help and more information, visit the [Kaiju Wiki](https://kaiju-docs.readthedocs.io).
+
+## Compilation Requirements
+
+**Note:** This version requires `clawpack` to compile.  
+Copy `claw.F` to `kaiju/src/rcm` before building.
