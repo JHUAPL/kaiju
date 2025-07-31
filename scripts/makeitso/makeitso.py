@@ -193,10 +193,10 @@ def update_option_descriptions(option_descriptions: dict, args: dict):
         coupling = args["coupling"]
         simulation = args["simulation"]
         gr_warm_up_time = float(coupling["gr_warm_up_time"])
-        #dt = datetime.timedelta(seconds=gr_warm_up_time)
+        dt = datetime.timedelta(seconds=gr_warm_up_time)
         start_date = simulation["start_date"]
         t0 = datetime.datetime.fromisoformat(start_date)
-        #t0 -= dt
+        t0 -= dt
         start_date = datetime.datetime.isoformat(t0)
         option_descriptions["simulation"]["start_date"]["prompt"] = None
         option_descriptions["simulation"]["start_date"]["default"] = (
@@ -727,8 +727,7 @@ def run_preprocessing_steps(options: dict, args: dict):
     debug = args["debug"]
 
     # Create the LFM grid file.
-    path = os.path.join(os.environ["KAIPYHOME"], "kaipy", "scripts", "preproc",
-                        "genLFM.py")
+    path = "genLFM"
     cmd = (
         f"{path}"
         f" -gid {options['simulation']['gamera_grid_type']}"
@@ -741,8 +740,7 @@ def run_preprocessing_steps(options: dict, args: dict):
 
     # If needed, create the solar wind file by fetching data from CDAWeb.
     if options["simulation"]["bcwind_available"] == "N":
-        path = os.path.join(os.environ["KAIPYHOME"], "kaipy", "scripts", "preproc",
-                            "cda2wind.py")
+        path = "cda2wind"
         cmd = (
             f"{path}"
             f" -t0 {options['simulation']['start_date']}"
@@ -753,13 +751,15 @@ def run_preprocessing_steps(options: dict, args: dict):
             print(f"cmd = {cmd}")
         subprocess.run(cmd, check=True, shell=True)
 
+
     # Create the RCM configuration file.
-    path = os.path.join(os.environ["KAIPYHOME"], "kaipy", "scripts", "preproc",
-                        "genRCM.py")
+    path = "genRCM"
     cmd = path
     if debug:
         print(f"cmd = {cmd}")
     subprocess.run(cmd, check=True, shell=True)
+
+
 
 
 def create_ini_files(options: dict, args: dict):
@@ -797,10 +797,12 @@ def create_ini_files(options: dict, args: dict):
     # warmup segment duration is set to gr_warm_up_time/4.
     # The number of warmup segments is set to gr_warm_up_time/
     # warmup_segment_duration. 
+    
     if "coupling" in args:     
         coupling = args["coupling"]
         gr_warm_up_time = float(coupling["gr_warm_up_time"])
         segment_duration = float(options["simulation"]["segment_duration"])
+        simulation_duration = float(options["voltron"]["time"]["tFin"])
         i_last_warmup_ini = (gr_warm_up_time/segment_duration)
         if i_last_warmup_ini == int(i_last_warmup_ini):
             warmup_segment_duration = segment_duration
@@ -855,6 +857,7 @@ def create_ini_files(options: dict, args: dict):
         # NOTE: This is a special case for the GTR runs. The
         # gr_warm_up_time is used to determine the end time of the
         # warmup segment
+        num_warmup_segments = 0
         if "coupling" in args:
             tFin_warmup = float(coupling["gr_warm_up_time"]) + 1.0
             for job in range(1, i_last_warmup_ini + 1):
@@ -882,10 +885,18 @@ def create_ini_files(options: dict, args: dict):
                 ini_files.append(ini_file)
                 with open(ini_file, "w", encoding="utf-8") as f:
                     f.write(ini_content)
-            
+            num_warmup_segments = i_last_warmup_ini
         # Create an .ini file for each simulation segment. Files for each
         # segment will be numbered starting with 1.
-        for job in range(1, int(options["pbs"]["num_segments"]) + 1):
+        if "coupling" in args:
+            num_segments = (simulation_duration - num_warmup_segments*warmup_segment_duration)/segment_duration
+            if num_segments > int(num_segments):
+                num_segments = int(num_segments) + 1
+            else:
+                num_segments = int(num_segments)
+        else:
+            num_segments = int(options["pbs"]["num_segments"])
+        for job in range(1, num_segments + 1):
             opt = copy.deepcopy(options)  # Need a copy of options
             runid = opt["simulation"]["job_name"]
             # NOTE: This naming scheme supports a maximum of 99 segments.
@@ -908,7 +919,7 @@ def create_ini_files(options: dict, args: dict):
             if "coupling" in args:
                 opt["voltron"]["coupling"]["doGCM"] = doGCM
                 # tFin padding different for last segment.
-                if job == int(options["pbs"]["num_segments"]):
+                if job == num_segments:
                     tfin_padding = -1.0
                 else:
                     # Subtract 1 from tFin padding for coupling beacuse to offset the +1.0 for restart file done above.
@@ -999,12 +1010,13 @@ def convert_ini_to_xml(ini_files: list, args: dict):
 
         # Convert the .ini file to .xml.
         # NOTE: assumes XMLGenerator.py is in PATH.
-        path = os.path.join(os.environ["KAIPYHOME"], "kaipy", "scripts", "preproc",
-                            "XMLGenerator.py")
+        path = "XMLGenerator"
         cmd = f"{path} {ini_file} {xml_file}"
         if debug:
             print(f"cmd = {cmd}")
         subprocess.run(cmd, check=True, shell=True)
+
+
 
         # Add this file to the list of XML files.
         xml_files.append(xml_file)
@@ -1112,9 +1124,21 @@ def create_pbs_scripts(xml_files: list, options: dict, args: dict):
         coupling = args["coupling"]
         gr_warm_up_time = float(coupling["gr_warm_up_time"])
         segment_duration = float(options["simulation"]["segment_duration"])
-        i_last_warmup_pbs_script = int(gr_warm_up_time/segment_duration)
+        simulation_duration = float(options["voltron"]["time"]["tFin"])
+        i_last_warmup_ini = (gr_warm_up_time/segment_duration)
+        if i_last_warmup_ini == int(i_last_warmup_ini):
+            warmup_segment_duration = segment_duration
+        else:
+            warmup_segment_duration = gr_warm_up_time/4
+            if warmup_segment_duration != int(warmup_segment_duration):
+                print("Error: gr_warm_up_time is not evenly divisible by 4.")
+                raise ValueError("Invalid gr_warm_up_time value.")
+            i_last_warmup_ini = (gr_warm_up_time/warmup_segment_duration)
+        i_last_warmup_ini = int(i_last_warmup_ini)
+        num_warmup_segments = i_last_warmup_ini
+        #i_last_warmup_pbs_script = int(gr_warm_up_time/segment_duration)
         spinup_pbs_scripts.append(pbs_scripts[0]) # Spinup script is first
-        warmup_pbs_scripts = pbs_scripts[1:i_last_warmup_pbs_script + 1] # Warmup scripts
+        warmup_pbs_scripts = pbs_scripts[1:num_warmup_segments + 1] # Warmup scripts
     # Return the paths to the PBS scripts.
     return pbs_scripts, submit_all_jobs_script,spinup_pbs_scripts, warmup_pbs_scripts
 
