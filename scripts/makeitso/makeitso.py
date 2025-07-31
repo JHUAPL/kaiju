@@ -604,7 +604,7 @@ def run_preprocessing_steps(options):
     """
     # Create the LFM grid file.
     # NOTE: Assumes genLFM.py is in PATH.
-    cmd = "genLFM.py"
+    cmd = "genLFM"
     args = [cmd, "-gid", options["simulation"]["gamera_grid_type"],
             '-Rin', options["simulation"]["gamera_grid_inner_radius"],
             '-Rout', options["simulation"]["gamera_grid_outer_radius"]]
@@ -613,14 +613,14 @@ def run_preprocessing_steps(options):
     # If needed, create the solar wind file by fetching data from CDAWeb.
     # NOTE: Assumes cda2wind.py is in PATH.
     if options["simulation"]["bcwind_available"] == "N":
-        cmd = "cda2wind.py"
+        cmd = "cda2wind"
         args = [cmd, "-t0", options["simulation"]["start_date"], "-t1",
                 options["simulation"]["stop_date"], "-interp", "-bx"]
         subprocess.run(args, check=True)
 
     # Create the RCM configuration file.
     # NOTE: Assumes genRCM.py is in PATH.
-    cmd = "genRCM.py"
+    cmd = "genRCM"
     args = [cmd]
     subprocess.run(args, check=True)
 
@@ -743,7 +743,7 @@ def convert_ini_to_xml(ini_files):
 
         # Convert the .ini file to .xml.
         # NOTE: assumes XMLGenerator.py is in PATH.
-        cmd = "XMLGenerator.py"
+        cmd = "XMLGenerator"
         args = [cmd, ini_file, xml_file]
         subprocess.run(args, check=True)
 
