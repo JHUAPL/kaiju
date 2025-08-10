@@ -99,7 +99,7 @@ eval $cmd
 
 # Run the comparison. Post results to Slack if any test fails.
 reference_run=`cat /glade/u/home/ewinter/mage_testing/test_runs/derecho_configuration_check_runs.txt`
-cmd="python $KAIJUHOME/testingScripts/compare_mage_runs_numerical.py -dltv --run_description='`derecho` configuration check' $reference_run `pwd`/weeklyDashGo.xml >& compare_mage_runs_numerical.out"
+cmd="python $KAIJUHOME/testingScripts/compare_mage_runs_numerical.py -sv --run_description='`derecho` configuration check' $reference_run `pwd`/weeklyDashGo.xml >& compare_mage_runs_numerical.out"
 echo "Run comparison command is:"
 echo $cmd
 eval $cmd

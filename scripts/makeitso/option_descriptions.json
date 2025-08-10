@@ -9,13 +9,13 @@
         },
         "bcwind_available": {
             "LEVEL": "BASIC",
-            "prompt": "Do you have an existing boundary condition file to use?",
+            "prompt": "Do you have an existing solar wind file to use?",
             "default": "N",
-            "valids": ["Y", "N"]
+            "valids": ["Y", "y", "N", "n"]
         },
         "bcwind_file": {
             "LEVEL": "BASIC",
-            "prompt": "Name of boundary condition file to use",
+            "prompt": "Name of solar wind file to use",
             "default": "bcwind.h5"
         },
         "start_date": {
@@ -32,7 +32,7 @@
             "LEVEL": "BASIC",
             "prompt": "Do you want to split your job into multiple segments?",
             "default": "N",
-            "valids": ["Y", "N"]
+            "valids": ["Y", "y", "N", "n"]
         },
         "segment_duration": {
             "LEVEL": "BASIC",
@@ -396,7 +396,7 @@
         "wind": {
             "tsfile": {
                 "LEVEL": "BASIC",
-                "prompt": "(GAMERA) Relative path to HDF5 file containing solar wind boundary conditions",
+                "prompt": "(GAMERA) Relative path to HDF5 file containing solar wind data",
                 "default": "bcwind.h5"
             }
         },

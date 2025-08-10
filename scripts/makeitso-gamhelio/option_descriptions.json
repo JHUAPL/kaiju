@@ -380,8 +380,8 @@
             },
             "dtCon": {
                 "LEVEL": "EXPERT",
-                "prompt": "Screen output interval (timesteps)",
-                "default": "50.0"
+                "prompt": "Cadence for status updates on screen in simulated hours",
+                "default": "5.0"
             },
             "doTimer": {
                 "LEVEL": "EXPERT",

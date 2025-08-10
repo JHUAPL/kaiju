@@ -4,7 +4,7 @@
 #PBS -A {{ account }}
 #PBS -q {{ queue }}
 #PBS -l job_priority={{ job_priority }}
-#PBS -l walltime={{ walltime }}
+#PBS -l walltime=02:00:00
 #PBS -l select=1:ncpus=128:ompthreads=128
 #PBS -j oe
 #PBS -m abe

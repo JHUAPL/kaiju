@@ -419,7 +419,7 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
     # condition file can be generated.
     for on in ["bcwind_available"]:
         o[on] = get_run_option(on, od[on], mode)
-    if o["bcwind_available"] == "Y":
+    if o["bcwind_available"].upper() == "Y":
         for on in ["bcwind_file"]:
             o[on] = get_run_option(on, od[on], mode)
         # Fetch the start and stop date from the bcwind file.
@@ -428,7 +428,7 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
         o["stop_date"] = stop_date
     else:
         # Prompt for the start and stop date of the run. This will also be
-        # used as the start and stop date of the data in the boundary condition
+        # used as the start and stop date of the data in the solar wind
         # file, which will be created using CDAWeb data.
         # Note that the start date should already have been updated to include
         # the warmup period needed when makeitso is called from engage.
@@ -452,7 +452,7 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
     # for the segment duration.
     for on in ["use_segments"]:
         o[on] = get_run_option(on, od[on], mode)
-    if o["use_segments"] == "Y":
+    if o["use_segments"].upper() == "Y":
         for on in ["segment_duration"]:
             o[on] = get_run_option(on, od[on], mode)
     else:
@@ -462,7 +462,7 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
     # segment duration, with 1 separate segment just for spinup. Add 1 if
     # there is a remainder.
     num_segments = 1
-    if o["use_segments"] == "Y":
+    if o["use_segments"].upper() == "Y":
         # Compute the number of simulation segments (t > 0).
         num_segments = simulation_duration/float(o["segment_duration"])
         if num_segments > int(num_segments):
@@ -735,6 +735,50 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
     return options
 
 
+def validate_grid_file(path : str, grid_type : str):
+    """Validate a LFM grid file.
+
+    Validate a LFM grid file. Check that the grid sizes in each dimension
+    are correct for the selected resolution.
+
+    Parameters
+    ----------
+    path : str
+        Path to LFM grid file to validate.
+    grid_type : str
+        Single character grid type specifier (D)ouble, (Q)uad, (O)ct, (H)ex
+
+    Returns
+    -------
+    is_valid : bool
+        True if grid file is valid, else False.
+
+    Raises
+    ------
+    None
+    """
+    # Specify the expected grid cell counts in each dimension for each grid
+    # type.
+    grid_shapes = {
+        'D': (73, 57, 57),
+        'Q': (137, 105, 105),
+        'O': (265, 201, 201),
+        'H': (521, 393, 393),
+    }
+
+    # Open the file and read the grid sizes.
+    is_valid = False
+    with h5py.File(path, 'r') as hf:
+        if (hf['X'].shape == grid_shapes[grid_type] and
+            hf['Y'].shape == grid_shapes[grid_type] and
+            hf['Z'].shape == grid_shapes[grid_type]):
+            is_valid = True
+
+    # Return the result of the check.
+    return is_valid
+
+
+
 def run_preprocessing_steps(options: dict, args: dict):
     """Execute any preprocessing steps required for the run.
 
@@ -755,20 +799,21 @@ def run_preprocessing_steps(options: dict, args: dict):
     ------
     None
     """
-    # Local convenience variables
-    debug = args["debug"]
-
-    # Create the LFM grid file.
-    path = "genLFM"
-    cmd = (
-        f"{path}"
-        f" -gid {options['simulation']['gamera_grid_type']}"
-        f" -Rin {options['simulation']['gamera_grid_inner_radius']}"
-        f" -Rout {options['simulation']['gamera_grid_outer_radius']}"
-    )
-    if debug:
-        print(f"cmd = {cmd}")
-    subprocess.run(cmd, check=True, shell=True)
+    # Check if the grid file exists and is valid. Create if needed.
+    grid_file = f'lfm{options["simulation"]["gamera_grid_type"]}.h5'
+    if os.path.exists(grid_file):
+        if validate_grid_file(grid_file,
+                              options['simulation']['gamera_grid_type']):
+            print(f'Using existing grid file {grid_file}.')
+        else:
+            raise TypeError(f'Invalid grid file {grid_file} found, aborting.')
+    else:
+        # Create the LFM grid file. Assumes genLFM is in PATH.
+        cmd = 'genLFM'
+        args = [cmd, '-gid', options['simulation']['gamera_grid_type'],
+                '-Rin', options['simulation']['gamera_grid_inner_radius'],
+                '-Rout', options['simulation']['gamera_grid_outer_radius']]
+        subprocess.run(args, check=True)
 
     # If needed, create the solar wind file by fetching data from CDAWeb.
     if options["simulation"]["bcwind_available"] == "N":

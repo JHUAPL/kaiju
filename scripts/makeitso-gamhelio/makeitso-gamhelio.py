@@ -120,6 +120,39 @@ def create_command_line_parser():
     return parser
 
 
+def update_loaded_options(options):
+    """Update a loaded set of run options to account for format changes.
+
+    Update a loaded set of run options to account for format changes.
+
+    Parameters
+    ----------
+    options : dict
+        Dictionary of program options, each entry maps str to str.
+
+    Returns
+    -------
+    options : dict
+        Updated dictionary of program options.
+
+    Raises
+    ------
+    None
+    """
+    # <HACK>
+    # If the tsOut attribute is found, rename it to dtCon.
+    DEFAULT_HELIO_DTCON = "5"  # Hours
+    if "tsOut" in options["gamera"]["output"]:
+        print("WARNING: Replacing obsolete parameter tsOut with default dtCon"
+              f" value of {DEFAULT_HELIO_DTCON} hours!")
+        options["gamera"]["output"]["dtCon"] = DEFAULT_HELIO_DTCON
+        del options["gamera"]["output"]["tsOut"]
+    # </HACK>
+
+    # Return the updated options.
+    return options
+
+
 def get_run_option(name, description, mode="BASIC", override=None):
     """Prompt the user for a single run option.
 
@@ -758,6 +791,7 @@ def main():
         # Read the run options from a JSON file.
         with open(options_path, "r", encoding="utf-8") as f:
             options = json.load(f)
+        options = update_loaded_options(options)
     else:
         # Prompt the user for the run options.
         options = prompt_user_for_run_options(args)
