@@ -19,5 +19,6 @@ For help and more information, visit the [Kaiju Wiki](https://kaiju-docs.readthe
 
 ## Compilation Requirements
 
-**Note:** This version requires `clawpack` to compile.  
-Copy `claw.F` to `kaiju/src/rcm` before building.
+**Note:** This version requires 3rd-party software to compile the RCM code. 
+Please, reach out to Prof. Frank Toffoletto at <toffo@rice.edu> with any questions.
+The required script to must be copied to `kaiju/src/rcm` before building.
