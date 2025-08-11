@@ -799,6 +799,7 @@ def run_preprocessing_steps(options: dict, args: dict):
     ------
     None
     """
+    debug = args["debug"]
     # Check if the grid file exists and is valid. Create if needed.
     grid_file = f'lfm{options["simulation"]["gamera_grid_type"]}.h5'
     if os.path.exists(grid_file):
