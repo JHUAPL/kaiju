@@ -1,7 +1,9 @@
 module mixtypes
-   use mixdefs
-   use dktypes
+  use mixdefs
+  use dktypes
   use shellGrid
+
+  use basetypes
 
   implicit none
 
@@ -82,6 +84,20 @@ module mixtypes
      integer, dimension(:,:), allocatable :: mask
   end type mixGrid_T
 
+!   type mixGgrid_T
+!      integer :: Np, Nt
+!      logical :: isPeriodic=.true.
+     
+!      real(rp), dimension(:,:), allocatable :: x,y,t,p,r
+!      real(rp), dimension(:,:), allocatable :: dt,dp
+!      real(rp), dimension(:,:), allocatable :: ft,fp
+!      real(rp), dimension(:,:), allocatable :: dtdt,dpdp
+!      real(rp), dimension(:,:), allocatable :: cosd
+!      real(rp), dimension(:,:), allocatable :: D0  ! background density, usually plasmasphere, to apply to precipitation
+!      real(rp), dimension(:,:,:,:), allocatable :: Interpolant
+!      integer, dimension(:,:), allocatable :: mask
+!   end type mixGgrid_T
+
   type Map_T
      real(rp), dimension(:,:,:), allocatable :: M  ! map matrix
      integer, dimension(:,:), allocatable :: I1, J1  ! indices of grid
@@ -115,34 +131,120 @@ module mixtypes
     real(rp), dimension(:,:), allocatable :: euvSigmaP, euvSigmaH
     real(rp), dimension(:,:), allocatable :: deltaSigmaP, deltaSigmaH
   end type mixConductance_T
+
+!   type mixModel_T
+!      type(mixParams_T)      :: P
+!      type(dkParams_T)       :: aurora
+!      type(mixConductance_T) :: conductance
+!      real(rp)               :: rad_iono_m   ! Ionosphere radius in meters
+!      real(rp)               :: rad_planet_m ! Planet     radius in meters
+!   end type mixModel_T
+
+!   type mixGrid_T
+!      type(mixGgrid_T)        :: G       ! G - primary MIX grid used for the solver. 
+!      type(mixGgrid_T)        :: mixGfpd ! mixGfpd - flipped grid for mapping from MHD, moved from mhd2mix type.  
+!      type(ShellGrid_T)      :: shGr    ! ShellGrid representation of grid
+!      type(mixGgrid_T)        :: Ggeo    ! Ggeo - G grid converted to geo updated every coupling step
+!      type(mixGgrid_T)        :: Gapx    ! Gapx - G grid converted to apex updated every coupling step
+!   end type mixGrid_T
   
-  ! used to store an entire instance of MIX (e.g., one per hemisphere)
+!   ! used to store an entire instance of MIX (e.g., one per hemisphere)
+!   type mixIon_T
+!      type(mixState_T)       :: State
+!      type(mixGrid_T)        :: Grid
+!      type(mixModel_T)       :: Model
+!      type(Solver_T)         :: Solver 
+!   end type mixIon_T
+
   type mixIon_T
-     type(mixState_T)       :: St
-     type(mixGrid_T)        :: G       ! G - primary MIX grid used for the solver. 
-     type(mixGrid_T)        :: mixGfpd ! mixGfpd - flipped grid for mapping from MHD, moved from mhd2mix type.  
-     type(ShellGrid_T)      :: shGr    ! ShellGrid representation of grid
-     type(mixGrid_T)        :: Ggeo    ! Ggeo - G grid converted to geo updated every coupling step
-     type(mixGrid_T)        :: Gapx    ! Gapx - G grid converted to apex updated every coupling step
-     type(mixParams_T)      :: P
-     type(Solver_T)         :: S
-     type(dkParams_T)       :: aurora
-     type(mixConductance_T) :: conductance
-     real(rp)               :: rad_iono_m   ! Ionosphere radius in meters
-     real(rp)               :: rad_planet_m ! Planet     radius in meters
+      type(mixState_T)       :: St
+      type(mixGrid_T)        :: G       ! G - primary MIX grid used for the solver. 
+      type(mixGrid_T)        :: mixGfpd ! mixGfpd - flipped grid for mapping from MHD, moved from mhd2mix type.  
+      type(ShellGrid_T)      :: shGr    ! ShellGrid representation of grid
+      type(mixGrid_T)        :: Ggeo    ! Ggeo - G grid converted to geo updated every coupling step
+      type(mixGrid_T)        :: Gapx    ! Gapx - G grid converted to apex updated every coupling step
+      type(mixParams_T)      :: P
+      type(Solver_T)         :: S
+      type(dkParams_T)       :: aurora
+      type(mixConductance_T) :: conductance
+      real(rp)               :: rad_iono_m   ! Ionosphere radius in meters
+      real(rp)               :: rad_planet_m ! Planet     radius in meters
   end type mixIon_T
 
-  ! used to store all instances of mixIon type, i.e., all hemispheres
-  type mixApp_T
-     type(mixIon_T), dimension(:), allocatable :: ion
-  end type mixApp_T
-
-  ! use this as a container to store the variables read from a previous H5 file
+   ! use this as a container to store the variables read from a previous H5 file
   type mixIO_T
      real(rp) :: time, mjd, tilt
      real(rp), dimension(:,:), allocatable :: x,y
      real(rp), dimension(:,:,:,:), allocatable :: vars !(Np,Nt,Nvars,Nhemispheres)
   end type mixIO_T
+
+
+  ! used to store all instances of mixIon type, i.e., all hemispheres
+  type, extends(BaseApp_T) :: mixApp_T
+     type(mixIon_T), dimension(:), allocatable :: ion
+
+   contains
+
+   procedure :: InitModel => mixInitModel
+   procedure :: InitIO => mixInitIO
+   procedure :: WriteRestart => mixWriteRestart
+   procedure :: ReadRestart => mixReadRestart
+   procedure :: WriteConsoleOutput => mixWriteConsoleOutput
+   procedure :: WriteFileOutput => mixWriteFileOutput
+   procedure :: WriteSlimFileOutput => mixWriteSlimFileOutput
+   procedure :: AdvanceModel => mixAdvanceModel
+   procedure :: Cleanup => mixCleanup
+
+  end type mixApp_T
+
+  interface
+      module subroutine mixInitModel(App,Xml)
+        class(mixApp_T), intent(inout) :: App
+        type(XML_Input_T), intent(in) :: Xml
+      end subroutine mixInitModel
+
+      module subroutine mixInitIO(App, Xml)
+            class(mixApp_T), intent(inout) :: App
+            type(XML_Input_T), intent(inout) :: Xml
+        end subroutine mixInitIO
+
+        module subroutine mixWriteRestart(App, nRes)
+            class(mixApp_T), intent(inout) :: App
+            integer, intent(in) :: nRes
+        end subroutine mixWriteRestart
+
+        module subroutine mixReadRestart(App, resId, nRes)
+            class(mixApp_T), intent(inout) :: App
+            character(len=*), intent(in) :: resId
+            integer, intent(in) :: nRes
+        end subroutine mixReadRestart
+
+        module subroutine mixWriteConsoleOutput(App)
+            class(mixApp_T), intent(inout) :: App
+        end subroutine mixWriteConsoleOutput
+
+        module subroutine mixWriteFileOutput(App, nStep)
+            class(mixApp_T), intent(inout) :: App
+            integer, intent(in) :: nStep
+        end subroutine mixWriteFileOutput
+
+        module subroutine mixWriteSlimFileOutput(App, nStep)
+            class(mixApp_T), intent(inout) :: App
+            integer, intent(in) :: nStep
+        end subroutine mixWriteSlimFileOutput
+
+        module subroutine mixAdvanceModel(App, dt)
+            class(mixApp_T), intent(inout) :: App
+            real(rp), intent(in) :: dt
+        end subroutine mixAdvanceModel
+
+        module subroutine mixCleanup(App)
+            class(mixApp_T), intent(inout) :: App
+        end subroutine mixCleanup
+
+    end interface
+
+
 
 end module mixtypes
 
