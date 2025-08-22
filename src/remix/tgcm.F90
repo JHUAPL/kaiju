@@ -20,14 +20,25 @@ module gcminterp
       gcm%GEO%Coord = 'GEO'
       gcm%APEX%Coord = 'APEX'
 
-      gcm%GEO%gcm2mix_nvar = 0 ! Neutral Winds (eventually)
-      gcm%GEO%mix2gcm_nvar = 2 ! eng, flux
+      if (gcm%isWACCMX) then
+        write(*,*) "MIXCPL Coupling to WACCMX: ",gcm%isWACCMX
+        gcm%GEO%gcm2mix_nvar = 0 ! Neutral Winds(eventually)
+        gcm%GEO%mix2gcm_nvar = 0 ! Nothing passed on GEO
 
-      gcm%APEX%gcm2mix_nvar = 2 ! SigmaP, sigmaH
-      gcm%APEX%mix2gcm_nvar = 2 ! pot, flux (for auroral boundary)
+        gcm%APEX%gcm2mix_nvar = 2 ! SigmaP, sigmaH
+        gcm%APEX%mix2gcm_nvar = 3 ! pot, eng, flux
+      else ! is TIEGCM
+        write(*,*) "MIXCPL Coupling to TIEGCM: ", (.not. gcm%isWACCMX)
+        gcm%GEO%gcm2mix_nvar = 0 ! Neutral Winds (eventually)
+        gcm%GEO%mix2gcm_nvar = 2 ! eng, flux
 
-      call create_gcm_grid(gcm%GEO,ion)
-      call create_gcm_grid(gcm%APEX,ion)
+        gcm%APEX%gcm2mix_nvar = 2 ! SigmaP, sigmaH
+        gcm%APEX%mix2gcm_nvar = 2 ! pot, flux (for auroral boundary)
+
+      endif
+
+      if (gcm%GEO%mix2gcm_nvar > 0) call create_gcm_grid(gcm%GEO,ion)
+      if (gcm%APEX%mix2gcm_nvar > 0) call create_gcm_grid(gcm%APEX,ion)
       
     end subroutine init_gcm_grid
 
@@ -112,13 +123,15 @@ module gcminterp
       do g=1,2
         select case (g)
         case (1)
-          call mapGCM2MIX(gcm%GEO,ion,g)
+          if (gcm%GEO%mix2gcm_nvar > 0) then
+            call mapGCM2MIX(gcm%GEO,ion,g)
+          end if
         case (2)
-          call mapGCM2MIX(gcm%APEX,ion,g)
+          if (gcm%APEX%mix2gcm_nvar > 0) then
+            call mapGCM2MIX(gcm%APEX,ion,g)
+          end if
         end select
       end do
-      !Map the data to MIX grid
-      !call mapGCM2MIX(gcm,ion)
       call Toc("Processing")
 
     end subroutine process_gcmimport
@@ -271,13 +284,17 @@ module gcminterp
       do g=1,2
         select case (g)
         case (1)
-          do v=1,gcm%GEO%gcm2mix_nvar
-            St%Vars(:,:,gcm%GEO%inlist(v)) = gcm%GEO%mixInput(h,v)%var(:,:)
-          end do
+          if (gcm%GEO%gcm2mix_nvar > 0) then
+            do v=1,gcm%GEO%gcm2mix_nvar
+              St%Vars(:,:,gcm%GEO%inlist(v)) = gcm%GEO%mixInput(h,v)%var(:,:)
+            end do
+          end if
         case (2)
-          do v=1,gcm%APEX%gcm2mix_nvar
-            St%Vars(:,:,gcm%APEX%inlist(v)) = gcm%APEX%mixInput(h,v)%var(:,:)
-          end do
+          if (gcm%APEX%gcm2mix_nvar > 0) then
+            do v=1,gcm%APEX%gcm2mix_nvar
+              St%Vars(:,:,gcm%APEX%inlist(v)) = gcm%APEX%mixInput(h,v)%var(:,:)
+            end do
+          end if
         end select
       end do
       

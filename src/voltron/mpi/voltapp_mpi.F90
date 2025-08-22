@@ -386,7 +386,7 @@ module voltapp_mpi
 
         if (vApp%doGCM .and. vApp%time >=0 .and. vApp%gcmCplRank /= -1) then
             call Tic("GCM2MIX")
-            call coupleGCM2MIX(vApp%gcm,vApp%remixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank)
+            call coupleGCM2MIX(vApp%gcm,vApp%remixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank,vApp%voltCplRank)
             call Toc("GCM2MIX")
         end if
 

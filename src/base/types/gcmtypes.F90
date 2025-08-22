@@ -36,26 +36,9 @@ module gcmtypes
   end type gcm_grid_T
 
   type gcm_T
-      !type(mixGrid_T) :: rGEOGrid,tGEOGrid,tSMGrid ! GEO&SM Grid for tgcm, remix GEO grid
-      !type(mixGrid_T) :: mixGrid,gcmGrid
       type(gcm_grid_T) :: GEO,APEX
-      !type(var_T), dimension(GCMhemispheres,geo2mix_nvar) :: geoInput
-      !type(var_T), dimension(GCMhemispheres,apx2mix_nvar) :: apxInput
-      !type(var_T), dimension(GCMhemispheres,gcm2mix_nvar) :: mixInput
-      !type(var_T), dimension(GCMhemispheres,mix2gcm_nvar) :: geoOutput,apxOutput,mixOutput
-      !real(rp), dimension(:,:,:,:), allocatable :: mixInput, mixOutput
-      !real(rp), dimension(:,:,:,:), allocatable :: gcmInput, gcmOutput
-      !integer :: nlat,nlon,nlev,nhlat,ntime,order,nhemi,lonshift
-      !real(rp),dimension(:,:),allocatable :: gx,gy
-      integer :: nhemi
-      !integer :: gcm2mix_nvar, mix2gcm_nvar
-      integer :: cplStep = 1
-      !character(len=strlen) :: mix2gcmH5,gcm2mixH5,mix2gcmLock,gcm2mixLock
-      !character(len=strlen) :: mix2gcmH5 = "mix4gcm.h5"
-      !character(len=strlen) :: mix2gcmLock = "mix2gcm.txt"
-      !character(len=strlen) :: gcm2mixH5 = "gcm4mix.h5"
-      !character(len=strlen) :: gcm2mixLock = "gcm2mix.txt"
-      logical :: isRestart
+      logical :: isRestart, isWACCMX
+      integer :: gcmId, nWACCMX
       real(rp) :: altmax = 140. !used for apex, setting it randomly for now, km
       real(rp) :: ionalt
   end type gcm_T

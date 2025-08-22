@@ -32,7 +32,9 @@ module volttypes_mpi
         ! coupling comms variables to be done on volt rank
         type(MPI_Comm) :: mageCplComm
         integer :: voltCplRank,CplSize
-        integer :: gcmCplRank = -1, hidraNCplRank = -1,hidraSCplRank = -1,hidraCplRank = -1
+        integer :: gcmCplRank = -1, hidraNCplRank = -1, hidraSCplRank = -1, hidraCplRank = -1
+        integer :: gcmNumRanks, hidraNNumRanks, hidraSNumRanks
+        integer, dimension(:), allocatable :: gcmRankList, hidraNRankList, hidraSRankList
         integer, dimension(:),allocatable :: IAm
 
         ! mpi voltron specific options
