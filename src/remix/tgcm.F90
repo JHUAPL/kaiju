@@ -20,6 +20,14 @@ module gcminterp
       gcm%GEO%Coord = 'GEO'
       gcm%APEX%Coord = 'APEX'
 
+      if (gcm%GEO%mix2gcm_nvar > 0) call create_gcm_grid(gcm%GEO,ion)
+      if (gcm%APEX%mix2gcm_nvar > 0) call create_gcm_grid(gcm%APEX,ion)
+      
+    end subroutine init_gcm_grid
+
+    subroutine init_gcm_vars(gcm)
+      type(gcm_T), intent(inout) :: gcm
+
       if (gcm%isWACCMX) then
         write(*,*) "MIXCPL Coupling to WACCMX: ",gcm%isWACCMX
         gcm%GEO%gcm2mix_nvar = 0 ! Neutral Winds(eventually)
@@ -37,10 +45,8 @@ module gcminterp
 
       endif
 
-      if (gcm%GEO%mix2gcm_nvar > 0) call create_gcm_grid(gcm%GEO,ion)
-      if (gcm%APEX%mix2gcm_nvar > 0) call create_gcm_grid(gcm%APEX,ion)
-      
-    end subroutine init_gcm_grid
+    end subroutine init_gcm_vars
+
 
     subroutine create_gcm_grid(grid,ion)
       type(gcm_grid_T), intent(inout) :: grid

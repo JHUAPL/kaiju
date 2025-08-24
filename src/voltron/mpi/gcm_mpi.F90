@@ -58,7 +58,8 @@ contains
       integer :: g,icolor
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+      call init_gcm_vars(gcm)
+      
       if (gcm%isWACCMX) then 
         gcm%gcmId = wcmxId
       else 
