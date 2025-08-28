@@ -121,7 +121,7 @@ contains
           do j=1,2
                do k=1,2
                    call AddInVar(IOVars,"P")
-                   write(h5Str,'(A,I0,A)') 'blast3d_large8_0002_0002_0002_000',i-1,'_0000_0000.gam.h5'
+                   write(h5Str,'(A,I0,A,I0,A,I0,A)') 'blast3d_large8_0002_0002_0002_000',i-1,'_000',j-1,'_000',k-1,'.gam.h5'
                    call ReadVars(IOVars,.false.,h5Str,gStr)
                    call IOArray3DFill(IOVars,"P",p8(1+(i-1)*ni2:i*ni2,1+(j-1)*nj2:j*nj2,1+(k-1)*nk2:k*nk2))
                    call ClearIO(IOVars)

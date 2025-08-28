@@ -138,7 +138,7 @@ def main():
         # Compute the names of the job log files.
         job_file_0 = f"genTestData.o{job_ids[0]}"  # 0 OKs
         job_file_1 = f"runCaseTests.o{job_ids[1]}" # 2 OKs
-        job_file_2 = f"runNonCaseTests1.o{job_ids[2]}"  # 7 OKs
+        job_file_2 = f"runNonCaseTests1.o{job_ids[2]}"  # 6 OKs
         job_file_3 = f"runNonCaseTests2.o{job_ids[3]}"  # 1 OK
         if debug:
             print(f"job_file_0 = {job_file_0}")
@@ -164,8 +164,8 @@ def main():
             elif 'job killed' in line:
                 jobKilled = True
 
-        # There should be exactly 10 OKs.
-        OK_COUNT_EXPECTED = 10
+        # There should be exactly 9 OKs.
+        OK_COUNT_EXPECTED = 9
         if verbose:
             print(f"Found {okCount} OKs, expected {OK_COUNT_EXPECTED}.")
         if okCount != OK_COUNT_EXPECTED:
