@@ -334,9 +334,10 @@ module voltapp
             ! update the next predicted coupling interval
             vApp%DeepT = vApp%DeepT + vApp%DeepDT
 
-            call Tic("DeepUpdate")
+            call Tic("DeepUpdate",.true.)
             call DeepUpdate(vApp, vApp%gApp)
-            call Toc("DeepUpdate")
+            call Toc("DeepUpdate",.true.)
+            vApp%ts = vApp%ts + 1
 
             call vApp%gApp%StartUpdateMhdData(vApp)
 

@@ -258,7 +258,7 @@ module gioH5
         type(State_T), intent(in) :: State
         character(len=*), intent(in) :: gStr
 
-        integer :: i,j,k,s
+        integer :: i,j,k,s,nClkSteps
         character(len=strLen) :: dID,VxID,VyID,VzID,PID
         integer iMin,iMax,jMin,jMax,kMin,kMax
 
@@ -413,7 +413,8 @@ module gioH5
             !Write current
             if (Model%isMagsphere) then
                 !Subtract dipole before calculating current
-                !$OMP PARALLEL DO default(shared) collapse(2)
+                !$OMP PARALLEL DO default(shared) collapse(2) &
+                !$OMP private(i,j,k)
                 do k=Gr%ksg,Gr%keg
                     do j=Gr%jsg,Gr%jeg
                         do i=Gr%isg,Gr%ieg
@@ -440,7 +441,8 @@ module gioH5
             if (doFat) then
             
                 !Divide by edge-length to go from potential to field
-                !$OMP PARALLEL DO default(shared) collapse(2)
+                !$OMP PARALLEL DO default(shared) collapse(2) &
+                !$OMP private(i,j,k)
                 do k=Gr%ksg,Gr%keg
                     do j=Gr%jsg,Gr%jeg
                         do i=Gr%isg,Gr%ieg
@@ -465,19 +467,19 @@ module gioH5
             if (Model%doSource .and. Model%isMagsphere) then
                 
                 !Volt variables
-                call GameraOut("SrcX1" ,"deg",rad2deg,Gr%Gas0(Gr%is:Gr%ie,Gr%js:Gr%je,Gr%ks:Gr%ke,PROJLAT))
-                call GameraOut("SrcX2" ,"deg",rad2deg,Gr%Gas0(Gr%is:Gr%ie,Gr%js:Gr%je,Gr%ks:Gr%ke,PROJLON))
+                call GameraOut("SrcX1" ,"deg",rad2deg,Gr%Gas0(iMin:iMax,jMin:jMax,kMin:kMax,PROJLAT))
+                call GameraOut("SrcX2" ,"deg",rad2deg,Gr%Gas0(iMin:iMax,jMin:jMax,kMin:kMax,PROJLON))
 
-                call GameraOut("SrcIONEx" ,gamOut%eID,gamOut%eScl,Gr%Gas0(Gr%is:Gr%ie,Gr%js:Gr%je,Gr%ks:Gr%ke,IONEX))
-                call GameraOut("SrcIONEy" ,gamOut%eID,gamOut%eScl,Gr%Gas0(Gr%is:Gr%ie,Gr%js:Gr%je,Gr%ks:Gr%ke,IONEY))
-                call GameraOut("SrcIONEz" ,gamOut%eID,gamOut%eScl,Gr%Gas0(Gr%is:Gr%ie,Gr%js:Gr%je,Gr%ks:Gr%ke,IONEZ))
+                call GameraOut("SrcIONEx" ,gamOut%eID,gamOut%eScl,Gr%Gas0(iMin:iMax,jMin:jMax,kMin:kMax,IONEX))
+                call GameraOut("SrcIONEy" ,gamOut%eID,gamOut%eScl,Gr%Gas0(iMin:iMax,jMin:jMax,kMin:kMax,IONEY))
+                call GameraOut("SrcIONEz" ,gamOut%eID,gamOut%eScl,Gr%Gas0(iMin:iMax,jMin:jMax,kMin:kMax,IONEZ))
 
                 !IMAG variables
-                call GameraOut("SrcD_RING" ,gamOut%dID,gamOut%dScl,Gr%Gas0(Gr%is:Gr%ie,Gr%js:Gr%je,Gr%ks:Gr%ke,IM_D_RING))
-                call GameraOut("SrcP_RING" ,gamOut%pID,gamOut%pScl,Gr%Gas0(Gr%is:Gr%ie,Gr%js:Gr%je,Gr%ks:Gr%ke,IM_P_RING))
-                call GameraOut("SrcD_COLD" ,gamOut%dID,gamOut%dScl,Gr%Gas0(Gr%is:Gr%ie,Gr%js:Gr%je,Gr%ks:Gr%ke,IM_D_COLD))
-                call GameraOut("SrcP_COLD" ,gamOut%pID,gamOut%pScl,Gr%Gas0(Gr%is:Gr%ie,Gr%js:Gr%je,Gr%ks:Gr%ke,IM_P_COLD))
-                call GameraOut("SrcDT"     ,"s"       ,gamOut%tScl,Gr%Gas0(Gr%is:Gr%ie,Gr%js:Gr%je,Gr%ks:Gr%ke,IM_TSCL  ))
+                call GameraOut("SrcD_RING" ,gamOut%dID,gamOut%dScl,Gr%Gas0(iMin:iMax,jMin:jMax,kMin:kMax,IM_D_RING))
+                call GameraOut("SrcP_RING" ,gamOut%pID,gamOut%pScl,Gr%Gas0(iMin:iMax,jMin:jMax,kMin:kMax,IM_P_RING))
+                call GameraOut("SrcD_COLD" ,gamOut%dID,gamOut%dScl,Gr%Gas0(iMin:iMax,jMin:jMax,kMin:kMax,IM_D_COLD))
+                call GameraOut("SrcP_COLD" ,gamOut%pID,gamOut%pScl,Gr%Gas0(iMin:iMax,jMin:jMax,kMin:kMax,IM_P_COLD))
+                call GameraOut("SrcDT"     ,"s"       ,gamOut%tScl,Gr%Gas0(iMin:iMax,jMin:jMax,kMin:kMax,IM_TSCL  ))
             
             endif
 
@@ -537,6 +539,18 @@ module gioH5
         call AddOutVar(IOVars,"kzcsTOT",Model%kzcsTOT,uStr="kZCs",dStr="Total kZCs"   )
 
         !---------------------
+        !Performance metrics
+
+        nClkSteps = readNCalls('Advance')
+        call AddOutVar(IOVars,"_perf_stepTime",readClock(1)/nClkSteps)
+        call AddOutVar(IOVars,"_perf_mathTime", readClock('Gamera')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_bcTime", readClock('BCs')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_haloTime", readClock('Halos')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_voltTime", readClock('VoltSync')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_ioTime", readClock('IO')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_advanceTime", readClock('Advance')/nClkSteps)
+
+        !----------------------
 
         !Call user routine if defined
         if (associated(Model%HackIO)) then

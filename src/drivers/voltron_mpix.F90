@@ -30,6 +30,7 @@ program voltron_mpix
     type(XML_Input_T) :: xmlInp
     real(rp) :: nextDT
     integer :: divideSize,i
+    logical :: doResetClocks = .false.
 
     ! initialize MPI
     !Set up MPI with or without thread support
@@ -206,12 +207,12 @@ program voltron_mpix
                 if (vApp%IO%doTimerOut) then
                     call printClocks()
                 endif
-                call cleanClocks()
+                doResetClocks = .true.
             elseif (vApp%IO%doTimer(vApp%time)) then
                 if (vApp%IO%doTimerOut) then
                     call printClocks()
                 endif
-                call cleanClocks()
+                doResetClocks = .true.
             endif
 
             !Data output
@@ -222,6 +223,12 @@ program voltron_mpix
             !Restart output
             if (vApp%IO%doRestart(vApp%time)) then
                 call resOutputV(vApp,vApp%gApp)
+            endif
+            
+            !Reset clocks last so data is available for all output
+            if (doResetClocks) then
+                call cleanClocks()
+                doResetClocks = .false.
             endif
 
             call Toc("IO", .true.)
@@ -257,11 +264,11 @@ program voltron_mpix
 
                 !Timing info
                 if (gApp%Model%IO%doTimerOut) call printClocks()
-                call cleanClocks()
+                doResetClocks = .true.
 
             elseif (gApp%Model%IO%doTimer(gApp%Model%t)) then
                 if (gApp%Model%IO%doTimerOut) call printClocks()
-                call cleanClocks()
+                doResetClocks = .true.
             endif
 
             if (gApp%Model%IO%doOutput(gApp%Model%t)) then
@@ -272,6 +279,11 @@ program voltron_mpix
 
             if (gApp%Model%IO%doRestart(gApp%Model%t)) then
                 call gApp%WriteRestart(gApp%Model%IO%nRes)
+            endif
+
+            if (doResetClocks) then
+                call cleanClocks()
+                doResetClocks = .false.
             endif
 
             call Toc("IO")

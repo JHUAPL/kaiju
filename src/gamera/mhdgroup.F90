@@ -112,7 +112,7 @@ module mhdgroup
 
         call Tic("Reynolds")
         !$OMP PARALLEL DO default(shared) collapse(2) &
-        !$OMP private(U,dPg)
+        !$OMP private(i,j,k,U,dPg)
         do k=Grid%ks,Grid%ke
             do j=Grid%js,Grid%je
                 do i=Grid%is,Grid%ie
@@ -169,7 +169,7 @@ module mhdgroup
 
         call Tic("Maxwell")
         !$OMP PARALLEL DO default(shared) collapse(2) &
-        !$OMP private(U,oU,B,oB,dPg,dPm) 
+        !$OMP private(i,j,k,U,oU,B,oB,dPg,dPm) 
         do k=Grid%ks,Grid%ke
             do j=Grid%js,Grid%je
                 do i=Grid%is,Grid%ie
@@ -225,7 +225,8 @@ module mhdgroup
             !Let's goddamn do this thing w/ interleaved memory copies
                 !Open one big-ass // block
 
-                !$OMP PARALLEL default(shared)
+                !$OMP PARALLEL default(shared) &
+                !$OMP private(i,j,k)
 
                 !$OMP DO collapse(2)
                 do k=Grid%ksg,Grid%keg

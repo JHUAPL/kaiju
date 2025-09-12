@@ -9,18 +9,18 @@
         },
         "wsa_file": {
             "LEVEL": "BASIC",
-            "prompt": "Path to WSA solar wind file to use",
+            "prompt": "Path to WSA boundary condition file to use",
             "default": "wsa.fits"
         },
         "start_date": {
             "LEVEL": "BASIC",
             "prompt": "Start date for simulation (yyyy-mm-ddThh:mm:ss)",
-            "default": "2001-06-01T23:00:00"
+            "default": "2017-08-02T19:44:23"
         },
         "stop_date": {
             "LEVEL": "BASIC",
             "prompt": "Stop date for simulation (yyyy-mm-ddThh:mm:ss)",
-            "default": "2001-06-02T01:00:00"
+            "default": "2017-08-02T21:44:23"
         },
         "use_segments": {
             "LEVEL": "BASIC",
@@ -377,11 +377,6 @@
                 "LEVEL": "EXPERT",
                 "prompt": "Timestep slice output interval (simulated hours)",
                 "default": "10.0"
-            },
-            "dtCon": {
-                "LEVEL": "EXPERT",
-                "prompt": "Cadence for status updates on screen in simulated hours",
-                "default": "5.0"
             },
             "dtCon": {
                 "LEVEL": "EXPERT",

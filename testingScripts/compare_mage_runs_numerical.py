@@ -41,6 +41,9 @@ from kaipy import kaiH5
 # Program description.
 DESCRIPTION = "Compare MAGE model runs numerically."
 
+# Root of directory tree for this set of tests.
+MAGE_TEST_SET_ROOT = os.environ['MAGE_TEST_SET_ROOT']
+
 # Strings to represent test pass and fail.
 TEST_PASS = "PASS"
 TEST_FAIL = "FAIL"
@@ -482,7 +485,12 @@ def compare_mage_runs_numerical(args: dict):
             slack_client, test_report_details_string, thread_ts=thread_ts,
             is_test=test
         )
-
+    
+    # Also write a summary file to the root folder of this test
+    with open(os.path.join(MAGE_TEST_SET_ROOT,'testSummary.out'), 'w', encoding='utf-8') as f:
+        f.write(test_report_details_string)
+        f.write('\n')
+    
     # ------------------------------------------------------------------------
 
     if debug:

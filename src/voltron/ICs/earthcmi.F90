@@ -29,6 +29,7 @@ module uservoltic
     real(rp), private :: Rho0,P0
     real(rp), private :: Kp0
     logical , private :: doPP0  !Use MF starter plasmasphere
+    logical , private :: writeBCData ! Whether to write IC BC data
 
     ! type for remix BC
     type, extends(innerIBC_T) :: IonInnerBC_T
@@ -58,6 +59,7 @@ module uservoltic
         procedure(HackStep_T), pointer :: tsHack
         procedure(HackSaveRestart_T), pointer :: saveResHack
         procedure(HackLoadRestart_T), pointer :: loadResHack
+        procedure(HackIO_T), pointer :: saveIOHack
 
         real(rp) :: M0g
         integer :: s,s0
@@ -68,10 +70,12 @@ module uservoltic
         tsHack => NULL()
         saveResHack => NULL()
         loadResHack => NULL()
+        saveIOHack => NULL()
         Model%HackE => eHack
         Model%HackStep => tsHack
         Model%HackSaveRestart => saveResHack
         Model%HackLoadRestart => loadResHack
+        Model%HackIO => saveIOHack
 
         !Get defaults from input deck
 
@@ -79,6 +83,7 @@ module uservoltic
         call inpXML%Set_Val(Rho0 ,"prob/Rho0",0.2_rp)
         call inpXML%Set_Val(P0   ,"prob/P0"  ,0.001_rp)
         call inpXML%Set_Val(doPP0,"prob/doPP0",.false.)
+        call inpXML%Set_Val(writeBCData,"prob/writeBC",.false.)
 
         !Set magnetosphere parameters
         call setMagsphere(Model,inpXML)
@@ -159,6 +164,9 @@ module uservoltic
         Model%HackLoadRestart => loadResHack
         saveResHack => SaveUserRes
         Model%HackSaveRestart => saveResHack
+        saveIOHack => SaveUserIO
+        Model%HackIO => saveIOHack
+
 
         !Local functions
         !NOTE: Don't put BCs here as they won't be visible after the initialization call
@@ -603,13 +611,13 @@ module uservoltic
             nbc = FindBC(Model,Grid,INI)
                 SELECT type(iiBC=>Grid%externalBCs(nbc)%p)
                     TYPE IS (IonInnerBC_T)
-                        if(ioExist(inH5,"inEijk")) then
+                        if(ioExist(inH5,"_inEijk")) then
                             call ClearIO(IOVars)
-                            call AddInVar(IOVars,"inEijk")
-                            call AddInVar(IOVars,"inExyz")
+                            call AddInVar(IOVars,"_inEijk")
+                            call AddInVar(IOVars,"_inExyz")
                             call ReadVars(IOVars,.false.,inH5)
-                            call IOArray4DFill(IOVars, "inEijk", iiBC%inEijk(:,:,:,:) )
-                            call IOArray4DFill(IOVars, "inExyz", iiBC%inExyz(:,:,:,:) )
+                            call IOArray4DFill(IOVars, "_inEijk", iiBC%inEijk(:,:,:,:) )
+                            call IOArray4DFill(IOVars, "_inExyz", iiBC%inExyz(:,:,:,:) )
                         endif
                 CLASS DEFAULT
                     ! do nothing on gamera ranks without this BC
@@ -627,18 +635,47 @@ module uservoltic
  
         integer :: nbc
 
+        if (.not. writeBCData) return
+
         if ( Grid%hasLowerBC(IDIR) ) then
             nbc = FindBC(Model,Grid,INI)
                 SELECT type(iiBC=>Grid%externalBCs(nbc)%p)
                     TYPE IS (IonInnerBC_T)
-                        call AddOutVar(IOVars, "inEijk", iiBC%inEijk(:,:,:,:) )
-                        call AddOutVar(IOVars, "inExyz", iiBC%inExyz(:,:,:,:) )
+                        call AddOutVar(IOVars, "_inEijk", iiBC%inEijk(:,:,:,:) )
+                        call AddOutVar(IOVars, "_inExyz", iiBC%inExyz(:,:,:,:) )
                 CLASS DEFAULT
                     ! do nothing on gamera ranks without this BC
             END SELECT
         endif
 
     end subroutine SaveUserRes
+    
+    subroutine SaveUserIO(Model,Grid,State,IOVars)
+        class(Model_T), intent(in)    :: Model
+        class(Grid_T) , intent(in)    :: Grid
+        class(State_T), intent(in)    :: State
+        type(IOVAR_T), dimension(:), intent(inout) :: IOVars
 
+        integer :: nbc
+
+        if (.not. writeBCData) return
+
+        if ( Grid%hasLowerBC(IDIR) ) then
+            nbc = FindBC(Model,Grid,INI)
+                SELECT type(iiBC=>Grid%externalBCs(nbc)%p)
+                    TYPE IS (IonInnerBC_T)
+                        if (writeGhosts) then
+                            !call AddOutVar(IOVars, "_inEijk", iiBC%inEijk(:,:,:,:) )
+                            call AddOutVar(IOVars, "_inExyz", iiBC%inExyz(:,:,:,:) )
+                        else
+                            !call AddOutVar(IOVars, "_inEijk", iiBC%inEijk(:,Grid%js:Grid%je+1,Grid%ks:Grid%ke+1,:) )
+                            call AddOutVar(IOVars, "_inExyz", iiBC%inExyz(:,Grid%js:Grid%je,Grid%ks:Grid%ke,:) )
+                        endif
+                CLASS DEFAULT
+                    ! do nothing on gamera ranks without this BC
+            END SELECT
+        endif
+
+    end subroutine SaveUserIO
 
 end module uservoltic

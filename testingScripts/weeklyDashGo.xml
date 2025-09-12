@@ -8,7 +8,7 @@
     <coupling dtCouple="5.0" imType="RAIJU" doQkSquish="T" qkSquishStride="2" doAsyncCoupling="F"/>
     <restart dtRes="10800.0"/>
     <imag doInit="T"/>
-    <threading NumTh="64"/>
+    <threading NumTh="128"/>
     <!-- without quick squish, estimated 13 helpers required -->
     <helpers numHelpers="2" useHelpers="T" doSquishHelp="T"/>
   </VOLTRON>

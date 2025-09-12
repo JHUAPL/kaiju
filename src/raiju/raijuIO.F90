@@ -154,7 +154,7 @@ module raijuIO
         logical, optional, intent(in) :: doGhostsO
 
         type(IOVAR_T), dimension(MAXIOVAR) :: IOVars
-        integer :: i,j,k,s
+        integer :: i,j,k,s, nClkSteps
         integer :: is, ie, js, je, ks, ke
         integer, dimension(4) :: outBnds2D
         logical :: doGhosts
@@ -424,8 +424,14 @@ module raijuIO
             deallocate(outTmp2D)
         endif
 
-        call WriteVars(IOVars,.true.,Model%raijuH5, gStr)
+        !Performance Metrics
+        nClkSteps = readNCalls('DeepUpdate')
+        call AddOutVar(IOVars, "_perf_stepTime", readClock(1)/nClkSteps)
+        call AddOutVar(IOVars, "_perf_preAdvance", readClock("Pre-Advance")/nClkSteps)
+        call AddOutVar(IOVars, "_perf_advanceState", readClock("AdvanceState")/nClkSteps)
+        call AddOutVar(IOVars, "_perf_moments", readClock("Moments Eval")/nClkSteps)
 
+        call WriteVars(IOVars,.true.,Model%raijuH5, gStr)
 
         ! Any extra groups to add
         if (Model%doLosses .and. Model%doOutput_3DLoss) then

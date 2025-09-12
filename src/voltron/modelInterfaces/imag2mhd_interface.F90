@@ -286,17 +286,21 @@ module imag2mhd_interface
                 integer :: i,j,k,ip,jp,kp
                 logical :: isActive
 
-                !$OMP PARALLEL DO default(shared) collapse(2) &
-                !$OMP private(i,j,k,isActive,ip,jp,kp)
+                !!$OMP PARALLEL DO default(shared) collapse(2) &
+                !!$OMP private(i,j,k,isActive,ip,jp,kp)
+                ! this causes a race condition copying values between ghost cells
+                ! probably a false positive since some of the cells are just copying
+                ! values onto themselves, but easier to remove for now
                 do k=Gr%ksg,Gr%keg
                     do j=Gr%jsg,Gr%jeg
                         do i=Gr%isg,Gr%ieg
                             isActive = (j >= Gr%js) .and. (j <= Gr%je) .and. &
                                        (k >= Gr%ks) .and. (k <= Gr%ks)
-                            if (isActive) cycle
-                            !If still here map this ghost to active and set value based on active
-                            call lfmIJKcc(Model,Gr,i,j,k,ip,jp,kp)
-                            Q(i,j,k) = Q(ip,jp,kp)
+                            if(.not. isActive) then
+                                !If still here map this ghost to active and set value based on active
+                                call lfmIJKcc(Model,Gr,i,j,k,ip,jp,kp)
+                                Q(i,j,k) = Q(ip,jp,kp)
+                            endif
                         enddo
                     enddo !j
                 enddo !k

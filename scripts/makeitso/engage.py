@@ -28,6 +28,7 @@ import json
 import os
 import sys
 import subprocess
+import math
 
 # Import 3rd-party modules.
 import netCDF4
@@ -356,7 +357,7 @@ def prompt_user_for_run_options(args):
     for on in ["use_segments"]:
         od[on]["default"] = "Y"
         o[on] = makeitso.get_run_option(on, od[on], mode)
-    if o["use_segments"] == "Y":
+    if o["use_segments"].upper() == "Y":
         for on in ["segment_duration"]:
             o[on] = makeitso.get_run_option(on, od[on], mode)
     else:
@@ -364,7 +365,7 @@ def prompt_user_for_run_options(args):
 
     # Compute the number of segments based on the simulation duration and
     # segment duration, add 1 if there is a remainder.
-    if o["use_segments"] == "Y":
+    if o["use_segments"].upper() == "Y":
         num_segments = simulation_duration/float(o["segment_duration"])
         if num_segments > int(num_segments):
             num_segments += 1
@@ -564,7 +565,8 @@ def main():
 
         segment_duration = float(engage_options["simulation"]["segment_duration"])
         makeitso_options["voltron"]["time"]["tFin"] = int((t1-t0).total_seconds())
-        makeitso_options["pbs"]["num_segments"] = str(int((t1-t0).total_seconds()/segment_duration))
+        num_segments = math.ceil((t1-t0).total_seconds()/segment_duration)
+        makeitso_options["pbs"]["num_segments"] = str(num_segments)
         select2 = 1 + int(makeitso_options["pbs"]["num_helpers"])
         makeitso_options["pbs"]["select2"] = str(select2)
 
@@ -652,7 +654,9 @@ def main():
 
     # Create the PBS job scripts.
     pbs_scripts, submit_all_jobs_script = create_pbs_scripts(engage_options,makeitso_options, makeitso_pbs_scripts, tiegcm_options, tiegcm_inp_scripts, tiegcm_pbs_scripts)
-    print(f"pbs_scripts = {pbs_scripts}")
+    print(f"GR_pbs_scripts = {makeitso_pbs_scripts}")
+    print(f"Tiegcm_pbs_scripts = {tiegcm_pbs_scripts}")
+    print(f"GTR_pbs_scripts = {pbs_scripts}")
     print(f"submit_all_jobs_script = {submit_all_jobs_script}")
     
 

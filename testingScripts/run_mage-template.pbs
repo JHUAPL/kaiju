@@ -19,22 +19,27 @@ module load {{ module }}
 echo 'The currently loaded modules are:'
 module list
 
-echo 'Loading python environment.'
-export CONDARC="{{ condarc }}"
-export CONDA_ENVS_PATH="{{ conda_envs_path }}"
-mage_miniconda3="{{ mage_test_root }}/miniconda3"
-mage_conda="${mage_miniconda3}/bin/conda"
-__conda_setup="$($mage_conda 'shell.bash' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "$mage_miniconda3/etc/profile.d/conda.sh" ]; then
-        . "$mage_miniconda3/etc/profile.d/conda.sh"
+if [ -d "${mage_test_root}/miniconda3" ]; then
+    echo 'Loading local miniconda3'
+    export CONDARC="{{ condarc }}"
+    export CONDA_ENVS_PATH="{{ conda_envs_path }}"
+    mage_miniconda3="{{ mage_test_root }}/miniconda3"
+    mage_conda="${mage_miniconda3}/bin/conda"
+    __conda_setup="$($mage_conda 'shell.bash' 'hook' 2> /dev/null)"
+    if [ $? -eq 0 ]; then
+        eval "$__conda_setup"
     else
-        export PATH="$mage_miniconda3/bin:$PATH"
+        if [ -f "$mage_miniconda3/etc/profile.d/conda.sh" ]; then
+            . "$mage_miniconda3/etc/profile.d/conda.sh"
+        else
+            export PATH="$mage_miniconda3/bin:$PATH"
+        fi
     fi
+    unset __conda_setup
+else
+    echo 'Loading conda module'
+    module load conda
 fi
-unset __conda_setup
 conda activate {{ conda_environment }}
 echo "The current conda environment is ${CONDA_PREFIX}."
 
@@ -69,10 +74,10 @@ echo 'Generating the solar wind boundary condition file.'
 {{ cda2wind_cmd }}
 echo "The solar wind boundary condition file is `ls bcwind.h5`."
 
-# Generate the RCM configuration file.
-echo 'Generating the RCM configuration file.'
-{{ genRCM_cmd }}
-echo "The RCM configuration file is `ls rcmconfig.h5`."
+# Generate the Raiju configuration file.
+echo 'Generating the Raiju configuration file.'
+{{ genRaiju_cmd }}
+echo "The Raiju configuration file is `ls raijuconfig.h5`."
 
 # Run the model.
 MPICOMMAND="{{ mpiexec_cmd }}"

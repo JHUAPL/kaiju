@@ -360,6 +360,7 @@ module gamapp_mpi
                             ! print *, 'Over-writing min I BC to be an MPI BC'
                             deallocate(Grid%externalBCs(INI)%p)
                             allocate(Grid%externalBCs(INI)%p,source=mpiNullBc_T(INI))
+                            Grid%isDT = Grid%is
                         endif
                 END SELECT
 
@@ -377,6 +378,7 @@ module gamapp_mpi
                             ! print *, 'Over-writing max I BC to be an MPI BC'
                             deallocate(Grid%externalBCs(OUTI)%p)
                             allocate(Grid%externalBCs(OUTI)%p,source=mpiNullBc_T(OUTI))
+                            Grid%ieDT = Grid%ie
                         endif
                 END SELECT
 
@@ -399,6 +401,7 @@ module gamapp_mpi
                             ! print *, 'Over-writing min J BC to be an MPI BC'
                             deallocate(Grid%externalBCs(INJ)%p)
                             allocate(Grid%externalBCs(INJ)%p,source=mpiNullBc_T(INJ))
+                            Grid%jsDT = Grid%js
                         endif
                 END SELECT
 
@@ -416,6 +419,7 @@ module gamapp_mpi
                             ! print *, 'Over-writing max J BC to be an MPI BC'
                             deallocate(Grid%externalBCs(OUTJ)%p)
                             allocate(Grid%externalBCs(OUTJ)%p,source=mpiNullBc_T(OUTJ))
+                            Grid%jeDT = Grid%je
                         endif
                 END SELECT
 
@@ -438,6 +442,7 @@ module gamapp_mpi
                             ! print *, 'Over-writing min K BC to be an MPI BC'
                             deallocate(Grid%externalBCs(INK)%p)
                             allocate(Grid%externalBCs(INK)%p,source=mpiNullBc_T(INK))
+                            Grid%ksDT = Grid%ks
                         endif
                 END SELECT
 
@@ -455,6 +460,7 @@ module gamapp_mpi
                             ! print *, 'Over-writing max K BC to be an MPI BC'
                             deallocate(Grid%externalBCs(OUTK)%p)
                             allocate(Grid%externalBCs(OUTK)%p,source=mpiNullBc_T(OUTK))
+                            Grid%keDT = Grid%ke
                         endif
                 END SELECT
 
@@ -578,9 +584,9 @@ module gamapp_mpi
         character(len=strLen) :: BCID
 
         !Enforce BCs
-        call Tic("BCs")
+        call Tic("BCs", .true.)
         call EnforceBCs(gamAppMpi%Model,gamAppMpi%Grid,State)
-        call Toc("BCs")
+        call Toc("BCs", .true.)
 
         !Track timing for all gamera ranks to finish physical BCs
         ! Only synchronize when timing
@@ -591,10 +597,10 @@ module gamapp_mpi
         endif
 
         !Update ghost cells
-        call Tic("Halos")
+        call Tic("Halos", .true.)
         call HaloUpdate(gamAppMpi, State)
         call bFlux2Fld(gamAppMpi%Model, gamappMpi%Grid, State%magFlux, State%Bxyz) !Update Bxyz's
-        call Toc("Halos")
+        call Toc("Halos", .true.)
 
         !Track timing for all gamera ranks to finish halo comms
         ! Only synchronize when timing
@@ -605,6 +611,7 @@ module gamapp_mpi
         endif
 
         ! Re-apply periodic BCs last
+        call Tic("BCs", .true.)
         do i=1,gamAppMpi%Grid%NumBC
             if(allocated(gamAppMpi%Grid%externalBCs(i)%p)) then
                 SELECT type(bc=>gamAppMpi%Grid%externalBCs(i)%p)
@@ -643,6 +650,7 @@ module gamapp_mpi
                 endselect
             endif
         enddo
+        call Toc("BCs", .true.)
 
         !Track timing for all gamera ranks to finish periodic BCs
         ! Only synchronize when timing
@@ -660,6 +668,7 @@ module gamapp_mpi
         integer :: ierr,i
         real(rp) :: tmp
 
+        call Tic("Advance", .true.)
         !update the state variables to the next timestep
         call UpdateStateData(gamAppMpi)
 
@@ -671,11 +680,14 @@ module gamapp_mpi
             call Toc("Sync Math")
         endif
 
-        !Update BCs MPI style
-        call updateMpiBCs(gamAppMpi, gamAppmpi%State)
-
         !Calculate new timestep
         call CalcDT_mpi(gamAppMpi)
+        ! *** THIS MUST BE BEFORE updateMpiBCs
+        ! *** CalcDT can adjust cell values via CPR and other emergency correction schemes
+
+        !Update BCs MPI style
+        call updateMpiBCs(gamAppMpi, gamAppmpi%State)
+        call Toc("Advance", .true.)
 
     end subroutine stepGamera_mpi
 

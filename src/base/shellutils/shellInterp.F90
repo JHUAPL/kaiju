@@ -106,7 +106,7 @@ module shellInterp
             case(SHGR_CC)
                 !$OMP PARALLEL DO default(shared) &
                 !$OMP schedule(dynamic) &
-                !$OMP private(i,j)
+                !$OMP private(i,j,goodInterp)
                 do j=sgDest%jsg,sgDest%jeg
                     do i=sgDest%isg,sgDest%ieg
                         if (.not. varOut%mask(i,j)) cycle
@@ -125,7 +125,7 @@ module shellInterp
             case(SHGR_CORNER)
                 !$OMP PARALLEL DO default(shared) &
                 !$OMP schedule(dynamic) &
-                !$OMP private(i,j)
+                !$OMP private(i,j,goodinterp)
                 do j=sgDest%jsg,sgDest%jeg+1
                     do i=sgDest%isg,sgDest%ieg+1
                         if (.not. varOut%mask(i,j)) cycle
@@ -142,7 +142,7 @@ module shellInterp
             case(SHGR_FACE_THETA)
                 !$OMP PARALLEL DO default(shared) &
                 !$OMP schedule(dynamic) &
-                !$OMP private(i,j)
+                !$OMP private(i,j,goodInterp)
                 do j=sgDest%jsg,sgDest%jeg
                     do i=sgDest%isg,sgDest%ieg+1
                         if (.not. varOut%mask(i,j)) cycle
@@ -159,7 +159,7 @@ module shellInterp
             case(SHGR_FACE_PHI)
                 !$OMP PARALLEL DO default(shared) &
                 !$OMP schedule(dynamic) &
-                !$OMP private(i,j)
+                !$OMP private(i,j,goodInterp)
                 do j=sgDest%jsg,sgDest%jeg+1
                     do i=sgDest%isg,sgDest%ieg
                         if (.not. varOut%mask(i,j)) cycle

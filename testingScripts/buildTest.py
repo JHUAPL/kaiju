@@ -378,7 +378,12 @@ def main():
         )
         if debug:
             print(f"slack_response_summary = {slack_response_summary}")
-
+    
+    # Also write a summary file to the root folder of this test
+    with open(os.path.join(MAGE_TEST_SET_ROOT,'testSummary.out'), 'w', encoding='utf-8') as f:
+        f.write(test_report_details_string)
+        f.write('\n')
+    
     # ------------------------------------------------------------------------
 
     if debug:

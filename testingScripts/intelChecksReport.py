@@ -35,6 +35,9 @@ DESCRIPTION = 'Create report for Intel Inspector tests.'
 # Branch or commit (or tag) used for testing.
 BRANCH_OR_COMMIT = os.environ['BRANCH_OR_COMMIT']
 
+# Root of directory tree for this set of tests.
+MAGE_TEST_SET_ROOT = os.environ["MAGE_TEST_SET_ROOT"]
+
 
 def main():
     """Begin main program.
@@ -255,7 +258,12 @@ def main():
         )
         if debug:
             print(f"slack_response_summary = {slack_response_summary}")
-
+    
+    # Also write a summary file to the root folder of this test
+    with open(os.path.join(MAGE_TEST_SET_ROOT,'testSummary.out'), 'w', encoding='utf-8') as f:
+        f.write(test_report_details_string)
+        f.write('\n')
+    
     # ------------------------------------------------------------------------
 
     if debug:

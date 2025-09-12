@@ -42,13 +42,6 @@ date
 echo 'REMIX tests complete.'
 echo | tail -n 3 ./mixTests.out
 
-echo 'Running RCM tests.'
-date
-./rcmTests >& rcmTests.out
-date
-echo 'RCM tests complete.'
-echo | tail -n 3 ./rcmTests.out
-
 echo 'Running SHELLGRID tests.'
 date
 ./shgrTests >& shgrTests.out

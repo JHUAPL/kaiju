@@ -378,6 +378,8 @@ def intelChecks(args: dict):
         pbs_options["slack_bot_token"] = os.environ["SLACK_BOT_TOKEN"]
         pbs_options["mage_test_root"] = os.environ["MAGE_TEST_ROOT"]
         pbs_options["branch_or_commit"] = BRANCH_OR_COMMIT
+        pbs_options["mage_test_set_root"] = os.environ["MAGE_TEST_SET_ROOT"]
+        pbs_options["conda_environment"] = os.environ["CONDA_ENVIRONMENT"]
 
         # Set options specific to the memory check, then render the template.
         pbs_options["job_name"] = "mage_intelCheckSubmitMem"

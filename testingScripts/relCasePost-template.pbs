@@ -56,5 +56,8 @@ printenv
 # Process the data and generate the output video
 python $KAIPYHOME/kaipy/scripts/quicklook/gamerrVid.py -d1 {{ case1F }} -id1 {{ case1id }} -d2 {{ case2F }} -id2 {{ case2id }} -o {{ frameFolder }}/{{ caseName }} -ts {{ ts }} -te {{ te }} -dt {{ dt }} -Nth 9 >& {{ caseName }}.out
 
+# copy output video to test root folder
+cp {{ frameFolder }}/{{ caseName }}.mp4 $MAGE_TEST_SET_ROOT/.
+
 echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."
 

@@ -1,13 +1,13 @@
 <?xml version="1.0"?>
 <Kaiju>
   <Gamera>
-      <sim runid="blast3d_large" doH5init="F" icType="BW" pdmb="4.0"/>
+      <sim runid="blast3d_large2" doH5init="F" icType="BW" pdmb="4.0"/>
       <idir min="-0.5" max="0.5" N="128"/>
       <jdir min="-0.5" max="0.5" N="128"/>
       <kdir min="-0.5" max="0.5" N="128"/>
       <iPdir N="2" bcPeriodic="T"/>
-      <jPdir N="2" bcPeriodic="T"/>
-      <kPdir N="2" bcPeriodic="T"/>
+      <jPdir N="1" bcPeriodic="T"/>
+      <kPdir N="1" bcPeriodic="T"/>
       <time tFin="1.0"/>
       <output dtOut="0.01" tsOut="10"/>
       <physics doMHD="F" do25D="T"/>

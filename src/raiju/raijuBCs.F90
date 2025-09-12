@@ -119,7 +119,7 @@ module raijuBCs
         eleIdx  = spcIdx(Grid, F_HOTE)
         !$OMP PARALLEL DO default(shared) &
         !$OMP schedule(dynamic) &
-        !$OMP private(i,j,s,fIdx,fm,vm,kT,etaBelow,tmp_kti,tmp_kte,tmp_D,tmp_P)
+        !$OMP private(i,j,s,fIdx,fm,vm,kT,etaBelow,tmp_kti,tmp_kte,eMin,tmp_D,tmp_P)
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
                 if (State%active(i,j) .eq. RAIJUINACTIVE) then

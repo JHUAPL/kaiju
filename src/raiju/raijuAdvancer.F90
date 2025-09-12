@@ -34,21 +34,21 @@ module raijuAdvancer
 
         State%dt = dtCpl
 
-        call Tic("Pre-Advance")
+        call Tic("Pre-Advance",.true.)
         call raijuPreAdvance(Model, Grid, State)
-        call Toc("Pre-Advance")
+        call Toc("Pre-Advance",.true.)
         State%isFirstCpl = .false.
 
         ! Step
-        call Tic("AdvanceState")
+        call Tic("AdvanceState",.true.)
         call AdvanceState(Model, Grid, State)
-        call Toc("AdvanceState")
+        call Toc("AdvanceState",.true.)
 
         ! etas back to moments
-        call Tic("Moments Eval")
+        call Tic("Moments Eval",.true.)
         call EvalMoments(Grid, State)
         call EvalMoments(Grid, State, doAvgO=.true.)
-        call Toc("Moments Eval")
+        call Toc("Moments Eval",.true.)
 
     end subroutine raijuAdvance
 

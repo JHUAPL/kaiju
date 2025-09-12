@@ -170,6 +170,20 @@ Suppression = {
     Type = { uninitialized_memory_access }
     Stacks = {
         {
+            ...;
+            func=writeh5res, src=gioH5.F90;
+        }
+        allocation = {
+            func=voltron_mpix, src=voltron_mpix.F90;
+        }
+    }
+}
+
+Suppression = {
+    Name = "MPI-related gamera initialization False Positive";
+    Type = { uninitialized_memory_access }
+    Stacks = {
+        {
             func=foutput, src=output.F90;
         }
         allocation = {

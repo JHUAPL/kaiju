@@ -8,10 +8,14 @@ external/FARGPARSE-*/
 external/GFTL-*/
 external/GFTL_SHARED-*/
 external/PFUNIT-*/
+
 # skip F90 files in the tests folder, except in specific subfolders
 tests/*/*.F90
 !tests/helperCode/*.F90
 !tests/helperCode_mpi/*.F90
+
+# any local automated tests that users have run
+test_runs/
 
 # Pre-compile generated files
 src/base/git_info.F90

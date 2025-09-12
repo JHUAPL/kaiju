@@ -356,9 +356,10 @@ module voltapp_mpi
 
             if(.not. vApp%doSerialMHD) call vApp%gApp%StartUpdateMhdData(vApp)
 
-            call Tic("DeepUpdate")
+            call Tic("DeepUpdate",.true.)
             call DeepUpdate_mpi(vApp)
-            call Toc("DeepUpdate")
+            call Toc("DeepUpdate",.true.)
+            vApp%ts = vApp%ts + 1
 
             if(vApp%doSerialMHD) call vApp%gApp%StartUpdateMhdData(vApp)
 
@@ -404,8 +405,6 @@ module voltapp_mpi
 
         ! only do imag after spinup
         if(vApp%doDeep .and. vApp%time >= 0) then
-            call Tic("DeepUpdate", .true.)
-
             if(vApp%useHelpers) call vhReqStep(vApp)
 
             ! instead of PreDeep, use Tube Helpers and replicate other calls
@@ -442,7 +441,6 @@ module voltapp_mpi
             call DoImag(vApp)
 
             vApp%deepProcessingInProgress = .true.
-            call Toc("DeepUpdate", .true.)
          elseif(vApp%doDeep) then
             vApp%gApp%Grid%Gas0 = 0
             !Load TM03 into Gas0 for ingestion during spinup
@@ -459,7 +457,6 @@ module voltapp_mpi
 
         ! only do imag after spinup with deep enabled
         if(vApp%doDeep .and. vApp%time >= 0) then
-            call Tic("DeepUpdate", .true.)
 
             do while(SquishBlocksRemain(vApp))
                 call Tic("Squish",.true.)
@@ -477,7 +474,6 @@ module voltapp_mpi
 
             call SquishEnd(vApp)
             call PostDeep(vApp, vApp%gApp)
-            call Toc("DeepUpdate", .true.)
         endif
 
     end subroutine endDeep
@@ -496,11 +492,9 @@ module voltapp_mpi
         if(.not. vApp%deepProcessingInProgress) return
 
         if(SquishBlocksRemain(vApp)) then
-            call Tic("DeepUpdate")
             call Tic("Squish",.true.)
             call DoSquishBlock(vApp)
             call Toc("Squish",.true.)
-            call Toc("DeepUpdate")
         endif
 
         if(.not. SquishBlocksRemain(vApp)) then
