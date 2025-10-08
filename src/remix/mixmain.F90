@@ -14,6 +14,25 @@ module mixmain
 
   contains
 
+    subroutine init_model(mixApp, inpXML)
+      class(mixApp_T), intent(inout) :: mixApp
+      type(XML_Input_T), intent(inout) :: inpXML
+
+      character(len=strLen) :: tmpStr
+
+      call inpXML%GetFileStr(tmpStr)
+      ! Create new XML reader w/ REMIX as root
+      rXML = New_XML_Input(trim(tmpStr),'Kaiju/REMIX',.true.)
+
+      call inpXML%Set_Val(RunID, "/Kaiju/Gamera/sim/runid","msphere")
+      call inpXML%Set_Val(isRestart, "/Kaiju/Gamera/sim/doRes","false")
+
+      call init_mix(mixApp%ion,[NORTH,SOUTH],optFilename,RunID,isRestart,mixIOobj,nRes,optIO)
+
+      
+
+    end subroutine init_model
+
     subroutine init_mix(I,hmsphrs,optFilename,RunID,isRestart,mixIOobj,nRes,optIO)
       type(mixIon_T),dimension(:),allocatable,intent(inout) :: I ! I for ionosphere (is an array of 1 or 2 elements for north and south) or it can be artibrarily many, e.g., for different solves done in loop
       integer, dimension(:), intent(in) :: hmsphrs       

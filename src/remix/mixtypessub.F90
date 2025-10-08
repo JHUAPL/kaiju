@@ -1,6 +1,6 @@
 submodule (mixtypes) mixtypessub
     use mixio
-
+    use mixmain
     
     implicit none
 
@@ -10,8 +10,8 @@ submodule (mixtypes) mixtypessub
         class(mixApp_T), intent(inout) :: App
         type(XML_Input_T), intent(inout) :: Xml
 
-        call mixInit(App, Xml)
-        call init_mix(App%ion, [NORTH, SOUTH],Xml)
+        call init_model(App, Xml)
+        ! call init_mix(App%ion, [NORTH, SOUTH],Xml)
         ! call init_mix(I,hmsphrs,optFilename,RunID,isRestart,mixIOobj,nRes,optIO)
     end subroutine mixInitModel
 
@@ -20,8 +20,20 @@ submodule (mixtypes) mixtypessub
         class(mixApp_T), intent(inout) :: App
         type(XML_Input_T), intent(inout) :: Xml
 
+        character(len=*) :: runID   ! these two things are needed when we're coupled with Gamera
+        logical :: isRestart
+        integer :: nRes
+
+
+        call Xml%Set_Val(runID, "/Kaiju/Gamera/sim/runid","msphere")
+        call Xml%Set_Val(isRestart, "/Kaiju/Gamera/restart/doRes","false")
+        call Xml%Set_Val(nRes, "/Kaiju/Gamera/restart/nRes","-1")
+
+        ! synchronize restart output number
+        App%ion%P%nRes = nRes
+
         ! Initialize IO file
-        call initMIXIO(App%ion, runID, isRestart, App%ion%P%nRes)
+        call initMIXIO(App%ion, runID, isRestart, nRes)
 
     end subroutine mixInitIO
 
@@ -43,7 +55,7 @@ submodule (mixtypes) mixtypessub
         character(len=*), intent(in) :: resId
         integer, intent(in) :: nRes
 
-        ! synchronize restart number (needed?)
+        ! synchronize restart number
         App%ion%P%nRes = nRes
 
         call readMIXrestart(resId,nRes,App%ion)
@@ -51,7 +63,7 @@ submodule (mixtypes) mixtypessub
     end subroutine mixReadRestart
 
 
-    module subroutine mixWriteConsoleOutput(App) ! not sure about this one
+    module subroutine mixWriteConsoleOutput(App) ! no console output
         class(mixApp_T), intent(inout) :: App
 
     end subroutine mixWriteConsoleOutput
@@ -90,7 +102,7 @@ submodule (mixtypes) mixtypessub
     module subroutine mixCleanup(App) !OK
         class(mixApp_T), intent(inout) :: App
         
-        ! no cleanup for Remix
+        ! no cleanup
 
     end subroutine mixCleanup
 
