@@ -201,6 +201,9 @@ module voltio
 
         if (vApp%writeFiles) then
             ! call writeMIXRestart(vApp%remixApp%ion,vApp%IO%nRes,mjd=vApp%MJD,time=vApp%time)
+            vApp%remixApp%IO%mjd = vApp%MJD
+            vApp%remixApp%IO%time = vApp%time
+
             call vApp%remixApp%WriteRestart(vApp%remixApp,vApp%IO%nRes)
             !Write inner mag restart
             if (vApp%doDeep) then
@@ -365,6 +368,8 @@ module voltio
         if(vApp%writeFiles) then
             !Write ReMIX data
             ! call writeMix(vApp%remixApp%ion,vApp%IO%nOut,mjd=vApp%MJD,time=vApp%time)
+            vApp%remixApp%IO%mjd = vApp%MJD
+            vApp%remixApp%IO%time = vApp%time
             call vApp%remixApp%WriteFileOutput(vApp%remixApp,vApp%IO%nOut)
 
             !Write inner mag IO if needed
