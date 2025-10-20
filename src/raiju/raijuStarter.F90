@@ -175,6 +175,7 @@ module raijustarter
         Model%activeDomRad   = abs(Model%activeDomRad)
 
         !---Solver ---!
+        call iXML%Set_Val(Model%doSmoothGrads,'sim/doSmoothGrads',def_doSmoothGrads)
         call iXML%Set_Val(Model%doUseVelLRs,'sim/useVelLRs',def_doUseVelLRs)
         call iXML%Set_Val(Model%maxItersPerSec,'sim/maxIter',def_maxItersPerSec)
         call iXML%Set_Val(Model%maxOrder,'sim/maxOrder',7)
@@ -552,6 +553,8 @@ module raijustarter
         State%activeShells = .true.
         ! Similarly, set vaFrac to safe value in case stand-alone never writes to it
         State%vaFrac = 1.0
+
+        State%isFirstCpl = .true.
 
         ! Init State sub-modules
         if (Model%isSA) then

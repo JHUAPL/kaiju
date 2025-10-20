@@ -145,7 +145,7 @@ UNIT_TEST_DATA_INPUT_FILES = [
     'bcwind.h5',
     'geo_mpi.xml',
     'lfmD.h5',
-    'rcmconfig.h5',
+    'raijuconfig.h5',
 ]
 
 # Names of PBS scripts to create from templates.
@@ -425,17 +425,17 @@ def main():
                     print(f"Copying {from_path} to {to_path}.")
                 shutil.copyfile(from_path, to_path)
         else:
-            cmd = "cda2wind.py -t0 2016-08-09T09:00:00 -t1 2016-08-09T11:00:00"
+            cmd = "cda2wind -t0 2016-08-09T09:00:00 -t1 2016-08-09T11:00:00"
             if debug:
                 print(f"cmd = {cmd}")
             cproc = subprocess.run(cmd, shell=True, check=True,
                                    text=True, capture_output=True)
-            cmd = "genLFM.py"
+            cmd = "genLFM"
             if debug:
                 print(f"cmd = {cmd}")
             cproc = subprocess.run(cmd, shell=True, check=True,
                                    text=True, capture_output=True)
-            cmd = "genRAIJU.py"
+            cmd = "genRAIJU"
             if debug:
                 print(f"cmd = {cmd}")
             cproc = subprocess.run(cmd, shell=True, check=True,

@@ -1,0 +1,91 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "MAGE: Multiscale Atmosphere Geospace Environment Model"
+version: "1.25.1"
+date-released: 2025-07-03
+doi: 10.5281/zenodo.16818682  
+repository-code: "https://github.com/JHUAPL/kaiju"
+license: "BSD 3-Clause"
+
+authors:
+  - family-names: Merkin
+    given-names: Slava
+    orcid: https://orcid.org/0000-0003-4344-5424
+    affiliation: "Johns Hopkins University Applied Physics Laboratory"
+  - family-names: Arnold
+    given-names: Harry
+    orcid: https://orcid.org/0000-0002-0449-1498
+    affiliation: "Johns Hopkins University Applied Physics Laboratory"
+  - family-names: Bao
+    given-names: Shanshan
+    orcid: https://orcid.org/0000-0002-5209-3988
+    affiliation: "Rice University"
+  - family-names: Garretson
+    given-names: Jeffery
+    orcid: https://orcid.org/0000-0003-3805-9860
+    affiliation: "Johns Hopkins University Applied Physics Laboratory"
+  - family-names: Lin
+    given-names: Dong
+    affiliation: "NSF National Center for Atmospheric Research"
+    orcid: https://orcid.org/0000-0003-2894-6677
+  - family-names: Lyon
+    given-names: John
+    affiliation: "Gamera Consulting"
+    orcid: https://orcid.org/0000-0002-5759-9849
+  - family-names: McCubbin
+    given-names: Andrew
+    orcid: https://orcid.org/0000-0002-6222-3627
+    affiliation: "Johns Hopkins University Applied Physics Laboratory"
+  - family-names: Michael
+    given-names: Adam
+    orcid: https://orcid.org/0000-0003-2227-1242
+    affiliation: "Johns Hopkins University Applied Physics Laboratory"
+  - family-names: Pham
+    given-names: Kevin
+    orcid: https://orcid.org/0000-0001-5031-5519
+    affiliation: "NSF National Center for Atmospheric Research"
+  - family-names: Provornikova
+    given-names: Elena
+    orcid: https://orcid.org/0000-0001-8875-7478
+    affiliation: "Johns Hopkins University Applied Physics Laboratory"
+  - family-names: Rao
+    given-names: Nikhil
+    affiliation: "NSF National Center for Atmospheric Research"
+    orcid: https://orcid.org/0000-0003-2639-9892
+  - family-names: Sciola
+    given-names: Anthony
+    orcid: https://orcid.org/0000-0002-9752-9618
+    affiliation: "Johns Hopkins University Applied Physics Laboratory"
+  - family-names: Sorathia
+    given-names: Kareem
+    orcid: https://orcid.org/0000-0002-6011-5470
+    affiliation: "Johns Hopkins University Applied Physics Laboratory"
+  - family-names: Toffoletto
+    given-names: Frank
+    orcid: https://orcid.org/0000-0001-7789-2615
+    affiliation: "Rice University"
+  - family-names: Ukhorskiy
+    given-names: Aleksandr
+    orcid: https://orcid.org/0000-0002-3326-4024
+    affiliation: "Johns Hopkins University Applied Physics Laboratory"
+  - family-names: Wang
+    given-names: Wenbin
+    orcid: https://orcid.org/0000-0002-6287-4542
+    affiliation: "NSF National Center for Atmospheric Research"
+  - family-names: Wiltberger
+    given-names: Michael
+    orcid: https://orcid.org/0000-0002-4844-3148
+    affiliation: "NSF National Center for Atmospheric Research"
+  - family-names: Winter
+    given-names: Eric
+    orcid: https://orcid.org/0000-0001-5226-2107
+    affiliation: "Johns Hopkins University Applied Physics Laboratory"
+  - family-names: Wu
+    given-names: Haonon
+    orcid: https://orcid.org/0000-0002-3272-8106
+    affiliation: "NSF National Center for Atmospheric Research"
+
+keywords:
+  - "space weather"
+  - "MAGE"
+  - "geospace modeling"

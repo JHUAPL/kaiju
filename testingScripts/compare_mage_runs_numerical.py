@@ -125,67 +125,6 @@ def compare_GAMERA_results(runxml1: str, runxml2: str, verbose: bool = False):
     return TEST_PASS
 
 
-def compare_MHDRCM_results(runxml1: str, runxml2: str, verbose: bool = False):
-    """Numerically compare the MHD RCM output files from two runs.
-
-    Numerically compare the MHD RCM output files from two runs.
-
-    Parameters
-    ----------
-    runxm1 : str
-        Path to XML file describing 1st run.
-    runxm2 : str
-        Path to XML file describing 2nd run.
-    verbose : bool
-        Set to True to print verbose information during comparison.
-
-    Returns
-    -------
-    TEST_PASS or TEST_FAIL : str
-        Description of result of comparison.
-
-    Raises
-    ------
-    None
-    """
-    # Determine the directories containing the sets of results.
-    dir1 = os.path.split(runxml1)[0]
-    dir2 = os.path.split(runxml2)[0]
-
-    # Generate a sorted list of output files for the 1st run.
-    pattern1 = os.path.join(dir1, "*.mhdrcm.h5")
-    files1 = glob.glob(pattern1)
-    files = [os.path.split(f)[1] for f in files1]
-    files.sort()
-
-    # Compare each output file in the two directories.
-    # Comparisons are done with h5diff, which must be in the PATH.
-    # Attributes of the steps and other top-level groups are excluded from
-    # comparison.
-    for filename in files:
-        file1 = os.path.join(dir1, filename)
-        file2 = os.path.join(dir2, filename)
-        if verbose:
-            print(f"Numerically comparing {file1} to {file2}.")
-
-        # Compare each step, without attributes.
-        _, step_ids = kaiH5.cntSteps(file1)
-        for step_id in step_ids:
-            step_path = f"/Step#{step_id}"
-            if verbose:
-                print(f"  Comparing {step_path}.")
-            cmd = (
-                f"h5diff --exclude-attribute {step_path} {file1} {file2} "
-                f"{step_path}"
-            )
-            cproc = subprocess.run(cmd, shell=True, check=True)
-            if cproc.returncode != 0:
-                return TEST_FAIL
-
-    # Return the result of the comparison.
-    return TEST_PASS
-
-
 def compare_REMIX_results(runxml1: str, runxml2: str, verbose: bool = False):
     """Numerically compare the REMIX output files from two runs.
 
@@ -215,67 +154,6 @@ def compare_REMIX_results(runxml1: str, runxml2: str, verbose: bool = False):
 
     # Generate a sorted list of output files for the 1st run.
     pattern1 = os.path.join(dir1, "*.mix.h5")
-    files1 = glob.glob(pattern1)
-    files = [os.path.split(f)[1] for f in files1]
-    files.sort()
-
-    # Compare each result file in the two directories.
-    # Comparisons are done with h5diff, which must be in the PATH.
-    # Attributes of the steps and other top-level groups are excluded from
-    # comparison.
-    for filename in files:
-        file1 = os.path.join(dir1, filename)
-        file2 = os.path.join(dir2, filename)
-        if verbose:
-            print(f"Numerically comparing {file1} to {file2}.")
-
-        # Compare each step, without attributes.
-        _, step_ids = kaiH5.cntSteps(file1)
-        for step_id in step_ids:
-            step_path = f"/Step#{step_id}"
-            if verbose:
-                print(f"  Comparing {step_path}.")
-            cmd = (
-                f"h5diff --exclude-attribute {step_path} {file1} {file2} "
-                f"{step_path}"
-            )
-            cproc = subprocess.run(cmd, shell=True, check=True)
-            if cproc.returncode != 0:
-                return TEST_FAIL
-
-    # Return the result of the comparison.
-    return TEST_PASS
-
-
-def compare_RCM_results(runxml1: str, runxml2: str, verbose: bool = False):
-    """Numerically compare the RCM output files from two runs.
-
-    Numerically compare the RCM output files from two runs.
-
-    Parameters
-    ----------
-    runxm1 : str
-        Path to XML file describing 1st run.
-    runxm2 : str
-        Path to XML file describing 2nd run.
-    verbose : bool
-        Set to True to print verbose information during comparison.
-
-    Returns
-    -------
-    TEST_PASS or TEST_FAIL : str
-        Description of result of comparison.
-
-    Raises
-    ------
-    None
-    """
-    # Determine the directories containing the sets of results.
-    dir1 = os.path.split(runxml1)[0]
-    dir2 = os.path.split(runxml2)[0]
-
-    # Generate a sorted list of output files for the 1st run.
-    pattern1 = os.path.join(dir1, "*.rcm.h5")
     files1 = glob.glob(pattern1)
     files = [os.path.split(f)[1] for f in files1]
     files.sort()
@@ -417,26 +295,10 @@ def compare_mage_runs_numerical(args: dict):
         print(f"comparison_result = {comparison_result}")
     comparison_results.append(comparison_result)
 
-    # Compare the MHD RCM output files.
-    if verbose:
-        print("Comparing MHD RCM output files.")
-    comparison_result = compare_MHDRCM_results(runxml1, runxml2, verbose)
-    if debug:
-        print(f"comparison_result = {comparison_result}")
-    comparison_results.append(comparison_result)
-
     # Compare the REMIX output files.
     if verbose:
         print("Comparing REMIX output files.")
     comparison_result = compare_REMIX_results(runxml1, runxml2, verbose)
-    if debug:
-        print(f"comparison_result = {comparison_result}")
-    comparison_results.append(comparison_result)
-
-    # Compare the RCM output files.
-    if verbose:
-        print("Comparing RCM output files.")
-    comparison_result = compare_RCM_results(runxml1, runxml2, verbose)
     if debug:
         print(f"comparison_result = {comparison_result}")
     comparison_results.append(comparison_result)
@@ -454,10 +316,8 @@ def compare_mage_runs_numerical(args: dict):
     # Detail the test results.
     test_report_details_string = ""
     test_report_details_string += f"GAMERA: *{comparison_results[0]}*\n"
-    test_report_details_string += f"MHD RCM: *{comparison_results[1]}*\n"
-    test_report_details_string += f"REMIX: *{comparison_results[2]}*\n"
-    test_report_details_string += f"RCM: *{comparison_results[3]}*\n"
-    test_report_details_string += f"VOLTRON: *{comparison_results[4]}*\n"
+    test_report_details_string += f"REMIX: *{comparison_results[1]}*\n"
+    test_report_details_string += f"VOLTRON: *{comparison_results[2]}*\n"
 
     # Summarize the test results.
     if run_description is not None:

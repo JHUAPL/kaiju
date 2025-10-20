@@ -16,7 +16,7 @@ module raijuIO
 
     implicit none
 
-    integer, parameter, private :: MAXIOVAR = 70
+    integer, parameter, private :: MAXIOVAR = 100
     logical, private :: doRoot = .true. !Whether root variables need to be written
     logical, private :: doFat = .false. !Whether to output lots of extra datalogical, private :: doRoot = .true. !Whether root variables need to be written
 
@@ -503,6 +503,12 @@ module raijuIO
         else
             call AddOutVar(IOVars,"cs_doneFirstCS", 0)
         endif
+        if (State%coldStarter%doCS_next_preAdv) then
+            call AddOutVar(IOVars,"cs_doCS_next_preAdv", 1)
+        else
+            call AddOutVar(IOVars,"cs_doCS_next_preAdv", 0)
+        endif
+        call AddOutVar(IOVars, "cs_modelDst_next_preAdv", State%coldStarter%modelDst_next_preAdv)
         call AddOutVar(IOVars, "cs_lastEval", State%coldStarter%lastEval)
         call AddOutVar(IOVars, "cs_lastTarget", State%coldStarter%lastTarget)
 
@@ -598,6 +604,8 @@ module raijuIO
         call AddInVar(IOVars,"nRes")
         call AddInVar(IOVars,"tRes")
         call AddInVar(IOVars,"isFirstCpl")
+        call AddInVar(IOVars,"cs_doCS_next_preAdv")
+        call AddInVar(IOVars,"cs_modelDst_next_preAdv")
         call AddInVar(IOVars,"cs_doneFirstCS")
         call AddInVar(IOVars,"cs_lastEval")
         call AddInVar(IOVars,"cs_lastTarget")
@@ -651,12 +659,15 @@ module raijuIO
         ! Coldstarter
         State%coldStarter%lastEval   = GetIOReal(IOVars, "cs_lastEval")
         State%coldStarter%lastTarget = GetIOReal(IOVars, "cs_lastTarget")
+        State%coldStarter%modelDst_next_preAdv = GetIOReal(IOVars, "cs_modelDst_next_preAdv")
         
         ! Handle boolean attributes
         tmpInt = GetIOInt(IOVars, "isFirstCpl")
         State%isFirstCpl = tmpInt .eq. 1
         tmpInt = GetIOInt(IOVars, "cs_doneFirstCS")
         State%coldStarter%doneFirstCS = tmpInt .eq. 1
+        tmpInt = GetIOInt(IOVars, "cs_doCS_next_preAdv")
+        State%coldStarter%doCS_next_preAdv = tmpInt .eq. 1
 
         call IOArray2DFill(IOVars, "xmin" , State%xyzMin(:,:,XDIR))
         call IOArray2DFill(IOVars, "ymin" , State%xyzMin(:,:,YDIR))

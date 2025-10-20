@@ -20,9 +20,7 @@ echo 'The currently loaded modules are:'
 module list
 
 echo 'Loading python environment.'
-export CONDARC="{{ condarc }}"
-export CONDA_ENVS_PATH="{{ conda_envs_path }}"
-mage_miniconda3="{{ mage_test_root }}/miniconda3"
+mage_miniconda3="${HOME}/miniconda3"
 mage_conda="${mage_miniconda3}/bin/conda"
 __conda_setup="$($mage_conda 'shell.bash' 'hook' 2> /dev/null)"
 if [ $? -eq 0 ]; then
@@ -41,10 +39,6 @@ echo "The current conda environment is ${CONDA_PREFIX}."
 echo 'Setting up MAGE environment.'
 source {{ kaijuhome }}/scripts/setupEnvironment.sh
 echo "The kaiju software is located at ${KAIJUHOME}."
-
-echo 'Setting up kaipy environment.'
-source {{ kaipy_private_root }}/kaipy/scripts/setupEnvironment.sh
-echo "The kaipy software is located at ${KAIPYHOME}."
 
 echo 'Setting environment variables.'
 export TMPDIR={{ tmpdir }}
@@ -83,10 +77,10 @@ echo 'Generating the solar wind boundary condition file.'
 {{ cda2wind_cmd }}
 echo "The solar wind boundary condition file is `ls bcwind.h5`."
 
-# Generate the RCM configuration file.
-echo 'Generating the RCM configuration file.'
-{{ genRCM_cmd }}
-echo "The RCM configuration file is `ls rcmconfig.h5`."
+# Generate the raiju configuration file.
+echo 'Generating the raiju configuration file.'
+{{ genRAIJU_cmd }}
+echo "The RAIJU configuration file is `ls raijuconfig.h5`."
 
 # Run the model.
 MPICOMMAND="{{ mpiexec_cmd }}"

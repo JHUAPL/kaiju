@@ -43,11 +43,7 @@ submodule (volttypes) raijuCplTypesSub
         ! Update MJD with whatever voltron handed us
         ! If we are restarting, this will get replaced with whatever's in file later
         App%raiApp%State%mjd = App%opt%mjd0
-        write(*,*)"MJD0=",App%opt%mjd0
-        if (App%opt%doColdStart) then
-            ! We are gonna cold start, so ignore plasma ingestion rules for first coupling
-            App%raiApp%State%isFirstCpl = .false.
-        endif
+
         ! Then allocate and initialize coupling variables based on raiju app
         call raijuCpl_init(App, xml)
 
@@ -58,61 +54,29 @@ submodule (volttypes) raijuCplTypesSub
         class(raijuCoupler_T), intent(inout) :: App
         class(voltApp_T), intent(inout) :: vApp
 
-        logical :: doFirstColdStart
-        logical :: doUpdateColdStart
         real(rp) :: BSDst
-
-        doFirstColdStart = .false.
-        doUpdateColdStart = .false.
 
         associate(raiApp=>App%raiApp)
 
             ! If we are running realtime, its our job to get everything we need from vApp into raiCpl
             if (.not. App%raiApp%Model%isSA) then
-                ! First, determine if we should cold start, i.e. Completely reset raiju's eta's to match some target conditions
-                ! Determine if we should cold start before packing coupler because it will set tLastUpdate to vApp%time and then we can't do the checks we want
-                ! But actually do cold start after coupler packing completes so we can use real field line info
-
-                ! Do we do our very first coldstart ever
-                if (App%opt%doColdStart .and. App%tLastUpdate < 0.0 .and. vApp%time >= 0.0) then
-                    doFirstColdStart = .true.
-                endif
-                ! Do we do "updates" to our coldstart during pre-conditioning period
-                if(App%opt%doColdStart .and. App%tLastUpdate > 0.0 .and. vApp%time < App%startup_blendTscl) then
-                    doUpdateColdStart = .true.
-                endif
-
                 call packRaijuCoupler_RT(App, vApp)
             endif
 
             ! Someone updated raiCpl's coupling variables by now, stuff it into RAIJU proper
             call raiCpl2RAIJU(App)
 
-            if (.not. raiApp%State%coldStarter%doneFirstCS .or. vApp%time < raiApp%State%coldStarter%tEnd) then
-                !! Make sure we run at least once
-                call setActiveDomain(raiApp%Model, raiApp%Grid, raiApp%State)
-                ! Calc voltron dst ourselves since vApp%BSDst is only set on console output
-                call EstDST(vApp%gApp%Model,vApp%gApp%Grid,vApp%gApp%State,BSDst0=BSDst)
-                call raijuGeoColdStart(raiApp%Model, raiApp%Grid, raiApp%State, vApp%time, BSDst)
-            endif
-            !if (doFirstColdStart) then
-            !    ! Its happening, everybody stay calm
-            !    write(*,*) "RAIJU Doing first cold start..."
-            !    ! NOTE: By this point we have put coupling info into raiju (e.g. bVol, xyzmin, MHD moments)
-            !    ! But haven't calculated active domain yet because that happens in preadvancer
-            !    ! So we jump in and do it here so we have it for cold starting
-            !    call setActiveDomain(raiApp%Model, raiApp%Grid, raiApp%State)
-            !    ! Calc voltron dst ourselves since vApp%BSDst is only set on console output
-            !    call EstDST(vApp%gApp%Model,vApp%gApp%Grid,vApp%gApp%State,BSDst0=BSDst)
-            !    call raijuGeoColdStart(raiApp%Model, raiApp%Grid, raiApp%State, vApp%time, BSDst, doCXO=App%doColdstartCX,doPsphO=.true.)
-            !endif
-            !if (doUpdateColdStart) then
-            !    write(*,*)"RAIJU doing update cold start at t=",vApp%time
-            !    write(*,*)" (calculating model BSDst,)",vApp%time
-            !    call setActiveDomain(raiApp%Model, raiApp%Grid, raiApp%State)
-            !    call EstDST(vApp%gApp%Model,vApp%gApp%Grid,vApp%gApp%State,BSDst0=BSDst)
-            !    call raijuGeoColdStart(raiApp%Model, raiApp%Grid, raiApp%State, vApp%time, BSDst, doCXO=App%doColdstartCX,doPsphO=.false.)
-            !endif
+            associate(cs=>raiApp%State%coldStarter)
+                if (.not. cs%doneFirstCS .or. (cs%doUpdate .and. vApp%time < cs%tEnd) ) then
+                    !! Make sure we run at least once
+                    ! Calc voltron dst ourselves since vApp%BSDst is only set on console output
+                    call EstDST(vApp%gApp%Model,vApp%gApp%Grid,vApp%gApp%State,BSDst0=BSDst)
+                    raiApp%State%coldStarter%doCS_next_preAdv = .true.
+                    raiApp%State%coldStarter%modelDst_next_preAdv = BSDst
+                    !call setActiveDomain(raiApp%Model, raiApp%Grid, raiApp%State)
+                    !call raijuGeoColdStart(raiApp%Model, raiApp%Grid, raiApp%State, vApp%time, BSDst)
+                endif
+            end associate
         end associate
     end subroutine volt2RAIJU
 
@@ -299,21 +263,22 @@ submodule (volttypes) raijuCplTypesSub
                         endif
                     enddo
 
-
                     ! Mock up cold electrons balancing hot protons and see if it produces meaningful flux
-                    call InterpShellVar_TSC_pnt(sh, State%Den_avg(idx_proton)    , th, ph, d_ion)
-                    call InterpShellVar_TSC_pnt(sh, State%Press_avg(idx_proton)  , th, ph, p_ion)
-                    pie_frac = 0.05  ! Fraction of ion pressure contained by these neutralizing electrons
-                    pe_kT = DP2kT(d_ion, p_ion*pie_frac)  ! [keV]
-                    pe_nflux = imP(RAI_ENFLX)*d_ion/d_hot  ! Scale number flux to same loss processes except there were d_ion density instead of d_electron density
-                    pe_eflux = (pe_kT*kev2erg)*pe_nflux  ! [erg/cm^2/s]
-                    if (pe_eflux > imP(RAI_EFLUX)) then  ! Use in place of normal flux only if energy flux for these are greater than hot electron channel fluxes
-                        imP(RAI_EFLUX) = pe_eflux
-                        imP(RAI_ENFLX) = pe_nflux
-                        imP(RAI_EDEN ) = d_ion*1.0e6 ! [#/m^3]
-                        imP(RAI_EPRE ) = p_ion*pie_frac*1.0e-9  ! [Pa]
-                    endif
-                endif
+                    !K: Removing this code for now, should be rewritten to use the MHD D,P => precip routines
+                    ! call InterpShellVar_TSC_pnt(sh, State%Den_avg(idx_proton)    , th, ph, d_ion)
+                    ! call InterpShellVar_TSC_pnt(sh, State%Press_avg(idx_proton)  , th, ph, p_ion)
+                    ! pie_frac = 0.05  ! Fraction of ion pressure contained by these neutralizing electrons
+                    ! pe_kT = DP2kT(d_ion, p_ion*pie_frac)  ! [keV]
+                    ! pe_nflux = imP(RAI_ENFLX)*d_ion/d_hot  ! Scale number flux to same loss processes except there were d_ion density instead of d_electron density
+                    ! pe_eflux = (pe_kT*kev2erg)*pe_nflux  ! [erg/cm^2/s]
+                    ! if (pe_eflux > imP(RAI_EFLUX)) then  ! Use in place of normal flux only if energy flux for these are greater than hot electron channel fluxes
+                    !     imP(RAI_EFLUX) = pe_eflux
+                    !     imP(RAI_ENFLX) = pe_nflux
+                    !     imP(RAI_EDEN ) = d_ion*1.0e6 ! [#/m^3]
+                    !     imP(RAI_EPRE ) = p_ion*pie_frac*1.0e-9  ! [Pa]
+                    ! endif
+
+                endif !spcList(s)%spcType == X
             enddo
             ! derive mean energy where nflux is non-trivial.
             if (imP(RAI_ENFLX) > TINY) imP(RAI_EAVG) = imP(RAI_EFLUX)/imP(RAI_ENFLX) * erg2kev  ! Avg E [keV]

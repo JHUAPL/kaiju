@@ -131,7 +131,7 @@ module raijuOut
             if (maxP_MLT > 24) maxP_MLT = maxP_MLT - 24D0
             write(*,'(a,I0,a,f7.2,a,f7.2,a,f5.2,a,f5.2,a,f7.2)') '        ', &
                 Grid%spc(s)%flav, ': P =', maxPress,', D =',maxDen,' @ ',maxP_L,' Rp,',maxP_MLT, &
-                " MLT; DPS:",spcEta2DPS(Model, Grid, State, Grid%spc(sIdx), State%active .eq. RAIJUACTIVE)
+                " MLT; DPS:",spcEta2DPS(Model, Grid, State%bvol_cc, State%eta_avg, Grid%spc(sIdx), State%active .eq. RAIJUACTIVE)
 
         enddo
         write(*,'(a)',advance="no") ANSIRESET

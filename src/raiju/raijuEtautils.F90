@@ -178,18 +178,19 @@ module raijuetautils
     end function SpcEta2Press
 
 
-    function spcEta2DPS(Model, Grid, State, spc, isGood) result(dpsdst)
+    function spcEta2DPS(Model, Grid, bVol_cc, eta, spc, isGood) result(dpsdst)
         !! Calculate total DPS-Dst for given species within the defined isGood domain
         type(raijuModel_T), intent(in) :: Model
         type(raijuGrid_T), intent(in) :: Grid
-        type(raijuState_T), intent(in) :: State
+        real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg, Grid%shGrid%jsg:Grid%shGrid%jeg), intent(in) :: bVol_cc
+        real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg, Grid%shGrid%jsg:Grid%shGrid%jeg, Grid%Nk), intent(in) :: eta
         type(raijuSpecies_T), intent(in) :: spc
         logical, dimension(Grid%shGrid%isg:Grid%shGrid%ieg, Grid%shGrid%jsg:Grid%shGrid%jeg), intent(in) :: isGood
             !! Eval mask, true = point is included in calculation
 
         real(rp) :: dpsdst
-        integer :: i,j,k
-        real(rp) :: press, bVol, energyDen, energy
+        integer :: i,j
+        real(rp) :: press, energyDen, energy
         logical :: isDead = .false.
 
         dpsdst = 0.0
@@ -197,9 +198,8 @@ module raijuetautils
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
                 if (.not. isGood(i,j)) cycle
-                bVol = State%bvol_cc(i,j)
-                press = SpcEta2Press(spc, State%eta(i,j,spc%kStart:spc%kEnd), bVol)  ! [nPa]
-                energyDen = (press*1.0D-9) * (bVol*Model%planet%rp_m*1.0D9) * (Grid%Brcc(i,j)*1.0D-9)/kev2J  ! p[J/m^3] * bVol[m/T] * B[T]  = [J/m^2] * keV/J = [keV/m^2]
+                press = SpcEta2Press(spc, eta(i,j,spc%kStart:spc%kEnd), bvol_cc(i,j))  ! [nPa]
+                energyDen = (press*1.0D-9) * (bVol_cc(i,j)*Model%planet%rp_m*1.0D9) * (Grid%Brcc(i,j)*1.0D-9)/kev2J  ! p[J/m^3] * bVol[m/T] * B[T]  = [J/m^2] * keV/J = [keV/m^2]
                 energy = energyDen*(Grid%areaCC(i,j)*Model%planet%ri_m**2) !  [keV/m^2]* Re^2[m^2] = [keV]
                 dpsdst = dpsdst - 4.2*(1.0D-30)*energy  ! [nT]
             enddo

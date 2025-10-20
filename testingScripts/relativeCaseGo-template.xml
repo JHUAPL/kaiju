@@ -3,7 +3,7 @@
 <Kaiju>
   <VOLTRON>
     <time tFin="7201.0"/>
-    <spinup doSpin="T" tSpin="3600.0"/>
+    <spinup doSpin="T" tSpin="3600.0" tIO="-600.0"/>
     <output dtOut="60.0" tsOut="100"/>
     <coupling dtCouple="5.0" imType="RAIJU" doQkSquish="F" qkSquishStride="2" doAsyncCoupling="F" doSerial="{{ serial_coupling }}"/>
     <restart dtRes="3600.0"/>
@@ -41,7 +41,7 @@
     <output loudConsole="T" doFat="F" doLossExtras="F" doDebug="F" writeGhosts="F"/>
     <grid gType="SHGRID" ThetaL="15" ThetaU="50"/>
     <domain tail_buffer="15.0" sun_buffer="15.0" tail_active="12.0" sun_active="12.0"/>
-    <sim pdmb="0.75"/>
+    <sim pdmb="0.75" doSmoothgrads="F"/>
     <config fname="raijuconfig.h5"/>
     <plasmasphere doPsphere="T" doExcessMap="T"/>
     <losses doLosses="T" doCX="T" doSS="T" doCC="T"/>

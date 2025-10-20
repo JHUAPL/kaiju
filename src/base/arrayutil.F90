@@ -15,7 +15,7 @@ module arrayutil
 
 
     subroutine fillArray1D_R(array, val)
-        real(rp), dimension(:), allocatable, intent(inout) :: array
+        real(rp), dimension(:), intent(inout) :: array
         real(rp), intent(in) :: val
 
         integer :: lbds(1),ubds(1),i
@@ -37,7 +37,7 @@ module arrayutil
     end subroutine fillArray1D_R
 
     subroutine fillArray1D_I(array, val)
-        integer, dimension(:), allocatable, intent(inout) :: array
+        integer, dimension(:), intent(inout) :: array
         integer, intent(in) :: val
 
         integer :: lbds(1),ubds(1),i
@@ -59,7 +59,7 @@ module arrayutil
     end subroutine fillArray1D_I
 
     subroutine fillArray2D_R(array, val)
-        real(rp), dimension(:,:), allocatable, intent(inout) :: array
+        real(rp), dimension(:,:), intent(inout) :: array
         real(rp), intent(in) :: val
 
         integer :: lbds(2),ubds(2),i,j
@@ -83,7 +83,7 @@ module arrayutil
     end subroutine fillArray2D_R
 
     subroutine fillArray2D_I(array, val)
-        integer, dimension(:,:), allocatable, intent(inout) :: array
+        integer, dimension(:,:), intent(inout) :: array
         integer, intent(in) :: val
 
         integer :: lbds(2),ubds(2),i,j
@@ -107,7 +107,7 @@ module arrayutil
     end subroutine fillArray2D_I
 
     subroutine fillArray3D_R(array, val)
-        real(rp), dimension(:,:,:), allocatable, intent(inout) :: array
+        real(rp), dimension(:,:,:), intent(inout) :: array
         real(rp), intent(in) :: val
 
         integer :: lbds(3),ubds(3),i,j,k
@@ -133,7 +133,7 @@ module arrayutil
     end subroutine fillArray3D_R
 
     subroutine fillArray3D_I(array, val)
-        integer, dimension(:,:,:), allocatable, intent(inout) :: array
+        integer, dimension(:,:,:), intent(inout) :: array
         integer, intent(in) :: val
 
         integer :: lbds(3),ubds(3),i,j,k
@@ -159,7 +159,7 @@ module arrayutil
     end subroutine fillArray3D_I
 
     subroutine fillArray4D_R(array, val)
-        real(rp), dimension(:,:,:,:), allocatable, intent(inout) :: array
+        real(rp), dimension(:,:,:,:), intent(inout) :: array
         real(rp), intent(in) :: val
 
         integer :: lbds(4),ubds(4),i,j,k
@@ -185,7 +185,7 @@ module arrayutil
     end subroutine fillArray4D_R
 
     subroutine fillArray4D_I(array, val)
-        integer, dimension(:,:,:,:), allocatable, intent(inout) :: array
+        integer, dimension(:,:,:,:), intent(inout) :: array
         integer, intent(in) :: val
 
         integer :: lbds(4),ubds(4),i,j,k
@@ -211,7 +211,7 @@ module arrayutil
     end subroutine fillArray4D_I
 
     subroutine fillArray5D_R(array, val)
-        real(rp), dimension(:,:,:,:,:), allocatable, intent(inout) :: array
+        real(rp), dimension(:,:,:,:,:), intent(inout) :: array
         real(rp), intent(in) :: val
 
         integer :: lbds(5),ubds(5),i,j,k
@@ -237,7 +237,7 @@ module arrayutil
     end subroutine fillArray5D_R
 
     subroutine fillArray5D_I(array, val)
-        integer, dimension(:,:,:,:,:), allocatable, intent(inout) :: array
+        integer, dimension(:,:,:,:,:), intent(inout) :: array
         integer, intent(in) :: val
 
         integer :: lbds(5),ubds(5),i,j,k

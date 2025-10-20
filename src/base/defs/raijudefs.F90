@@ -70,6 +70,7 @@ module raijudefs
     real(rp), parameter :: def_cfl  = 0.3
     real(rp), parameter :: cflMax = 0.3
     logical, parameter :: def_doUseVelLRs = .true.
+    logical, parameter :: def_doSmoothGrads = .true.
 
     ! Domain limits
     ! Buffer not allowed beyond min of maxTail and maxSun

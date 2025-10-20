@@ -5,6 +5,7 @@ module raijuBCs
     use raijutypes
     use raijuetautils
     use raijudomain
+    use raijuColdStartHelper
 
     implicit none
 
@@ -29,11 +30,14 @@ module raijuBCs
             doWholeDomain = .false.
         endif
 
-        ! Now that topo is set, we can calculate active domain
-        call setActiveDomain(Model, Grid, State)
 
         call calcMomentIngestionLocs(Model, Grid, State, doWholeDomain, doMomentIngest)
         call applyMomentIngestion(Model, Grid, State, doMomentIngest)
+
+        if (State%coldStarter%doCS_next_preAdv) then
+            call raijuGeoColdStart(Model, Grid, State, State%t, State%coldStarter%modelDst_next_preAdv, doAccumulateO=.true.)
+            State%coldStarter%doCS_next_preAdv = .false.
+        endif
 
 
         if (Model%doActiveShell ) then
@@ -64,9 +68,18 @@ module raijuBCs
         doMomentIngest = .false.
         ! Determine where to do BCs
         if(doWholeDomain) then
-            where (State%active .ne. RAIJUINACTIVE)
-                doMomentIngest = .true.
-            end where
+            !where (State%active .ne. RAIJUINACTIVE)
+            !    doMomentIngest = .true.
+            !end where
+            associate(sh=>Grid%shGrid)
+            do j=sh%jsg,sh%jeg
+                do i=sh%isg,sh%ieg
+                    if (State%active(i,j) .ne. RAIJUINACTIVE) then
+                        doMomentIngest(i,j) = .true.
+                    endif
+                enddo
+            enddo
+            end associate
         else
 
             associate(sh=>Grid%shGrid)
@@ -118,7 +131,6 @@ module raijuBCs
         psphIdx = spcIdx(Grid, F_PSPH)
         eleIdx  = spcIdx(Grid, F_HOTE)
         !$OMP PARALLEL DO default(shared) &
-        !$OMP schedule(dynamic) &
         !$OMP private(i,j,s,fIdx,fm,vm,kT,etaBelow,tmp_kti,tmp_kte,eMin,tmp_D,tmp_P)
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
@@ -215,8 +227,8 @@ module raijuBCs
                 press2D = State%Pavg      (i-2:i+2, j-2:j+2, fIdx)
                 wgt2D   = State%domWeights(i-2:i+2, j-2:j+2)
                 isG2D   = State%active    (i-2:i+2, j-2:j+2) .ne. RAIJUINACTIVE
-                D = sum(den2D  * wgt2D, mask=isG2D)/sum(wgt2D, mask=isG2D)
-                P = sum(press2D* wgt2D, mask=isG2D)/sum(wgt2D, mask=isG2D)
+                D = sum(den2D  * wgt2D, mask=isG2D)/max( sum(wgt2D, mask=isG2D), TINY)
+                P = sum(press2D* wgt2D, mask=isG2D)/max( sum(wgt2D, mask=isG2D), TINY)
             endif
         end subroutine getDomWeightedMoments
 

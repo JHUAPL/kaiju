@@ -84,6 +84,35 @@ MAGE_REPRODUCIBILITY_CHECK_PBS_TEMPLATE_FILE = os.path.join(
 MAGE_REPRODUCIBILITY_CHECK_PBS_SCRIPT = "mage_reproducibility_check.pbs"
 
 
+def create_command_line_parser():
+    """Create the command-line argument parser.
+
+    Create the parser for command-line arguments.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    parser : argparse.ArgumentParser
+        Command-line argument parser for this script.
+
+    Raises
+    ------
+    None
+    """
+    parser = common.create_command_line_parser(DESCRIPTION)
+    parser.add_argument(
+        "--module_set_file", "-f", default=DEFAULT_MODULE_SET_FILE,
+        help=(
+            "Path to text file containing set of modules to build with "
+            "(default: %(default)s)"
+        )
+    )
+    return parser
+
+
 def mage_reproducibility_check(args: dict):
     """Perform a MAGE reproducibility check.
 
@@ -146,7 +175,6 @@ def mage_reproducibility_check(args: dict):
     module_names, cmake_environment, cmake_options = (
         common.read_build_module_list_file(module_set_file)
     )
-    print(f"module_names = {module_names}")
 
     # Extract the name of the list.
     module_set_name = os.path.split(module_set_file)[-1].rstrip(".lst")
@@ -213,12 +241,11 @@ def mage_reproducibility_check(args: dict):
     pbs_template = Template(template_content)
 
     # Assemble commands needed in the PBS script.
-    genLFM_cmd = "genLFM.py -gid Q"
+    genLFM_cmd = "genLFM -gid Q"
     cda2wind_cmd = (
-        "cda2wind.py -t0 2016-08-09T02:00:00 -t1 2016-08-09T12:00:00"
+        "cda2wind -t0 2016-08-09T02:00:00 -t1 2016-08-09T12:00:00"
     )
-    genRCM_cmd = "genRCM.py"
-    genRaiju_cmd = "genRAIJU.py"
+    genRaiju_cmd = "genRAIJU"
     mpiexec_cmd = f"mpiexec {KAIJUHOME}/scripts/preproc/pinCpuCores.sh"
     voltron_cmd = "../bin/voltron_mpi.x weeklyDashGo.xml"
 
@@ -241,13 +268,10 @@ def mage_reproducibility_check(args: dict):
     pbs_options["job_priority"] = os.environ["DERECHO_TESTING_PRIORITY"]
     pbs_options["walltime"] = "08:00:00"
     pbs_options["modules"] = module_names
-    pbs_options["condarc"] = os.environ["CONDARC"]
-    pbs_options["conda_envs_path"] = os.environ["CONDA_ENVS_PATH"]
-    pbs_options["conda_environment"] = os.environ["CONDA_ENVIRONMENT"]
     pbs_options["mage_test_root"] = os.environ["MAGE_TEST_ROOT"]
     pbs_options["mage_test_set_root"] = os.environ["MAGE_TEST_SET_ROOT"]
+    pbs_options["conda_environment"] = os.environ["CONDA_ENVIRONMENT"]
     pbs_options["kaijuhome"] = KAIJUHOME
-    pbs_options["kaipy_private_root"] = os.environ["KAIPY_PRIVATE_ROOT"]
     pbs_options["tmpdir"] = os.environ["TMPDIR"]
     pbs_options["slack_bot_token"] = os.environ["SLACK_BOT_TOKEN"]
     pbs_options["branch_or_commit"] = os.environ["BRANCH_OR_COMMIT"]
@@ -255,7 +279,6 @@ def mage_reproducibility_check(args: dict):
     pbs_options["make_cmd"] = make_cmd
     pbs_options["genLFM_cmd"] = genLFM_cmd
     pbs_options["cda2wind_cmd"] = cda2wind_cmd
-    pbs_options["genRCM_cmd"] = genRCM_cmd
     pbs_options["genRaiju_cmd"] = genRaiju_cmd
     pbs_options["mpiexec_cmd"] = mpiexec_cmd
     pbs_options["voltron_cmd"] = voltron_cmd
@@ -326,13 +349,10 @@ def mage_reproducibility_check(args: dict):
     pbs_options["job_priority"] = os.environ["DERECHO_TESTING_PRIORITY"]
     pbs_options["walltime"] = "02:00:00"
     pbs_options["modules"] = module_names
-    pbs_options["condarc"] = os.environ["CONDARC"]
-    pbs_options["conda_envs_path"] = os.environ["CONDA_ENVS_PATH"]
-    pbs_options["conda_environment"] = os.environ["CONDA_ENVIRONMENT"]
     pbs_options["mage_test_root"] = os.environ["MAGE_TEST_ROOT"]
     pbs_options["mage_test_set_root"] = os.environ["MAGE_TEST_SET_ROOT"]
+    pbs_options["conda_environment"] = os.environ["CONDA_ENVIRONMENT"]
     pbs_options["kaijuhome"] = KAIJUHOME
-    pbs_options["kaipy_private_root"] = os.environ["KAIPY_PRIVATE_ROOT"]
     pbs_options["tmpdir"] = os.environ["TMPDIR"]
     pbs_options["slack_bot_token"] = os.environ["SLACK_BOT_TOKEN"]
     pbs_options["branch_or_commit"] = os.environ["BRANCH_OR_COMMIT"]
@@ -403,7 +423,7 @@ def mage_reproducibility_check(args: dict):
 def main():
     """Driver for command-line version of code."""
     # Set up the command-line parser.
-    parser = common.create_command_line_parser(DESCRIPTION)
+    parser = create_command_line_parser()
 
 #     # Add additional arguments specific to this script.
 #     parser.add_argument(

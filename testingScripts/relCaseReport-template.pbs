@@ -12,6 +12,7 @@
 echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
 
 echo 'Loading python environment.'
+mage_test_root=$HOME
 if [ -d "${mage_test_root}/miniconda3" ]; then
     echo 'Loading local miniconda3'
     mage_test_root='{{ mage_test_root }}'

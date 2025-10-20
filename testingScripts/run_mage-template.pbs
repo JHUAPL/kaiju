@@ -19,11 +19,11 @@ module load {{ module }}
 echo 'The currently loaded modules are:'
 module list
 
+echo 'Loading python environment.'
+mage_test_root=$HOME
 if [ -d "${mage_test_root}/miniconda3" ]; then
     echo 'Loading local miniconda3'
-    export CONDARC="{{ condarc }}"
-    export CONDA_ENVS_PATH="{{ conda_envs_path }}"
-    mage_miniconda3="{{ mage_test_root }}/miniconda3"
+    mage_miniconda3="${mage_test_root}/miniconda3"
     mage_conda="${mage_miniconda3}/bin/conda"
     __conda_setup="$($mage_conda 'shell.bash' 'hook' 2> /dev/null)"
     if [ $? -eq 0 ]; then
@@ -46,10 +46,6 @@ echo "The current conda environment is ${CONDA_PREFIX}."
 echo 'Setting up MAGE environment.'
 source {{ kaijuhome }}/scripts/setupEnvironment.sh
 echo "The kaiju software is located at ${KAIJUHOME}."
-
-echo 'Setting up kaipy environment.'
-source {{ kaipy_private_root }}/kaipy/scripts/setupEnvironment.sh
-echo "The kaipy software is located at ${KAIPYHOME}."
 
 echo 'Setting environment variables.'
 export TMPDIR={{ tmpdir }}
