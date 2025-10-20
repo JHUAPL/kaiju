@@ -10,13 +10,12 @@ submodule (mixtypes) mixtypessub
         class(mixApp_T), intent(inout) :: App
         type(XML_Input_T), intent(inout) :: Xml
 
-        call init_model(App, Xml)
-        ! call init_mix(App%ion, [NORTH, SOUTH],Xml)
-        ! call init_mix(I,hmsphrs,optFilename,RunID,isRestart,mixIOobj,nRes,optIO)
+        call init_mix(App, [NORTH, SOUTH], Xml)
+        
     end subroutine mixInitModel
 
 
-    module subroutine mixInitIO(App, Xml) !doubts with this one too
+    module subroutine mixInitIO(App, Xml) ! OK!
         class(mixApp_T), intent(inout) :: App
         type(XML_Input_T), intent(inout) :: Xml
 
@@ -24,52 +23,51 @@ submodule (mixtypes) mixtypessub
         logical :: isRestart
         integer :: nRes
 
-
         call Xml%Set_Val(runID, "/Kaiju/Gamera/sim/runid","msphere")
         call Xml%Set_Val(isRestart, "/Kaiju/Gamera/restart/doRes","false")
-        call Xml%Set_Val(nRes, "/Kaiju/Gamera/restart/nRes","-1")
+        call Xml%Set_Val(nRes, "/Kaiju/Gamera/restart/nRes",-1)
 
         ! synchronize restart output number
-        App%ion%P%nRes = nRes
+        App%ion(:)%P%nRes = nRes
 
         ! Initialize IO file
-        call initMIXIO(App%ion, runID, isRestart, nRes)
+        call initMIXIO(App, runID, isRestart, nRes)
 
     end subroutine mixInitIO
 
 
-    module subroutine mixWriteRestart(App, nRes) !OK
+    module subroutine mixWriteRestart(App, nRes) ! OK!
         class(mixApp_T), intent(inout) :: App
         integer, intent(in) :: nRes
 
         ! synchronize restart output number
-        App%ion%P%nRes = nRes
+        App%ion(:)%P%nRes = nRes
 
         call writeMIXRestart(App%ion,nRes,App%IO%mjd,App%IO%time)
 
     end subroutine mixWriteRestart
 
 
-    module subroutine mixReadRestart(App, resId, nRes) !OK
+    module subroutine mixReadRestart(App, resId, nRes) ! OK!
         class(mixApp_T), intent(inout) :: App
         character(len=*), intent(in) :: resId
         integer, intent(in) :: nRes
 
         ! synchronize restart number
-        App%ion%P%nRes = nRes
+        App%ion(:)%P%nRes = nRes
 
         call readMIXrestart(resId,nRes,App%ion)
 
     end subroutine mixReadRestart
 
 
-    module subroutine mixWriteConsoleOutput(App) ! no console output
+    module subroutine mixWriteConsoleOutput(App) ! OK! no console output
         class(mixApp_T), intent(inout) :: App
 
     end subroutine mixWriteConsoleOutput
 
 
-    module subroutine mixWriteFileOutput(App, nStep) !OK
+    module subroutine mixWriteFileOutput(App, nStep) ! OK!
         class(mixApp_T), intent(inout) :: App
         integer, intent(in) :: nStep
 
@@ -81,7 +79,7 @@ submodule (mixtypes) mixtypessub
     end subroutine mixWriteFileOutput
 
 
-    module subroutine mixWriteSlimFileOutput(App, nStep) !OK
+    module subroutine mixWriteSlimFileOutput(App, nStep) ! OK!
         class(mixApp_T), intent(inout) :: App
         integer, intent(in) :: nStep
 
@@ -90,19 +88,21 @@ submodule (mixtypes) mixtypessub
     end subroutine mixWriteSlimFileOutput
 
 
-    module subroutine mixAdvanceModel(App, dt) !OK
+    module subroutine mixAdvanceModel(App, dt) ! OK! ignoring gcm for now
         class(mixApp_T), intent(inout) :: App
         real(rp), intent(in) :: dt  ! no need for time step here
 
-        call run_mix(App%ion,App%IO%tilt)   ! ignoring doModelOpt and gcm (optional)
+        if (App%IO%time<=0) then
+            call run_mix(App%ion,App%IO%tilt,doModelOpt=.false.)   ! ignoring gcm
+        else
+            call run_mix(App%ion,App%IO%tilt,doModelOpt=.true.)   ! ignoring gcm
+        end if
 
     end subroutine mixAdvanceModel
 
 
-    module subroutine mixCleanup(App) !OK
+    module subroutine mixCleanup(App) ! OK! no cleanup
         class(mixApp_T), intent(inout) :: App
-        
-        ! no cleanup
 
     end subroutine mixCleanup
 

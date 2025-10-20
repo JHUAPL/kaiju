@@ -364,6 +364,7 @@ module voltapp
         type(XML_Input_T), intent(inout) :: xmlInp
         character(len=*), optional, intent(in) :: optFilename
 
+
         character(len=strLen) :: RunID, resID
         type(TimeSeries_T) :: f107
 
@@ -389,12 +390,23 @@ module voltapp
         ! Setting apex reference altitude
         call init_apex(vApp%MJD,vApp%gcm%altmax)
 
-        if(present(optFilename)) then
-            ! read from the prescribed file
-            call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],optFilename=optFilename,RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
-        else
-            call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
+        ! There is no space for optFileName, we directly pass inpXML
+        call vApp%remixApp%InitModel(vApp%remixApp, xmlInp)
+
+        if(isRestart) then
+            call vApp%remixApp%ReadRestart(vApp%remixApp,resId=RunID,nRes=vApp%IO%nRes)
         endif
+        
+        if(vApp%writeFiles) then
+            call vApp%remixApp%InitIO(vApp%remixApp, xmlInp)
+        endif
+        
+        ! if(present(optFilename)) then
+        !     ! read from the prescribed file
+        !     call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],optFilename=optFilename,RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
+        ! else
+        !     call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
+        ! endif
         
         vApp%remixApp%ion%rad_iono_m  = vApp%planet%ri_m
         vApp%remixApp%ion%rad_planet_m = vApp%planet%rp_m
@@ -495,13 +507,23 @@ module voltapp
         call vApp%tilt%getValue(vApp%time,curTilt)
 
         ! solve for remix output
-        if (vApp%time<=0) then
-            call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.false.)
-        else if (vApp%doGCM) then
+        ! if (vApp%time<=0) then
+        !     call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.false.)
+        ! else if (vApp%doGCM) then
+        !     call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
+        ! else
+        !     call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.true.)
+        ! endif
+
+        vApp%remixApp%IO%time = vApp%time
+        vApp%remixApp%IO%tilt = curTilt
+        if (vApp%doGCM) then
             call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
         else
-            call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.true.)
+            call vApp%remixApp%AdvanceModel(vApp%remixApp, 0.0_rp)
         endif
+
+        
 
     end subroutine runRemix
 

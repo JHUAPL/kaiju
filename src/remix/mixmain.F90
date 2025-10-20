@@ -14,66 +14,40 @@ module mixmain
 
   contains
 
-    subroutine init_model(mixApp, inpXML)
+    subroutine init_mix(mixApp,hmsphrs,inpXML)
+    ! subroutine init_mix(I,hmsphrs,optFilename,RunID,isRestart,mixIOobj,nRes,optIO)
       class(mixApp_T), intent(inout) :: mixApp
-      type(XML_Input_T), intent(inout) :: inpXML
-
-      character(len=strLen) :: tmpStr
-
-      call inpXML%GetFileStr(tmpStr)
-      ! Create new XML reader w/ REMIX as root
-      rXML = New_XML_Input(trim(tmpStr),'Kaiju/REMIX',.true.)
-
-      call inpXML%Set_Val(RunID, "/Kaiju/Gamera/sim/runid","msphere")
-      call inpXML%Set_Val(isRestart, "/Kaiju/Gamera/sim/doRes","false")
-
-      call init_mix(mixApp%ion,[NORTH,SOUTH],optFilename,RunID,isRestart,mixIOobj,nRes,optIO)
-
-      
-
-    end subroutine init_model
-
-    subroutine init_mix(I,hmsphrs,optFilename,RunID,isRestart,mixIOobj,nRes,optIO)
-      type(mixIon_T),dimension(:),allocatable,intent(inout) :: I ! I for ionosphere (is an array of 1 or 2 elements for north and south) or it can be artibrarily many, e.g., for different solves done in loop
       integer, dimension(:), intent(in) :: hmsphrs       
-      character(len=*), optional, intent(in) :: optFilename
-      character(len=*),optional, intent(in) :: RunID   ! these two things are needed when we're coupled with Gamera
-      logical,optional, intent(in) :: isRestart
-      type(mixIO_T),optional, intent(in) :: mixIOobj  
-      integer,optional,intent(in) :: nRes
-      logical,optional,intent(in) :: optIO
-      integer :: mixnRes    
-      logical :: doRestart
-      integer :: h
-      logical :: doIO ! do IO initialziaiton
+      type(XML_Input_T), intent(in) :: inpXML
+
+      type(mixIon_T),dimension(:),allocatable :: I ! I for ionosphere (is an array of 1 or 2 elements for north and south) or it can be artibrarily many, e.g., for different solves done in loop
+      type(mixIO_T) :: mixIOobj
+      ! character(len=*) :: RunID   ! these two things are needed when we're coupled with Gamera
+      ! logical :: doRestart
+
+      I = mixApp%ion
+      mixIOobj = mixApp%IO
+
+      ! call inpXML%Set_Val(RunID, "/Kaiju/Gamera/sim/runid","msphere")
+      ! call inpXML%Set_Val(doRestart, "/Kaiju/Gamera/restart/doRes","false")
 
       if (.not.allocated(I)) allocate(I(size(hmsphrs)))
       
       I%rad_iono_m = RIonE*1.e+6 ! Default to RIonE. To change, overwrite directly after the init_mix call
       I%rad_planet_m = REarth
-      if (present(isRestart)) doRestart = isRestart
-      if (present(optIO)) then
-          doIO = optIO
-      else
-          doIO = .true. ! IO enabled default
-      endif
 
       do h=1,size(I)
          I(h)%St%hemisphere = hmsphrs(h)
-         if(present(optFilename)) then
-            call initMIXParams(I(h)%P, optFilename)
-         else
-            call initMIXParams(I(h)%P)
-         endif
+         call initMIXParams(I(h)%P, inpXML)
 
-         if (present(mixIOobj)) then
+         if (I(h)%P%init_from_file) then
             call init_grid(I(h),mixIOobj)
             call init_state(I(h)%G,I(h)%St,mixIOobj%vars(:,:,:,h), shGrO=I(h)%shGr) ! passing only the hemisphere variables            
          else
             call init_grid(I(h))
             call init_state(I(h)%G,I(h)%St, shGrO=I(h)%shGr)            
          end if
-         
+
          call conductance_init(I(h)%conductance,I(h)%P,I(h)%G)
          call dragonking_init(I(h)%aurora,I(h)%P,I(h)%G)
 
@@ -95,22 +69,17 @@ module mixmain
       end do
 
       call initMIXNames() !Just for luck?
-      mixnRes = I(1)%P%nRes
-      !NOTE: mixnres comes from I(1)%P%nRes and is the one that should be used not subroutine argument nRes!
-      !Why is nRes even passed to this function then, you might ask.
-      !Good question hypothetical question person, good question.
 
       ! initialize the mix dump file (AND RESTART)
-      if (present(isRestart) .and. doRestart) then
-        !call xmlInp%Set_Val(mixnRes ,"/Kaiju/gamera/restart/nRes" ,-1)
-        
-        !Just restart here and be done with it
-        call readMIXrestart(trim(RunID),mixnRes,I)
-      endif
+      ! if (doRestart) then        
+      !   ! call readMIXrestart(trim(RunID),mixnRes,I)
+      !   call mixApp%ReadRestart(mixApp,trim(RunID),I(1)%P%nRes)
+      ! endif
 
-      if (doIO) then
-        call initMIXIO(I,RunID,isRestart)
-      endif
+      ! if (doIO) then
+      !   ! call initMIXIO(I,RunID,isRestart)
+      !   call mixApp%InitIO(mixApp,inpXML)
+      ! endif
       
     end subroutine init_mix
 
