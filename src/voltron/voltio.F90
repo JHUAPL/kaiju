@@ -2,6 +2,7 @@
 module voltio
     use gamapp
     use volttypes
+    use mixtypes
     use cmiutils
     use mixio
     use clocks
