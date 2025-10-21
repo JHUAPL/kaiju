@@ -22,6 +22,7 @@ module mixmain
 
       type(mixIon_T),dimension(:),allocatable :: I ! I for ionosphere (is an array of 1 or 2 elements for north and south) or it can be artibrarily many, e.g., for different solves done in loop
       type(mixIO_T) :: mixIOobj
+      integer :: h
       ! character(len=*) :: RunID   ! these two things are needed when we're coupled with Gamera
       ! logical :: doRestart
 

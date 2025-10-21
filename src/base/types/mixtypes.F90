@@ -201,7 +201,7 @@ module mixtypes
   interface
     module subroutine mixInitModel(App,Xml)
       class(mixApp_T), intent(inout) :: App
-      type(XML_Input_T), intent(in) :: Xml
+      type(XML_Input_T), intent(inout) :: Xml
     end subroutine mixInitModel
 
     module subroutine mixInitIO(App, Xml)

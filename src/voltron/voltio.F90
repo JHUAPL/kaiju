@@ -204,7 +204,7 @@ module voltio
             vApp%remixApp%IO%mjd = vApp%MJD
             vApp%remixApp%IO%time = vApp%time
 
-            call vApp%remixApp%WriteRestart(vApp%remixApp,vApp%IO%nRes)
+            call vApp%remixApp%WriteRestart(vApp%IO%nRes)
             !Write inner mag restart
             if (vApp%doDeep) then
                 !call vApp%imagApp%doRestart(vApp%IO%nRes,vApp%MJD,vApp%time)
@@ -370,7 +370,7 @@ module voltio
             ! call writeMix(vApp%remixApp%ion,vApp%IO%nOut,mjd=vApp%MJD,time=vApp%time)
             vApp%remixApp%IO%mjd = vApp%MJD
             vApp%remixApp%IO%time = vApp%time
-            call vApp%remixApp%WriteFileOutput(vApp%remixApp,vApp%IO%nOut)
+            call vApp%remixApp%WriteFileOutput(vApp%IO%nOut)
 
             !Write inner mag IO if needed
             if (vApp%doDeep) then

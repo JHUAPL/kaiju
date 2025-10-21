@@ -393,14 +393,14 @@ module voltapp
         call init_apex(vApp%MJD,vApp%gcm%altmax)
 
         ! There is no space for optFileName, we directly pass inpXML
-        call vApp%remixApp%InitModel(vApp%remixApp, xmlInp)
+        call vApp%remixApp%InitModel(xmlInp)
 
         if(isRestart) then
-            call vApp%remixApp%ReadRestart(vApp%remixApp,resId=RunID,nRes=vApp%IO%nRes)
+            call vApp%remixApp%ReadRestart(resId=RunID,nRes=vApp%IO%nRes)
         endif
         
         if(vApp%writeFiles) then
-            call vApp%remixApp%InitIO(vApp%remixApp, xmlInp)
+            call vApp%remixApp%InitIO(xmlInp)
         endif
         
         ! if(present(optFilename)) then
@@ -509,7 +509,7 @@ module voltapp
         if (vApp%doGCM) then
             call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
         else
-            call vApp%remixApp%AdvanceModel(vApp%remixApp, 0.0_rp)
+            call vApp%remixApp%AdvanceModel(0.0_rp)
         endif
 
         

@@ -1,6 +1,7 @@
 submodule (mixtypes) mixtypessub
     use mixio
     use mixmain
+    use xml_input
     
     implicit none
 
@@ -19,12 +20,12 @@ submodule (mixtypes) mixtypessub
         class(mixApp_T), intent(inout) :: App
         type(XML_Input_T), intent(inout) :: Xml
 
-        character(len=*) :: runID   ! these two things are needed when we're coupled with Gamera
+        character(len=strLen) :: runID   ! these two things are needed when we're coupled with Gamera
         logical :: isRestart
         integer :: nRes
 
         call Xml%Set_Val(runID, "/Kaiju/Gamera/sim/runid","msphere")
-        call Xml%Set_Val(isRestart, "/Kaiju/Gamera/restart/doRes","false")
+        call Xml%Set_Val(isRestart, "/Kaiju/Gamera/restart/doRes",.false.)
         call Xml%Set_Val(nRes, "/Kaiju/Gamera/restart/nRes",-1)
 
         ! synchronize restart output number
@@ -71,9 +72,6 @@ submodule (mixtypes) mixtypessub
         class(mixApp_T), intent(inout) :: App
         integer, intent(in) :: nStep
 
-        ! synchronize file output number
-        App%State%IO%nOut = nStep
-
         call writeMIX(App%ion,nStep,App%IO%mjd,App%IO%time)
 
     end subroutine mixWriteFileOutput
@@ -83,7 +81,7 @@ submodule (mixtypes) mixtypessub
         class(mixApp_T), intent(inout) :: App
         integer, intent(in) :: nStep
 
-        call App%WriteFileOutput(App,nStep)  ! no separate slim output for remix
+        call App%WriteFileOutput(nStep)  ! no separate slim output for remix
 
     end subroutine mixWriteSlimFileOutput
 
