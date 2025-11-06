@@ -494,6 +494,8 @@ module voltapp
 
         ! determining the current dipole tilt
         call vApp%tilt%getValue(vApp%time,curTilt)
+        vApp%remixApp%IO%tilt = curTilt
+        vApp%remixApp%IO%time = vApp%time
 
         ! solve for remix output
         ! if (vApp%time<=0) then
@@ -504,13 +506,19 @@ module voltapp
         !     call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.true.)
         ! endif
 
-        vApp%remixApp%IO%time = vApp%time
-        vApp%remixApp%IO%tilt = curTilt
         if (vApp%doGCM) then
-            call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
+            call getConductance(vApp%remixApp, vApp%gcm)
         else
-            call vApp%remixApp%AdvanceModel(0.0_rp)
+            call getConductance(vApp%remixApp)
         endif
+        
+        
+        ! if (vApp%doGCM) then
+        !     call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
+        ! else
+        !     call vApp%remixApp%AdvanceModel(0.0_rp) ! steady-state, dt=0
+        ! endif
+        call vApp%remixApp%AdvanceModel(0.0_rp) ! steady-state, dt=0
 
         
 
@@ -857,6 +865,57 @@ module voltapp
         call GenShellGrid(vApp%shGrid, theta_global, phi, "VOLTRON", nGhosts, sh_radius)
 
     end subroutine genVoltShellGrid
+
+    ! Get conductance/conductivity from GCM/DK/etc for Remix/GPS
+    subroutine getConductance(App,gcm)
+        class(mixApp_T), intent(inout) :: App
+        type(gcm_T),optional,intent(inout) :: gcm
+
+        logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
+
+        type(mixIon_T),dimension(:),allocatable :: I
+        integer :: h,NumH
+
+        ! here we should check if Remix or GPS
+        I = App%ion
+        NumH = size(I)
+
+        if (present(gcm)) then
+            doModel = .true.
+        else
+            call mix_transform_grid(App)
+            if (App%IO%time<=0) then
+                doModel = .false.
+            end if
+        end if
+
+        do h=1,NumH
+            if (I(h)%St%hemisphere.eq.NORTH) then
+                I(h)%St%tilt = App%IO%tilt
+            else
+                I(h)%St%tilt = -App%IO%tilt
+            end if
+
+            if (doModel) then
+                I(h)%conductance%const_sigma = I(h)%P%const_sigma         
+            else
+                I(h)%conductance%const_sigma = .true.            
+            end if
+
+            call Tic("MIX-COND")
+            call conductance_euv(I(h)%conductance,I(h)%G,I(h)%St)
+            call dragonking_total(I(h)%aurora,I(h)%G,I(h)%St,I(h)%conductance)
+
+            if (present(gcm)) then
+                call conductance_total(I(h)%conductance,I(h)%G,I(h)%St,gcm,h)
+            else
+                call conductance_total(I(h)%conductance,I(h)%G,I(h)%St)
+            end if
+            call Toc("MIX-COND")
+        end do
+
+    end subroutine getConductance
+
 
 end module voltapp
 

@@ -102,67 +102,71 @@ module mixmain
       I%St%Vars(:,:,POT) = reshape(I%S%solution,[I%G%Np,I%G%Nt])*(I%rad_iono_m*1.e-6)**2*1.D3 ! in kV
     end subroutine get_potential
 
-    subroutine run_mix(I,tilt,doModelOpt,gcm)
+    subroutine run_mix(I)
+    ! subroutine run_mix(I,tilt,doModelOpt,gcm)
       type(mixIon_T),dimension(:),intent(inout) :: I 
-      type(gcm_T),optional,intent(inout) :: gcm
-      real(rp),intent(in) :: tilt
-      logical, optional, intent(in) :: doModelOpt  ! allow to change on the fly whether we use conductance model
+      ! type(gcm_T),optional,intent(inout) :: gcm
+      ! real(rp),intent(in) :: tilt
+      ! logical, optional, intent(in) :: doModelOpt  ! allow to change on the fly whether we use conductance model
 
-      logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
-      logical :: isRestart = .false.
+      ! logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
+      ! logical :: isRestart = .false.
       integer :: h,NumH
 
-      if (present(doModelOpt)) doModel = doModelOpt
-      if (present(gcm)) isRestart = gcm%isRestart
+      ! if (present(doModelOpt)) doModel = doModelOpt
+      ! if (present(gcm)) isRestart = gcm%isRestart
 
       NumH = size(I)
 
       !Removing OMP loop due to weird runtime errors
+      ! do h=1,NumH
+        ! if (I(h)%St%hemisphere.eq.NORTH) then
+        !   I(h)%St%tilt = tilt
+        ! else
+        !   I(h)%St%tilt = -tilt
+        ! end if
+
+        ! if (doModel) then
+        !   I(h)%conductance%const_sigma = I(h)%P%const_sigma         
+        ! else
+        !   I(h)%conductance%const_sigma = .true.            
+        ! end if
+
+        ! if (.not. present(gcm)) then
+        !   !write(*,*) "GRID TRANSFORM!"
+        !   if (I(h)%St%hemisphere .eq. NORTH) then
+        !     call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=1)
+        !     call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=1)
+        !   else
+        !     call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=-1)
+        !     call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=-1)
+        !   endif
+        !   !write(*,*) "GRID TRANSFORM!!"
+        ! end if
+
+      ! Already commented
+      !   ! if (present(gcm) .and. isRestart) then
+      !   !  !write(*,*) "conductance: restart"
+      !   !  !we read the conductance from file, so we're going to skip
+      !   !  gcm%isRestart = .false.
+      !   !  !write(*,*) "Get rePOT: ", maxval(I(h)%St%Vars(:,:,POT)),minval(I(h)%St%Vars(:,:,POT))
+      !   ! else
+
+        !   call Tic("MIX-COND")
+        !   ! Compute auroral precipitation flux regardless of coupling mode.
+        !   ! Note conductance_euv is used inside dragonking_total.
+        !   call conductance_euv(I(h)%conductance,I(h)%G,I(h)%St)
+        !   call dragonking_total(I(h)%aurora,I(h)%G,I(h)%St,I(h)%conductance)
+
+        !   if (present(gcm)) then
+        !     call conductance_total(I(h)%conductance,I(h)%G,I(h)%St,gcm,h)
+        !   else
+        !     !write(*,*) "conductance: total"
+        !     call conductance_total(I(h)%conductance,I(h)%G,I(h)%St)
+        !   end if
+        !   call Toc("MIX-COND")
+        
       do h=1,NumH
-        if (I(h)%St%hemisphere.eq.NORTH) then
-          I(h)%St%tilt = tilt
-        else
-          I(h)%St%tilt = -tilt
-        end if
-
-        if (doModel) then
-          I(h)%conductance%const_sigma = I(h)%P%const_sigma         
-        else
-          I(h)%conductance%const_sigma = .true.            
-        end if
-
-        if (.not. present(gcm)) then
-          !write(*,*) "GRID TRANSFORM!"
-          if (I(h)%St%hemisphere .eq. NORTH) then
-            call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=1)
-            call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=1)
-          else
-            call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=-1)
-            call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=-1)
-          endif
-          !write(*,*) "GRID TRANSFORM!!"
-        end if
-
-        !if (present(gcm) .and. isRestart) then
-        !  !write(*,*) "conductance: restart"
-        !  !we read the conductance from file, so we're going to skip
-        !  gcm%isRestart = .false.
-        !  !write(*,*) "Get rePOT: ", maxval(I(h)%St%Vars(:,:,POT)),minval(I(h)%St%Vars(:,:,POT))
-        !else
-          call Tic("MIX-COND")
-          ! Compute auroral precipitation flux regardless of coupling mode.
-          ! Note conductance_euv is used inside dragonking_total.
-          call conductance_euv(I(h)%conductance,I(h)%G,I(h)%St)
-          call dragonking_total(I(h)%aurora,I(h)%G,I(h)%St,I(h)%conductance)
-
-          if (present(gcm)) then
-            call conductance_total(I(h)%conductance,I(h)%G,I(h)%St,gcm,h)
-          else
-            !write(*,*) "conductance: total"
-            call conductance_total(I(h)%conductance,I(h)%G,I(h)%St)
-          end if
-          call Toc("MIX-COND")
-
           call Tic("MIX-SOLVE")
           call run_solver(I(h)%P,I(h)%G,I(h)%St,I(h)%S)
           call Toc("MIX-SOLVE")
@@ -170,9 +174,29 @@ module mixmain
           call Tic("MIX-POT")
           call get_potential(I(h))
           call Toc("MIX-POT")
-        !end if
-
       end do
+
     end subroutine run_mix
+
+    subroutine mix_transform_grid(App)
+      class(mixApp_T), intent(inout) :: App
+
+      type(mixIon_T),dimension(:),allocatable :: I
+      integer :: h,NumH
+
+      I = App%ion
+      NumH = size(I)
+
+      do h=1,NumH
+        if (I(h)%St%hemisphere .eq. NORTH) then
+            call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=1)
+            call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=1)
+        else
+            call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=-1)
+            call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=-1)
+        endif
+      end do
+
+    end subroutine mix_transform_grid 
 
 end module mixmain

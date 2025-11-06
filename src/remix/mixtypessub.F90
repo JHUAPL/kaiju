@@ -86,16 +86,38 @@ submodule (mixtypes) mixtypessub
     end subroutine mixWriteSlimFileOutput
 
 
+    ! module subroutine mixAdvanceModel(App, dt) ! OK! ignoring gcm for now
+    !     class(mixApp_T), intent(inout) :: App
+    !     real(rp), intent(in) :: dt  ! no need for time step here
+
+    !     if (App%IO%time<=0) then
+    !         call run_mix(App%ion,App%IO%tilt,doModelOpt=.false.)   ! ignoring gcm
+    !     else
+    !         call run_mix(App%ion,App%IO%tilt,doModelOpt=.true.)   ! ignoring gcm
+    !     end if
+
+    ! end subroutine mixAdvanceModel
+
     module subroutine mixAdvanceModel(App, dt) ! OK! ignoring gcm for now
         class(mixApp_T), intent(inout) :: App
         real(rp), intent(in) :: dt  ! no need for time step here
 
-        if (App%IO%time<=0) then
-            call run_mix(App%ion,App%IO%tilt,doModelOpt=.false.)   ! ignoring gcm
-        else
-            call run_mix(App%ion,App%IO%tilt,doModelOpt=.true.)   ! ignoring gcm
-        end if
+        type(mixIon_T),dimension(:),allocatable :: I
+        integer :: h,NumH
 
+        I = App%ion
+        NumH = size(I)
+
+        do h=1,NumH
+          call Tic("MIX-SOLVE")
+          call run_solver(I(h)%P,I(h)%G,I(h)%St,I(h)%S)
+          call Toc("MIX-SOLVE")
+
+          call Tic("MIX-POT")
+          call get_potential(I(h))
+          call Toc("MIX-POT")
+        end do
+        
     end subroutine mixAdvanceModel
 
 
