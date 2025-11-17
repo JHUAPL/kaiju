@@ -11,7 +11,7 @@ submodule (mixtypes) mixtypessub
         class(mixApp_T), intent(inout) :: App
         type(XML_Input_T), intent(inout) :: Xml
 
-        call init_mix(App, [NORTH, SOUTH], Xml)
+        call init_mix(App%ion, [NORTH, SOUTH], Xml, App%IO)
         
     end subroutine mixInitModel
 

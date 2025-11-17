@@ -14,26 +14,18 @@ module mixmain
 
   contains
 
-    subroutine init_mix(mixApp,hmsphrs,inpXML)
+    subroutine init_mix(I,hmsphrs,inpXML,mixIOobj)
     ! subroutine init_mix(I,hmsphrs,optFilename,RunID,isRestart,mixIOobj,nRes,optIO)
-      class(mixApp_T), intent(inout) :: mixApp
+    ! subroutine init_mix(mixApp,hmsphrs,inpXML)
+      type(mixIon_T),dimension(:),allocatable,intent(inout) :: I
       integer, dimension(:), intent(in) :: hmsphrs       
       type(XML_Input_T), intent(in) :: inpXML
+      type(mixIO_T), intent(in) :: mixIOobj  
 
-      type(mixIon_T),dimension(:),allocatable :: I ! I for ionosphere (is an array of 1 or 2 elements for north and south) or it can be artibrarily many, e.g., for different solves done in loop
-      type(mixIO_T) :: mixIOobj
       integer :: h
-      ! character(len=*) :: RunID   ! these two things are needed when we're coupled with Gamera
-      ! logical :: doRestart
-
-      I = mixApp%ion
-      mixIOobj = mixApp%IO
-
-      ! call inpXML%Set_Val(RunID, "/Kaiju/Gamera/sim/runid","msphere")
-      ! call inpXML%Set_Val(doRestart, "/Kaiju/Gamera/restart/doRes","false")
 
       if (.not.allocated(I)) allocate(I(size(hmsphrs)))
-      
+
       I%rad_iono_m = RIonE*1.e+6 ! Default to RIonE. To change, overwrite directly after the init_mix call
       I%rad_planet_m = REarth
 

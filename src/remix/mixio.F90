@@ -87,12 +87,9 @@ contains
     logical, intent(in) :: isRestart
     integer, intent(inout) :: nRes
     
-    type(mixIon_T),dimension(:), allocatable :: I
     logical :: fExist
     real(rp), dimension(:,:),allocatable :: xc,yc
     integer :: n0
-
-    I = mixApp%ion
 
     !Setup remix output file
     h5File = trim(RunID) // ".mix.h5"
@@ -120,18 +117,18 @@ contains
     !Reset IO chain
     call ClearIO(IOVars)
 
-    call genOutGrid(I(NORTH)%G%x,I(NORTH)%G%y,xc,yc)
-    
+    call genOutGrid(mixApp%ion(NORTH)%G%x,mixApp%ion(NORTH)%G%y,xc,yc)
+
     ! save grid only for north
     call AddOutVar(IOVars,"X",xc,uStr="Ri")
     call AddOutVar(IOVars,"Y",yc,uStr="Ri")
    ! Save units of Ri and Rp as root attributes
-    call AddOutVar(IOVars,"Ri_m",I(1)%rad_iono_m  )
-    call AddOutVar(IOVars,"Rp_m",I(1)%rad_planet_m)
+    call AddOutVar(IOVars,"Ri_m",mixApp%ion(1)%rad_iono_m  )
+    call AddOutVar(IOVars,"Rp_m",mixApp%ion(1)%rad_planet_m)
 
 
     call AddOutVar(IOVars,"UnitsID","ReMIX")
-             
+    
     !Write out the chain (to root)
     call WriteVars(IOVars,.false.,h5File)
 
