@@ -54,7 +54,7 @@
                 ]
             }
         },
-        "pleiades": {
+        "aitken": {
             "modules": {
                 "LEVEL": "EXPERT",
                 "prompt": "Modules to load",
@@ -78,7 +78,7 @@
                 "LEVEL": "EXPERT",
                 "prompt": "Commands to add local module PATH",
                 "default": [
-                    "export PREFIX=/u/nrao3/local3",
+                    "export PREFIX=/u/nrao3/local_aitken",
                     "export LIBRARY_PATH=${LIBRARY_PATH}:$PREFIX/lib",
                     "export LD_LIBRARY_PATH=$LIBRARY_PATH",
                     "export CPATH=$PREFIX/include",

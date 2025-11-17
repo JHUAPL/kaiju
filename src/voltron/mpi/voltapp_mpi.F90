@@ -391,6 +391,25 @@ module voltapp_mpi
             call Toc("GCM2MIX")
         end if
 
+        ! tubes are only done after spinup
+        if(vApp%doDeep .and. vApp%time >= 0) then
+            if(vApp%useHelpers) call vhReqStep(vApp)
+
+            !Update i-shell to trace within in case rTrc has changed
+            vApp%iDeep = vApp%gApp%Grid%ie-1
+
+            !Pull in updated fields to CHIMP
+            call Tic("G2C")
+            call convertGameraToChimp(vApp%mhd2chmp,vApp%gApp,vApp%ebTrcApp)
+            call Toc("G2C")
+
+            if(vApp%useHelpers .and. vApp%doTubeHelp) then
+                call Tic("VoltTubes",.true.)
+                call VhReqTubeStart(vApp)
+                call Toc("VoltTubes",.true.)
+            endif
+        endif
+
         ! run remix
         call Tic("ReMIX", .true.)
         call runRemix(vApp)
@@ -405,19 +424,11 @@ module voltapp_mpi
 
         ! only do imag after spinup
         if(vApp%doDeep .and. vApp%time >= 0) then
-            if(vApp%useHelpers) call vhReqStep(vApp)
-
             ! instead of PreDeep, use Tube Helpers and replicate other calls
-            !Update i-shell to trace within in case rTrc has changed
-            vApp%iDeep = vApp%gApp%Grid%ie-1
 
-            !Pull in updated fields to CHIMP
-            call Tic("G2C")
-            call convertGameraToChimp(vApp%mhd2chmp,vApp%gApp,vApp%ebTrcApp)
-            call Toc("G2C")
             call Tic("VoltTubes",.true.)
             if(vApp%useHelpers .and. vApp%doTubeHelp) then
-                call VhReqTubeStart(vApp)
+                ! Tubes were started earlier
                 call vhReqTubeEnd(vApp)
                 ! Now pack into tubeShell
                 call Tic("Tube2Shell")

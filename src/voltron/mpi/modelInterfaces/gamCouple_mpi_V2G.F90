@@ -559,13 +559,13 @@ module gamCouple_mpi_V2G
 
     subroutine sendGameraCplDataMpi(gCplApp, CouplingTargetT)
         class(gamCouplerMpi_volt_T), intent(inout) :: gCplApp
-        real(rp), intent(in) :: CouplingTargetT
+        real(rp), intent(inout) :: CouplingTargetT
 
         call sendShallowCplDataMpi(gCplApp)
         if(gCplApp%doDeep) call sendDeepCplDataMpi(gCplApp)
         call sendCplTimeMpi(gCplApp, CouplingTargetT)
 
-    end subroutine
+    end subroutine sendGameraCplDataMpi
 
     subroutine sendShallowCplDataMpi(gCplApp)
         class(gamCouplerMpi_volt_T), intent(inout) :: gCplApp
@@ -628,14 +628,14 @@ module gamCouple_mpi_V2G
 
     subroutine sendCplTimeMpi(gCplApp, CouplingTargetT)
         class(gamCouplerMpi_volt_T), intent(inout) :: gCplApp
-        real(rp), intent(in) :: CouplingTargetT
+        real(rp), intent(inout) :: CouplingTargetT
 
         integer :: ierr
 
         ! Send Target Time for next coupling
         call mpi_bcast(CouplingTargetT,1,MPI_MYFLOAT, gCplApp%myRank, gCplApp%couplingComm, ierr)
 
-    end subroutine
+    end subroutine sendCplTimeMpi
 
 end module
 

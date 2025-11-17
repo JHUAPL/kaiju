@@ -163,7 +163,7 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
     options["pbs"]["tie_mpiprocs"] = tiegcm_options["job"]["resource"]["mpiprocs"]
     options["pbs"]["tie_mpiranks"] = tiegcm_options["job"]["nprocs"]
     options["pbs"]["tie_exe"] = tiegcm_options["model"]["data"]["coupled_modelexe"] 
-    if tiegcm_options["simulation"]["hpc_system"] == "pleiades":
+    if tiegcm_options["simulation"]["hpc_system"] == "aitken":
         options["pbs"]["model"] = tiegcm_options["job"]["resource"]["model"]    
     
     # GR PBS parameters
@@ -181,7 +181,7 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
     if tiegcm_options["simulation"]["hpc_system"] == "derecho":
         options["pbs"]["mpiexec_command"] = "mpiexec"
         options["pbs"]["mpiexec_option"] = "-n"
-    elif tiegcm_options["simulation"]["hpc_system"] == "pleiades":
+    elif tiegcm_options["simulation"]["hpc_system"] == "aitken":
         options["pbs"]["mpiexec_command"] = "mpiexec_mpt"
         options["pbs"]["mpiexec_option"] = "-np"
         options["pbs"]["tie_scripts"] = "correctOMPenvironment.sh $NODEFILE_1 omplace"
@@ -221,7 +221,9 @@ echo "Running tiegcm and voltron at the same time"
     
     # Create a PBS script for each segment.
     pbs_scripts = []
+    print(f'Creating {options["pbs"]["num_segments"]} PBS scripts')
     for job in range(1,int(options["pbs"]["num_segments"])+1):
+
         opt = copy.deepcopy(options)  # Need a copy of options
         runid = opt["simulation"]["job_name"]
         segment_id = f"{runid}-{job:02d}"
@@ -402,7 +404,7 @@ def prompt_user_for_run_options(args):
         od["num_helpers"]["default"][gamera_grid_type]
     )
     od["modules"] = oed["modules"]
-    if hpc_platform == "pleiades":
+    if hpc_platform == "aitken":
         od["moduledir"] = oed["moduledir"]
         od["local_modules"] = oed["local_modules"]
     for on in od:
@@ -495,7 +497,7 @@ def main():
             od["num_helpers"]["default"][gamera_grid_type]
         )
         od["modules"] = oed["modules"]
-        if hpc_platform == "pleiades":
+        if hpc_platform == "aitken":
             od["moduledir"] = oed["moduledir"]
             od["local_modules"] = oed["local_modules"]
         for on in od:
@@ -627,6 +629,8 @@ def main():
     with open('makeitso_parameters.json', 'w') as f:
         json.dump(makeitso_options, f, indent=JSON_INDENT)
     
+    # Update engage options with makeitso options
+    engage_options["pbs"]["num_segments"] = makeitso_options["pbs"]["num_segments"]
 
     # Run the TIEGCMrun
     coupled_options = copy.deepcopy(engage_options)

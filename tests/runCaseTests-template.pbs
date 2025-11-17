@@ -9,6 +9,9 @@
 #PBS -j oe
 #PBS -m abe
 
+# Abort script on any error.
+set -e
+
 echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
 
 echo 'Loading modules.'
@@ -27,6 +30,9 @@ export MPI_TYPE_DEPTH=32
 export KMP_STACKSIZE=128M
 echo 'The active environment variables are:'
 printenv
+
+# Move to the directory containing the compiled code.
+cd bin
 
 echo 'Running non-MPI test cases.'
 ./caseTests >& caseTests.out

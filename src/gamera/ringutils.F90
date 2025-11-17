@@ -491,8 +491,9 @@ module ringutils
         !Map i to itself
         ip = i
 
-        !Next do k, map via periodicity
-        !NOTE: This is assuming you have all
+        !Next do k, map via periodicity. Have to do k first otherwise have to deal w/ right hand becoming left
+
+        !NOTE: This is assuming you have all k cells (ie, no mpi decomp in KDIR)
         if (k < Grid%ks) then
             kp = k + Np
         elseif (k > Grid%ke) then
@@ -501,18 +502,19 @@ module ringutils
             kp = k
         endif
 
-        !Finally do j
+        !Now handle ip,j,kp => ip,jp,kp
+        
         jp = j ! default value
         if ( Model%Ring%doS .and. (j<Grid%js) ) then
             !js-1 => js
             jp = Grid%js + (Grid%js-j) - 1
-            kp = WrapK(k,Np)
+            kp = WrapK(kp,Np)
         endif
 
         if ( Model%Ring%doE .and. (j>Grid%je) ) then
             !je+1 => je
             jp = Grid%je - (j-Grid%je) + 1
-            kp = WrapK(k,Np)
+            kp = WrapK(kp,Np)
         endif
 
     end subroutine lfmIJKcc

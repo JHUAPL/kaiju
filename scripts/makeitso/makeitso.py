@@ -254,7 +254,7 @@ def update_option_descriptions(option_descriptions: dict, args: dict):
                 od["default"] = pbs[k]
         # Incorporate HPC platform-specific PBS options from engage in default.
         option_descriptions["pbs"][hpc_platform]["modules"]["default"] = pbs["modules"]
-        if hpc_platform == "pleiades":
+        if hpc_platform == "aitken":
             option_descriptions["pbs"][hpc_platform]["moduledir"]["default"] = pbs["moduledir"]
             option_descriptions["pbs"][hpc_platform]["local_modules"]["default"] = pbs["local_modules"]
     # Return the option descriptions.
@@ -987,10 +987,29 @@ def create_ini_files(options: dict, args: dict):
             num_warmup_segments = i_last_warmup_ini 
         # Create an .ini file for each simulation segment. Files for each
         # segment will be numbered starting with 1.
+        start_dt = datetime.datetime.fromisoformat(options["simulation"]["start_date"])
         if "coupling" in args:
             num_segments = math.ceil((simulation_duration - num_warmup_segments*warmup_segment_duration)/segment_duration)
+            for job in range(1, num_segments + 1):
+                dT = float(options["simulation"]["segment_duration"])
+                tfin_delta = float(coupling["gr_warm_up_time"])
+                tStart_segment = (job - 1)*dT + tfin_delta
+                tFin_segment = job*dT + tfin_delta + 1.0
+                # Check if the segment end time is exactly Jan 1, 00:00:00 of any year 
+                # (Helps with year boundary issues in TIEGCM).
+                # If so, adjust the segment end time to be Jan 1 of the next year.
+                # This is only done if the segment start and end times are in different years.
+                segment_start_dt = start_dt + datetime.timedelta(seconds=tStart_segment)
+                segment_end_dt = start_dt + datetime.timedelta(seconds=tFin_segment-1)
+                if (segment_start_dt).year != (segment_end_dt).year:
+                    if segment_end_dt.month != 1 or segment_end_dt.day != 1 or segment_end_dt.hour != 0 or segment_end_dt.minute != 0 or segment_end_dt.second != 0:
+                        num_segments += 1                       
+                        break
+
         else:
             num_segments = int(options["pbs"]["num_segments"])
+        job_offset = 0
+        tFin_offset = 0
         for job in range(1, num_segments + 1):
             opt = copy.deepcopy(options)  # Need a copy of options
             runid = opt["simulation"]["job_name"]
@@ -1007,7 +1026,22 @@ def create_ini_files(options: dict, args: dict):
             else:
                 tfin_delta = 0.0
             # Add 1 to ensure last restart file created    
-            tFin_segment = job*dT + tfin_delta + 1.0
+            tStart_segment = (job - 1)*dT + tfin_delta + tFin_offset
+            
+            tFin_segment = (job - job_offset)*dT + tfin_delta + 1.0
+
+            segment_start_dt = start_dt + datetime.timedelta(seconds=tStart_segment)
+            segment_end_dt = start_dt + datetime.timedelta(seconds=tFin_segment-1)
+            if "coupling" in args and segment_start_dt.year != segment_end_dt.year: 
+                if segment_end_dt.month != 1 or segment_end_dt.day != 1 or segment_end_dt.hour != 0 or segment_end_dt.minute != 0 or segment_end_dt.second != 0:
+                    print(f'Segment {job} crosses year boundary, adjusting segment end time to Jan 1 of next year.')
+                    next_year = segment_start_dt.year + 1
+                    jan1_next_year = datetime.datetime(next_year, 1, 1, 0, 0, 0)
+                    tFin_segment = (jan1_next_year - start_dt).total_seconds() + 1.0
+                    tFin_offset = tFin_segment - (job - job_offset)*dT - tfin_delta - 1.0
+                    job_offset = 1
+                    segment_end_dt = start_dt + datetime.timedelta(seconds=tFin_segment - 1.0)
+
             nRes = int(((tFin_segment - 1) - dT )/dtRes) 
             opt["gamera"]["restart"]["nRes"] = str(nRes)   
             # Engage modifications to parameters in coupled segment.
@@ -1019,7 +1053,9 @@ def create_ini_files(options: dict, args: dict):
                 else:
                     # Subtract 1 from tFin padding for coupling beacuse to offset the +1.0 for restart file done above.
                     tfin_padding = tfin_coupling_padding - 1.0
-            opt["voltron"]["time"]["tFin"] = str(tFin_segment + tfin_padding)
+            
+            tFin = tFin_segment + tfin_padding
+            opt["voltron"]["time"]["tFin"] = str(tFin)
             #print(f'Creating job {job} with tFin_seg = {opt["voltron"]["time"]["tFin"]}')
             ini_content = template.render(opt)
             ini_file = os.path.join(opt["pbs"]["run_directory"],
@@ -1380,6 +1416,9 @@ def makeitso(args: dict = None):
           f"script {all_jobs_script} like this:\n"
           f"bash {all_jobs_script}")
 
+    # Update number of segments for coupling in case of year rollover segments were added.
+    if "coupling" in args:
+        options["pbs"]["num_segments"] = str(len(pbs_scripts)-len(spinup_pbs_scripts)-len(warmup_pbs_scripts))
     # Return the options dict used to create the PBS scripts, and the list
     # of PBS scripts which constitute the warmup period.
     return options, spinup_pbs_scripts, warmup_pbs_scripts

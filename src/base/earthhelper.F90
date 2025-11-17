@@ -61,13 +61,24 @@ module earthhelper
         real(rp), intent(in) :: kp
 
         !Can only be 1,5
-        if ( (kp>=1.0) .and. (kp<=5.0) ) then
-            kpDefault = kp
-        else if (kp>5.0) then
-            kpDefault = 5.0
-        endif
+        kpDefault = GallagherKp(kp)
 
     end subroutine SetKp0
+
+    ! Routine to enforce kp to Gallagher's valid range [1,5]
+    pure function GallagherKp(kp) result(validKp)
+    real(rp), intent(in) :: kp
+    real(rp) :: validKp
+
+    if (kp < 1.0_rp) then
+        validKp = 1.0_rp
+    else if (kp > 5.0_rp) then
+        validKp = 5.0_rp
+    else
+        validKp = kp
+    endif
+    end function GallagherKp
+
     !Return 2D gallagher density afa r,phi (rad)
     function GallagherRP(r,phi,kpO) result(D)
         real(rp), intent(in) :: r,phi
@@ -97,7 +108,8 @@ module earthhelper
         D = 0.0
 
         if (present(kpO)) then
-            kp = nint(kpO) ! Gallagher model takes integer Kp
+            !Can only be 1,5
+            kp = nint(GallagherKp(kpO))
         else
             kp = nint(kpDefault)
         endif

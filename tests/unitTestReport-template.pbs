@@ -9,6 +9,9 @@
 #PBS -j oe
 #PBS -m abe
 
+# Abort script on any error.
+set -e
+
 echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
 
 echo 'Loading modules.'
@@ -40,6 +43,7 @@ else
     module load conda
 fi
 conda activate {{ conda_environment }}
+echo "The active conda environment is ${CONDA_DEFAULT_ENV}."
 
 echo 'Setting up MAGE environment.'
 source {{ kaijuhome }}/scripts/setupEnvironment.sh
@@ -50,6 +54,13 @@ export SLACK_BOT_TOKEN={{ slack_bot_token }}
 export BRANCH_OR_COMMIT={{ branch_or_commit }}
 echo 'The active environment variables are:'
 printenv
+
+# Move to the directory containing the compiled code.
+cd bin
+if [[ $? -eq 1 ]]; then
+    python $KAIJUHOME/testingScripts/send_slack_message.py "Unit test build failed in `pwd`!"
+    exit 1
+fi
 
 echo 'Generating unit test report.'
 python $KAIJUHOME/testingScripts/unitTestReport.py {{ report_options }} >& unitTestReport.out

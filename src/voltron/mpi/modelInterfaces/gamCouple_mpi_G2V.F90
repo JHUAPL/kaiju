@@ -86,7 +86,7 @@ module gamCouple_mpi_G2V
 
         ! initialize F08 MPI objects
         App%couplingComm = MPI_COMM_NULL
-        App%zeroArraytypes = (/ MPI_DATATYPE_NULL /)
+        App%zeroArraytypes(:) = (/ MPI_INTEGER /) ! = (/ MPI_DATATYPE_NULL /)
 
         ! split voltron helpers off of the communicator
         ! split couplingPoolComm into a communicator with only the non-helper voltron rank

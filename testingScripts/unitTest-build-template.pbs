@@ -1,0 +1,44 @@
+#!/bin/bash
+
+#PBS -N {{ job_name }}
+#PBS -A {{ account }}
+#PBS -q {{ queue }}
+#PBS -l job_priority={{ job_priority }}
+#PBS -l select=1:ncpus=128
+#PBS -l walltime={{ walltime }}
+#PBS -j oe
+#PBS -m abe
+
+# Abort script on any error.
+set -e
+
+echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
+
+echo 'Loading modules.'
+module --force purge
+{%- for module in modules %}
+module load {{ module }}
+{%- endfor %}
+echo 'The currently loaded modules are:'
+module list
+
+echo 'The active environment variables are:'
+printenv
+
+echo 'Copying pFUnit binaries.'
+pfunit_dir="{{ mage_test_root }}/pfunit/pFUnit-4.2.0/ifort-23-mpich-derecho"
+kaiju_external_dir="{{ kaijuhome }}/external"
+cp -rp "${pfunit_dir}/FARGPARSE-1.1" "${kaiju_external_dir}/"
+cp -rp "${pfunit_dir}/GFTL-1.3" "${kaiju_external_dir}/"
+cp -rp "${pfunit_dir}/GFTL_SHARED-1.2" "${kaiju_external_dir}/"
+cp -rp "${pfunit_dir}/PFUNIT-4.2" "${kaiju_external_dir}/"
+
+# Build the code.
+cmd="{{ cmake_cmd }} >& cmake.out"
+echo $cmd
+eval $cmd
+cmd="{{ make_cmd }} >& make.out"
+echo $cmd
+eval $cmd
+
+echo "Job $PBS_JOBID ended at `date` on `hostname` in directory `pwd`."

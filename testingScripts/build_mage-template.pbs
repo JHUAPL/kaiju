@@ -9,8 +9,6 @@
 #PBS -j oe
 #PBS -m abe
 
-# This script just builds the MAGE software.
-
 echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
 
 echo 'Loading modules.'

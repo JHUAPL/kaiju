@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.20.2)
-project(Kaiju Fortran)
+project(Kaiju Fortran C)
+#K: Adding C to project to deal w/ issues w/ most recent HDF (10/13/25)
 
 # add and search for pfunit (fingers crossed)
 list(APPEND CMAKE_PREFIX_PATH "./external")

@@ -107,7 +107,7 @@ module volthelpers_mpi
     ! chimp data update functions
 
     subroutine sendChimpStateData(ebState, vHelpComm)
-        type(ebState_T), intent(in) :: ebState
+        type(ebState_T), intent(inout) :: ebState
         type(MPI_Comm), intent(in) :: vHelpComm
 
         integer :: ierr, length
@@ -195,7 +195,7 @@ module volthelpers_mpi
             call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
         end if
 
-    end subroutine
+    end subroutine sendChimpStateData
 
     subroutine recvChimpStateData(ebState, vHelpComm)
         type(ebState_T), intent(inout) :: ebState
@@ -272,7 +272,7 @@ module volthelpers_mpi
     end subroutine
 
     subroutine sendChimpUpdate(vApp)
-        type(voltAppMpi_T), intent(in) :: vApp
+        type(voltAppMpi_T), intent(inout) :: vApp
 
         integer :: ierr, length
         character( len = MPI_MAX_ERROR_STRING) :: message
@@ -317,7 +317,7 @@ module volthelpers_mpi
             call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
         end if
 
-    end subroutine
+    end subroutine sendChimpUpdate
 
     subroutine recvChimpUpdate(vApp)
         type(voltAppMpi_T), intent(inout) :: vApp
@@ -374,14 +374,15 @@ module volthelpers_mpi
         type(voltAppMpi_T), intent(in) :: vApp
         integer, intent(in) :: rType
 
-        integer :: ierr
+        integer :: ierr,wtf
         type(MPI_Request) :: helpReq
 
+        wtf = rType
         ! async to match waiting helper nodes
-        call mpi_Ibcast(rType, 1, MPI_INTEGER, 0, vApp%vHelpComm, helpReq, ierr)
+        call mpi_Ibcast(wtf, 1, MPI_INTEGER, 0, vApp%vHelpComm, helpReq, ierr)
         call mpi_wait(helpReq, MPI_STATUS_IGNORE, ierr)
 
-    end subroutine
+    end subroutine vhRequestType
 
     subroutine vhReqStep(vApp)
         type(voltAppMpi_T), intent(inout) :: vApp
