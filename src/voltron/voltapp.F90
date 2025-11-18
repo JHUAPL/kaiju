@@ -507,9 +507,9 @@ module voltapp
         ! endif
 
         if (vApp%doGCM) then
-            call getConductance(vApp%remixApp, vApp%gcm)
+            call getConductance(vApp%remixApp%ion, vApp%remixApp%IO, vApp%gcm)
         else
-            call getConductance(vApp%remixApp)
+            call getConductance(vApp%remixApp%ion, vApp%remixApp%IO)
         endif
         
         
@@ -867,33 +867,31 @@ module voltapp
     end subroutine genVoltShellGrid
 
     ! Get conductance/conductivity from GCM/DK/etc for Remix/GPS
-    subroutine getConductance(App,gcm)
-        class(mixApp_T), intent(inout) :: App
+    subroutine getConductance(I,mixIOobj,gcm)
+        type(mixIon_T),dimension(:),intent(inout) :: I
+        type(mixIO_T), intent(in) :: mixIOobj  
         type(gcm_T),optional,intent(inout) :: gcm
 
         logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
-
-        type(mixIon_T),dimension(:),allocatable :: I
         integer :: h,NumH
 
         ! here we should check if Remix or GPS
-        I = App%ion
         NumH = size(I)
 
         if (present(gcm)) then
             doModel = .true.
         else
-            call mix_transform_grid(App)
-            if (App%IO%time<=0) then
+            call mix_transform_grid(I)
+            if (mixIOobj%time<=0) then
                 doModel = .false.
             end if
         end if
 
         do h=1,NumH
             if (I(h)%St%hemisphere.eq.NORTH) then
-                I(h)%St%tilt = App%IO%tilt
+                I(h)%St%tilt = mixIOobj%tilt
             else
-                I(h)%St%tilt = -App%IO%tilt
+                I(h)%St%tilt = -mixIOobj%tilt
             end if
 
             if (doModel) then

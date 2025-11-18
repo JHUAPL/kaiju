@@ -101,20 +101,17 @@ submodule (mixtypes) mixtypessub
     module subroutine mixAdvanceModel(App, dt) ! OK! ignoring gcm for now
         class(mixApp_T), intent(inout) :: App
         real(rp), intent(in) :: dt  ! no need for time step here
-
-        type(mixIon_T),dimension(:),allocatable :: I
         integer :: h,NumH
 
-        I = App%ion
-        NumH = size(I)
+        NumH = size(App%ion)
 
         do h=1,NumH
           call Tic("MIX-SOLVE")
-          call run_solver(I(h)%P,I(h)%G,I(h)%St,I(h)%S)
+          call run_solver(App%ion(h)%P,App%ion(h)%G,App%ion(h)%St,App%ion(h)%S)
           call Toc("MIX-SOLVE")
 
           call Tic("MIX-POT")
-          call get_potential(I(h))
+          call get_potential(App%ion(h))
           call Toc("MIX-POT")
         end do
         

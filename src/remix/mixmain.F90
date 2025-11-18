@@ -170,13 +170,10 @@ module mixmain
 
     end subroutine run_mix
 
-    subroutine mix_transform_grid(App)
-      class(mixApp_T), intent(inout) :: App
-
-      type(mixIon_T),dimension(:),allocatable :: I
+    subroutine mix_transform_grid(I)
+      type(mixIon_T),dimension(:),intent(inout) :: I
       integer :: h,NumH
 
-      I = App%ion
       NumH = size(I)
 
       do h=1,NumH
