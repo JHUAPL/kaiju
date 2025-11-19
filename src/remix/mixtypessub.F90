@@ -7,7 +7,7 @@ submodule (mixtypes) mixtypessub
 
     contains
 
-    module subroutine mixInitModel(App, Xml) !doubts with this one, since many things involved
+    module subroutine mixInitModel(App, Xml)
         class(mixApp_T), intent(inout) :: App
         type(XML_Input_T), intent(inout) :: Xml
 
@@ -16,11 +16,11 @@ submodule (mixtypes) mixtypessub
     end subroutine mixInitModel
 
 
-    module subroutine mixInitIO(App, Xml) ! OK!
+    module subroutine mixInitIO(App, Xml)
         class(mixApp_T), intent(inout) :: App
         type(XML_Input_T), intent(inout) :: Xml
 
-        character(len=strLen) :: runID   ! these two things are needed when we're coupled with Gamera
+        character(len=strLen) :: runID
         logical :: isRestart
         integer :: nRes
 
@@ -37,7 +37,7 @@ submodule (mixtypes) mixtypessub
     end subroutine mixInitIO
 
 
-    module subroutine mixWriteRestart(App, nRes) ! OK!
+    module subroutine mixWriteRestart(App, nRes)
         class(mixApp_T), intent(inout) :: App
         integer, intent(in) :: nRes
 
@@ -54,21 +54,22 @@ submodule (mixtypes) mixtypessub
         character(len=*), intent(in) :: resId
         integer, intent(in) :: nRes
 
-        ! synchronize restart number
-        App%ion(:)%P%nRes = nRes
+        ! For some reason, Remix uses the internal restart number
+        ! And ignores the one provided by Voltron
+        ! App%ion(:)%P%nRes != nRes
 
-        call readMIXrestart(resId,nRes,App%ion)
+        call readMIXrestart(resId,App%ion(1)%P%nRes,App%ion)
 
     end subroutine mixReadRestart
 
 
-    module subroutine mixWriteConsoleOutput(App) ! OK! no console output
+    module subroutine mixWriteConsoleOutput(App)
         class(mixApp_T), intent(inout) :: App
 
     end subroutine mixWriteConsoleOutput
 
 
-    module subroutine mixWriteFileOutput(App, nStep) ! OK!
+    module subroutine mixWriteFileOutput(App, nStep)
         class(mixApp_T), intent(inout) :: App
         integer, intent(in) :: nStep
 
@@ -77,7 +78,7 @@ submodule (mixtypes) mixtypessub
     end subroutine mixWriteFileOutput
 
 
-    module subroutine mixWriteSlimFileOutput(App, nStep) ! OK!
+    module subroutine mixWriteSlimFileOutput(App, nStep)
         class(mixApp_T), intent(inout) :: App
         integer, intent(in) :: nStep
 
@@ -85,20 +86,7 @@ submodule (mixtypes) mixtypessub
 
     end subroutine mixWriteSlimFileOutput
 
-
-    ! module subroutine mixAdvanceModel(App, dt) ! OK! ignoring gcm for now
-    !     class(mixApp_T), intent(inout) :: App
-    !     real(rp), intent(in) :: dt  ! no need for time step here
-
-    !     if (App%IO%time<=0) then
-    !         call run_mix(App%ion,App%IO%tilt,doModelOpt=.false.)   ! ignoring gcm
-    !     else
-    !         call run_mix(App%ion,App%IO%tilt,doModelOpt=.true.)   ! ignoring gcm
-    !     end if
-
-    ! end subroutine mixAdvanceModel
-
-    module subroutine mixAdvanceModel(App, dt) ! OK! ignoring gcm for now
+    module subroutine mixAdvanceModel(App, dt)
         class(mixApp_T), intent(inout) :: App
         real(rp), intent(in) :: dt  ! no need for time step here
         integer :: h,NumH
@@ -118,7 +106,7 @@ submodule (mixtypes) mixtypessub
     end subroutine mixAdvanceModel
 
 
-    module subroutine mixCleanup(App) ! OK! no cleanup
+    module subroutine mixCleanup(App)
         class(mixApp_T), intent(inout) :: App
 
     end subroutine mixCleanup
