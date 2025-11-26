@@ -1,0 +1,156 @@
+{
+    "simulation": {
+        "bcwind_available": "N",
+        "gamera_grid_inner_radius": "2.0",
+        "gamera_grid_outer_radius": "30.0"
+    },
+    "pbs": {
+    },
+    "gamera": {
+        "sim": {
+            "doH5g": "T",
+            "icType": "user",
+            "runid": "gtr34",
+            "pdmb": "0.75",
+            "rmeth": "8C"
+        },
+        "floors": {
+            "dFloor": "1.0e-4",
+            "pFloor": "1.0e-6"
+        },
+        "timestep": {
+            "doCPR": "T",
+            "limCPR": "0.20"
+        },
+        "restart": {
+            "doRes": "F",
+            "nRes": "-1",
+            "resID": "gtr34"
+        },
+        "physics": {
+            "doBoris": "T",
+            "Ca": "10.0",
+            "doMHD": "T"
+        },
+        "ring": {
+            "doRing": "T",
+            "gid": "lfm"
+        },
+        "wind": {
+            "tsfile": "bcwind.h5"
+        },
+        "source": {
+            "doSource": "T",
+            "doBounceDT": "T",
+            "nBounce": "1.0",
+            "doWolfLim": "T"
+        },
+        "iPdir": {
+            "bcPeriodic": "F"
+        },
+        "jPdir": {
+            "bcPeriodic": "F"
+        },
+        "kPdir": {
+            "bcPeriodic": "T"
+        },
+        "coupling": {
+            "blockHalo": "T"
+        }
+    },
+    "voltron": {
+        "time": {
+        },
+        "spinup": {
+            "doSpin": "T",
+            "tSpin": "7200.0",
+            "tIO": "0.0"
+        },
+        "output": {
+            "dtOut": "60.0",
+            "tsOut": "300.0"
+        },
+        "coupling": {
+            "doQkSquish": "T",
+            "doGCM": "F",
+            "qkSquishStride": "2",
+            "dtCouple": "5.0",
+            "doDeep": "T",
+            "imType": "RAIJU",
+            "doAsyncCoupling": "F"
+        },
+        "restart": {
+            "dtRes": "1800.0"
+        },
+        "imag": {
+            "doInit": "T"
+        },
+        "helpers": {
+            "doSquishHelp": "T"
+        }
+    },
+    "chimp": {
+        "units": {
+            "uid": "EARTHCODE"
+        },
+        "fields": {
+            "grType": "lfm"
+        },
+        "domain": {
+            "dtype": "MAGE"
+        },
+        "tracer": {
+            "epsds": "0.05"
+        }
+    },
+    "remix": {
+        "conductance": {
+            "doStarlight": "T",
+            "apply_cap": "T",
+            "const_sigma": "F"
+        },
+        "precipitation": {
+            "aurora_model_type": "LINMRG",
+            "beta": "0.2",
+            "doAuroralSmooth": "F"
+        }
+    },
+    "raiju": {
+        "output": {
+            "loudConsole": "F"
+        },
+        "grid": {
+            "gType": "SHGRID",
+            "ThetaL": "15"
+        },
+        "domain": {
+            "tail_buffer": "15.0",
+            "sun_buffer": "15.0",
+            "tail_active": "12.0",
+            "sun_active": "12.0"
+        },
+        "config": {
+            "fname": "raijuconfig.h5"
+        },
+        "plasmasphere": {
+            "doPsphere": "T",
+            "doExcessMap": "T"
+        },
+        "losses": {
+            "doLosses": "T",
+            "doCX": "T",
+            "doCC": "T",
+            "doEWM": "T",
+            "ewmType": "SS"
+        },
+        "cpl": {
+            "nFluidsIn": "1",
+            "startupTscl": "7200.0"
+        },
+        "fluidIn1": {
+            "imhd": "0",
+            "flav": "2",
+            "excessToPsph": "T"
+        }
+    }
+}

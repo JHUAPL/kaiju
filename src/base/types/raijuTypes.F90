@@ -193,6 +193,8 @@ module raijutypes
             !! Whether we initialize state from a restart file
         integer :: nResIn = -1
             !! Restart number to use for state init (-1 for symlink)
+        character(len=strLen) :: resId = ""
+            !! Restart filename id (resID.raiju.Res.xxxxx.h5) to read from
         character(len=strLen) :: ResF = ""
             !! Restart filename to read from
         
@@ -230,8 +232,6 @@ module raijutypes
             !! Whether or not we smooth variables (bvol and electric potential) before taking gradients
         logical :: doClockConsoleOut
             !! If we are driving, output clock info
-        logical :: doOutput_potGrads
-            !! Output extra 3D arrays
         logical :: doOutput_debug
             !! Dump lots of otherwise unnecessary stuff
         logical :: doOutput_3DLoss

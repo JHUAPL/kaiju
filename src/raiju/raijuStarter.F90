@@ -137,8 +137,8 @@ module raijustarter
             else
                 tmpStr = "/Kaiju/Gamera/restart/resId"
             endif
-            call iXML%Set_Val(tmpResId, trim(tmpStr), Model%RunID)
-            call genResInFname(Model, Model%ResF, runIdO=tmpResId)  ! Determine filename to read from
+            call iXML%Set_Val(Model%resId, trim(tmpStr), Model%RunID)
+            call genResInFname(Model, Model%ResF, runIdO=Model%resId)  ! Determine filename to read from
         endif
         
         !--- Plasmasphere ---!
@@ -245,7 +245,6 @@ module raijustarter
         !--- Output ---!
         call iXML%Set_Val(Model%isLoud           , "output/loudConsole",.false.)
         call iXML%Set_Val(Model%writeGhosts      , "output/writeGhosts",.false.)
-        call iXML%Set_Val(Model%doOutput_potGrads, "output/doFat"      ,.false.)
         call iXML%Set_Val(Model%doOutput_3DLoss  , "output/doLossExtras" ,.false.)  ! Several (Ni,Nj,Nk) arrays
         call iXML%Set_Val(Model%doOutput_debug   , "output/doDebug"    ,.false.)
 
@@ -317,10 +316,20 @@ module raijustarter
 
         ! Set grid params
         call iXML%Set_Val(Grid%nB, "grid/Nbnd", 4      )  ! Number of cells between open boundary and active domain
-        call iXML%Set_Val(tmpStr, "grid/gType","UNISPH")
+
+        ! If we are restarting, use shellGrid from file
+        if (Model%isRestart) then
+            tmpStr = "RESTART"
+        else
+            ! Otherwise, ask user how we should be making our grid
+            call iXML%Set_Val(tmpStr, "grid/gType","UNISPH")
+        endif
 
         ! Fill out Grid object depending on chosen method
         select case(tmpStr)
+            case("RESTART")
+                Grid%gType = RAI_G_SHGRID ! Idk, not important right now
+                call GenShellGridFromFile(Grid%shGrid, RAI_SG_NAME, Model%ResF)
             case("UNISPH")
                 Grid%gType = RAI_G_UNISPH
                 ! Generate our own grid from scratch
@@ -340,7 +349,7 @@ module raijustarter
                     write(*,*) "RAIJU expecting a ShellGrid_T but didn't receive one. Dying."
                 endif
             case DEFAULT
-                write(*,*) "RAIJU Received invalid grid definition: ",Grid%gType
+                write(*,*) "RAIJU Received invalid grid definition: ",tmpStr
                 write(*,*) " Dying."
                 stop
         end select

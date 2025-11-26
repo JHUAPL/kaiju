@@ -33,7 +33,9 @@ from slack_sdk.errors import SlackApiError
 
 # Name of Slack channels to use as message target
 SLACK_CHANNEL_NAME = '#kaijudev'
+SLACK_CHANNEL_ID = 'C01CGRFSUE9'
 SLACK_TEST_CHANNEL_NAME = '#kaijudev-testing'
+SLACK_TEST_CHANNEL_ID = 'C06Q1RAMJ03'
 
 
 def read_strip_blanks_and_comments(path):
@@ -386,12 +388,12 @@ def slack_send_image(slack_client, image_file_path, initial_comment='',
     None
     """
     if is_test:
-        channel = SLACK_TEST_CHANNEL_NAME
+        channel_id = SLACK_TEST_CHANNEL_ID
     else:
-        channel = SLACK_CHANNEL_NAME
+        channel_id = SLACK_CHANNEL_ID
     try:
-        response = slack_client.files_upload(
-            channels=channel,
+        response = slack_client.files_upload_v2(
+            channel=channel_id,
             thread_ts=thread_ts,
             file=image_file_path,
             initial_comment=initial_comment,

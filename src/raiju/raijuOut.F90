@@ -28,10 +28,11 @@ module raijuOut
     end subroutine raijuOutput
 
 
-    subroutine raijuResOutput(Model, Grid, State)
+    subroutine raijuResOutput(Model, Grid, State, opt)
         type(raijuModel_T), intent(in) :: Model
         type(raijuGrid_T) , intent(in) :: Grid
         type(raijuState_T), intent(inout) :: State
+        type(raijuOptions_T), intent(in) :: opt
 
         character(len=strLen) :: ResF, tStr,lnResF !Name of restart file
         logical :: fExist
@@ -45,7 +46,7 @@ module raijuOut
             write (*, '(a,a,a,a,a)') ANSIGREEN, '<Writing RAIJU HDF5 RESTART @ t = ', trim(tStr), ' >', ANSIRESET
         endif
 
-        call WriteRaijuRes(Model, Grid, State, ResF)
+        call WriteRaijuRes(Model, Grid, State, opt, ResF)
 
         ! Prep for next restart
         State%IO%tRes = State%IO%tRes + State%IO%dtRes

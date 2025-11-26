@@ -1,0 +1,10 @@
+/* Optional: Gradient Background for Sidebar */
+.wy-side-nav-search {
+    background: linear-gradient(180deg, #2980b9, #343131);
+}
+
+
+.wy-side-nav-search .wy-dropdown > a img.logo,
+.wy-side-nav-search > a img.logo {
+    max-width: 60% !important; /* Adjust max width as needed */
+}

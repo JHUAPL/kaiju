@@ -195,11 +195,11 @@ add_subdirectory(src/raiju)
 add_custom_target(raiju ALL)
 
 # disabling raijuSA.x for now until it is completed
-#message("\tAdding executable raijuSA.x")
+message("\tAdding executable raijuSA.x")
 #add_executable(raijuSA.x src/drivers/raijuSAx.F90 ${RAIJUIC})
-#add_executable(raijuSA.x src/drivers/raijuSAx.F90)
-#target_link_libraries(raijuSA.x baselib raijulib)
-#add_dependencies(raiju raijuSA.x)
+add_executable(raijuSA.x src/drivers/raijuSAx.F90)
+target_link_libraries(raijuSA.x baselib raijulib)
+add_dependencies(raiju raijuSA.x)
 
 message("\tAdding executable raijuOWD.x")
 #add_executable(raijuOWD.x src/drivers/raijuOWDx.F90 ${RAIJUIC})
