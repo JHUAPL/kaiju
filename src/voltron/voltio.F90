@@ -11,6 +11,7 @@ module voltio
     use planethelper
     use shellGridIO
     use voltappHelper
+    use gamCoupleHelper, only : getCPCP
 
     use tubehelper, only : writeTubeShellRestart, readTubeShellRestart
     
@@ -113,8 +114,10 @@ module voltio
 
         !Get Dst estimate: DPS, center of earth, MLT avg of equatorial stations
         call EstDST(gApp%Model,gApp%Grid,gApp%State,BSDst0=BSDst0,AvgBSDst=AvgBSDst,BSSMRs=BSSMRs,DPSDst=DPSDst)
-
         vApp%BSDst = AvgBSDst
+
+        !Get CPCP
+        call getCPCP(vApp%gApp%mixOutput,cpcp)
         
         !Get symh from input time series
         symh = vApp%symh%evalAt(vApp%time)
@@ -126,6 +129,7 @@ module voltio
             write (*, '(a,1f8.3,a)')             '      tilt = ' , dpT, ' [deg]'
             write (*, '(a, f8.3,a)')             '    Sym-H  = ' , symh  , ' [nT]'
             write (*, '(a, f8.3,a)')             '    BSDst  ~ ' , AvgBSDst , ' [nT]'
+            write (*, '(a,2f8.3,a)')             '      CPCP = ' , cpcp(NORTH), cpcp(SOUTH), ' [kV, N/S]'
             write (*, '(a,4f8.2,a)')             '           dSMRs  ~ ' , BSSMRs-AvgBSDst, ' [nT, 12/18/00/06]'
             !write (*, '(a,4f8.2,a)')             '   BSSMRs  ~ ' , BSSMRs, ' [nT, 12/18/00/06]'
 
