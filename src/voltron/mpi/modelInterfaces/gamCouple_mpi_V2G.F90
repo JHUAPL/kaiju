@@ -413,13 +413,7 @@ module gamCouple_mpi_V2G
     subroutine gamCplMpiVWriteConsoleOutput(App)
         class(gamCouplerMpi_volt_T), intent(inout) :: App
 
-        real(rp) :: cpcp(2) = 0.0
-
-        ! write only my own console info
-        if(App%Model%isLoud) then
-            call getCPCP(App%mixOutput,cpcp)
-             write (*, '(a,2f8.3,a)')             '      CPCP = ' , cpcp(NORTH), cpcp(SOUTH), ' [kV, N/S]'
-        endif
+        ! nothing to write
 
     end subroutine
 
