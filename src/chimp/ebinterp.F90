@@ -7,6 +7,8 @@ module ebinterp
     use gridinterp
     use ebutils
 
+    use volttypes, only : NVARVOLTSRC
+
     implicit none
 
     logical, parameter, private :: doCurldbdt = .false.
@@ -132,13 +134,14 @@ module ebinterp
 
     !ijkO is optional guess to pass to locate routine
     !     if present will return correct location
-    recursive subroutine ebFields(xyz,t,Model,ebState,E,B,ijkO,vExB,gcFields)
+    recursive subroutine ebFields(xyz,t,Model,ebState,E,B,ijkO,vExB,gcFields,src)
         real(rp), intent(in) :: xyz(NDIM),t
         type(chmpModel_T), intent(in) :: Model
         type(ebState_T), intent(in)   :: ebState
         real(rp), dimension(NDIM), intent(out) :: E,B
         real(rp), dimension(NDIM), intent(out), optional :: vExB
         type(gcFields_T), intent(out), optional :: gcFields
+        real(rp), dimension(NVARVOLTSRC), intent(out), optional :: src
         integer, intent(inout) , optional :: ijkO(NDIM)
 
         integer, dimension(NDIM) :: ijk
@@ -147,6 +150,7 @@ module ebinterp
         real(rp), dimension(NDIM,NDIM) :: Tix
         real(rp), dimension(NDIM) :: ezp,B0,wE,wZ,wP,wEp,wZp,wPp
         real(rp), dimension(Nw,Nw,Nw,NDIM) :: E1,E2,dB1,dB2 !Interpolation stencils
+        real(rp), dimension(Nw,Nw,Nw,NVARVOLTSRC) :: Src1,Src2
         real(rp), dimension(Nw,Nw,Nw) :: W,eW,zW,pW !Interpolation weights
         logical :: isIn,doJacob,isAxis,isAxisS,isAxisE
         
@@ -256,6 +260,18 @@ module ebinterp
 
         enddo
 
+        if (present(src)) then
+            Src1 = eb1%src(i0-1:i0+1,j0-1:j0+1,k0-1:k0+1,:)
+            if (.not. ebState%doStatic) then
+                Src2 = eb2%src(i0-1:i0+1,j0-1:j0+1,k0-1:k0+1,:)
+            else
+                Src2 = 0.0
+            endif
+            do n=1,NVARVOLTSRC
+                src(n) = wT1*sum(W* Src1(:,:,:,n)) &
+                       + wT2*sum(W* Src2(:,:,:,n))
+            enddo
+        endif
         !Clean E field (guarantee E.B = 0)
         if (Model%doEBFix) then
             call CleanE(E,B)

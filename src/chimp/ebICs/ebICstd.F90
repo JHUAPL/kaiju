@@ -61,6 +61,9 @@ module userebic
         ! Get number of MHD fluids
         call setNSpc(Model, ebTab)
 
+        ! Check if Src data in file and save result to Model
+        call CheckHasSrcData(Model, ebTab)
+
         !Start by getting grid from H5 file
         call rdGrid(Model,ebGr,ebTab,inpXML)
 
@@ -206,5 +209,18 @@ module userebic
         Model%nSpc = GetIOInt(IOVars, 'nSpc')
         
     end subroutine setNSpc
+
+
+    subroutine CheckHasSrcData(Model, ebTab)
+        type(chmpModel_T), intent(inout) :: Model
+        type(ioTab_T), intent(in) :: ebTab
+        
+        character(len=strLen) :: ebFile
+        type(IOVAR_T), dimension(2) :: IOVars
+
+        ebFile = genName(ebTab%bStr,ebTab%Ri,ebTab%Rj,ebTab%Rk,1,1,1,Model%doOldNaming)
+        Model%doReadSrc = (ioExist(ebFile, "SrcX1", gStrO=ebTab%gStrs(1)))
+
+    end subroutine CheckHasSrcData
 
 end module userebic
