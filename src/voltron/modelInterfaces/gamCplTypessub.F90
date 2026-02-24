@@ -49,16 +49,10 @@ submodule (volttypes) gamCplTypessub
     module subroutine gamCplWriteConsoleOutput(App)
         class(gamCoupler_T), intent(inout) :: App
 
-        real(rp) :: cpcp(2) = 0.0
-
         ! write parent's console info
         call gamWriteConsoleOutput(App)
 
-        ! then my own
-        if(App%Model%isLoud) then
-            call getCPCP(App%mixOutput,cpcp)
-             write (*, '(a,2f8.3,a)')             '      CPCP = ' , cpcp(NORTH), cpcp(SOUTH), ' [kV, N/S]'
-        endif
+        ! nothing of my own to write
 
     end subroutine
 

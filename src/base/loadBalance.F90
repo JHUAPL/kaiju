@@ -103,6 +103,27 @@ module loadBalance
             totalPercent = MIN(1.0_rp, totalPercent)
         enddo
 
+        ! ensure that every worker gets at least one index to work on, regardless of load
+        do l=2,lb%nL
+            ! loop to ensure every worker starts at least one index above the previous one
+            !      but not outside the allowed index range minus one (so the last worker has work, too)
+            lb%balStartInd(l) = min(max(lb%balStartInd(l),lb%balStartInd(l-1)+1),lb%nO-1)
+        enddo
+        do l=lb%nL-1,1,-1
+            ! loop to ensure every worker starts at least one index below the next one
+            !      but not outside the allowed index range
+            lb%balStartInd(l) = max(min(lb%balStartInd(l),lb%balStartInd(l+1)-1),0)
+        enddo
+
+        ! test to ensure that all calculated start indices are greater than the one before them
+        do l=1,lb%nL-1
+            if(lb%balStartInd(l) >= lb%balStartInd(l+1)) then
+                write (*,*) "Load Balancing Failed, and assigned equal or invalid starting indices. Exitting."
+                stop
+            endif
+        enddo
+
+
     end subroutine updateloads
 
 end module loadBalance

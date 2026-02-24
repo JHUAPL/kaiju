@@ -4,6 +4,13 @@ build:
   os: "ubuntu-22.04"
   tools:
     python: "3.10"
+  jobs:
+    post_checkout:
+      - wget https://github.com/git-lfs/git-lfs/releases/download/v3.1.4/git-lfs-linux-amd64-v3.1.4.tar.gz
+      - tar xvfz git-lfs-linux-amd64-v3.1.4.tar.gz git-lfs
+      - ./git-lfs install
+      - ./git-lfs fetch
+      - ./git-lfs checkout
 
 python:
   install:
@@ -11,3 +18,4 @@ python:
 
 sphinx:
   configuration: docs/source/conf.py
+

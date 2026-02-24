@@ -83,7 +83,7 @@ module uservoltic
         call inpXML%Set_Val(Rho0 ,"prob/Rho0",0.2_rp)
         call inpXML%Set_Val(P0   ,"prob/P0"  ,0.001_rp)
         call inpXML%Set_Val(doPP0,"prob/doPP0",.false.)
-        call inpXML%Set_Val(writeBCData,"prob/writeBC",.false.)
+        call inpXML%Set_Val(writeBCData,"prob/writeBC",.true.)
 
         !Set magnetosphere parameters
         call setMagsphere(Model,inpXML)

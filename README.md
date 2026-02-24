@@ -24,6 +24,12 @@ module and the
 [TIEGCM](https://www.hao.ucar.edu/modeling/tgcm/tie.php) model of the
 ionosphere-thermosphere.
 
+⚠️ Note: The `master` branch (version 1.25) contains bleeding-edge code that is under
+active development. If you are an inexperienced user, you might want
+to stick with more stable [MAGE
+0.75](https://github.com/JHUAPL/kaiju/tree/MAGE_0.75) and [MAGE
+1.0](https://github.com/JHUAPL/kaiju/tree/MAGE_1.0) branches.
+
 ### NASA Community Coordinated Modeling Center (CCMC) availability ###
 
 Users are also welcome to run previous versions of `MAGE` via the

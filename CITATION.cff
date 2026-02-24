@@ -2,10 +2,10 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata below."
 title: "MAGE: Multiscale Atmosphere Geospace Environment Model"
 version: "1.25.1"
-date-released: 2025-07-03
-doi: 10.5281/zenodo.16818682  
+date-released: 2025-12-01
+doi: 10.5281/zenodo.16818620 
 repository-code: "https://github.com/JHUAPL/kaiju"
-license: "BSD 3-Clause"
+license: "BSD-3-Clause"
 
 authors:
   - family-names: Merkin
