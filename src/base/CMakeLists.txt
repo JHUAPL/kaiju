@@ -1,6 +1,6 @@
 file(GLOB base_srcs *.F90 defs/*.F90 types/*.F90 shellutils/*.F90 3rd-party/*.F90)
 
-# ---- Generate git_info.F90 at build time in this directory's build tree ----
+# Generate git_info.F90 at build time
 set(GIT_INFO_FILE "${CMAKE_CURRENT_BINARY_DIR}/git_info.F90")
 # Only add git deps if they exist
 set(_git_deps "")
