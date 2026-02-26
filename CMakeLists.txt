@@ -12,21 +12,21 @@ endif()
 #Set hostname & configuration defaults before going to compilers.cmake
 cmake_host_system_information(RESULT HOST QUERY HOSTNAME)
 
-#Get the current working branch
-execute_process(COMMAND git rev-parse --abbrev-ref HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-	OUTPUT_VARIABLE GIT_BRANCH
-	OUTPUT_STRIP_TRAILING_WHITESPACE)
-execute_process(COMMAND git log -1 --format=%h WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-	OUTPUT_VARIABLE GIT_COMMIT_HASH
-	OUTPUT_STRIP_TRAILING_WHITESPACE)
+# #Get the current working branch
+# execute_process(COMMAND git rev-parse --abbrev-ref HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+# 	OUTPUT_VARIABLE GIT_BRANCH
+# 	OUTPUT_STRIP_TRAILING_WHITESPACE)
+# execute_process(COMMAND git log -1 --format=%h WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+# 	OUTPUT_VARIABLE GIT_COMMIT_HASH
+# 	OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-# Generate git_info.F90 with GITBRANCH value
-set(GIT_INFO_FILE "${CMAKE_SOURCE_DIR}/src/base/git_info.F90")
-file(WRITE ${GIT_INFO_FILE} "module git_info\n")
-file(APPEND ${GIT_INFO_FILE} "    implicit none\n")
-file(APPEND ${GIT_INFO_FILE} "    character(len=*), parameter :: gitB = '${GIT_BRANCH}'\n")
-file(APPEND ${GIT_INFO_FILE} "    character(len=*), parameter :: gitH = '${GIT_COMMIT_HASH}'\n")
-file(APPEND ${GIT_INFO_FILE} "end module git_info\n")
+# # Generate git_info.F90 with GITBRANCH value
+# set(GIT_INFO_FILE "${CMAKE_SOURCE_DIR}/src/base/git_info.F90")
+# file(WRITE ${GIT_INFO_FILE} "module git_info\n")
+# file(APPEND ${GIT_INFO_FILE} "    implicit none\n")
+# file(APPEND ${GIT_INFO_FILE} "    character(len=*), parameter :: gitB = '${GIT_BRANCH}'\n")
+# file(APPEND ${GIT_INFO_FILE} "    character(len=*), parameter :: gitH = '${GIT_COMMIT_HASH}'\n")
+# file(APPEND ${GIT_INFO_FILE} "end module git_info\n")
 
 #Set some configuration defaults
 option(ENABLE_OMP "Enable OMP parallelization" ON )
