@@ -1,10 +1,7 @@
 file(GLOB base_srcs *.F90 defs/*.F90 types/*.F90 shellutils/*.F90 3rd-party/*.F90)
-set(CMAKE_SUPPRESS_REGENERATION ON)
+
 # ---- Generate git_info.F90 at build time in this directory's build tree ----
 set(GIT_INFO_FILE "${CMAKE_CURRENT_BINARY_DIR}/git_info.F90")
-message(STATUS "Git info will be generated at: ${GIT_INFO_FILE}")
-message(STATUS "Git info will be generated from: ${CMAKE_CURRENT_BINARY_DIR}")
-
 # Only add git deps if they exist
 set(_git_deps "")
 if(EXISTS "${CMAKE_SOURCE_DIR}/.git/HEAD")

@@ -1,6 +1,6 @@
 # cmake/git_info.cmake
 
-# defaults
+# Defaults
 set(GIT_BRANCH "nogit")
 set(GIT_COMMIT_HASH "nogit")
 
@@ -30,6 +30,7 @@ if(EXISTS "${SRC_DIR}/.git")
   endif()
 endif()
 
+# Write out the git info as a Fortran module
 file(WRITE  "${OUT_FILE}" "module git_info\n")
 file(APPEND "${OUT_FILE}" "    implicit none\n")
 file(APPEND "${OUT_FILE}" "    character(len=*), parameter :: gitB = '${GIT_BRANCH}'\n")
