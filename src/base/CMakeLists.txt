@@ -5,6 +5,18 @@ set(GIT_INFO_FILE "${CMAKE_CURRENT_BINARY_DIR}/git_info.F90")
 message(STATUS "Git info will be generated at: ${GIT_INFO_FILE}")
 message(STATUS "Git info will be generated from: ${CMAKE_CURRENT_BINARY_DIR}")
 
+# Only add git deps if they exist
+set(_git_deps "")
+if(EXISTS "${CMAKE_SOURCE_DIR}/.git/HEAD")
+  list(APPEND _git_deps "${CMAKE_SOURCE_DIR}/.git/HEAD")
+endif()
+if(EXISTS "${CMAKE_SOURCE_DIR}/.git/index")
+  list(APPEND _git_deps "${CMAKE_SOURCE_DIR}/.git/index")
+endif()
+if(EXISTS "${CMAKE_SOURCE_DIR}/.git/logs/HEAD")
+  list(APPEND _git_deps "${CMAKE_SOURCE_DIR}/.git/logs/HEAD")
+endif()
+
 add_custom_command(
   OUTPUT "${GIT_INFO_FILE}"
   COMMAND "${CMAKE_COMMAND}"
@@ -15,10 +27,7 @@ add_custom_command(
           ${GIT_INFO_FILE}.tmp ${GIT_INFO_FILE}
   COMMAND "${CMAKE_COMMAND}" -E rm -f ${GIT_INFO_FILE}.tmp
   # Re-run on commits/checkouts (covers branch switches + new commits)
-  DEPENDS
-    "${CMAKE_SOURCE_DIR}/.git/HEAD"
-    "${CMAKE_SOURCE_DIR}/.git/logs/HEAD"
-    "${CMAKE_SOURCE_DIR}/.git/index"
+  DEPENDS ${_git_deps}
   VERBATIM
 )
 
