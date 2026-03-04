@@ -563,7 +563,10 @@ module raijuIO
         ! Precip
         call AddOutSGV(IOVars, "precipNFlux_Nk", State%precipNFlux, doWriteMaskO=.true., uStr="#/cm^2/s")
         call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux, doWriteMaskO=.true., uStr="erg/cm^2/s")
-        call AddOutVar(IOVars,"precipLossRates_Nk", State%lossRates(:,:,:), uStr="1/s")
+        call AddOutVar(IOVars, "precipLossRates_Nk", State%lossRates(:,:,:), uStr="1/s")
+        call AddOutVar(IOVars, "gradPotE"    , State%gradPotE_cc     (:,:,:), uStr="V/m")
+        call AddOutVar(IOVars, "gradPotCorot", State%gradPotCorot_cc (:,:,:), uStr="V/m")
+        call AddOutVar(IOVars, "gradVM"      , State%gradVM_cc       (:,:,:), uStr="V/m/lambda")
         ! More solver stuff
         call AddOutVar(IOVars, "dtk"   , State%dtk(:), uStr="s")
         call AddOutVar(IOVars, "nStepk", State%nStepk(:)*1.0_rp, uStr="#", dStr="Number of steps each channel has taken")
@@ -638,6 +641,10 @@ module raijuIO
 
         call AddInVar(IOVars,"precipLossRates_Nk")
 
+        call AddInVar(IOVars, "gradPotE"    )
+        call AddInVar(IOVars, "gradPotCorot")
+        call AddInVar(IOVars, "gradVM"      )
+
         call AddInVar(IOVars, "dtk"    )
         call AddInVar(IOVars, "nStepk" )
         call AddInVar(IOVars, "iVel"   )
@@ -690,6 +697,10 @@ module raijuIO
         call IOArray3DFill(IOVars, "eta_avg" , State%eta_avg (:,:,:))
 
         call IOArray3DFill(IOVars, "precipLossRates_Nk", State%lossRates(:,:,:))
+
+        call IOArray3DFill(IOVars, "gradPotE"    , State%gradPotE_cc    (:,:,:))
+        call IOArray3DFill(IOVars, "gradPotCorot", State%gradPotCorot_cc(:,:,:))
+        call IOArray3DFill(IOVars, "gradVM"      , State%gradVM_cc      (:,:,:))
         
         call IOArray1DFill(IOVars, "dtk", State%dtk(:))
 
