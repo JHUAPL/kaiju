@@ -420,9 +420,6 @@ module raijutypes
         real(rp), dimension(:,:,:), allocatable :: pEff
             !! (Ngi+1, Ngj+1, Nk) [V] Effective potential (ExB + corot + gradient-curvature)
             !! Not actually used in calculations, but helpful for output
-        real(rp), dimension(:,:,:), allocatable :: gradPotE, gradPotCorot, gradVM
-            !! (Ngi+1, Ngj+1,2) [V/m] Th/phi gradient of the ionospheric potential, corotation potential, and flux tube volume raised to -2/3
-            !! units of gradVM are [FTV^(2/3)/m]. Multiplying by lambda gives units of [V/m]
         real(rp), dimension(:,:,:), allocatable :: gradPotE_cc, gradPotCorot_cc, gradVM_cc
             !! (Ngi, Ngj,2) [V/m] Th/phi gradient of the ionospheric potential, corotation potential, and flux tube volume raised to -2/3
             !! Cell-centered, calculated using Green-Gauss method

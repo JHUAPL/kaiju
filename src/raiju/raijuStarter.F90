@@ -415,15 +415,6 @@ module raijustarter
             ! Effective potential (used for output only)
             allocate( State%pEff(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk) )
             call fillArray(State%pEff, 0.0_rp)
-            ! Gradient of ionspheric potential
-            allocate( State%gradPotE     (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, 2) )
-            call fillArray(State%gradPotE, 0.0_rp)
-            ! Gradient of corotation potential
-            allocate( State%gradPotCorot (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, 2) )
-            call fillArray(State%gradPotCorot, 0.0_rp)
-            ! Gradient of (flux tube volume ^ -2/3)
-            allocate( State%gradVM      (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, 2) )
-            call fillArray(State%gradVM, 0.0_rp)
             ! Interface and cell velocities
             allocate( State%gradPotE_cc    (sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
             call fillArray(State%gradPotE_cc, 0.0_rp)
