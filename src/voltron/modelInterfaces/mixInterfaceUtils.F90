@@ -143,5 +143,47 @@ module mixinterfaceutils
 
    end subroutine mixVarToVoltron
 
+   subroutine mixAssignPrecipVars(precip)
+      ! This puts a pointer on each individual variable in the precip struct to make it easier to loop through the variables
+      ! We can adjust this in the future
+      type(precip_T), intent(inout) :: precip
+
+      integer :: i
+
+      precip%nVars = IM_PHCON ! change together to match final enumerator
+
+      allocate(precip%data(precip%nVars))
+      ! I tried to be fancy but this isn't supported in ifort
+      !precip%data(FAC) => precip%FAC
+      !precip%data(SIGMAP) => precip%SIGMAP
+      !precip%data(SIGMAH) => precip%SIGMAH
+      !precip%data(SOUND_SPEED) => precip%SOUND_SPEED
+      !precip%data(DENSITY) => precip%DENSITY
+      !precip%data(AVG_ENG) => precip%AVG_ENG
+      !precip%data(NUM_FLUX) => precip%NUM_FLUX
+      !precip%data(NEUTRAL_WIND) => precip%NEUTRAL_WIND
+      !precip%data(EFIELD) => precip%EFIELD
+      !precip%data(IM_EAVG) => precip%IM_EAVG
+      !precip%data(IM_EFLUX) => precip%IM_EFLUX
+      !precip%data(IM_IAVG) => precip%IM_IAVG
+      !precip%data(IM_IFLUX) => precip%IM_IFLUX
+      !precip%data(Z_EAVG) => precip%Z_EAVG
+      !precip%data(Z_NFLUX) => precip%Z_NFLUX
+      !precip%data(CRPOT) => precip%CRPOT
+      !precip%data(TPOT) => precip%TPOT
+      !precip%data(IM_GTYPE) => precip%IM_GTYPE
+      !precip%data(AUR_TYPE) => precip%AUR_TYPE
+      !precip%data(IM_BETA) => precip%IM_BETA
+      !precip%data(IM_EDEN) => precip%IM_EDEN
+      !precip%data(IM_EPRE) => precip%IM_EPRE
+      !precip%data(IM_ENFLX) => precip%IM_ENFLX
+      !precip%data(IM_INFLX) => precip%IM_INFLX
+      !precip%data(DELTAE) => precip%DELTAE
+      !precip%data(IM_NPSP) => precip%IM_NPSP
+      !precip%data(IM_THCON) => precip%IM_THCON
+      !precip%data(IM_PHCON) => precip%IM_PHCON
+
+   end subroutine mixAssignPrecipVars
+
 end module mixinterfaceutils
 

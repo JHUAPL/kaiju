@@ -64,6 +64,8 @@ module voltappHelper
         class(voltApp_T), intent(inout) :: vApp
 
         type(ShellGridVar_T) :: iono_var
+
+        integer :: i
             !! We hand this to mixVarToVoltron to give us back the remix potential on the voltron ShellGrid
 
         ! Get ionospheric potential from remix, add to coration to get total potential in SM coordinates
@@ -73,6 +75,19 @@ module voltappHelper
         ! Combine iono and corotation potential to form total potential in SM frame
         vApp%State%potential_total%data = iono_var%data + vApp%State%potential_corot%data
         vApp%State%potential_total%mask = .true.
+
+        if (.not. allocated(vApp%precip%data)) then
+            allocate(vApp%precip%data(vApp%precip%nVars))
+            call mixAssignPrecipVars(vApp%precip)
+        endif
+
+        do i = 1, vApp%precip%nVars
+            ! The enumerator for remix are used for precip
+            ! precip%data can be called via precip%data(IM_PHCON)
+            ! This array will be updated into a separate enumerator once DK and Remix are separated without overlapping variables
+            ! So POT is duplicated for now
+            call mixVarToVoltron(vApp%remixApp, i, vApp%shGrid, vApp%precip%data(i))
+        enddo
 
         ! Diagnostics
         !call calcPotDrop(vApp)
