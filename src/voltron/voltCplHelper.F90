@@ -25,17 +25,23 @@ module voltCplHelper
         !! Calculate field lines in ijTubes
         class(voltApp_T), intent(inout) :: vApp
 
-        integer :: i,j
-        real(rp) :: seedR, eqR, mhd_Rin
+        integer :: i,j,iL,iR,i1,i2
+        real(rp) :: seedR, eqR, mhd_Rin,TbFill
         real(rp), dimension(NDIM) :: xyz0
         logical :: doSH,doNH
+        logical, dimension(:,:), allocatable :: isDipT
         type(magLine_T) :: magLine
+        ! Dipole region filling stuff
+        logical :: foundDipRun, haveLeft, haveRight
+        integer :: nDipRuns
+        real(rp) :: TbLeft, TbRight
 
-        !associate(sh=>vApp%shGrid, ebApp=>vApp%ebTrcApp, Gr=>vApp%gApp%Grid)
-            !mhd_Rin = norm2(Gr%xyz(Gr%is+2,Gr%js,Gr%ks,:))
         associate(sh=>vApp%shGrid, ebApp=>vApp%ebTrcApp, ebGr=>vApp%ebTrcApp%ebState%ebGr)
             mhd_Rin = norm2(ebGr%xyz(ebGr%is+2,ebGr%js,ebGr%ks,:))
             seedR = sh%radius  ! Ionosphere radius in Rp
+
+            allocate(isDipT(sh%is:sh%ie+1,sh%js:sh%je+1))
+
             ! Do field line tracing, populate ijTubes
             !$OMP PARALLEL DO default(shared) &
             !$OMP schedule(dynamic) &
@@ -51,7 +57,9 @@ module voltCplHelper
                     if (eqR .le. mhd_Rin) then
                         !No MHD to tube from
                         call DipoleTube(vApp%planet,xyz0,vApp%State%ijTubes(i,j))
+                        isDipT(i,j) = .true.
                     else
+                        isDipT(i,j) = .false.
                         xyz0 = DipoleShift(xyz0, seedR + TINY)
                         if (xyz0(ZDIR) < 0) then
                             doNH = .false.
@@ -71,8 +79,71 @@ module voltCplHelper
                 enddo
             enddo
 
-        end associate
+        ! Go back and patch Tb for dipole-only low-lat values
+            do j=sh%js,sh%je+1
+                i = sh%is
+                foundDipRun = .false.
+                nDipRuns = 0
 
+                do while (i <= sh%ie+1)
+
+                    if (.not. isDipT(i,j)) then
+                        i = i + 1
+                        cycle
+                    endif
+
+                    foundDipRun = .true.
+                    nDipRuns = nDipRuns + 1
+
+                    i1 = i
+                    do while (i <= sh%ie+1 .and. isDipT(i,j))
+                        i = i + 1
+                    enddo
+                    i2 = i - 1
+
+                    haveLeft  = (i1 > sh%is)
+                    haveRight = (i2 < sh%ie+1)
+
+                    if (.not. haveLeft .and. .not. haveRight) then
+                        write(*,*) "ERROR in calcTubes: dipole segment spans full i-range at j=", j
+                        stop
+                    endif
+
+                    if (haveLeft)  TbLeft  = vApp%State%ijTubes(i1-1,j)%Tb
+                    if (haveRight) TbRight = vApp%State%ijTubes(i2+1,j)%Tb
+
+                    if (haveLeft .and. haveRight) then
+                        TbFill = 0.5_rp*(TbLeft + TbRight)
+                    else if (haveLeft) then
+                        TbFill = TbLeft
+                    else
+                        TbFill = TbRight
+                    endif
+
+                    if (TbFill <= 0.0_rp) then
+                        write(*,*) "ERROR in calcTubes: invalid TbFill for dipole segment at j=", j, " i1/i2=", i1, i2
+                        write(*,*) "  TbLeft/TbRight=", TbLeft, TbRight
+                        stop
+                    endif
+
+                    do i=i1,i2
+                        vApp%State%ijTubes(i,j)%Tb = TbFill
+                    enddo
+
+                enddo
+
+                if (.not. foundDipRun) then
+                    write(*,*) "ERROR in calcTubes: no dipole tube segment found at j=", j
+                    stop
+                endif
+
+                if (nDipRuns > 1) then
+                    write(*,*) "WARNING in calcTubes: multiple dipole segments found at j=", j, " count=", nDipRuns
+                endif
+            enddo
+
+        end associate
+        
     end subroutine calcTubes
 
 end module voltCplHelper

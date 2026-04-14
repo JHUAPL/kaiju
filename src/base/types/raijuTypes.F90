@@ -279,6 +279,11 @@ module raijutypes
         real(rp) :: worthyFrac  
             !! Fracton that a channel must contribute to pressure or density for its i shell to be evolved
 
+        ! Boundary settings
+        integer :: iLowLat_Evol
+            !! I shell at or above/equatorward we evolve differently from the rest of the active domain 
+        integer :: iLowLat_BndLoss
+            !! I shell at or above/equatorward we apply boundary loss processes
         ! Lambda controls
         real(rp) :: kappa
             !! Kappa value, used in case of Kappa mapping from moments to eta channels
@@ -450,6 +455,10 @@ module raijutypes
             !! (Ngi+1, Ngj+1, 3) [Rp] bMin xyz coordinates
         real(rp), dimension(:,:,:), allocatable :: xyzMincc
             !! (Ngi, Ngj, 3) [Rp] cell-centered bMin xyz coordinates
+        real(rp), dimension(:,:), allocatable :: radMax
+            !! (Ngi+1,Ngj+1) [Rp] maximum radius of field line
+        real(rp), dimension(:,:), allocatable :: radMax_cc
+            !! (Ngi,Ngj) [Rp] cell-centered maximum radius of field line
         integer , dimension(:,:), allocatable :: topo   
             !! (Ngi+1, Ngj+1) Topology (0=open, 1=closed)
         real(rp), dimension(:,:), allocatable :: thcon
@@ -460,6 +469,8 @@ module raijutypes
             !! (Ngi+1, Ngj+1) [Rp/nT] Flux-tube volume
         real(rp), dimension(:,:), allocatable :: bvol_cc
             !! (Ngi, Ngj) [Rp/nT] Flux-tube volume averaged from corners
+        real(rp), dimension(:,:), allocatable :: rCurv
+            !! (Ngi, Ngj) [Rp] Curvature radius
         real(rp), dimension(:,:), allocatable :: vaFrac
             !! (Ngi+1, Ngj+1) Fraction of total velocity coming from Alfven speed
             !! Used to limit active region to tubes that can reasonably be treated as averaged and slowly-evolving

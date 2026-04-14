@@ -17,6 +17,9 @@ module volttypes
 
     implicit none
 
+    integer, parameter :: IMAG_nMHD_R_NEAREARTH = 10
+        !! imag wants to make decisions based on the first few mhd cells, this is how many cell Req distances we will tell imag about
+
     enum, bind(C)
         enumerator :: IMAGRCM=1,IMAGRCMX,IMAGSST,IMAGRAIJU
     endenum
@@ -130,9 +133,11 @@ module volttypes
         character(len=strLen) :: swF
             !! Solar wind filename
         real(rp) :: mhdRin
-            !! GAMERA near-Earth active cell boundary
-        real(rp) :: mhdRinG
-            !! GAMERA near-Earth ghost cell boundary
+            !! GAMERA near-Earth active cell boundary [Rp]
+        real(rp), dimension(:), allocatable :: mhdRinGcc_arr
+            !! GAMERA near-Earth ghost cell radii [Rp]
+        real(rp), dimension(IMAG_nMHD_R_NEAREARTH) :: mhdR_nearEarth_arr
+            !! GAMERA near-Earth active corner radii [Rp]
         real(rp) :: mjd0
             !! MJD at sim t=0
         logical :: doColdStart
@@ -179,6 +184,12 @@ module volttypes
             !! [Rp] theta/L-direction smoothing scale for mhd ingestion timescale
         real(rp) :: tsclSm_dMLT = 1.0_rp
             !! [hr] phi/MLT-direction smoothing scale for mhd ingestion timescale
+        logical :: doWolfLim = .true.
+            !! Whether or not to apply beta-based Wolf limiting when passing moments to MHD
+
+        ! --- Calculated settings --- !
+        integer :: iFirstCellInGamGhost
+            !! The first RAIJU i cell that's on the ghost side of GAMERA's ghost/active boundary
 
         ! --- Grid --- !
         type(ShellGrid_T) :: shGr
@@ -208,6 +219,8 @@ module volttypes
             !! (Ngi+1, Ngj+1, 3) [Rp] bMin xyz coordinates
         type(ShellGridVar_T), dimension(NDIM) :: xyzMincc
             !! (Ngi, Ngj, 3) [Rp] cell-centered bMin xyz coordinates
+        type(ShellGridVar_T), dimension(NDIM) :: xyzMaxRad
+            !! (Ngi+1, Ngj+1, 3) [Rp] field line max radius xyz coordinates
         type(ShellGridVar_T) :: topo
             !! (Ngi+1, Ngj+1) Topology (0=open, 1=closed)
         type(ShellGridVar_T) :: thcon
@@ -218,6 +231,8 @@ module volttypes
             !! (Ngi+1, Ngj+1) [Rp/nT] Flux-tube volume
         type(ShellGridVar_T) :: bvol_cc
             !! (Ngi, Ngj) [Rp/nT] Flux-tube volume averaged from corners
+        type(ShellGridVar_T) :: rCurv
+            !! (Ngi, Ngj) [Rp] Curvature radius
         type(ShellGridVar_T) :: vaFrac
             !! (Ngi+1, Ngj+1) Fraction of total velocity coming from Alfven speed
             !! Used to limit active region to tubes that can reasonably be treated as averaged and slowly-evolving
