@@ -109,6 +109,7 @@ module gamtypes
         !Information for static source term
         logical :: doSource = .false.
         integer :: nvSrc = NVAR !Number of variables in Gas0 array if being used
+        integer :: nvInExyz = 3 !Number of variables in inExyz coupling array if being used
 
         !Ring average information
         logical :: doRing = .false.

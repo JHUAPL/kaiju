@@ -1,6 +1,7 @@
 module testmix2mhd
   use testHelper
   use voltapp
+  use volttypes, only: IONO_EX,IONO_EY,IONO_EZ
   use gamapp
   use uservoltic
   use ioH5
@@ -76,7 +77,9 @@ contains
                         call cellCenter(voltronApp%gApp%Grid, ig,j,k,xc,yc,zc)
                         rHatP = normVec([xc,yc,zc])
 
-                        eHat = normVec(iiBC%inExyz(np,jp,kp,:))
+                        eHat = normVec([iiBC%inExyz(np,jp,kp,IONO_EX), &
+                                        iiBC%inExyz(np,jp,kp,IONO_EY), &
+                                        iiBC%inExyz(np,jp,kp,IONO_EZ)])
                         !write(*,*) 'ig,j,k,np = ',ig,j,k,np
                         !write(*,*) 'eIJK / eXYZ = ', iiBC%inEijk(np,jp,kp,:), iiBC%inExyz(np,jp,kp,:)
 
@@ -106,7 +109,9 @@ contains
                         !Now convert cc-Eijk to Exyz
                         Exyz = ccEijk2Exyz(voltronApp%gApp%Model,voltronApp%gApp%Grid,ccEijk,ig,j,k)
                         !Exyz above is approximation to inExyz, ie testing whether or not Eijk and Exyz are consistent
-                        deltaSum = deltaSum + norm2(Exyz-iiBC%inExyz(np,jp,kp,:))
+                        deltaSum = deltaSum + norm2(Exyz-[iiBC%inExyz(np,jp,kp,IONO_EX), &
+                                                         iiBC%inExyz(np,jp,kp,IONO_EY), &
+                                                         iiBC%inExyz(np,jp,kp,IONO_EZ)])
                     enddo
                 enddo
           enddo
@@ -122,4 +127,3 @@ contains
   end subroutine corotationTest
 
 end module testmix2mhd
-

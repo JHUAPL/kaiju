@@ -3,6 +3,7 @@
 module cmiutils
     use gamtypes
     use cmidefs
+    use volttypes, only: IONO_EX,IONO_EY,IONO_EZ
     use metric
     use ringutils
 
@@ -19,7 +20,7 @@ module cmiutils
         type(Grid_T), intent(in) :: Grid
         real(rp), intent(inout) :: gPsi  (1:PsiSh+1,Grid%js:Grid%je+1  ,Grid%ks:Grid%ke+1)
         real(rp), intent(inout) :: inEijk(1:PsiSh+1,Grid%jsg:Grid%jeg+1,Grid%ksg:Grid%keg+1,1:NDIM)
-        real(rp), intent(inout) :: inExyz(1:PsiSh  ,Grid%jsg:Grid%jeg  ,Grid%ksg:Grid%keg,1:NDIM)
+        real(rp), intent(inout) :: inExyz(1:PsiSh  ,Grid%jsg:Grid%jeg  ,Grid%ksg:Grid%keg,1:Model%nvInExyz)
         real(rp), intent(in), optional :: pSclO
         integer :: i,j,k,iG
         integer :: NumP
@@ -107,19 +108,19 @@ module cmiutils
                     !Determinant of ijk matrix
                     ijkDet = iCC(XDIR)*Mijk(1,1) + jCC(XDIR)*Mijk(1,2) + kCC(XDIR)*Mijk(1,3)
 
-                    inExyz(i,j,k,XDIR) = (Mijk(1,1)*ccEijk(IDIR) + Mijk(1,2)*ccEijk(JDIR) + Mijk(1,3)*ccEijk(KDIR))/ijkDet
-                    inExyz(i,j,k,YDIR) = (Mijk(2,1)*ccEijk(IDIR) + Mijk(2,2)*ccEijk(JDIR) + Mijk(2,3)*ccEijk(KDIR))/ijkDet
-                    inExyz(i,j,k,ZDIR) = (Mijk(3,1)*ccEijk(IDIR) + Mijk(3,2)*ccEijk(JDIR) + Mijk(3,3)*ccEijk(KDIR))/ijkDet
+                    inExyz(i,j,k,IONO_EX) = (Mijk(1,1)*ccEijk(IDIR) + Mijk(1,2)*ccEijk(JDIR) + Mijk(1,3)*ccEijk(KDIR))/ijkDet
+                    inExyz(i,j,k,IONO_EY) = (Mijk(2,1)*ccEijk(IDIR) + Mijk(2,2)*ccEijk(JDIR) + Mijk(2,3)*ccEijk(KDIR))/ijkDet
+                    inExyz(i,j,k,IONO_EZ) = (Mijk(3,1)*ccEijk(IDIR) + Mijk(3,2)*ccEijk(JDIR) + Mijk(3,3)*ccEijk(KDIR))/ijkDet
 
                 enddo
             enddo
-            !Recalculate inner-most ring (degenerate metric)
+                !Recalculate inner-most ring (degenerate metric)
             if (Model%doRing) then
                 if (Model%Ring%doS) then
-                    call FixRAVec_S(Model,Grid,inExyz(i,Grid%js:Grid%js+1,Grid%ks:Grid%ke,1:NDIM))
+                    call FixRAVec_S(Model,Grid,inExyz(i,Grid%js:Grid%js+1,Grid%ks:Grid%ke,IONO_EX:IONO_EZ))
                 endif
                 if (Model%Ring%doE) then
-                    call FixRAVec_E(Model,Grid,inExyz(i,Grid%je-1:Grid%je,Grid%ks:Grid%ke,1:NDIM))
+                    call FixRAVec_E(Model,Grid,inExyz(i,Grid%je-1:Grid%je,Grid%ks:Grid%ke,IONO_EX:IONO_EZ))
                 endif
             endif
 
@@ -133,7 +134,7 @@ module cmiutils
     subroutine WrapBallCC(Model,Grid,inExyz)
         type(Model_T), intent(in) :: Model
         type(Grid_T) , intent(in) :: Grid
-        real(rp)  , intent(inout) :: inExyz(1:PsiSh,Grid%jsg:Grid%jeg,Grid%ksg:Grid%keg,1:NDIM)
+        real(rp)  , intent(inout) :: inExyz(1:PsiSh,Grid%jsg:Grid%jeg,Grid%ksg:Grid%keg,1:Model%nvInExyz)
 
         integer :: i,j,k,ip,jp,kp
         logical :: isInI,isInJ,isInK,isAct
