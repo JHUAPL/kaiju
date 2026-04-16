@@ -107,7 +107,7 @@ module gridloc
                 gapDefStr = "LFM"
 
                 ! Set Gap radius from sunward line
-                buffR = ebGr%xyz(ebGr%is+2,ebGr%js,ebGr%ks,XDIR)
+                buffR = ebGr%xyz(ebGr%is+1,ebGr%js,ebGr%ks,XDIR)
 
                 ! Setting Rin to be the ionosphere
                 DomR(1) = (RionE*1.0e+6)/REarth !Ionospheric radius in units of Re, ~1.01880

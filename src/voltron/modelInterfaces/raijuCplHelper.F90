@@ -104,7 +104,6 @@ module raijuCplHelper
         class(raijuCoupler_T), intent(inout) :: raiCpl
 
         integer :: i
-        real(rp) :: Leq
         integer :: n_mhdCellsForBndLoss = 3
             ! Must be in range [1,IMAG_nMHD_R_NEAREARTH]
 

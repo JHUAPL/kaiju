@@ -25,7 +25,6 @@ submodule (volttypes) raijuCplTypesSub
 
         real(rp), dimension(NDIM) :: rxyz
         real(rp) :: lowLatBnd, thetaU, L
-        integer :: idxSpc
 
         ! Allocate our contained raiju app
         allocate(raijuApp_T :: App%raiApp)

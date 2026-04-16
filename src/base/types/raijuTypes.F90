@@ -486,6 +486,8 @@ module raijutypes
         
         integer, dimension(:), allocatable :: bndLoc
             !! (Ngi) i value of boundary between inactive and buffer domain
+        integer, dimension(:), allocatable :: activeLoc
+            !! (Ngi) i value of first active cell
         ! (Ngi, Ngj) cell-centered values
         integer , dimension(:,:), allocatable :: active
             !! (Ngi, Ngj) (-1=inactive, 0=buffer, 1=active)

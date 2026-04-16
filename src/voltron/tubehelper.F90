@@ -144,7 +144,6 @@ module tubehelper
         integer :: OCb, s
         real(rp) :: bD,bP,bD_rc,bP_rc,dvB,bBeta,stdD,stdP,bmin
         real(rp) :: bIon,bIonC,rCurv,VebMKS,VaMKS,TiEV,CsMKS
-        real(rp) :: ilat
 
         real(rp), dimension(NDIM) :: bEq,xyzC,xyzIonC
 
