@@ -7,9 +7,14 @@ module arrayutil
 
     ! interface to fill arrays of all sizes, multiple types
     interface fillArray
-        module procedure fillArray1D_R,fillArray1D_I,fillArray2D_R,fillArray2D_I,&
-            fillArray3D_R,fillArray3D_I,fillArray4D_R,fillArray4D_I,fillArray5D_R,fillArray5D_I
-    end interface
+        module procedure &
+            fillArray1D_R, fillArray1D_I, &
+            fillArray2D_R, fillArray2D_I, &
+            fillArray3D_R, fillArray3D_I, &
+            fillArray4D_R, fillArray4D_I, &
+            fillArray5D_R, fillArray5D_I, &
+            fillArray6D_R, fillArray6D_I
+    end interface fillArray
 
     contains
 
@@ -262,6 +267,55 @@ module arrayutil
 
     end subroutine fillArray5D_I
 
+    subroutine fillArray6D_R(array, val)
+        real(rp), dimension(:,:,:,:,:,:), intent(inout) :: array
+        real(rp), intent(in) :: val
+
+        integer :: lbds(6),ubds(6),i,j,k
+
+        lbds = lbound(array)
+        ubds = ubound(array)
+
+#ifdef _OPENMP
+        !$OMP PARALLEL DO default(shared) collapse(2) &
+        !$OMP private(i,j,k)
+        do k=lbds(3),ubds(3)
+            do j=lbds(2),ubds(2)
+                do i=lbds(1),ubds(1)
+                    array(i,j,k,:,:,:) = val
+                enddo
+            enddo
+        enddo
+#else
+        array = val
+#endif
+
+    end subroutine fillArray6D_R
+
+    subroutine fillArray6D_I(array, val)
+        integer, dimension(:,:,:,:,:,:), intent(inout) :: array
+        integer, intent(in) :: val
+
+        integer :: lbds(6),ubds(6),i,j,k
+
+        lbds = lbound(array)
+        ubds = ubound(array)
+
+#ifdef _OPENMP
+        !$OMP PARALLEL DO default(shared) collapse(2) &
+        !$OMP private(i,j,k)
+        do k=lbds(3),ubds(3)
+            do j=lbds(2),ubds(2)
+                do i=lbds(1),ubds(1)
+                    array(i,j,k,:,:,:) = val
+                enddo
+            enddo
+        enddo
+#else
+        array = val
+#endif
+
+    end subroutine fillArray6D_I
 
 end module arrayutil
 

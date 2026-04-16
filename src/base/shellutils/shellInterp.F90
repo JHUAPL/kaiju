@@ -62,7 +62,7 @@ module shellInterp
 
         if ( present(dThetaO) ) then
             ! First, make sure they are the same shape
-            if (size(dTheta) .ne. sgVar%Ni) then
+            if (size(dThetaO) .ne. sgVar%Ni) then
                 write(*,*) "WARNING: InterpShellVar_TSC_SG got a mismatched dThetaO shape. Dying."
                 stop
             endif
@@ -105,7 +105,6 @@ module shellInterp
         select case(varOut%loc)
             case(SHGR_CC)
                 !$OMP PARALLEL DO default(shared) &
-                !$OMP schedule(dynamic) &
                 !$OMP private(i,j,goodInterp)
                 do j=sgDest%jsg,sgDest%jeg
                     do i=sgDest%isg,sgDest%ieg
@@ -124,7 +123,6 @@ module shellInterp
                 enddo
             case(SHGR_CORNER)
                 !$OMP PARALLEL DO default(shared) &
-                !$OMP schedule(dynamic) &
                 !$OMP private(i,j,goodinterp)
                 do j=sgDest%jsg,sgDest%jeg+1
                     do i=sgDest%isg,sgDest%ieg+1
@@ -141,7 +139,6 @@ module shellInterp
                 enddo
             case(SHGR_FACE_THETA)
                 !$OMP PARALLEL DO default(shared) &
-                !$OMP schedule(dynamic) &
                 !$OMP private(i,j,goodInterp)
                 do j=sgDest%jsg,sgDest%jeg
                     do i=sgDest%isg,sgDest%ieg+1
@@ -158,7 +155,6 @@ module shellInterp
                 enddo
             case(SHGR_FACE_PHI)
                 !$OMP PARALLEL DO default(shared) &
-                !$OMP schedule(dynamic) &
                 !$OMP private(i,j,goodInterp)
                 do j=sgDest%jsg,sgDest%jeg+1
                     do i=sgDest%isg,sgDest%ieg
@@ -182,13 +178,13 @@ module shellInterp
     end subroutine InterpShellVar_TSC_SG
 
 
-    subroutine InterpShellVar_TSC_pnt(sgSource, sgVar, th, pin, Qinterp, dThetaO, dPhiO, srcMaskO, goodInterpO)
+    subroutine InterpShellVar_TSC_pnt(sgSource, sgVar, thin, pin, Qinterp, dThetaO, dPhiO, srcMaskO, goodInterpO)
         !! Given the source information, interpolate sgVar to point (t,pin) and return as Qout
         type(ShellGrid_T   ), intent(in) :: sgSource
             !! Source ShellGrid
         type(ShellGridVar_T), intent(in) :: sgVar
             !! Variable relative to provided ShellGrid
-        real(rp), intent(in) :: th
+        real(rp), intent(in) :: thin
             !! Theta coordinate with respect to source grid
         real(rp), intent(in) :: pin
             !! Phi coordinate with respect to source grid
@@ -204,7 +200,7 @@ module shellInterp
             !! True if we are returning a meaningful interpolated value
 
         
-        real(rp) :: ph
+        real(rp) :: ph,th
             !! Cleaned-up phi location we actually use
         integer :: i0_cell, j0_cell
             !! i and j locations of the cell containing point t,p, irrespective of scVar%loc
@@ -228,9 +224,17 @@ module shellInterp
         ! Check bounds
         ph = modulo(pin,2*PI)
 
+        th = thin
+        !if (th > PI) then
+        !    th = th - PI
+        !    Qinterp = HUGE
+        !    if (present(goodInterpO)) goodInterpO = .true.
+        !endif
         ! Also make sure the requested theta is in bounds
         if ( (th<0.).or.(th>PI) ) then
             write(*,*) "ERROR in InterpShellVar_TSC_pnt: Theta should be in the range [0,PI]. Quitting..."
+            write(*,*)"theta=",th
+            write(*,*)"sourceGrid name=",trim(sgSource%name)
             stop
         end if
 
@@ -257,13 +261,16 @@ module shellInterp
             return
         endif
 
-        ! Make sure data is good at this point
+        ! Make sure the center point is valid in both the intrinsic mask
+        ! and any additional caller-provided source mask.
         if (.not. sgVar%mask(i0,j0)) then
             return
         endif
-
-        ! If still here we're gonna do something, so we can tell our caller we are returning a valid value
-        if (present(goodInterpO)) goodInterpO = .true.
+        if (present(srcMaskO)) then
+            if (.not. srcMaskO(i0,j0)) then
+                return
+            endif
+        endif
 
         ! Determine dTheta and dPhi for this ij point
         if (present(dThetaO)) then
@@ -356,10 +363,9 @@ module shellInterp
 
                 Qs(n) = sgVar%data(ipnt,jpnt)
                 Ws(n) = wE(di)*wZ(dj)
+                isGs(n) = sgVar%mask(ipnt,jpnt)
                 if(present(srcMaskO)) then
-                    isGs(n) = srcMaskO(ipnt,jpnt)
-                else
-                    isGs(n) = sgVar%mask(ipnt,jpnt)
+                    isGs(n) = isGs(n) .and. srcMaskO(ipnt,jpnt)
                 endif
 
                 if (.not. isGs(n)) Ws(n) = 0.0
@@ -368,11 +374,15 @@ module shellInterp
             enddo
         enddo
 
-        ! Renormalize
+        ! Renormalize only if some stencil weight survived masking.
+        if (sum(Ws) <= TINY) then
+            return
+        endif
         Ws = Ws/sum(Ws)
 
         ! Get final value
         Qinterp = dot_product(Qs,Ws)
+        if (present(goodInterpO)) goodInterpO = .true.
 
         ! Have some internal functions
         contains
@@ -423,8 +433,8 @@ module shellInterp
 
         subis = destGrid%is + destGrid%bndis-1 - destGrid%Ngn
         subie = destGrid%is + destGrid%bndie-1 + destGrid%Ngs + iExtra
-        subjs = destGrid%js + destGrid%bndjs-1 - destGrid%Ngw
-        subje = destGrid%js + destGrid%bndje-1 + destGrid%Nge + jExtra
+        subjs = destGrid%js + destGrid%bndjs-1 - destGrid%Nge
+        subje = destGrid%js + destGrid%bndje-1 + destGrid%Ngw + jExtra
 
         ! Now fill in destination variable
         if (srcVar%loc == destVar%loc) then
@@ -452,11 +462,11 @@ module shellInterp
         real(rp) :: tfactor,Qtemp
 
         ! Find out which pole we're at
-        if ( (tin.ge.shGr%th(shGr%is)).and.(tin.le.shGr%th(shGr%is+1)) ) then
+        if ( (tin.ge.shGr%th(shGr%is)-TINY).and.(tin.le.shGr%th(shGr%is+1)+TINY) ) then
             ! note, shGr%th(shGr%is) is within TINY of 0 since we are at the pole
             pole = NORTH
             iinterp = shGr%is
-        else if ( (tin.le.shGr%th(shGr%ie+1)).and.(tin.ge.shGr%th(shGr%ie)) ) then
+        else if ( (tin.le.shGr%th(shGr%ie+1)+TINY).and.(tin.ge.shGr%th(shGr%ie)-TINY) ) then
             ! note, shGr%th(shGr%ie+1) is within TINY of PI since we are at the pole
             pole = SOUTH
             iinterp = shGr%ie

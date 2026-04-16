@@ -13,6 +13,14 @@ module raijugrids
 
     implicit none
 
+    interface wrapJcc
+        module procedure wrapJcc_real, wrapJcc_int, wrapJcc_logical
+    end interface
+
+    interface wrapJcorners
+        module procedure wrapJcorners_real, wrapJcorners_int, wrapJcorners_logical
+    end interface
+
     contains
 
 !------
@@ -254,16 +262,24 @@ module raijugrids
     end subroutine raijuGenWarpSphGrid_Shafee2008
 
 
-    subroutine raijuGenGridFromShGrid(raijuGrid, shGrid, iXML, opts)
+    subroutine raijuGenGridFromShGrid(raijuGrid, shGrid, iXML, opts, doVerboseO)
         type(ShellGrid_T)  , intent(inout) :: raijuGrid
         type(ShellGrid_T), intent(in) :: shGrid
         type(XML_Input_T), intent(in) :: iXML
         type(raijuOptions_T), intent(in) :: opts
+        logical, optional, intent(in) :: doVerboseO
         
         real(rp) :: thetaL, thetaU
         integer :: Ng
         integer, dimension(4) :: nGhosts
         integer :: iStart, iEnd
+        logical :: doVerbose
+
+        if(present(doVerboseO)) then
+            doVerbose=doVerboseO
+        else
+            doVerbose=.false.
+        endif
 
         if(opts%thetaL%isSet()) then
             thetaL = opts%thetaL%get()
@@ -277,7 +293,6 @@ module raijugrids
         call iXML%Set_Val(thetaU , "grid/ThetaU", 45.0)
             !! Upper colat boundary [deg], 2 Re in dipole
         endif
-        write(*,*)"RAIJU theta range = ",thetaL,thetaU
 
         call iXML%Set_Val(Ng, "grid/Ng", 4  )  ! Number of ghosts, in every direction for now
         nGhosts = Ng
@@ -304,18 +319,23 @@ module raijugrids
         do while (shGrid%th(iStart + 1) < thetaL)
             iStart = iStart + 1
         enddo
-        iEnd = Nt + 1
-        do while(shGrid%th(iEnd-1) > thetaU)
+        iEnd = Nt - Ng + 1
+        do while( (shGrid%th(iEnd+1) -  thetaU > TINY) .or. (shGrid%th(iEnd+Ng) - PI/2 > -TINY))  ! Ensure that iEnd is closest point to thetaU without going poleward of it
             iEnd = iEnd - 1
+            !write(*,*)shGrid%th(iEnd), shGrid%th(iEnd+Ng+1), thetaU, PI/2.
         enddo
+
         if (iStart >= iEnd) then
             write(*,*) "idk how you did this"
             stop
         endif
 
         ! Now we can make our grid
-        call GenChildShellGrid(shGrid, raijuGrid, RAI_SG_NAME, nGhosts, sub_is=iStart, sub_ie=iEnd)
-
+        call GenChildShellGrid(shGrid, raijuGrid, RAI_SG_NAME, nGhosts, sub_is=iStart, sub_ie=iEnd, ghostsOnParentGridO=.true.)
+        if (doVerbose) then
+            write(*,'(a,f5.2,a,f5.2,a,f5.2,a,f5.2,a)')"RAIJU active theta range [deg] (rad) = [",raijuGrid%th(raijuGrid%is )*rad2deg,",",raijuGrid%th(raijuGrid%ie +1)*rad2deg,"] (",raijuGrid%th(raijuGrid%is ),",",raijuGrid%th(raijuGrid%ie +1),")"
+            write(*,'(a,f5.2,a,f5.2,a,f5.2,a,f5.2,a)')"RAIJU full   theta range [deg] (rad) = [",raijuGrid%th(raijuGrid%isg)*rad2deg,",",raijuGrid%th(raijuGrid%ieg+1)*rad2deg,"] (",raijuGrid%th(raijuGrid%isg),",",raijuGrid%th(raijuGrid%ieg+1),")"
+        endif
         end associate
 
     end subroutine raijuGenGridFromShGrid
@@ -494,40 +514,6 @@ module raijugrids
 
     end function checkResGrid
 
-
-!------
-! Spatial grid operations
-!------
-    subroutine wrapJcc(sh, Q)
-        !! Populates overlapping j ghosts with active cell-centered data
-        !! Assumes that all values within (:, js:je) are valid to wrap
-        !! And assumes that j ghosts overlap with last active cells on the other side
-        type(ShellGrid_T), intent(in) :: sh
-        real(rp), dimension(sh%isg:sh%ieg, sh%jsg:sh%jeg), intent(inout) :: Q
-
-        ! Starting ghost cells
-        Q(:, sh%jsg:sh%js-1) = Q(:, sh%je-sh%Ngw+1:sh%je)
-        ! Ending ghosts cells
-        Q(:, sh%je+1:sh%jeg) = Q(:, sh%js:sh%js+sh%Nge-1)
-
-    end subroutine wrapJcc
-
-
-    subroutine wrapJcorners(sh, Q)
-        !! Populates overlapping j ghosts with active corner data
-        !! Assumes that all values within (:, js:je) are valid to wrap
-        !! And assumes that j ghosts overlap with last active cells on the other side
-        type(ShellGrid_T), intent(in) :: sh
-        real(rp), dimension(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1), intent(inout) :: Q
-
-        ! Starting ghost cells
-        Q(:, sh%jsg:sh%js) = Q(:, sh%je-sh%Ngw+1:sh%je+1)
-        ! Ending ghosts cells
-        Q(:, sh%je+1:sh%jeg+1) = Q(:, sh%js:sh%js+sh%Nge)
-
-    end subroutine wrapJcorners
-
-
 !------
 ! Lambda grid stuff
 !------
@@ -551,5 +537,139 @@ module raijugrids
         call initAlamc(Grid)
         
     end subroutine initLambdaGrid
+
+
+
+!------
+! Spatial grid helpers
+!------
+
+    function wrapJIdx(sh, j, locEnum) result (jWrap)
+        !! Takes j index and returns with wrapping applied
+        !! Only meant for ghost cells, assumes jsg <= j <= jeg (+1 for corner centered)
+        type(ShellGrid_T), intent(in) :: sh
+        integer, intent(in) :: j
+        integer, intent(in) :: locEnum
+            !! SHGR_CC,SHGR_CORNER,SHGR_FACE_THETA,SHGR_FACE_PHI
+
+        integer :: jWrap, jExtra
+
+        if (locEnum == SHGR_CC .or. locEnum == SHGR_FACE_THETA) then
+            jExtra = 0
+        else if (locEnum == SHGR_CORNER .or. locEnum == SHGR_FACE_PHI) then
+            jExtra = 1
+        else
+            write(*,*) "ERROR in wrapJIdx: locEnum provided is invalid"
+            write(*,*) "locEnum:",locEnum
+            stop
+        endif
+
+        if (j < sh%jsg .or. j > sh%jeg+jExtra) then
+            write(*,*) "ERROR in wrapJIdx: j is outside of grid"
+            write(*,*) "jsg,jeg+extra,j",sh%jsg, sh%jeg+jExtra, j
+            stop
+        endif
+
+        if (j < sh%js) then
+            jWrap = j + sh%Np
+        elseif (j > sh%je) then
+            jWrap = j - sh%Np
+        else
+            jWrap = j
+        endif
+    end function wrapJIdx
+
+
+!------
+! Spatial grid overloads
+!------
+    subroutine wrapJcc_real(sh, Q)
+        !! Populates overlapping j ghosts with active cell-centered data
+        !! Assumes that all values within (:, js:je) are valid to wrap
+        !! And assumes that j ghosts overlap with last active cells on the other side
+        type(ShellGrid_T), intent(in) :: sh
+        real(rp), dimension(sh%isg:sh%ieg, sh%jsg:sh%jeg), intent(inout) :: Q
+
+        ! Starting ghost cells
+        Q(:, sh%jsg:sh%js-1) = Q(:, sh%je-sh%Nge+1:sh%je)
+        ! Ending ghosts cells
+        Q(:, sh%je+1:sh%jeg) = Q(:, sh%js:sh%js+sh%Ngw-1)
+
+    end subroutine wrapJcc_real
+
+
+    subroutine wrapJcc_int(sh, Q)
+        !! Populates overlapping j ghosts with active cell-centered data
+        !! Assumes that all values within (:, js:je) are valid to wrap
+        !! And assumes that j ghosts overlap with last active cells on the other side
+        type(ShellGrid_T), intent(in) :: sh
+        integer, dimension(sh%isg:sh%ieg, sh%jsg:sh%jeg), intent(inout) :: Q
+
+        ! Starting ghost cells
+        Q(:, sh%jsg:sh%js-1) = Q(:, sh%je-sh%Ngw+1:sh%je)
+        ! Ending ghosts cells
+        Q(:, sh%je+1:sh%jeg) = Q(:, sh%js:sh%js+sh%Nge-1)
+
+    end subroutine wrapJcc_int
+
+
+    subroutine wrapJcc_logical(sh, Q)
+        !! Populates overlapping j ghosts with active cell-centered data
+        !! Assumes that all values within (:, js:je) are valid to wrap
+        !! And assumes that j ghosts overlap with last active cells on the other side
+        type(ShellGrid_T), intent(in) :: sh
+        logical, dimension(sh%isg:sh%ieg, sh%jsg:sh%jeg), intent(inout) :: Q
+
+        ! Starting ghost cells
+        Q(:, sh%jsg:sh%js-1) = Q(:, sh%je-sh%Nge+1:sh%je)
+        ! Ending ghosts cells
+        Q(:, sh%je+1:sh%jeg) = Q(:, sh%js:sh%js+sh%Ngw-1)
+
+    end subroutine wrapJcc_logical
+
+
+    subroutine wrapJcorners_real(sh, Q)
+        !! Populates overlapping j ghosts with active corner data
+        !! Assumes that all values within (:, js:je) are valid to wrap
+        !! And assumes that j ghosts overlap with last active cells on the other side
+        type(ShellGrid_T), intent(in) :: sh
+        real(rp), dimension(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1), intent(inout) :: Q
+
+        ! Starting ghost cells
+        Q(:, sh%jsg:sh%js) = Q(:, sh%je-sh%Nge+1:sh%je+1)
+        ! Ending ghosts cells
+        Q(:, sh%je+1:sh%jeg+1) = Q(:, sh%js:sh%js+sh%Ngw)
+
+    end subroutine wrapJcorners_real
+
+
+    subroutine wrapJcorners_int(sh, Q)
+        !! Populates overlapping j ghosts with active corner data
+        !! Assumes that all values within (:, js:je) are valid to wrap
+        !! And assumes that j ghosts overlap with last active cells on the other side
+        type(ShellGrid_T), intent(in) :: sh
+        integer, dimension(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1), intent(inout) :: Q
+
+        ! Starting ghost cells
+        Q(:, sh%jsg:sh%js) = Q(:, sh%je-sh%Nge+1:sh%je+1)
+        ! Ending ghosts cells
+        Q(:, sh%je+1:sh%jeg+1) = Q(:, sh%js:sh%js+sh%Ngw)
+
+    end subroutine wrapJcorners_int
+
+
+    subroutine wrapJcorners_logical(sh, Q)
+        !! Populates overlapping j ghosts with active corner data
+        !! Assumes that all values within (:, js:je) are valid to wrap
+        !! And assumes that j ghosts overlap with last active cells on the other side
+        type(ShellGrid_T), intent(in) :: sh
+        logical, dimension(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1), intent(inout) :: Q
+
+        ! Starting ghost cells
+        Q(:, sh%jsg:sh%js) = Q(:, sh%je-sh%Nge+1:sh%je+1)
+        ! Ending ghosts cells
+        Q(:, sh%je+1:sh%jeg+1) = Q(:, sh%js:sh%js+sh%Ngw)
+
+    end subroutine wrapJcorners_logical
 
 end module raijugrids

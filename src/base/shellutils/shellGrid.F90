@@ -33,6 +33,7 @@ module shellGrid
     logical, dimension(:,:), allocatable :: mask
         !! Mask indicating whether the data at a given index is valid
         !! e.g. good for interpolation, etc.
+        !! True = good value, False = bad value
 
 
     end type ShellGridVar_T
@@ -46,7 +47,7 @@ module shellGrid
         real(rp) :: radius
             !! [Rp] Radius that this ShellGrid lives at, in units of Rp (planetary radii)
         integer :: Nt,Np
-            !! Number of colat/lon cells (theta, phi)
+            !! Number of active colat/lon cells (theta, phi)
         real(rp), dimension(:), allocatable :: th, ph, lat
             !! (Nt+1 or Np+1) [radians] grid corners
             !! th (theta) is colatitude and runs from north pole toward south
@@ -104,7 +105,7 @@ module shellGrid
     !> Create a shell grid data structure
     !> Takes Theta and Phi 1D arrays (uniform or not)
     !> Decides if isPeriodic and isPhiUniform based on the Phi array passed in
-    subroutine GenShellGrid(shGr,Theta,Phi,name,nGhosts,radO)
+    subroutine GenShellGrid(shGr,Theta,Phi,name,nGhosts,radO,TPIncludesGhostsO)
         type(ShellGrid_T), intent(inout) :: shGr
         real(rp), dimension(:), intent(in) :: Theta, Phi
         character(len=*) :: name
@@ -113,20 +114,28 @@ module shellGrid
             !! How many ghosts on each side (n,s,e,w)
         real(rp), optional, intent(in) :: radO
             !! Radius in planetary radii from planet center this grid lives at
-            !! WARNING: Will default to 1 if not provided! That should rarely be the case
+            !! WARNING: Will default to Earth's ionospheric altitude if not provided! That should rarely be the case
+        logical, optional, intent(in) :: TPIncludesGhostsO
         
         integer :: i,j
+        logical :: addGhosts
         real(rp) :: delta, L
         real(rp), dimension(:), allocatable :: dphi
         real(rp), dimension(3) :: xyz
 
         ! Parse optional parameters
         if (present(nGhosts)) then
-            shGr%Ngn = nGhosts(NORTH) ! otherwise, always 0 as set in ShellGrid type
-            shGr%Ngs = nGhosts(SOUTH) ! otherwise, always 0 as set in ShellGrid type
-            shGr%Nge = nGhosts(EAST) ! otherwise, always 1 as set in ShellGrid type
-            shGr%Ngw = nGhosts(WEST) ! otherwise, always 1 as set in ShellGrid type
+            shGr%Ngn = nGhosts(NORTH) ! is ghost (default 0)
+            shGr%Ngs = nGhosts(SOUTH) ! ie ghost (default 0)
+            shGr%Nge = nGhosts(EAST)  ! js ghost (default 1)
+            shGr%Ngw = nGhosts(WEST)  ! je ghost (default 1)
         end if
+
+        if(present(TPIncludesGhostsO)) then
+            addGhosts = .not. TPIncludesGhostsO
+        else
+            addGhosts = .true.
+        endif
 
         ! do some checks first
         if (.not.(isAscending(Theta))) then 
@@ -143,19 +152,8 @@ module shellGrid
             stop
         end if
 
-        if (any(Theta<0.).or.(any(Theta>PI))) then
-            write(*,*) "Inside shell grid generator (GenShellGrid)."
-            write(*,*) "Theta array should be in the range [0,PI]. Quitting..."
-            stop
-        end if
 
-        if (any(Phi<0.).or.(any(Phi>2*PI))) then
-            write(*,*) "Inside shell grid generator (GenShellGrid)."
-            write(*,*) "Phi array should be in the range [0,2*PI]. Quitting..."
-            stop
-        end if
-
-        ! decide if the grid is periodic
+        ! Decide if the grid is periodic
         if ( ( minval(Phi) <= TINY ).and.( maxval(Phi) >= 2*PI - TINY) ) then
             shGr%isPeriodic = .True.
         else
@@ -173,7 +171,28 @@ module shellGrid
             write(*,*) "Grids with Nge/=Ngw have not been implemented. Quitting..."
             stop
         end if
-        
+
+        ! Define various array indices
+        ! Np and Nt are for active domain only. If ghosts are already included in Theta/Phi, subtract nghosts from them
+        if (addGhosts) then
+            shGr%Np = size(Phi)-1
+            shGr%Nt = size(Theta)-1
+        else
+            shGr%Np = size(Phi  ) - shGr%Nge - shGr%Ngw - 1
+            shGr%Nt = size(Theta) - shGr%Ngn - shGr%Ngs - 1
+        endif
+
+        shGr%is = 1; shGr%ie = shGr%Nt
+        shGr%js = 1; shGr%je = shGr%Np
+
+        shGr%isg = shGr%is - shGr%Ngn
+        shGr%ieg = shGr%ie + shGr%Ngs
+        shGr%jsg = shGr%js - shGr%Nge
+        shGr%jeg = shGr%je + shGr%Ngw
+
+
+        ! Do some more checks now that we have some sizes defined
+
         ! Decide if this has north/south pole
         shGr%doNP = .false.
         shGr%doSP = .false.
@@ -197,17 +216,21 @@ module shellGrid
             stop
         end if
 
-        ! define various array indices
-        shGr%Np = size(Phi)-1
-        shGr%Nt = size(Theta)-1
+        ! No one allowed beyond Theta=[0,PI], even ghosts
+        if (any(Theta<0.).or.(any(Theta>PI))) then
+            write(*,*) "Inside shell grid generator (GenShellGrid)."
+            write(*,*) "Theta array should be in the range [0,PI]. Quitting..."
+            stop
+        end if
 
-        shGr%is = 1; shGr%ie = shGr%Nt
-        shGr%js = 1; shGr%je = shGr%Np
+        ! Only ghosts can go outside of PI=[0,2*PI]
+        if (  addGhosts .eqv. .true.  .and. (any(Phi<0.).or.(any(Phi>2*PI))) &
+        .or. (addGhosts .eqv. .false. .and. (any(Phi(shGr%Nge:)<0.).or.(any(Phi(:shGr%Nge+shGr%Np+1)>2*PI)))) ) then
+            write(*,*) "Inside shell grid generator (GenShellGrid)."
+            write(*,*) "Phi array should be in the range [0,2*PI]. Quitting..."
+            stop
+        end if
 
-        shGr%isg = shGr%is - shGr%Ngn
-        shGr%ieg = shGr%ie + shGr%Ngs
-        shGr%jsg = shGr%js - shGr%Ngw
-        shGr%jeg = shGr%je + shGr%Nge
 
         ! decide if the grid is uniform in Phi
         ! helps to speed up interpolation search
@@ -215,9 +238,9 @@ module shellGrid
         allocate(dphi(shGr%Np))   ! helper
         dphi = Phi(2:shGr%Np+1) - Phi(1:shGr%Np)
         if ( all( dphi - dphi(1) <= TINY ) ) then
-            shGr%isPhiUniform = .True.
+            shGr%isPhiUniform = .true.
         else 
-            shGr%isPhiUniform = .False.
+            shGr%isPhiUniform = .false.
         end if
         deallocate(dphi)
 
@@ -250,66 +273,73 @@ module shellGrid
         allocate(shGr%lenFace_ph(isg:ieg  ,jsg:jeg+1))
 
 
-        ! Set grid coordinates
-        shGr%th(is:ie+1) = Theta  ! note the arrays are conformable because of the index definitions above
-        shGr%ph(js:je+1) = Phi
 
-        ! Define ghost coordinates
+        if (.not. addGhosts) then
+            ! Ghosts already included, we have enerything we need
+            shGr%th = Theta
+            shGr%ph = Phi
+        else
+            ! Set grid coordinates
+            shGr%th(is:ie+1) = Theta  ! note the arrays are conformable because of the index definitions above
+            shGr%ph(js:je+1) = Phi
 
-        ! Do north, unless it's the pole (no ghosts for poles)
-        if ( (.not.shGr%doNP).and.(shGr%Ngn/=0) ) then
-            ! linearly extrapolate
-            do i=1,shGr%Ngn
-                shGr%th(is-i) = 2*shGr%th(is) - shGr%th(is+i)
-            end do
+            ! Define ghost coordinates
 
-            ! check if we got into negative thetas
-            ! then just fill the space with same size cells down to theta=0
-            if ( shGr%th(is-shGr%Ngn) < 0 ) then
-                delta = shGr%th(is)/shGr%Ngn
-
+            ! Do north, unless it's the pole (no ghosts for poles)
+            if ( (.not.shGr%doNP).and.(shGr%Ngn/=0) ) then
+                ! linearly extrapolate
                 do i=1,shGr%Ngn
-                    shGr%th(is-i) = shGr%th(is) - delta*i
+                    shGr%th(is-i) = 2*shGr%th(is) - shGr%th(is+i)
                 end do
 
-                shGr%ghostNP = .true.
+                ! check if we got into negative thetas
+                ! then just fill the space with same size cells down to theta=0
+                if ( shGr%th(is-shGr%Ngn) < 0 ) then
+                    delta = shGr%th(is)/shGr%Ngn
+
+                    do i=1,shGr%Ngn
+                        shGr%th(is-i) = shGr%th(is) - delta*i
+                    end do
+
+                    shGr%ghostNP = .true.
+                end if
             end if
-        end if
 
-        ! Do south, unless it's the pole (no ghosts for poles)
-        if ( (.not.shGr%doSP).and.(shGr%Ngs/=0) ) then
-            ! linearly extrapolate
-            do i=1,shGr%Ngs
-                shGr%th(ie+1+i) = 2*shGr%th(ie+1) - shGr%th(ie+1-i)
-            end do
-
-            ! check if we got into thetas > pi
-            ! then just fill the space with same size cells up to theta=pi
-            if ( shGr%th(ie+1+shGr%Ngs) > PI ) then
-                delta = (PI - shGr%th(ie+1))/shGr%Ngs
+            ! Do south, unless it's the pole (no ghosts for poles)
+            if ( (.not.shGr%doSP).and.(shGr%Ngs/=0) ) then
+                ! linearly extrapolate
                 do i=1,shGr%Ngs
-                    shGr%th(ie+1+i) = shGr%th(ie+1) + delta*i
+                    shGr%th(ie+1+i) = 2*shGr%th(ie+1) - shGr%th(ie+1-i)
                 end do
 
-                shGr%ghostSP = .true.
+                ! check if we got into thetas > pi
+                ! then just fill the space with same size cells up to theta=pi
+                if ( shGr%th(ie+1+shGr%Ngs) > PI ) then
+                    delta = (PI - shGr%th(ie+1))/shGr%Ngs
+                    do i=1,shGr%Ngs
+                        shGr%th(ie+1+i) = shGr%th(ie+1) + delta*i
+                    end do
+
+                    shGr%ghostSP = .true.
+                end if
             end if
-        end if
 
-        ! if non-periodic grid is needed, can implement ghosts on E/W ends similarly to N/S above
-        ! but we assume the grid is always periodic
-        if ( (.not.shGr%isPeriodic) )  then
-            write(*,*) "Inside shell grid generator (GenShellGrid)."
-            write(*,*) "Non-periodic grids are not implemented. Quitting..."
-            write(*,*)name
-            write(*,*) Phi
-            stop
+            ! if non-periodic grid is needed, can implement ghosts on E/W ends similarly to N/S above
+            ! but we assume the grid is always periodic
+            if ( (.not.shGr%isPeriodic) )  then
+                write(*,*) "Inside shell grid generator (GenShellGrid)."
+                write(*,*) "Non-periodic grids are not implemented. Quitting..."
+                write(*,*)name
+                write(*,*) Phi
+                stop
+            endif
+
+            ! Note, we already made sure that for a periodic grid Nge=Ngw, phi(js)=0 and phi(je+1)=pi
+            do j=1,shGr%Nge
+                shGr%ph(js-j)   = shGr%ph(je+1-j) - 2*PI
+                shGr%ph(je+1+j) = shGr%ph(js+j) + 2*PI
+            end do
         endif
-
-        ! Note, we already made sure that for a periodic grid Nge=Ngw, phi(js)=0 and phi(je+1)=pi
-        do j=1,shGr%Nge
-            shGr%ph(js-j)   = shGr%ph(je+1-j) - 2*PI
-            shGr%ph(je+1+j) = shGr%ph(js+j) + 2*PI
-        end do
 
         ! Set centers
         shGr%thc = ( shGr%th(isg+1:ieg+1) + shGr%th(isg:ieg) )/2.
@@ -459,7 +489,7 @@ module shellGrid
     end subroutine initShellVar
 
 
-    subroutine GenChildShellGrid(pSG, cSG, name, nGhosts, sub_is, sub_ie, sub_js, sub_je)
+    subroutine GenChildShellGrid(pSG, cSG, name, nGhosts, sub_is, sub_ie, sub_js, sub_je, ghostsOnParentGridO)
         !! Given a parent ShellGrid, makes a child ShellGrid as a subset of parent
         type(ShellGrid_T), intent(in) :: pSG
             !! Parent ShellGrid
@@ -470,11 +500,20 @@ module shellGrid
         integer, optional, dimension(4), intent(in) :: nGhosts
             !! Number of ghosts the child grid will have
         integer, optional, intent(in) :: sub_is, sub_ie, sub_js, sub_je
-            !! Start and end i/j indices of parent grid that bound active domain of new child grid
+            !! Start and end cell-centered i/j indices of parent grid that bound active domain of new child grid
             !! These are optional. If left out, we will essentially make a copy of the parent grid
+        logical, optional, intent(in) :: ghostsOnParentGridO
+            !! Whether or not the ghost cells of the child grid should exactly match points on parent grid beyond defined subdomain
 
         integer :: is, ie, js, je
             !! Actual bounds used
+        logical :: ghostsOnParentGrid
+
+        if (present(ghostsOnParentGridO)) then
+            ghostsOnParentGrid = ghostsOnParentGridO
+        else
+            ghostsOnParentGrid = .true.
+        endif
 
         ! If a bound is provided then we use that, if not we default to parent grid's bounds
         is = whichInd(sub_is, pSG%is, present(sub_is))
@@ -525,27 +564,30 @@ module shellGrid
 
         ! Otherwise we are ready to make a child grid
         if ( present(nGhosts) ) then
-            ! The ghosts can't overrun parent grid's ghost bounds
-            if (    is - nGhosts(NORTH) < pSG%isg  ) then
-                write(*,*) "ERROR GenChildShellGrid: Child ghosts overrun parent ghosts in is direction"
-                stop
-            elseif (ie + nGhosts(SOUTH) > pSG%ieg+1) then
-                write(*,*) "ERROR GenChildShellGrid: Child ghosts overrun parent ghosts in ie direction"
-                stop
-            elseif (js - nGhosts(WEST ) < pSG%jsg  ) then
-                write(*,*) "ERROR GenChildShellGrid: Child ghosts overrun parent ghosts in js direction"
-                stop
-            elseif (je + nGhosts(EAST ) > pSG%jeg+1) then
-                write(*,*) "ERROR GenChildShellGrid: Child ghosts overrun parent ghosts in je direction"
-                stop
+            if (ghostsOnParentGrid) then
+                ! The ghosts can't overrun parent grid's ghost bounds
+                if (    is - nGhosts(NORTH) < pSG%isg  ) then
+                    write(*,*) "ERROR GenChildShellGrid: Child ghosts overrun parent ghosts in is direction"
+                    stop
+                elseif (ie + nGhosts(SOUTH) > pSG%ieg+1) then
+                    write(*,*) "ERROR GenChildShellGrid: Child ghosts overrun parent ghosts in ie direction"
+                    stop
+                elseif (js - nGhosts(EAST ) < pSG%jsg  ) then
+                    write(*,*) "ERROR GenChildShellGrid: Child ghosts overrun parent ghosts in js direction"
+                    stop
+                elseif (je + nGhosts(WEST ) > pSG%jeg+1) then
+                    write(*,*) "ERROR GenChildShellGrid: Child ghosts overrun parent ghosts in je direction"
+                    stop
+                endif
+                ! Ghost cells have to be on parent grid. Include those cells in the theta/phi we provide and let GenShellGrid know
+                call GenShellGrid(cSG, pSG%th(is-nGhosts(NORTH):ie+nGhosts(SOUTH)+1), pSG%ph(js-nGhosts(EAST):je+nGhosts(WEST)+1), name, nGhosts=nGhosts, radO=pSG%radius, TPIncludesGhostsO=.true.)    
+            else
+                call GenShellGrid(cSG, pSG%th(is:ie+1)                              , pSG%ph(js:je+1)                            , name, nGhosts=nGhosts, radO=pSG%radius, TPIncludesGhostsO=.false.)
             endif
-
-            ! Otherwise, this ghost definition is okay
-            call GenShellGrid(cSG, pSG%th(is:ie+1), pSG%ph(js:je+1), name, nGhosts=nGhosts, radO=pSG%radius)
 
         else
             ! No ghosts defined, go with default
-            call GenShellGrid(cSG, pSG%th(is:ie+1), pSG%ph(js:je+1), name, radO=pSG%radius)
+            call GenShellGrid(cSG, pSG%th(is:ie+1), pSG%ph(js:je+1), name, radO=pSG%radius, TPIncludesGhostsO=.false.)
         endif
         
 
