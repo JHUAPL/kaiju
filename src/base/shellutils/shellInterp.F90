@@ -171,8 +171,10 @@ module shellInterp
                 enddo
         end select
 
-        ! Fill j ghosts with active cell data
-        call wrapJ_SGV(sgDest, varOut)
+        ! Fill j ghosts with active cell data on periodic destination grids.
+        if (sgDest%isPeriodic) then
+            call wrapJ_SGV(sgDest, varOut)
+        endif
         
 
     end subroutine InterpShellVar_TSC_SG
@@ -441,11 +443,7 @@ module shellInterp
             destVar%data(:,:) = srcVar%data(subis:subie, subjs:subje)
             destVar%mask(:,:) = srcVar%mask(subis:subie, subjs:subje)
         else  ! Need to interpolate
-            ! Chop srcVar into destination grid size
-            call initShellVar(destGrid, srcVar%loc, src2destVar)
-            src2destVar%data(:,:) = srcVar%data(subis:subie, subjs:subje)
-            src2destVar%mask(:,:) = srcVar%mask(subis:subie, subjs:subje)
-            call InterpShellVar_TSC_SG(destGrid, src2destVar, destGrid, destVar)
+            call InterpShellVar_TSC_SG(srcGrid, srcVar, destGrid, destVar)
         endif
 
     end subroutine InterpShellVar_ParentToChild

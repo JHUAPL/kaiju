@@ -1,0 +1,284 @@
+module testSGChildGrid
+
+    use testHelper
+    use kdefs, only : rp, PI, deg2rad, strLen
+
+    use shellGrid
+    use shellUtils
+    use shellInterp
+
+    implicit none
+
+    integer, parameter :: parentNt = 12
+    integer, parameter :: parentNp = 24
+    integer, parameter :: sub_is = 4
+    integer, parameter :: sub_ie = 8
+    integer, parameter :: sub_js = 6
+    integer, parameter :: sub_je = 14
+    integer, dimension(4), parameter :: parentGhosts = (/2,2,2,2/)
+    integer, dimension(4), parameter :: childGhosts  = (/2,2,2,2/)
+    real(rp), parameter :: testTol = 1.0e-12_rp
+
+    type(ShellGrid_T) :: parentSG
+    type(ShellGridVar_T) :: parentVarCC
+    type(ShellGridVar_T) :: parentVarCorner
+    character(len=strLen) :: checkMessage
+
+contains
+
+    @before
+    subroutine setup()
+        real(rp), dimension(parentNt+1) :: theta
+        real(rp), dimension(parentNp+1) :: phi
+        real(rp) :: dth, dph
+        integer :: i, j
+
+        dth = (58.0_rp - 10.0_rp)*deg2rad / parentNt
+        dph = 2.0_rp*PI / parentNp
+
+        do i=1,parentNt+1
+            theta(i) = 10.0_rp*deg2rad + (i-1)*dth
+        enddo
+
+        do j=1,parentNp+1
+            phi(j) = (j-1)*dph
+        enddo
+
+        call GenShellGrid(parentSG, theta, phi, "shgrParent", nGhosts=parentGhosts, radO=1.1_rp)
+
+        call initShellVar(parentSG, SHGR_CC    , parentVarCC)
+        call initShellVar(parentSG, SHGR_CORNER, parentVarCorner)
+
+        call fillParentVars()
+    end subroutine setup
+
+
+    @after
+    subroutine teardown()
+        call deallocShellGrid(parentSG)
+    end subroutine teardown
+
+
+    @test
+    subroutine testGenChildShellGrid_parentGhosts()
+        !! Make sure that when ghostsOnParentGridO=T, child's ghost grids are made up of parent's grid, 
+        !!  not linearly extrapolated like what would happen if we called default version of GenShellGrid
+        type(ShellGrid_T) :: childSG
+        integer :: i, j
+        integer :: parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe
+
+        call GenChildShellGrid( &
+            parentSG, childSG, "shgrChild", &
+            nGhosts=childGhosts, &
+            sub_is=sub_is, sub_ie=sub_ie, sub_js=sub_js, sub_je=sub_je, &
+            ghostsOnParentGridO=.true.)
+
+        @assertTrue(childSG%isChild, "Child grid: isChild should be true")
+        @assertEqual(trim(parentSG%name), trim(childSG%parentName), "Child grid: parentName mismatch")
+        @assertEqual(sub_is, childSG%bndis, "Child grid: bndis mismatch")
+        @assertEqual(sub_ie, childSG%bndie, "Child grid: bndie mismatch")
+        @assertEqual(sub_js, childSG%bndjs, "Child grid: bndjs mismatch")
+        @assertEqual(sub_je, childSG%bndje, "Child grid: bndje mismatch")
+        @assertEqual(sub_ie-sub_is+1, childSG%Nt, "Child grid: Nt mismatch")
+        @assertEqual(sub_je-sub_js+1, childSG%Np, "Child grid: Np mismatch")
+
+        call getParentSliceBounds(childSG, SHGR_CORNER, parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe)
+
+        do i=childSG%isg,childSG%ieg+1
+            @assertLessThanOrEqual(abs(childSG%th(i) - parentSG%th(parentSliceIs + (i-childSG%isg))), testTol, "Child grid: th slice mismatch")
+        enddo
+
+        do j=childSG%jsg,childSG%jeg+1
+            @assertLessThanOrEqual(abs(childSG%ph(j) - parentSG%ph(parentSliceJs + (j-childSG%jsg))), testTol, "Child grid: ph slice mismatch")
+        enddo
+
+        call deallocShellGrid(childSG)
+    end subroutine testGenChildShellGrid_parentGhosts
+
+
+    @test
+    subroutine testParentToChild_sameLoc_CC()
+        !! Test whether parentToChild properly copies over exact data to child grid
+        type(ShellGrid_T) :: childSG
+        type(ShellGridVar_T) :: childVarCC
+        integer :: i, j
+        integer :: parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe
+
+
+        call GenChildShellGrid( &
+            parentSG, childSG, "shgrChildCC", &
+            nGhosts=childGhosts, &
+            sub_is=sub_is, sub_ie=sub_ie, sub_js=sub_js, sub_je=sub_je, &
+            ghostsOnParentGridO=.true.)
+
+        call initShellVar(childSG, SHGR_CC, childVarCC)
+        call InterpShellVar_ParentToChild(parentSG, parentVarCC, childSG, childVarCC)
+        call getParentSliceBounds(childSG, SHGR_CC, parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe)
+
+        do j=childVarCC%jsv,childVarCC%jev
+            do i=childVarCC%isv,childVarCC%iev
+                @assertLessThanOrEqual(abs(childVarCC%data(i,j) - parentVarCC%data(parentSliceIs + (i-childVarCC%isv), parentSliceJs + (j-childVarCC%jsv))), testTol, "ParentToChild same-loc CC: data mismatch")
+                @assertTrue(childVarCC%mask(i,j) .eqv. parentVarCC%mask(parentSliceIs + (i-childVarCC%isv), parentSliceJs + (j-childVarCC%jsv)), "ParentToChild same-loc CC: mask mismatch")
+            enddo
+        enddo
+
+        call deallocShellGrid(childSG)
+    end subroutine testParentToChild_sameLoc_CC
+
+
+    @test
+    subroutine testParentToChild_sameLoc_Corner()
+        !! Test whether parentToChild properly copies over exact data to child grid
+        !! Not currently exercising different code than testParentToChile_sameLoc_CC test, but keeping just in case
+        !!  that changes in the future 
+        type(ShellGrid_T) :: childSG
+        type(ShellGridVar_T) :: childVarCorner
+        integer :: i, j
+        integer :: parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe
+
+        call GenChildShellGrid( &
+            parentSG, childSG, "shgrChildCorner", &
+            nGhosts=childGhosts, &
+            sub_is=sub_is, sub_ie=sub_ie, sub_js=sub_js, sub_je=sub_je, &
+            ghostsOnParentGridO=.true.)
+
+        call initShellVar(childSG, SHGR_CORNER, childVarCorner)
+        call InterpShellVar_ParentToChild(parentSG, parentVarCorner, childSG, childVarCorner)
+        call getParentSliceBounds(childSG, SHGR_CORNER, parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe)
+
+        do j=childVarCorner%jsv,childVarCorner%jev
+            do i=childVarCorner%isv,childVarCorner%iev
+                @assertLessThanOrEqual(abs(childVarCorner%data(i,j) - parentVarCorner%data(parentSliceIs + (i-childVarCorner%isv), parentSliceJs + (j-childVarCorner%jsv))), testTol, "ParentToChild same-loc corner: data mismatch")
+                @assertTrue(childVarCorner%mask(i,j) .eqv. parentVarCorner%mask(parentSliceIs + (i-childVarCorner%isv), parentSliceJs + (j-childVarCorner%jsv)), "ParentToChild same-loc corner: mask mismatch")
+            enddo
+        enddo
+
+        call deallocShellGrid(childSG)
+    end subroutine testParentToChild_sameLoc_Corner
+
+
+    @test
+    subroutine testParentToChild_cornerToCC_matchesLocalReference()
+        !! Test whether InterpShellVar_ParentToChild properly falls back to TSC interp when the variable locations
+        !!  differ between parent and child grids
+        type(ShellGrid_T) :: childSG
+        type(ShellGridVar_T) :: childVarCC_viaParent
+        type(ShellGridVar_T) :: childVarCC_ref
+        logical, dimension(parentVarCorner%isv:parentVarCorner%iev, parentVarCorner%jsv:parentVarCorner%jev) :: parentRefMask
+        integer :: i, j
+        integer :: parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe
+        integer :: parentRefIs, parentRefIe, parentRefJs, parentRefJe
+
+        call GenChildShellGrid( &
+            parentSG, childSG, "shgrChildInterp", &
+            nGhosts=childGhosts, &
+            sub_is=sub_is, sub_ie=sub_ie, sub_js=sub_js, sub_je=sub_je, &
+            ghostsOnParentGridO=.true.)
+
+        call initShellVar(childSG, SHGR_CC    , childVarCC_viaParent)  ! Child CC-located var coming from ParentToChild call
+        call initShellVar(childSG, SHGR_CC    , childVarCC_ref)        ! Child CC-located var interped from parent-backed local reference
+        ! childVarCC_viaParent is what we're testing to be equivalent to childVarCC_ref
+
+        call InterpShellVar_ParentToChild(parentSG, parentVarCorner, childSG, childVarCC_viaParent)
+
+        call getParentSliceBounds(childSG, SHGR_CORNER, parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe)
+
+        ! TSC uses a 3x3 stencil around the nearest source point, so keep one parent-cell halo
+        ! around the child-support region while preserving the full parent-grid geometry.
+        parentRefIs = max(parentVarCorner%isv, parentSliceIs - 1)
+        parentRefIe = min(parentVarCorner%iev, parentSliceIe + 1)
+        parentRefJs = max(parentVarCorner%jsv, parentSliceJs - 1)
+        parentRefJe = min(parentVarCorner%jev, parentSliceJe + 1)
+
+        parentRefMask = .false.
+        parentRefMask(parentRefIs:parentRefIe, parentRefJs:parentRefJe) = .true.
+
+        call InterpShellVar_TSC_SG(parentSG, parentVarCorner, childSG, childVarCC_ref, srcMaskO=parentRefMask)
+
+        do j=childVarCC_viaParent%jsv,childVarCC_viaParent%jev
+            do i=childVarCC_viaParent%isv,childVarCC_viaParent%iev
+                if (i >= childSG%is .and. i <= childSG%ie .and. j >= childSG%js .and. j <= childSG%je) then
+                    write(checkMessage,'(a,i0,a,i0,a)') "ParentToChild corner->CC active mismatch at i=", i, ", j=", j, "."
+                else
+                    write(checkMessage,'(a,i0,a,i0,a)') "ParentToChild corner->CC ghost mismatch at i=", i, ", j=", j, "."
+                endif
+                @assertLessThanOrEqual(abs(childVarCC_viaParent%data(i,j) - childVarCC_ref%data(i,j)), testTol, trim(checkMessage))
+            enddo
+        enddo
+
+        call deallocShellGrid(childSG)
+    end subroutine testParentToChild_cornerToCC_matchesLocalReference
+
+
+    @test
+    subroutine testInterpTSC_nonPeriodicChildGhosts_matchPointwise()
+        !! Explicitly checking that TSC interp from big grid onto smaller one works properly
+        type(ShellGrid_T) :: childSG
+        type(ShellGridVar_T) :: childVarCC_tsc
+        real(rp) :: pointVal
+        integer :: i, j
+
+        call GenChildShellGrid( &
+            parentSG, childSG, "shgrChildNonPeriodic", &
+            nGhosts=childGhosts, &
+            sub_is=sub_is, sub_ie=sub_ie, sub_js=sub_js, sub_je=sub_je, &
+            ghostsOnParentGridO=.true.)
+
+        @assertFalse(childSG%isPeriodic, "Non-periodic child regression test requires childSG%isPeriodic = .false.")
+
+        call initShellVar(childSG, SHGR_CC, childVarCC_tsc)
+        call InterpShellVar_TSC_SG(parentSG, parentVarCC, childSG, childVarCC_tsc)
+
+        do j=childVarCC_tsc%jsv,childVarCC_tsc%jev
+            do i=childVarCC_tsc%isv,childVarCC_tsc%iev
+                call InterpShellVar_TSC_pnt(parentSG, parentVarCC, childSG%thc(i), childSG%phc(j), pointVal)
+                if (j < childSG%js) then
+                    write(checkMessage,'(a,i0,a,i0,a)') "InterpShellVar_TSC_SG west ghost mismatch at i=", i, ", j=", j, "."
+                else if (j > childSG%je) then
+                    write(checkMessage,'(a,i0,a,i0,a)') "InterpShellVar_TSC_SG east ghost mismatch at i=", i, ", j=", j, "."
+                else if (i < childSG%is .or. i > childSG%ie) then
+                    write(checkMessage,'(a,i0,a,i0,a)') "InterpShellVar_TSC_SG theta ghost mismatch at i=", i, ", j=", j, "."
+                else
+                    write(checkMessage,'(a,i0,a,i0,a)') "InterpShellVar_TSC_SG active mismatch at i=", i, ", j=", j, "."
+                endif
+                @assertLessThanOrEqual(abs(childVarCC_tsc%data(i,j) - pointVal), testTol, trim(checkMessage))
+            enddo
+        enddo
+
+        call deallocShellGrid(childSG)
+    end subroutine testInterpTSC_nonPeriodicChildGhosts_matchPointwise
+
+
+    subroutine fillParentVars()
+        integer :: i, j
+
+        do j=parentVarCC%jsv,parentVarCC%jev
+            do i=parentVarCC%isv,parentVarCC%iev
+                parentVarCC%data(i,j) = sin(parentSG%thc(i)) + 0.25_rp*cos(parentSG%phc(j)) + 0.01_rp*i - 0.001_rp*j
+            enddo
+        enddo
+
+        do j=parentVarCorner%jsv,parentVarCorner%jev
+            do i=parentVarCorner%isv,parentVarCorner%iev
+                parentVarCorner%data(i,j) = sin(parentSG%th(i)) + 0.25_rp*cos(parentSG%ph(j)) + 0.01_rp*i - 0.001_rp*j
+            enddo
+        enddo
+    end subroutine fillParentVars
+
+
+    subroutine getParentSliceBounds(childSG, loc, parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe)
+        type(ShellGrid_T), intent(in) :: childSG
+        integer, intent(in) :: loc
+        integer, intent(out) :: parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe
+
+        integer :: iExtra, jExtra
+
+        call ijExtra_SGV(loc, iExtra, jExtra)
+
+        parentSliceIs = childSG%is + childSG%bndis - 1 - childSG%Ngn
+        parentSliceIe = childSG%is + childSG%bndie - 1 + childSG%Ngs + iExtra
+        parentSliceJs = childSG%js + childSG%bndjs - 1 - childSG%Nge
+        parentSliceJe = childSG%js + childSG%bndje - 1 + childSG%Ngw + jExtra
+    end subroutine getParentSliceBounds
+
+end module testSGChildGrid

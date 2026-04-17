@@ -181,4 +181,119 @@ module testGridLocator
         enddo
     end subroutine
 
+
+    @test
+    subroutine testPeriodicWrapHelpers()
+        type(ShellGridVar_T) :: wrapVarCC
+        type(ShellGridVar_T) :: wrapVarCorner
+        type(ShellGridVar_T) :: wrapVarFaceTheta
+        type(ShellGridVar_T) :: wrapVarFacePhi
+        integer :: i, j, jExpected
+
+        @assertEqual(sh%je   , getSGJ_periodic(sh, sh%js-1), "getSGJ_periodic(js-1) failed")
+        @assertEqual(sh%je-1 , getSGJ_periodic(sh, sh%js-2), "getSGJ_periodic(js-2) failed")
+        @assertEqual(sh%js   , getSGJ_periodic(sh, sh%je+1), "getSGJ_periodic(je+1) failed")
+        @assertEqual(sh%js+1 , getSGJ_periodic(sh, sh%je+2), "getSGJ_periodic(je+2) failed")
+
+        call initShellVar(sh, SHGR_CC, wrapVarCC)
+        wrapVarCC%data = -999.0_rp
+        do j=sh%js,sh%je
+            do i=wrapVarCC%isv,wrapVarCC%iev
+                wrapVarCC%data(i,j) = 1000.0_rp*i + j
+            enddo
+        enddo
+        call wrapJ_SGV(sh, wrapVarCC)
+
+        do j=sh%jsg,sh%js-1
+            jExpected = sh%je - sh%Nge + 1 + (j - sh%jsg)
+            do i=wrapVarCC%isv,wrapVarCC%iev
+                @assertEqual(wrapVarCC%data(i,jExpected), wrapVarCC%data(i,j), "wrapJ_SGV CC: west ghost mismatch")
+            enddo
+        enddo
+        do j=sh%je+1,sh%jeg
+            jExpected = sh%js + (j - (sh%je+1))
+            do i=wrapVarCC%isv,wrapVarCC%iev
+                @assertEqual(wrapVarCC%data(i,jExpected), wrapVarCC%data(i,j), "wrapJ_SGV CC: east ghost mismatch")
+            enddo
+        enddo
+
+        call initShellVar(sh, SHGR_FACE_THETA, wrapVarFaceTheta)
+        wrapVarFaceTheta%data = -999.0_rp
+        do j=sh%js,sh%je
+            do i=wrapVarFaceTheta%isv,wrapVarFaceTheta%iev
+                wrapVarFaceTheta%data(i,j) = 1000.0_rp*i + j
+            enddo
+        enddo
+        call wrapJ_SGV(sh, wrapVarFaceTheta)
+
+        do j=sh%jsg,sh%js-1
+            jExpected = sh%je - sh%Nge + 1 + (j - sh%jsg)
+            do i=wrapVarFaceTheta%isv,wrapVarFaceTheta%iev
+                @assertEqual(wrapVarFaceTheta%data(i,jExpected), wrapVarFaceTheta%data(i,j), "wrapJ_SGV face-theta: west ghost mismatch")
+            enddo
+        enddo
+        do j=sh%je+1,sh%jeg
+            jExpected = sh%js + (j - (sh%je+1))
+            do i=wrapVarFaceTheta%isv,wrapVarFaceTheta%iev
+                @assertEqual(wrapVarFaceTheta%data(i,jExpected), wrapVarFaceTheta%data(i,j), "wrapJ_SGV face-theta: east ghost mismatch")
+            enddo
+        enddo
+
+        call initShellVar(sh, SHGR_CORNER, wrapVarCorner)
+        wrapVarCorner%data = -999.0_rp
+        do j=sh%js,sh%je+1
+            do i=wrapVarCorner%isv,wrapVarCorner%iev
+                wrapVarCorner%data(i,j) = 1000.0_rp*i + j
+            enddo
+        enddo
+        call wrapJ_SGV(sh, wrapVarCorner)
+
+        do j=sh%jsg,sh%js
+            jExpected = sh%je - sh%Nge + 1 + (j - sh%jsg)
+            do i=wrapVarCorner%isv,wrapVarCorner%iev
+                @assertEqual(wrapVarCorner%data(i,jExpected), wrapVarCorner%data(i,j), "wrapJ_SGV corner: west ghost mismatch")
+            enddo
+        enddo
+        do j=sh%je+1,sh%jeg+1
+            jExpected = sh%js + (j - (sh%je+1))
+            do i=wrapVarCorner%isv,wrapVarCorner%iev
+                @assertEqual(wrapVarCorner%data(i,jExpected), wrapVarCorner%data(i,j), "wrapJ_SGV corner: east ghost mismatch")
+            enddo
+        enddo
+
+        call initShellVar(sh, SHGR_FACE_PHI, wrapVarFacePhi)
+        wrapVarFacePhi%data = -999.0_rp
+        do j=sh%js,sh%je+1
+            do i=wrapVarFacePhi%isv,wrapVarFacePhi%iev
+                wrapVarFacePhi%data(i,j) = 1000.0_rp*i + j
+            enddo
+        enddo
+        call wrapJ_SGV(sh, wrapVarFacePhi)
+
+        do j=sh%jsg,sh%js
+            jExpected = sh%je - sh%Nge + 1 + (j - sh%jsg)
+            do i=wrapVarFacePhi%isv,wrapVarFacePhi%iev
+                @assertEqual(wrapVarFacePhi%data(i,jExpected), wrapVarFacePhi%data(i,j), "wrapJ_SGV face-phi: west ghost mismatch")
+            enddo
+        enddo
+        do j=sh%je+1,sh%jeg+1
+            jExpected = sh%js + (j - (sh%je+1))
+            do i=wrapVarFacePhi%isv,wrapVarFacePhi%iev
+                @assertEqual(wrapVarFacePhi%data(i,jExpected), wrapVarFacePhi%data(i,j), "wrapJ_SGV face-phi: east ghost mismatch")
+            enddo
+        enddo
+    end subroutine
+
+
+    @test
+    subroutine testGetSGCellILoc_exactGhostEdges()
+        integer :: iLoc
+
+        call getSGCellILoc(sh, sh%minGTheta, iLoc)
+        @assertEqual(sh%isg, iLoc, "getSGCellILoc(minGTheta) should return isg")
+
+        call getSGCellILoc(sh, sh%maxGTheta, iLoc)
+        @assertEqual(sh%ieg, iLoc, "getSGCellILoc(maxGTheta) should return ieg")
+    end subroutine
+
 end module testGridLocator

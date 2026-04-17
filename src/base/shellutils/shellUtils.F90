@@ -40,6 +40,13 @@ module shellUtils
         type(ShellGrid_T), intent(in) :: sh
         type(ShellGridVar_T), intent(inout) :: sgVar
 
+        if (.not. sh%isPeriodic) then
+            write(*,*) "WARNING in wrapJ_SGV: called on non-periodic shell grid. Returning without wrapping."
+            write(*,*) " Caller should check sh%isPeriodic before calling wrapJ_SGV."
+            write(*,*) " Grid name:", trim(sh%name)
+            return
+        endif
+
         associate(Q => sgVar%data)
 
         ! Theta faces are cell-centered w.r.t. j direction
@@ -151,6 +158,7 @@ module shellUtils
         real(rp) :: p, deltap, dJ
 
         p = modulo(pin,2*PI)
+        if (abs(p-pin) > TINY) write(*,*)"getSGCellJLoc pin vs p:",pin,p
 
         ! note, shellGrid only implements [0,2pi] grids
         ! but do this check here in case it's needed in the future
