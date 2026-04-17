@@ -256,6 +256,54 @@ module volttypes
 
     integer, parameter :: mix2mhd_varn = 1  ! for now just the potential is sent back
 
+    ! =========================================================
+    ! ionoCoupler_T — abstract ionosphere coupler interface
+    ! Mirrors imagCoupler_T / raijuCoupler_T pattern.
+    ! Any ionospheric model (REMIX, SMITE, ...) extends this.
+    ! =========================================================
+
+    type, extends(BaseOptions_T) :: ionoOptions_T
+        type(ShellGrid_T) :: voltGrid
+            !! Copy of Voltron ShellGrid passed during init
+
+        contains
+    end type ionoOptions_T
+
+    type, abstract, extends(BaseApp_T) :: ionoCoupler_T
+
+        class(ionoOptions_T), allocatable :: opt
+
+        contains
+
+        ! Transfer Gamera/IMAG data (via vApp) into the iono model
+        procedure(toIono_T),   deferred :: toIono
+        ! Map solved iono potential back onto vApp%State%potential_total
+        procedure(fromIono_T), deferred :: fromIono
+
+    end type ionoCoupler_T
+
+    type, extends(ionoCoupler_T) :: remixCoupler_T
+
+        type(mixApp_T) :: mixApp
+            !! Embedded REMIX model (was vApp%remixApp)
+
+        contains
+
+        procedure :: toIono   => remixCpl_toIono
+        procedure :: fromIono => remixCpl_fromIono
+
+        procedure :: InitModel           => remixCplInitModel
+        procedure :: InitIO              => remixCplInitIO
+        procedure :: WriteRestart        => remixCplWriteRestart
+        procedure :: ReadRestart         => remixCplReadRestart
+        procedure :: WriteConsoleOutput  => remixCplWriteConsoleOutput
+        procedure :: WriteFileOutput     => remixCplWriteFileOutput
+        procedure :: WriteSlimFileOutput => remixCplWriteSlimFileOutput
+        procedure :: AdvanceModel        => remixCplAdvanceModel
+        procedure :: Cleanup             => remixCplCleanup
+
+    end type remixCoupler_T
+
     type, extends(gamApp_T) :: gamCoupler_T
 
         ! data for coupling remix to gamera
@@ -356,7 +404,8 @@ module volttypes
         logical :: writeFiles = .true. !File output
 
         !Apps
-        type(mixApp_T) :: remixApp
+        class(ionoCoupler_T), allocatable :: ionoApp
+            !! Ionosphere coupler (e.g. remixCoupler_T, smiteCoupler_T)
         type(mhd2Mix_T) :: mhd2mix
 
         type(ebTrcApp_T)  :: ebTrcApp
@@ -402,6 +451,21 @@ module volttypes
 
     end type voltApp_T
 
+    abstract interface
+        subroutine toIono_T(App, vApp)
+            import ionoCoupler_T
+            import voltApp_T
+            class(ionoCoupler_T), intent(inout) :: App
+            class(voltApp_T),     intent(inout) :: vApp
+        end subroutine toIono_T
+
+        subroutine fromIono_T(App, vApp)
+            import ionoCoupler_T
+            import voltApp_T
+            class(ionoCoupler_T), intent(inout) :: App
+            class(voltApp_T),     intent(inout) :: vApp
+        end subroutine fromIono_T
+    end interface
 
     abstract interface
         subroutine toIMAG_T(App, vApp)
@@ -620,7 +684,64 @@ module volttypes
         module subroutine raiCplCleanup(App)
             class(raijuCoupler_T), intent(inout) :: App
         end subroutine
-        
+
+    end interface
+
+    ! remixCoupler_T
+    interface
+        module subroutine remixCpl_toIono(App, vApp)
+            class(remixCoupler_T), intent(inout) :: App
+            class(voltApp_T),      intent(inout) :: vApp
+        end subroutine
+
+        module subroutine remixCpl_fromIono(App, vApp)
+            class(remixCoupler_T), intent(inout) :: App
+            class(voltApp_T),      intent(inout) :: vApp
+        end subroutine
+
+        module subroutine remixCplInitModel(App, xml)
+            class(remixCoupler_T), intent(inout) :: App
+            type(XML_Input_T),     intent(inout) :: xml
+        end subroutine
+
+        module subroutine remixCplInitIO(App, xml)
+            class(remixCoupler_T), intent(inout) :: App
+            type(XML_Input_T),     intent(inout) :: xml
+        end subroutine
+
+        module subroutine remixCplWriteRestart(App, nRes)
+            class(remixCoupler_T), intent(inout) :: App
+            integer,               intent(in)    :: nRes
+        end subroutine
+
+        module subroutine remixCplReadRestart(App, resId, nRes)
+            class(remixCoupler_T), intent(inout) :: App
+            character(len=*),      intent(in)    :: resId
+            integer,               intent(in)    :: nRes
+        end subroutine
+
+        module subroutine remixCplWriteConsoleOutput(App)
+            class(remixCoupler_T), intent(inout) :: App
+        end subroutine
+
+        module subroutine remixCplWriteFileOutput(App, nStep)
+            class(remixCoupler_T), intent(inout) :: App
+            integer,               intent(in)    :: nStep
+        end subroutine
+
+        module subroutine remixCplWriteSlimFileOutput(App, nStep)
+            class(remixCoupler_T), intent(inout) :: App
+            integer,               intent(in)    :: nStep
+        end subroutine
+
+        module subroutine remixCplAdvanceModel(App, dt)
+            class(remixCoupler_T), intent(inout) :: App
+            real(rp),              intent(in)    :: dt
+        end subroutine
+
+        module subroutine remixCplCleanup(App)
+            class(remixCoupler_T), intent(inout) :: App
+        end subroutine
 
     end interface
 

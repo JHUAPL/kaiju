@@ -204,11 +204,8 @@ module voltio
         class(gamApp_T) , intent(inout) :: gApp
 
         if (vApp%writeFiles) then
-            ! call writeMIXRestart(vApp%remixApp%ion,vApp%IO%nRes,mjd=vApp%MJD,time=vApp%time)
-            vApp%remixApp%IO%mjd = vApp%MJD
-            vApp%remixApp%IO%time = vApp%time
-
-            call vApp%remixApp%WriteRestart(vApp%IO%nRes)
+            ! IO%mjd and IO%time are set in fromIono — no extra setup needed
+            call vApp%ionoApp%WriteRestart(vApp%IO%nRes)
             !Write inner mag restart
             if (vApp%doDeep) then
                 !call vApp%imagApp%doRestart(vApp%IO%nRes,vApp%MJD,vApp%time)
@@ -370,11 +367,8 @@ module voltio
         class(gamApp_T) , intent(inout) :: gApp
         
         if(vApp%writeFiles) then
-            !Write ReMIX data
-            ! call writeMix(vApp%remixApp%ion,vApp%IO%nOut,mjd=vApp%MJD,time=vApp%time)
-            vApp%remixApp%IO%mjd = vApp%MJD
-            vApp%remixApp%IO%time = vApp%time
-            call vApp%remixApp%WriteFileOutput(vApp%IO%nOut)
+            !Write ionosphere data (REMIX or other iono model)
+            call vApp%ionoApp%WriteFileOutput(vApp%IO%nOut)
 
             !Write inner mag IO if needed
             if (vApp%doDeep) then

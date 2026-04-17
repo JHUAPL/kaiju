@@ -15,6 +15,7 @@ module voltapp
     use imag2mix_interface
     use ebsquish
     use innermagsphere
+    use ionosphere
     use dates
     use kronos
     use voltio
@@ -267,12 +268,16 @@ module voltapp
         if(.not. vApp%doDeep) then
             ! if we aren't using "deep" parts such as RCM, we need to use a
             !    precipitation model that doesn't rely on them
-            if(vApp%remixApp%ion(NORTH)%P%aurora_model_type /= FEDDER .and. vApp%remixApp%ion(NORTH)%P%aurora_model_type /= SUNNY) then
-                write(*,*) 'The "FEDDER" or SUNNY precipitation model MUST be used when deep coupling is disabled.'
-                write(*,*) 'Please either enable the "voltron/coupling/doDeep" option, or'
-                write(*,*) ' set "remix/precipitation/aurora_model_type" to "FEDDER" or "SUNNY"'
-                stop
-            endif
+            select type(ionoApp => vApp%ionoApp)
+            type is (remixCoupler_T)
+                if(ionoApp%mixApp%ion(NORTH)%P%aurora_model_type /= FEDDER .and. &
+                   ionoApp%mixApp%ion(NORTH)%P%aurora_model_type /= SUNNY) then
+                    write(*,*) 'The "FEDDER" or SUNNY precipitation model MUST be used when deep coupling is disabled.'
+                    write(*,*) 'Please either enable the "voltron/coupling/doDeep" option, or'
+                    write(*,*) ' set "remix/precipitation/aurora_model_type" to "FEDDER" or "SUNNY"'
+                    stop
+                endif
+            end select
         endif
 
         if (gApp%Grid%Nkp>=512) then
@@ -392,67 +397,67 @@ module voltapp
         ! Setting apex reference altitude
         call init_apex(vApp%MJD,vApp%gcm%altmax)
 
-        ! There is no space for optFileName, we directly pass inpXML
-        call vApp%remixApp%InitModel(xmlInp)
+        ! Allocate and init ionosphere coupler (REMIX or future models)
+        call InitIonosphere(vApp, xmlInp)
 
-        if(isRestart) then
-            call vApp%remixApp%ReadRestart(resId=RunID,nRes=vApp%IO%nRes)
-        endif
-        
-        if(vApp%writeFiles) then
-            call vApp%remixApp%InitIO(xmlInp)
-        endif
-        
-        ! if(present(optFilename)) then
-        !     ! read from the prescribed file
-        !     call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],optFilename=optFilename,RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
-        ! else
-        !     call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
-        ! endif
-        
-        vApp%remixApp%ion%rad_iono_m  = vApp%planet%ri_m
-        vApp%remixApp%ion%rad_planet_m = vApp%planet%rp_m
-        !Ensure remix and voltron restart numbers match
-        if (isRestart .and. vApp%IO%nRes /= vApp%remixApp%ion(1)%P%nRes) then
-            write(*,*) "Voltron and Remix disagree on restart number, you should sort that out."
-            write(*,*) "Error code: A house divided cannot stand"
-            write(*,*) "   Voltron nRes = ", vApp%IO%nRes
-            write(*,*) "   Remix   nRes = ", vApp%remixApp%ion(1)%P%nRes
-            stop
-        endif
+        ! REMIX-specific post-init steps (access via select type)
+        select type(ionoApp => vApp%ionoApp)
+        type is (remixCoupler_T)
 
-        if (vApp%remixApp%ion(NORTH)%P%doSWF107 .neqv. vApp%remixApp%ion(SOUTH)%P%doSWF107) then
-            write(*,*) 'Something is wrong. doSWf107 is set differently for the two hemispheres.'
-            write(*,*) 'Exiting ...'
-            stop
-        endif
+            if(isRestart) then
+                call ionoApp%ReadRestart(resId=RunID, nRes=vApp%IO%nRes)
+            endif
 
-        ! read f107 from the SW file and overwrite what's been read from .xml above (in init_mix)
-        ! note, only checking for NORTH, because both hemispheres read the same xml file        
-        if (vApp%remixApp%ion(NORTH)%P%doSWF107) then
-            !Set F10.7 from time series (using max)
-            f107%wID = vApp%tilt%wID
-            call f107%initTS("f10.7",doLoudO=.false.)
-            maxF107 = f107%getMax()
+            if(vApp%writeFiles) then
+                call ionoApp%InitIO(xmlInp)
+            endif
 
-            call updateF107(vApp%remixApp%ion,maxF107)
-    
-            if (vApp%isLoud) write(*,*) 'Using F10.7 = ', maxF107        
-        endif                
+            ionoApp%mixApp%ion%rad_iono_m   = vApp%planet%ri_m
+            ionoApp%mixApp%ion%rad_planet_m = vApp%planet%rp_m
 
-        if (vApp%isLoud) write(*,*) 'Using MJD0  = ', gApp%Model%MJD0
+            !Ensure remix and voltron restart numbers match
+            if (isRestart .and. vApp%IO%nRes /= ionoApp%mixApp%ion(1)%P%nRes) then
+                write(*,*) "Voltron and Remix disagree on restart number, you should sort that out."
+                write(*,*) "Error code: A house divided cannot stand"
+                write(*,*) "   Voltron nRes = ", vApp%IO%nRes
+                write(*,*) "   Remix   nRes = ", ionoApp%mixApp%ion(1)%P%nRes
+                stop
+            endif
 
-        ! initialize remix to gamera structures
-        call init_mix2MhdCoupler(vApp%gApp, vApp%remixApp)
-        ! initialize additional coupled gamera data
-        call vApp%gApp%InitMhdCoupler(vApp)
-        if(isRestart) then
-            call xmlInp%Set_Val(resID,"/Kaiju/gamera/restart/resID","msphere")
-            call xmlInp%Set_Val(nRes,"/Kaiju/gamera/restart/nRes" ,-1)
-            call vApp%gApp%ReadRestart(resID, nRes)
-        endif
+            if (ionoApp%mixApp%ion(NORTH)%P%doSWF107 .neqv. ionoApp%mixApp%ion(SOUTH)%P%doSWF107) then
+                write(*,*) 'Something is wrong. doSWf107 is set differently for the two hemispheres.'
+                write(*,*) 'Exiting ...'
+                stop
+            endif
 
-        call init_mhd2Mix(vApp%mhd2mix, gApp, vApp%remixApp)
+            ! read f107 from the SW file and overwrite what's been read from .xml above (in init_mix)
+            ! note, only checking for NORTH, because both hemispheres read the same xml file
+            if (ionoApp%mixApp%ion(NORTH)%P%doSWF107) then
+                !Set F10.7 from time series (using max)
+                f107%wID = vApp%tilt%wID
+                call f107%initTS("f10.7",doLoudO=.false.)
+                maxF107 = f107%getMax()
+
+                call updateF107(ionoApp%mixApp%ion, maxF107)
+
+                if (vApp%isLoud) write(*,*) 'Using F10.7 = ', maxF107
+            endif
+
+            if (vApp%isLoud) write(*,*) 'Using MJD0  = ', gApp%Model%MJD0
+
+            ! initialize remix to gamera structures (needs gApp — stays here for Step 1)
+            call init_mix2MhdCoupler(vApp%gApp, ionoApp%mixApp)
+            ! initialize additional coupled gamera data
+            call vApp%gApp%InitMhdCoupler(vApp)
+            if(isRestart) then
+                call xmlInp%Set_Val(resID,"/Kaiju/gamera/restart/resID","msphere")
+                call xmlInp%Set_Val(nRes,"/Kaiju/gamera/restart/nRes" ,-1)
+                call vApp%gApp%ReadRestart(resID, nRes)
+            endif
+
+            call init_mhd2Mix(vApp%mhd2mix, gApp, ionoApp%mixApp)
+
+        end select
         !vApp%mix2mhd%mixOutput = 0.0
         
     !CHIMP (TRC) from Gamera
@@ -481,73 +486,17 @@ module voltapp
     end subroutine initializeFromGamera
 
 !----------
-    subroutine runRemix(vApp)
-        class(voltApp_T), intent(inout) :: vApp
-        real(rp) :: curTilt
-
-        ! convert gamera inputs to remix
-        call MJDRecalc(vApp%MJD)
-        if ( vApp%doDeep .and. (vApp%time>0) ) then
-            call CoupleIMagToMix(vApp)
-        endif
-        call mapGameraToRemix(vApp%mhd2mix, vApp%remixApp)
-
-        ! determining the current dipole tilt
-        call vApp%tilt%getValue(vApp%time,curTilt)
-        vApp%remixApp%IO%tilt = curTilt
-        vApp%remixApp%IO%time = vApp%time
-
-        ! solve for remix output
-        ! if (vApp%time<=0) then
-        !     call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.false.)
-        ! else if (vApp%doGCM) then
-        !     call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
-        ! else
-        !     call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.true.)
-        ! endif
-
-        if (vApp%doGCM) then
-            call getConductance(vApp%remixApp%ion, vApp%remixApp%IO, vApp%gcm)
-        else
-            call getConductance(vApp%remixApp%ion, vApp%remixApp%IO)
-        endif
-        
-        
-        ! if (vApp%doGCM) then
-        !     call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
-        ! else
-        !     call vApp%remixApp%AdvanceModel(0.0_rp) ! steady-state, dt=0
-        ! endif
-        call vApp%remixApp%AdvanceModel(0.0_rp) ! steady-state, dt=0
-
-        
-
-    end subroutine runRemix
-
-!----------
 !Deep coupling stuff (time coming from vApp%time, so in seconds)
     subroutine DeepUpdate(vApp, gApp)
         class(gamApp_T) , intent(inout) :: gApp
         class(voltApp_T), intent(inout) :: vApp
 
-        !Remix code moved from old shallow coupling
-        ! convert gamera data to mixInput
-        call Tic("G2R")
-        call convertGameraToRemix(vApp%mhd2mix, gApp, vApp%remixApp)
-        call Toc("G2R")
-
-        ! run remix
+        ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
         call Tic("ReMIX", .true.)
-        call runRemix(vApp)
+        call vApp%ionoApp%toIono(vApp)
+        call vApp%ionoApp%AdvanceModel(0.0_rp)
+        call vApp%ionoApp%fromIono(vApp)
         call Toc("ReMIX", .true.)
-
-        ! Update potential on voltron's grid
-        call updateVoltPotential(vApp)
-
-
-        call Tic("R2G")
-        call CouplePotentialToMhd(vApp)
-        call Toc("R2G")
 
         ! only do imag after spinup with deep enabled
         if(vApp%doDeep .and. vApp%time >= 0) then
@@ -567,8 +516,8 @@ module voltapp
             gApp%Grid%Gas0 = 0
             !Load TM03 into Gas0 for ingestion during spinup
             !Note: Using vApp%time instead of gamera time units
-            call LoadSpinupGas0(gApp%Model,gApp%Grid,vApp%time)            
-            
+            call LoadSpinupGas0(gApp%Model,gApp%Grid,vApp%time)
+
         endif
 
     end subroutine DeepUpdate

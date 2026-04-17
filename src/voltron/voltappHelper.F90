@@ -60,24 +60,7 @@ module voltappHelper
         
     end subroutine initVoltState
 
-    subroutine updateVoltPotential(vApp)
-        class(voltApp_T), intent(inout) :: vApp
-
-        type(ShellGridVar_T) :: iono_var
-            !! We hand this to mixVarToVoltron to give us back the remix potential on the voltron ShellGrid
-
-        ! Get ionospheric potential from remix, add to coration to get total potential in SM coordinates
-        call initShellVar(vApp%shGrid, SHGR_CORNER, iono_var)
-        call calcCorotPotential(vApp%planet, vApp%shGrid, vApp%State%potential_corot,doGeoCorotO=vApp%doGeoCorot)
-        call mixVarToVoltron(vApp%remixApp, POT, vApp%shGrid, iono_var)
-        ! Combine iono and corotation potential to form total potential in SM frame
-        vApp%State%potential_total%data = iono_var%data + vApp%State%potential_corot%data
-        vApp%State%potential_total%mask = .true.
-
-        ! Diagnostics
-        !call calcPotDrop(vApp)
-
-    end subroutine updateVoltPotential
+    ! updateVoltPotential has been removed — its logic is now in remixCpl_fromIono
 
     subroutine calcCorotPotential(planet, sh, pCorot,doGeoCorotO)
         ! Calculate corotation potential to store on voltron ShellGrid
