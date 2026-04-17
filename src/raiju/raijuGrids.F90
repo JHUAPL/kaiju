@@ -262,12 +262,14 @@ module raijugrids
     end subroutine raijuGenWarpSphGrid_Shafee2008
 
 
-    subroutine raijuGenGridFromShGrid(raijuGrid, shGrid, iXML, opts, doVerboseO)
+    subroutine raijuGenGridFromShGrid(raijuGrid, shGrid, iXML, opts, doVerboseO, okO, errMsgO)
         type(ShellGrid_T)  , intent(inout) :: raijuGrid
         type(ShellGrid_T), intent(in) :: shGrid
         type(XML_Input_T), intent(in) :: iXML
         type(raijuOptions_T), intent(in) :: opts
         logical, optional, intent(in) :: doVerboseO
+        logical, optional, intent(out) :: okO
+        character(len=*), optional, intent(out) :: errMsgO
         
         real(rp) :: thetaL, thetaU
         integer :: Ng
@@ -280,6 +282,9 @@ module raijugrids
         else
             doVerbose=.false.
         endif
+
+        if (present(okO)) okO = .false.
+        if (present(errMsgO)) errMsgO = ""
 
         if(opts%thetaL%isSet()) then
             thetaL = opts%thetaL%get()
@@ -304,41 +309,123 @@ module raijugrids
         associate (Nt=>shGrid%Nt, Np=>shGrid%Np)
         ! Do some checks first
         if (thetaL < shGrid%th(1)) then
-            write(*,*)"Error in raijuGenGridFromShGrid: lower theta bound outside of parent grid"
-            write(*,*)"thetaL = ",thetaL,", min theta from parent = ",shGrid%th(1)
-            stop
+            call failGridGen("Error in raijuGenGridFromShGrid: lower theta bound outside of parent grid")
+            return
         endif
         if (thetaU > shGrid%th(Nt+1)) then
-            write(*,*)"Error in raijuGenGridFromShGrid: upper theta bound outside of parent grid"
-            write(*,*)"thetaU = ",thetaU,", max theta from parent = ",shGrid%th(Nt+1)
-            stop
+            call failGridGen("Error in raijuGenGridFromShGrid: upper theta bound outside of parent grid")
+            return
         endif
 
         ! Determine what our start and end i bounds should be within parent grid
-        iStart = 1
+        iStart = shGrid%is
         do while (shGrid%th(iStart + 1) < thetaL)
             iStart = iStart + 1
         enddo
-        iEnd = Nt - Ng + 1
-        do while( (shGrid%th(iEnd+1) -  thetaU > TINY) .or. (shGrid%th(iEnd+Ng) - PI/2 > -TINY))  ! Ensure that iEnd is closest point to thetaU without going poleward of it
-            iEnd = iEnd - 1
-            !write(*,*)shGrid%th(iEnd), shGrid%th(iEnd+Ng+1), thetaU, PI/2.
+        iEnd = iStart
+        do while (iEnd < Nt .and. shGrid%th(iEnd+1) < thetaU - TINY)
+            iEnd = iEnd + 1
         enddo
 
         if (iStart >= iEnd) then
-            write(*,*) "idk how you did this"
-            stop
+            call failGridGen("Error in raijuGenGridFromShGrid: no valid active theta band remains after applying requested theta bounds")
+            return
+        endif
+
+        if (iEnd + Ng + 1 > Nt + 1) then
+            call failGridGen("Error in raijuGenGridFromShGrid: requested low-lat coverage cannot be satisfied with current parent grid and ghost count")
+            return
+        endif
+
+        if (shGrid%th(iEnd+Ng+1) > PI/2.0_rp - TINY) then
+            call failGridGen("Error in raijuGenGridFromShGrid: requested low-lat coverage would force RAIJU ghost cells to reach or cross the equator")
+            return
         endif
 
         ! Now we can make our grid
         call GenChildShellGrid(shGrid, raijuGrid, RAI_SG_NAME, nGhosts, sub_is=iStart, sub_ie=iEnd, ghostsOnParentGridO=.true.)
+        call validateRaijuChildShGrid(raijuGrid, thetaL=thetaL, thetaU=thetaU, okO=okO, errMsgO=errMsgO)
+        if (present(okO)) then
+            if (.not. okO) return
+        else if (present(errMsgO)) then
+            if (len_trim(errMsgO) > 0) return
+        endif
         if (doVerbose) then
             write(*,'(a,f5.2,a,f5.2,a,f5.2,a,f5.2,a)')"RAIJU active theta range [deg] (rad) = [",raijuGrid%th(raijuGrid%is )*rad2deg,",",raijuGrid%th(raijuGrid%ie +1)*rad2deg,"] (",raijuGrid%th(raijuGrid%is ),",",raijuGrid%th(raijuGrid%ie +1),")"
             write(*,'(a,f5.2,a,f5.2,a,f5.2,a,f5.2,a)')"RAIJU full   theta range [deg] (rad) = [",raijuGrid%th(raijuGrid%isg)*rad2deg,",",raijuGrid%th(raijuGrid%ieg+1)*rad2deg,"] (",raijuGrid%th(raijuGrid%isg),",",raijuGrid%th(raijuGrid%ieg+1),")"
         endif
+        if (present(okO)) okO = .true.
         end associate
 
+        contains
+
+        subroutine failGridGen(msg)
+            character(len=*), intent(in) :: msg
+
+            if (present(okO) .or. present(errMsgO)) then
+                if (present(okO)) okO = .false.
+                if (present(errMsgO)) errMsgO = trim(msg)
+            else
+                write(*,*) trim(msg)
+                write(*,*) " thetaL = ",thetaL,", thetaU = ",thetaU
+                write(*,*) " parent theta range = ",shGrid%th(1), shGrid%th(shGrid%Nt+1)
+                stop
+            endif
+        end subroutine failGridGen
+
     end subroutine raijuGenGridFromShGrid
+
+
+    subroutine validateRaijuChildShGrid(raijuGrid, thetaL, thetaU, okO, errMsgO)
+        type(ShellGrid_T), intent(in) :: raijuGrid
+        real(rp), optional, intent(in) :: thetaL, thetaU
+        logical, optional, intent(out) :: okO
+        character(len=*), optional, intent(out) :: errMsgO
+
+        if (present(okO)) okO = .false.
+        if (present(errMsgO)) errMsgO = ""
+
+        if (.not. raijuGrid%isChild) then
+            call failValidation("ERROR in validateRaijuChildShGrid: expected RAIJU ShellGrid to be a child grid")
+            return
+        endif
+        if (.not. raijuGrid%isPeriodic) then
+            call failValidation("ERROR in validateRaijuChildShGrid: expected RAIJU ShellGrid to wrap full phi")
+            return
+        endif
+        if (any(raijuGrid%th(:) > PI/2.0_rp - TINY)) then
+            call failValidation("ERROR in validateRaijuChildShGrid: RAIJU ghost cells reach or cross the equator")
+            return
+        endif
+        if (present(thetaL)) then
+            if (raijuGrid%th(raijuGrid%is) > thetaL + TINY .or. raijuGrid%th(raijuGrid%is+1) < thetaL - TINY) then
+                call failValidation("ERROR in validateRaijuChildShGrid: first active theta cell does not bound requested thetaL")
+                return
+            endif
+        endif
+        if (present(thetaU)) then
+            if (raijuGrid%th(raijuGrid%ie) > thetaU + TINY .or. raijuGrid%th(raijuGrid%ie+1) < thetaU - TINY) then
+                call failValidation("ERROR in validateRaijuChildShGrid: last active theta cell does not bound requested thetaU")
+                return
+            endif
+        endif
+
+        if (present(okO)) okO = .true.
+
+        contains
+
+        subroutine failValidation(msg)
+            character(len=*), intent(in) :: msg
+
+            if (present(okO) .or. present(errMsgO)) then
+                if (present(okO)) okO = .false.
+                if (present(errMsgO)) errMsgO = trim(msg)
+            else
+                write(*,*) trim(msg)
+                stop
+            endif
+        end subroutine failValidation
+    end subroutine validateRaijuChildShGrid
 
 
     subroutine finalizeLLGrid(Grid, planet)
