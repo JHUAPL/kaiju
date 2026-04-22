@@ -6,6 +6,7 @@ add_dependencies(tgiclib baselib gamlib)
 
 # helper files for all testing code
 file(GLOB helperFiles "${PROJECT_SOURCE_DIR}/tests/helperCode/*.F90")
+file(GLOB raiCplSupportFiles "${CMAKE_CURRENT_SOURCE_DIR}/raiCpl/support/*.F90")
 
 # NON-MPI TESTS GO UP HERE
 file(GLOB caseTestFiles "${CMAKE_CURRENT_SOURCE_DIR}/cases/*.pf")
@@ -40,7 +41,7 @@ add_dependencies(raiTests ${raiTestLibs})
 
 file(GLOB raiCplTestFiles "${CMAKE_CURRENT_SOURCE_DIR}/raiCpl/*.pf")
 set(raiCplTestLibs baselib gamlib remixlib voltlib tgiclib raijulib)
-add_pfunit_ctest (raiCplTests TEST_SOURCES ${raiCplTestFiles} OTHER_SOURCES ${helperFiles} LINK_LIBRARIES ${raiCplTestLibs})
+add_pfunit_ctest (raiCplTests TEST_SOURCES ${raiCplTestFiles} OTHER_SOURCES ${helperFiles} ${raiCplSupportFiles} LINK_LIBRARIES ${raiCplTestLibs})
 add_dependencies(raiCplTests ${raiCplTestLibs})
 
 # copy input xml files and grid h5 files to binary folder for running
@@ -109,12 +110,12 @@ if(ENABLE_MPI)
     set(allTestFiles ${caseTestFiles} ${gamTestFiles} ${mixTestFiles} ${voltTestFiles} ${shgrTestFiles} ${raiTestFiles} ${raiCplTestFiles} ${caseMpiTestFiles} ${baseMpiTestFiles} ${gamMpiTestFiles} ${voltMpiTestFiles})
     set(allTestLibs baselib gamlib remixlib voltlib basempilib gammpilib voltmpilib tgiclib raijulib)
     set(allTestBins caseTests gamTests mixTests voltTests shgrTests raiTests raiCplTests gamMpiTests baseMpiTests caseMpiTests voltMpiTests)
-    add_pfunit_ctest (allTests TEST_SOURCES ${allTestFiles} OTHER_SOURCES ${helperFiles} ${helperFilesMpi} LINK_LIBRARIES ${allTestLibs} MAX_PES 64)
+    add_pfunit_ctest (allTests TEST_SOURCES ${allTestFiles} OTHER_SOURCES ${helperFiles} ${raiCplSupportFiles} ${helperFilesMpi} LINK_LIBRARIES ${allTestLibs} MAX_PES 64)
 else()
     # exclude MPI tests
     set(allTestFiles ${caseTestFiles} ${gamTestFiles} ${mixTestFiles} ${voltTestFiles} ${shgrTestFiles} ${raiTestFiles} ${raiCplTestFiles})
     set(allTestLibs baselib gamlib remixlib voltlib tgiclib raijulib)
     set(allTestBins caseTests gamTests mixTests voltTests shgrTests raiTests raiCplTests)
-    add_pfunit_ctest (allTests TEST_SOURCES ${allTestFiles} OTHER_SOURCES ${helperFiles} LINK_LIBRARIES ${allTestLibs})
+    add_pfunit_ctest (allTests TEST_SOURCES ${allTestFiles} OTHER_SOURCES ${helperFiles} ${raiCplSupportFiles} LINK_LIBRARIES ${allTestLibs})
 endif()
 add_dependencies(allTests CopyInputs CopyGrids ${allTestBins} ${allTestLibs})

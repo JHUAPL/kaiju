@@ -158,7 +158,6 @@ module shellUtils
         real(rp) :: p, deltap, dJ
 
         p = modulo(pin,2*PI)
-        if (abs(p-pin) > TINY) write(*,*)"getSGCellJLoc pin vs p:",pin,p
 
         ! note, shellGrid only implements [0,2pi] grids
         ! but do this check here in case it's needed in the future
@@ -172,8 +171,8 @@ module shellUtils
         if (shGr%isPhiUniform) then
             ! note this is faster, thus preferred
             deltap = shGr%phc(2)-shGr%phc(1)
-            dJ = p/deltap
-            jLoc = floor(dJ) + 1
+            dJ = (p - shGr%ph(shGr%js))/deltap
+            jLoc = floor(dJ) + shGr%js
         else
             jLoc = shGr%jsg
             do while (p > shGr%ph(jLoc+1))

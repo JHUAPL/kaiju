@@ -315,6 +315,7 @@ module shellInterp
         if (sgSource%doNP .and. (i0_cell==sgSource%is)) then
             ! Handle north pole and return
             call interpPole(sgSource,sgVar,th,ph,Qinterp)
+            if (present(goodInterpO)) goodInterpO = .true.
             return
         endif
 
@@ -322,6 +323,7 @@ module shellInterp
         if (sgSource%doSP .and. (i0_cell==sgSource%ie)) then
             ! Handle south pole and return
             call interpPole(sgSource,sgVar,th,ph,Qinterp)
+            if (present(goodInterpO)) goodInterpO = .true.
             return
         endif
 

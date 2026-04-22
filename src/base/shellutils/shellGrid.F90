@@ -118,6 +118,7 @@ module shellGrid
         logical, optional, intent(in) :: TPIncludesGhostsO
         
         integer :: i,j
+        integer :: phiLo, phiHi
         logical :: addGhosts
         real(rp) :: delta, L
         real(rp), dimension(:), allocatable :: dphi
@@ -224,13 +225,30 @@ module shellGrid
             stop
         end if
 
-        ! Only ghosts can go outside of PI=[0,2*PI]
-        if (  addGhosts .eqv. .true.  .and. (any(Phi<0.).or.(any(Phi>2*PI+TINY))) &
-        .or. (addGhosts .eqv. .false. .and. (any(Phi(shGr%Nge:)<0.).or.(any(Phi(:shGr%Nge+shGr%Np+1)>2*PI+TINY)))) ) then
-            write(*,*) "Inside shell grid generator (GenShellGrid)."
-            write(*,*) "Phi array should be in the range [0,2*PI]. Quitting..."
-            write(*,*) Phi
-            stop
+        ! Only ghosts can go outside of PHI=[0,2*PI]
+        if (addGhosts) then
+            if (any(Phi<0.).or.(any(Phi>2*PI))) then
+                write(*,*) "Inside shell grid generator (GenShellGrid)."
+                write(*,*) "Phi array should be in the range [0,2*PI]. Quitting..."
+                write(*,*) Phi
+                stop
+            end if
+        else
+            phiLo = shGr%Nge + 1
+            phiHi = shGr%Nge + shGr%Np + 1
+
+            if (phiLo < lbound(Phi,1) .or. phiHi > ubound(Phi,1)) then
+                write(*,*) "Inside shell grid generator (GenShellGrid)."
+                write(*,*) "Phi array ghost indexing is inconsistent with active-domain bounds. Quitting..."
+                stop
+            end if
+
+            if (any(Phi(phiLo:phiHi)<0.).or.(any(Phi(phiLo:phiHi)>2*PI))) then
+                write(*,*) "Inside shell grid generator (GenShellGrid)."
+                write(*,*) "Phi array should be in the range [0,2*PI]. Quitting..."
+                write(*,*) Phi
+                stop
+            end if
         end if
 
 

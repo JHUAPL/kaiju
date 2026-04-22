@@ -22,6 +22,8 @@ module testSGInterp
 
     contains
 
+    ! TODO: Test pole, test proper isGoodInterp T and F behavior
+
     @before
 	subroutine setup()
         real(rp), dimension(Npnt) :: thetas, phis
