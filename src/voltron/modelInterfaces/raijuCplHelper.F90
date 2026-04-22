@@ -100,23 +100,38 @@ module raijuCplHelper
     end subroutine raijuCpl_init
 
 
-    subroutine setRaijuILowLat_MHD(raiCpl)
+    subroutine setRaijuILowLat_MHD(raiCpl, doVerboseO)
         class(raijuCoupler_T), intent(inout) :: raiCpl
+        logical, intent(in), optional :: doVerboseO
 
         integer :: i
         integer :: n_mhdCellsForBndLoss = 3
             ! Must be in range [1,IMAG_nMHD_R_NEAREARTH]
+        logical :: doVerbose
+
+        if (present(doVerboseO)) then
+            doVerbose = doVerboseO
+        else
+            doVerbose = .true.
+        endif
+
+        if (n_mhdCellsForBndLoss > IMAG_nMHD_R_NEAREARTH) then
+            write(*,*)"ERROR in setRaijuILowLat_MHD: n_mhdCellsForBndLoss > IMAG_nMHD_R_NEAREARTH"
+            write(*,*)"n_mhdCellsForBndLoss =",n_mhdCellsForBndLoss,", IMAG_nMHD_R_NEAREARTH = ",IMAG_nMHD_R_NEAREARTH
+            stop
+        endif
 
         ! Tell raiju to just use corotation below MHD inner boundary
 
         associate(sh=>raiCpl%raiApp%Grid%shGrid)
 
-        ! We want i to be the first point on raiju's grid that maps to inside the MHD inner boundary
-        ! But no higher than ie+1
-        ! If the i below us is >= mhdRin, i is where we want it to be
-        i = sh%ie+1 
-        do while (i > sh%isg)
-            if (DipColat2L(sh%thcRp(i-1)) >= raiCpl%opt%mhdRin) exit
+        ! Record cell closest to gam's first inner bnd ghost
+        ! We are looking for the raiju cell that encapsulates gamera's ghost-to-active face (its location being mhdRin)
+        ! Start at face ieg+1, walk down until our raiju face is on the other side of mhdRin, meaning we have the lower face bound of the cell we want
+        ! Since lower bound face index = cell index, we are done
+        i = sh%ieg+1
+        do while(i > sh%isg)
+            if (DipColat2L(sh%thRp(i)) > raiCpl%opt%mhdRin) exit
             i = i - 1
         enddo
 
@@ -124,26 +139,46 @@ module raijuCplHelper
             write(*,*)"ERROR in setRaijuILowLat_MHD: Can't find L outside mhdRin"
             stop
         endif
-
-        raiCpl%raiApp%Model%iLowLat_Evol = i
-        write(*,*)"Setting RAIJU iLowLat_Evol to ",i
-        write(*,*)" RAIJU colat [deg], L:",rad2deg*sh%thc(i), DipColat2L(sh%thc(i))
-        write(*,*)" MHD_Rin:",raiCpl%opt%mhdRin
-
-        ! We also wanna record cell closest to gam's first inner bnd ghost
         raiCpl%iFirstCellInGamGhost = i
-        write(*,*)"Setting RAICPL iFirstCellInGamGhost to ",i
+        if (doVerbose) then
+            write(*,*)"Setting RAICPL iFirstCellInGamGhost to ",i
+            write(*,*)" RAIJU colat [deg], L:",rad2deg*sh%thc(i), DipColat2L(sh%thcRp(i))
+            write(*,*)" MHD_Rin:",raiCpl%opt%mhdRin
+        endif
 
-        ! Now do the same for our boundary loss thing
+        ! iLowLat_evol
+        ! For now, we want i to be the first point on raiju's grid that maps to inside the MHD inner boundary
+        ! But no higher than ie
+        if (raiCpl%iFirstCellInGamGhost <= sh%ie) then
+            raiCpl%raiApp%Model%iLowLat_Evol = raiCpl%iFirstCellInGamGhost
+        else
+            i = sh%ie
+            do while (i > sh%isg)
+                if (DipColat2L(sh%thRp(i)) >= raiCpl%opt%mhdRin) exit
+                i = i - 1
+            enddo
+            raiCpl%raiApp%Model%iLowLat_Evol = i
+        endif
+        if (doVerbose) then
+            write(*,*)"Setting RAIJU iLowLat_Evol to ",i
+            write(*,*)" RAIJU colat [deg], L:",rad2deg*sh%thc(i), DipColat2L(sh%thRp(i))
+            write(*,*)" MHD_Rin:",raiCpl%opt%mhdRin
+        endif
+
+        ! iLowLat_BndLoss
+        ! Same idea, but this is a bit further out
+        ! TODO: Maybe make distance-based instsead of nCells
         i = sh%ie+1
-        
         do while (i > sh%isg)
-            if (DipColat2L(sh%thcRp(i-1)) >= raiCpl%opt%mhdR_nearEarth_arr(n_mhdCellsForBndLoss)) exit
+            if (DipColat2L(sh%thRp(i)) >= raiCpl%opt%mhdR_nearEarth_arr(n_mhdCellsForBndLoss)) exit
             i = i - 1
         enddo
         raiCpl%raiApp%Model%iLowLat_BndLoss = i
-        write(*,*)"Setting RAIJU iLowLat_BndLoss to ",i
-        write(*,*)" RAIJU colat [deg], L:",rad2deg*sh%thc(i), DipColat2L(sh%thc(i))
+        if (doVerbose) then
+            write(*,*)"Setting RAIJU iLowLat_BndLoss to ",i
+            write(*,*)" RAIJU colat [deg], L:",rad2deg*sh%thc(i), DipColat2L(sh%thcRp(i))
+            write(*,*)" Ref gam cell rad: ",raiCpl%opt%mhdR_nearEarth_arr(n_mhdCellsForBndLoss)
+        endif
 
         end associate
 

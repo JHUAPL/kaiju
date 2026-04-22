@@ -30,11 +30,12 @@ module raijustarter
 ! Main Initialization Routines
 !------
 
-    subroutine raijuInit(app, inpXML, shGridO)
+    subroutine raijuInit(app, inpXML, shGridO, doVerbXMLO)
         class(raijuApp_T), intent(inout) :: app
         type(XML_Input_T), intent(in) :: inpXML
         type(ShellGrid_T), intent(in), optional :: shGridO 
             !! If provided, and xml arg is set, we make a child grid for ourselves off of this one
+        logical, intent(in), optional :: doVerbXMLO
 
         type(XML_Input_T) :: iXML, iXML_volt
         character(len=strLen) :: tmpStr
@@ -42,7 +43,11 @@ module raijustarter
         ! Make sure root is Kaiju/raiju
         call inpXML%GetFileStr(tmpStr)
         ! Create new XML reader w/ RAIJU as root
-        iXML = New_XML_Input(trim(tmpStr),'Kaiju/RAIJU',.true.)
+        if (present(doVerbXMLO)) then
+            iXML = New_XML_Input(trim(tmpStr),'Kaiju/RAIJU',doVerbXMLO)
+        else
+            iXML = New_XML_Input(trim(tmpStr),'Kaiju/RAIJU',.true.)
+        endif
         
         ! Init model, grid, state
         call raijuInitModel(app%Model, iXML)

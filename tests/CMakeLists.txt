@@ -38,6 +38,11 @@ set(raiTestLibs baselib raijulib)
 add_pfunit_ctest (raiTests TEST_SOURCES ${raiTestFiles} OTHER_SOURCES ${helperFiles} LINK_LIBRARIES ${raiTestLibs})
 add_dependencies(raiTests ${raiTestLibs})
 
+file(GLOB raiCplTestFiles "${CMAKE_CURRENT_SOURCE_DIR}/raiCpl/*.pf")
+set(raiCplTestLibs baselib gamlib remixlib voltlib tgiclib raijulib)
+add_pfunit_ctest (raiCplTests TEST_SOURCES ${raiCplTestFiles} OTHER_SOURCES ${helperFiles} LINK_LIBRARIES ${raiCplTestLibs})
+add_dependencies(raiCplTests ${raiCplTestLibs})
+
 # copy input xml files and grid h5 files to binary folder for running
 file(GLOB_RECURSE inputFiles "${CMAKE_CURRENT_SOURCE_DIR}/*.xml")
 foreach(inputFile ${inputFiles})
@@ -53,6 +58,7 @@ foreach(inputFile ${inputFiles})
 endforeach(inputFile)
 add_custom_target(CopyInputs DEPENDS ${inputFilesDest})
 add_dependencies(raiTests CopyInputs)
+add_dependencies(raiCplTests CopyInputs)
 
 file(GLOB_RECURSE gridFiles "${CMAKE_CURRENT_SOURCE_DIR}/*.h5")
 foreach(gridFile ${gridFiles})
@@ -67,6 +73,7 @@ foreach(gridFile ${gridFiles})
   list(APPEND gridFilesDest "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${gridFileJustName}")
 endforeach(gridFile)
 add_custom_target(CopyGrids DEPENDS ${gridFilesDest})
+add_dependencies(raiCplTests CopyGrids)
 
 if(ENABLE_MPI)
     #MPI TESTS GO IN HERE
@@ -99,15 +106,15 @@ endif()
 # all tests in one
 if(ENABLE_MPI)
     # include MPI tests
-    set(allTestFiles ${caseTestFiles} ${gamTestFiles} ${mixTestFiles} ${voltTestFiles} ${shgrTestFiles} ${raiTestFiles} ${caseMpiTestFiles} ${baseMpiTestFiles} ${gamMpiTestFiles} ${voltMpiTestFiles})
+    set(allTestFiles ${caseTestFiles} ${gamTestFiles} ${mixTestFiles} ${voltTestFiles} ${shgrTestFiles} ${raiTestFiles} ${raiCplTestFiles} ${caseMpiTestFiles} ${baseMpiTestFiles} ${gamMpiTestFiles} ${voltMpiTestFiles})
     set(allTestLibs baselib gamlib remixlib voltlib basempilib gammpilib voltmpilib tgiclib raijulib)
-    set(allTestBins caseTests gamTests mixTests voltTests shgrTests raiTests gamMpiTests baseMpiTests caseMpiTests voltMpiTests)
+    set(allTestBins caseTests gamTests mixTests voltTests shgrTests raiTests raiCplTests gamMpiTests baseMpiTests caseMpiTests voltMpiTests)
     add_pfunit_ctest (allTests TEST_SOURCES ${allTestFiles} OTHER_SOURCES ${helperFiles} ${helperFilesMpi} LINK_LIBRARIES ${allTestLibs} MAX_PES 64)
 else()
     # exclude MPI tests
-    set(allTestFiles ${caseTestFiles} ${gamTestFiles} ${mixTestFiles} ${voltTestFiles} ${shgrTestFiles} ${raiTestFiles})
+    set(allTestFiles ${caseTestFiles} ${gamTestFiles} ${mixTestFiles} ${voltTestFiles} ${shgrTestFiles} ${raiTestFiles} ${raiCplTestFiles})
     set(allTestLibs baselib gamlib remixlib voltlib tgiclib raijulib)
-    set(allTestBins caseTests gamTests mixTests voltTests shgrTests raiTests)
+    set(allTestBins caseTests gamTests mixTests voltTests shgrTests raiTests raiCplTests)
     add_pfunit_ctest (allTests TEST_SOURCES ${allTestFiles} OTHER_SOURCES ${helperFiles} LINK_LIBRARIES ${allTestLibs})
 endif()
 add_dependencies(allTests CopyInputs CopyGrids ${allTestBins} ${allTestLibs})

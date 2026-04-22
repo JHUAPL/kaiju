@@ -323,7 +323,7 @@ module raijugrids
             iStart = iStart + 1
         enddo
         iEnd = iStart
-        do while (iEnd < Nt .and. shGrid%th(iEnd+1) < thetaU - TINY)
+        do while (iEnd < Nt .and. shGrid%th(iEnd+1) < thetaU)
             iEnd = iEnd + 1
         enddo
 

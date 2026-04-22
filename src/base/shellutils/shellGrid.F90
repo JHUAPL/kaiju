@@ -220,14 +220,16 @@ module shellGrid
         if (any(Theta<0.).or.(any(Theta>PI))) then
             write(*,*) "Inside shell grid generator (GenShellGrid)."
             write(*,*) "Theta array should be in the range [0,PI]. Quitting..."
+            write(*,*) Theta
             stop
         end if
 
         ! Only ghosts can go outside of PI=[0,2*PI]
-        if (  addGhosts .eqv. .true.  .and. (any(Phi<0.).or.(any(Phi>2*PI))) &
-        .or. (addGhosts .eqv. .false. .and. (any(Phi(shGr%Nge:)<0.).or.(any(Phi(:shGr%Nge+shGr%Np+1)>2*PI)))) ) then
+        if (  addGhosts .eqv. .true.  .and. (any(Phi<0.).or.(any(Phi>2*PI+TINY))) &
+        .or. (addGhosts .eqv. .false. .and. (any(Phi(shGr%Nge:)<0.).or.(any(Phi(:shGr%Nge+shGr%Np+1)>2*PI+TINY)))) ) then
             write(*,*) "Inside shell grid generator (GenShellGrid)."
             write(*,*) "Phi array should be in the range [0,2*PI]. Quitting..."
+            write(*,*) Phi
             stop
         end if
 

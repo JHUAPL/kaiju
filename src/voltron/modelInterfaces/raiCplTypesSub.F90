@@ -32,23 +32,28 @@ submodule (volttypes) raijuCplTypesSub
 
         ! Set option overrides
         !  ThetaU - calculate where the upper theta boundary should be such that the active domain covers all of the gamera ghost cells
-        rxyz(XDIR) = max(App%opt%mhdRin - 0.05, 1.0_rp)
+        rxyz(XDIR) = max(App%opt%mhdRin, 1.0_rp)
         rxyz(YDIR) = 0.0_rp
         rxyz(ZDIR) = 0.0_rp
-        lowLatBnd = InvLatitude(rxyz)
-        ! Now make sure we are at least 1 voltron corner above 0 deg lat
-        ! Nt cells from 0 to 2*pi. Nt//2 cell is on north side of equator point, and the corner location indexed by Nt//2 will be 1 corner away from lat=0
-        thetaU = min((PI/2. - lowLatBnd), App%opt%voltGrid%th(App%opt%voltGrid%Nt/2))
+
+
+        rxyz = DipoleShift(rxyz, App%opt%voltGrid%radius)  ! Move this point to ionosphere height
+        thetaU = atan2(rxyz(XDIR),rxyz(ZDIR))
+        thetaU = min(thetaU, App%opt%voltGrid%th(App%opt%voltGrid%Nt/2))
+
+        !lowLatBnd = InvLatitude(rxyz)
+        !! Now make sure we are at least 1 voltron corner above 0 deg lat
+        !! Nt cells from 0 to 2*pi. Nt//2 cell is on north side of equator point, and the corner location indexed by Nt//2 will be 1 corner away from lat=0
+        !thetaU = min((PI/2. - lowLatBnd), App%opt%voltGrid%th(App%opt%voltGrid%Nt/2))
         call App%raiApp%opt%thetaU%set(thetaU*rad2deg)
-        write(*,'(a,f5.2,a,f5.2,a)')"RAIJU trying to make low lat bnd below GAMERA ghosts (w/ buffer) at ",norm2(rxyz),'[Re], ',thetaU*rad2deg,' deg lat'
-        
+        write(*,'(a,f5.2,a,f5.2,a)')"RAIJU trying to make low lat bnd below GAMERA's first active cell at ",App%opt%mhdRin,'[Re], ',(90-thetaU*rad2deg),' deg lat'
         ! Init raiju app itself
         ! Note: we are bypassing raiApp%InitModel because we can't pass the voltron grid as an argument
         call raijuInit(App%raiApp, xml, App%opt%voltGrid)
 
         ! Check if grid generation succeeded and we have raiju domain covering entirety of gamera active cells
-        L = DipColat2L(App%raiApp%Grid%shGrid%th(App%raiApp%Grid%shGrid%ie+1))
-        write(*,*)"RAI vs GAM ghost lowlat:",L,norm2(rxyz)
+        L = DipColat2L(App%raiApp%Grid%shGrid%thRp(App%raiApp%Grid%shGrid%ie+1))
+        write(*,*)"RAI vs GAM ghost lowlat:",L,App%opt%mhdRin
         if (L > App%opt%mhdRin) then
             write(*,*)"ERROR in raiCplInitModel: lowlat raiju cells didn't end up covering entire gamera active domain"
             write(*,*)"This should only happen if gamera active maps equatorward of first off-equator voltron lat coordinate, in which case, yikes"
