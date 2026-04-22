@@ -6,7 +6,7 @@ add_dependencies(tgiclib baselib gamlib)
 
 # helper files for all testing code
 file(GLOB helperFiles "${PROJECT_SOURCE_DIR}/tests/helperCode/*.F90")
-file(GLOB raiCplSupportFiles "${CMAKE_CURRENT_SOURCE_DIR}/raiCpl/support/*.F90")
+file(GLOB raiCplSupportFiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/raiCpl/support/*.F90")
 
 # NON-MPI TESTS GO UP HERE
 file(GLOB caseTestFiles "${CMAKE_CURRENT_SOURCE_DIR}/cases/*.pf")
@@ -39,7 +39,7 @@ set(raiTestLibs baselib raijulib)
 add_pfunit_ctest (raiTests TEST_SOURCES ${raiTestFiles} OTHER_SOURCES ${helperFiles} LINK_LIBRARIES ${raiTestLibs})
 add_dependencies(raiTests ${raiTestLibs})
 
-file(GLOB raiCplTestFiles "${CMAKE_CURRENT_SOURCE_DIR}/raiCpl/*.pf")
+file(GLOB raiCplTestFiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/raiCpl/*.pf")
 set(raiCplTestLibs baselib gamlib remixlib voltlib tgiclib raijulib)
 add_pfunit_ctest (raiCplTests TEST_SOURCES ${raiCplTestFiles} OTHER_SOURCES ${helperFiles} ${raiCplSupportFiles} LINK_LIBRARIES ${raiCplTestLibs})
 add_dependencies(raiCplTests ${raiCplTestLibs})

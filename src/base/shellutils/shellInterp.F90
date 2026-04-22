@@ -415,11 +415,13 @@ module shellInterp
     end subroutine InterpShellVar_TSC_pnt
 
 
-    subroutine InterpShellVar_ParentToChild(srcGrid, srcVar, destGrid, destVar)
+    subroutine InterpShellVar_ParentToChild(srcGrid, srcVar, destGrid, destVar, srcMaskO)
         type(ShellGrid_T   ), intent(in) :: srcGrid
         type(ShellGridVar_T), intent(in) :: srcVar
         type(ShellGrid_T   ), intent(in) :: destGrid
         type(ShellGridVar_T), intent(inout) :: destVar
+        logical, dimension(srcVar%isv:srcVar%iev, srcVar%jsv:srcVar%jev), optional, intent(in) :: srcMaskO
+            !! If provided, use this source mask instead of srcVar%mask
 
         integer :: subis, subie, subjs, subje, iExtra, jExtra
         type(ShellGridVar_T) :: src2destVar
@@ -443,9 +445,13 @@ module shellInterp
         ! Now fill in destination variable
         if (srcVar%loc == destVar%loc) then
             destVar%data(:,:) = srcVar%data(subis:subie, subjs:subje)
-            destVar%mask(:,:) = srcVar%mask(subis:subie, subjs:subje)
+            if (present(srcMaskO)) then
+                destVar%mask(:,:) = srcVar%mask(subis:subie, subjs:subje) .and. srcMaskO(subis:subie, subjs:subje)
+            else
+                destVar%mask(:,:) = srcVar%mask(subis:subie, subjs:subje)
+            endif
         else  ! Need to interpolate
-            call InterpShellVar_TSC_SG(srcGrid, srcVar, destGrid, destVar)
+            call InterpShellVar_TSC_SG(srcGrid, srcVar, destGrid, destVar, srcMaskO=srcMaskO)
         endif
 
     end subroutine InterpShellVar_ParentToChild

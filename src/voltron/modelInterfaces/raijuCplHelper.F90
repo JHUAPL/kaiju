@@ -195,7 +195,9 @@ module raijuCplHelper
         type(ShellGridVar_T) :: tmpTopo
         logical, dimension(tubeShell%topo%isv:tubeShell%topo%iev,tubeShell%topo%jsv:tubeShell%topo%jev) :: topoSrcMask
         logical, dimension(   raiCpl%topo%isv:   raiCpl%topo%iev,   raiCpl%topo%jsv:   raiCpl%topo%jev) :: topoRaiMask
-        integer :: i,j,s
+        integer :: n,i,j,s
+
+        call initShellVar(raiCpl%shGr, SHGR_CORNER, tmpTopo)
 
         where (tubeShell%topo%data == TUBE_CLOSED)
             topoSrcMask = .true.
@@ -203,29 +205,26 @@ module raijuCplHelper
             topoSrcMask = .false.
         end where
 
-        call initShellVar(raiCpl%shGr, SHGR_CORNER, tmpTopo)
-
         ! Corners
         do i=1,NDIM
-            call InterpShellVar_TSC_SG(voltGrid, tubeShell%X_bmin(i), raiCpl%shGr, raiCpl%xyzMin(i))
-            call InterpShellVar_TSC_SG(voltGrid, tubeShell%X_maxRad(i), raiCpl%shGr, raiCpl%xyzMaxRad(i))
+            call InterpShellVar_ParentToChild(voltGrid, tubeShell%X_bmin(i), raiCpl%shGr, raiCpl%xyzMin(i),srcMaskO=topoSrcMask)
+            call InterpShellVar_ParentToChild(voltGrid, tubeShell%X_maxRad(i), raiCpl%shGr, raiCpl%xyzMaxRad(i),srcMaskO=topoSrcMask)
         enddo
-        call InterpShellVar_TSC_SG(voltGrid, tubeShell%bmin, raiCpl%shGr, raiCpl%Bmin(ZDIR))
-        call InterpShellVar_TSC_SG(voltGrid, tubeShell%latc, raiCpl%shGr, raiCpl%thcon)
+        call InterpShellVar_ParentToChild(voltGrid, tubeShell%bmin, raiCpl%shGr, raiCpl%Bmin(ZDIR),srcMaskO=topoSrcMask)
+        call InterpShellVar_ParentToChild(voltGrid, tubeShell%latc, raiCpl%shGr, raiCpl%thcon,srcMaskO=topoSrcMask)
         raiCpl%thcon%data = PI/2 - raiCpl%thcon%data
-        call InterpShellVar_TSC_SG(voltGrid, tubeShell%lonc, raiCpl%shGr, raiCpl%phcon)
-        call InterpShellVar_TSC_SG(voltGrid, tubeShell%bVol, raiCpl%shGr, raiCpl%bvol)
-        !call InterpShellVar_ParentToChild(voltGrid, tubeShell%bVol, raiCpl%shGr, raiCpl%bvol)
-        !call InterpShellVar_TSC_SG(voltGrid, tubeShell%bVol, raiCpl%shGr, raiCpl%bvol_cc)
+        call InterpShellVar_ParentToChild(voltGrid, tubeShell%lonc, raiCpl%shGr, raiCpl%phcon,srcMaskO=topoSrcMask)
+        call InterpShellVar_ParentToChild(voltGrid, tubeShell%bVol, raiCpl%shGr, raiCpl%bvol,srcMaskO=topoSrcMask)
+        ! Right now, we don't wanna TSC interp to get bvol_cc, because we want to be very sure only the corner bvols are informing bvol_cc, which is not the case for TSC interp
         do j=raiCpl%shGr%jsg,raiCpl%shGr%jeg
             do i=raiCpl%shGr%isg,raiCpl%shGr%ieg
                 raiCpl%bvol_cc%data(i,j) = toCenter2D(raiCpl%bvol%data(i:i+1,j:j+1))
             enddo
         enddo
-        call InterpShellVar_TSC_SG(voltGrid, tubeShell%rCurv, raiCpl%shGr, raiCpl%rCurv)
+        call InterpShellVar_ParentToChild(voltGrid, tubeShell%rCurv, raiCpl%shGr, raiCpl%rCurv,srcMaskO=topoSrcMask)
         
         ! Get topo and then convert to RAIJU's definition
-        call InterpShellVar_TSC_SG(voltGrid, tubeShell%topo, raiCpl%shGr, tmpTopo)
+        call InterpShellVar_ParentToChild(voltGrid, tubeShell%topo, raiCpl%shGr, tmpTopo)
         where (abs(tmpTopo%data - TUBE_CLOSED) < TINY)
             raiCpl%topo%data = RAIJUCLOSED
             topoRaiMask = .true.
@@ -233,26 +232,30 @@ module raijuCplHelper
             raiCpl%topo%data = RAIJUOPEN
             topoRaiMask = .false.
         end where
-        call InterpShellVar_TSC_SG(voltGrid, tubeShell%wMAG, raiCpl%shGr, raiCpl%vaFrac)
+        call InterpShellVar_ParentToChild(voltGrid, tubeShell%wMAG, raiCpl%shGr, raiCpl%vaFrac,srcMaskO=topoSrcMask)
 
         ! Centers
         do s=0,raiCpl%raiApp%Model%nFluidIn
-            call InterpShellVar_TSC_SG(voltGrid, tubeShell%avgP(s), raiCpl%shGr, raiCpl%Pavg(s), srcMaskO=topoSrcMask)
-            call InterpShellVar_TSC_SG(voltGrid, tubeShell%avgN(s), raiCpl%shGr, raiCpl%Davg(s), srcMaskO=topoSrcMask)
-            call InterpShellVar_TSC_SG(voltGrid, tubeShell%stdP(s), raiCpl%shGr, raiCpl%Pstd(s), srcMaskO=topoSrcMask)
-            call InterpShellVar_TSC_SG(voltGrid, tubeShell%stdN(s), raiCpl%shGr, raiCpl%Dstd(s), srcMaskO=topoSrcMask)
+            call InterpShellVar_ParentToChild(voltGrid, tubeShell%avgP(s), raiCpl%shGr, raiCpl%Pavg(s), srcMaskO=topoSrcMask)
+            call InterpShellVar_ParentToChild(voltGrid, tubeShell%avgN(s), raiCpl%shGr, raiCpl%Davg(s), srcMaskO=topoSrcMask)
+            call InterpShellVar_ParentToChild(voltGrid, tubeShell%stdP(s), raiCpl%shGr, raiCpl%Pstd(s), srcMaskO=topoSrcMask)
+            call InterpShellVar_ParentToChild(voltGrid, tubeShell%stdN(s), raiCpl%shGr, raiCpl%Dstd(s), srcMaskO=topoSrcMask)
 
             call extendVarBelowMHDBoundary(raiCpl%shGr, raiCpl%opt%mhdRin, raiCpl%Pavg(s))
             call extendVarBelowMHDBoundary(raiCpl%shGr, raiCpl%opt%mhdRin, raiCpl%Davg(s))
             call extendVarBelowMHDBoundary(raiCpl%shGr, raiCpl%opt%mhdRin, raiCpl%Pstd(s))
             call extendVarBelowMHDBoundary(raiCpl%shGr, raiCpl%opt%mhdRin, raiCpl%Dstd(s))
         enddo
-        call InterpShellVar_TSC_SG(voltGrid, tubeShell%TioTe0, raiCpl%shGr, raiCpl%tiote)
-        do i=1,NDIM
-            call InterpShellVar_TSC_SG(raiCpl%shGr, raiCpl%xyzMin(i), raiCpl%shGr, raiCpl%xyzMincc(i), srcMaskO=topoRaiMask)
+        call InterpShellVar_ParentToChild(voltGrid, tubeShell%TioTe0, raiCpl%shGr, raiCpl%tiote, srcMaskO=topoSrcMask)
+        do n=1,NDIM
+            do j=raiCpl%shGr%jsg,raiCpl%shGr%jeg
+                do i=raiCpl%shGr%isg,raiCpl%shGr%ieg
+                raiCpl%xyzMincc(n)%data(i,j) = toCenter2D(raiCpl%xyzMin(n)%data(i:i+1,j:j+1))
+                enddo
+            enddo
         enddo
-        call InterpShellVar_TSC_SG(voltGrid, tubeShell%Tb     , raiCpl%shGr, raiCpl%Tb     , srcMaskO=topoSrcMask)
-        call InterpShellVar_TSC_SG(voltGrid, tubeShell%avgBeta, raiCpl%shGr, raiCpl%avgBeta, srcMaskO=topoSrcMask)
+        call InterpShellVar_ParentToChild(voltGrid, tubeShell%Tb     , raiCpl%shGr, raiCpl%Tb, srcMaskO=topoSrcMask)
+        call InterpShellVar_ParentToChild(voltGrid, tubeShell%avgBeta, raiCpl%shGr, raiCpl%avgBeta, srcMaskO=topoSrcMask)
 
 
         contains

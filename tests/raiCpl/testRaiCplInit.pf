@@ -12,7 +12,8 @@ module testRaiCplInit
     use raijustarter, only : raijuInit
     use raijuCplHelper
 
-    use raiCplTestHelper
+    use raiCplTestHelper, only : raiCplTestNG, raiCplTestNGb, nRaiCplTestProfiles, raiCplTestProfileNames, &
+        genGlobalVoltParentSG, getRaiCplTestMhdProfile, initRaiCplTestOpt
 
     implicit none
 

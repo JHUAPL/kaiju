@@ -1,9 +1,16 @@
 module raiCplTestHelper
 
-    use kdefs, only : rp, PI, strLen
+    use kdefs, only : rp, PI, strLen, TINY, NDIM, XDIR, YDIR, ZDIR, rad2deg
 
     use shellGrid
-    use volttypes, only : raijuCoupler_T, imagOptions_T, IMAG_nMHD_R_NEAREARTH
+    use xml_input
+    use planethelper, only : DipoleShift
+    use volttypes, only : raijuCoupler_T, imagOptions_T, IMAG_nMHD_R_NEAREARTH, voltApp_T
+    use voltCplTypes, only : TubeShell_T, MAXTUBEFLUIDS, TUBE_CLOSED, TUBE_OPEN
+    use raijutypes, only : raijuApp_T
+    use raijustarter, only : raijuInit
+    use raijuCplHelper, only : raijuCpl_init, setRaijuILowLat_MHD
+    use tubehelper, only : init_TubeShell
 
     implicit none
 
@@ -180,5 +187,196 @@ contains
             enddo
         endif
     end subroutine initRaiCplTestOpt
+
+
+    subroutine initReadyRaiCpl(raiCpl, xmlInp, parentSG, profileName)
+        !! Build a fully initialized raiCpl fixture for routine-level tests.
+        !! This follows the same high-level startup path as production, but uses
+        !! a deterministic shell grid and one of the canned near-Earth MHD profiles.
+        class(raijuCoupler_T), intent(inout) :: raiCpl
+        type(XML_Input_T), intent(inout) :: xmlInp
+        type(ShellGrid_T), intent(in) :: parentSG
+        character(len=*), intent(in) :: profileName
+
+        real(rp), dimension(raiCplTestNGb + IMAG_nMHD_R_NEAREARTH) :: mhdRAll
+        real(rp), dimension(raiCplTestNG) :: mhdRinGcc
+        real(rp), dimension(IMAG_nMHD_R_NEAREARTH) :: mhdRNearEarth
+        real(rp) :: mhdRin
+
+        if (allocated(raiCpl%raiApp)) deallocate(raiCpl%raiApp)
+        allocate(raijuApp_T :: raiCpl%raiApp)
+
+        call getRaiCplTestMhdProfile(profileName, mhdRAll, mhdRinGcc, mhdRNearEarth, mhdRin)
+        call initRaiCplTestOpt(raiCpl, parentSG, mhdRin, mhdRNearEarthO=mhdRNearEarth, mhdRinGccO=mhdRinGcc, &
+                               mjd0O=60321.25_rp, swFO="bcwind_2step.h5")
+        call applyRuntimeThetaUOverride(raiCpl)
+        call raijuInit(raiCpl%raiApp, xmlInp, parentSG, doVerbXMLO=.false.)
+        call raijuCpl_init(raiCpl, xmlInp)
+        call setRaijuILowLat_MHD(raiCpl, doVerboseO=.false.)
+    end subroutine initReadyRaiCpl
+
+
+    subroutine initVoltAppTestState(vApp, parentSG)
+        !! Prepare just enough Voltron-side state for pack/coupling tests:
+        !! a parent shell grid, an initialized TubeShell, and corner potentials.
+        type(voltApp_T), intent(inout) :: vApp
+        type(ShellGrid_T), intent(in) :: parentSG
+
+        vApp%shGrid = parentSG
+        call init_TubeShell(vApp%shGrid, vApp%State%tubeShell)
+        call initShellVar(vApp%shGrid, SHGR_CORNER, vApp%State%potential_total)
+        call initShellVar(vApp%shGrid, SHGR_CORNER, vApp%State%potential_corot)
+        vApp%time = 0.0_rp
+    end subroutine initVoltAppTestState
+
+
+    subroutine fillSyntheticCornerVar(var, offset)
+        !! Fill a shell variable with a simple affine pattern in i/j so tests can
+        !! recognize interpolation/copy behavior without ambiguous repeated values.
+        type(ShellGridVar_T), intent(inout) :: var
+        real(rp), intent(in) :: offset
+
+        integer :: i, j
+
+        do j=var%jsv,var%jev
+            do i=var%isv,var%iev
+                var%data(i,j) = offset + 10.0_rp*real(i, rp) + real(j, rp)
+            enddo
+        enddo
+    end subroutine fillSyntheticCornerVar
+
+
+    subroutine fillSyntheticTubeShell(parentSG, tubeShell, firstClosedIO)
+        !! Fill a TubeShell with deterministic synthetic data.
+        !! Most fields use simple smooth patterns, while the optional topology
+        !! front creates a phi-dependent poleward-open / equatorward-closed mask.
+        type(ShellGrid_T), intent(in) :: parentSG
+        type(TubeShell_T), intent(inout) :: tubeShell
+        integer, intent(in), optional :: firstClosedIO
+
+        integer :: i, j, n, s
+        integer :: firstClosedI
+        real(rp) :: phase, frontShift
+
+        call init_TubeShell(parentSG, tubeShell)
+
+        do n=1,NDIM
+            call fillSyntheticCornerVar(tubeShell%xyz0(n), 10.0_rp*real(n, rp))
+            call fillSyntheticCornerVar(tubeShell%X_bmin(n), 100.0_rp*real(n, rp))
+            call fillSyntheticCornerVar(tubeShell%X_maxRad(n), 200.0_rp*real(n, rp))
+            call fillSyntheticCornerVar(tubeShell%Jxyz_iono(n), 300.0_rp*real(n, rp))
+            call fillSyntheticCornerVar(tubeShell%Bxyz_iono(n), 400.0_rp*real(n, rp))
+        enddo
+
+        call fillSyntheticCornerVar(tubeShell%J11i, 500.0_rp)
+        call fillSyntheticCornerVar(tubeShell%bmin, 600.0_rp)
+        call fillSyntheticCornerVar(tubeShell%bVol, 700.0_rp)
+        call fillSyntheticCornerVar(tubeShell%Lb, 800.0_rp)
+        call fillSyntheticCornerVar(tubeShell%Tb, 900.0_rp)
+        call fillSyntheticCornerVar(tubeShell%rCurv, 1000.0_rp)
+        call fillSyntheticCornerVar(tubeShell%avgBeta, 1100.0_rp)
+        call fillSyntheticCornerVar(tubeShell%losscone, 1200.0_rp)
+        call fillSyntheticCornerVar(tubeShell%lossconec, 1300.0_rp)
+        call fillSyntheticCornerVar(tubeShell%nTrc, 1400.0_rp)
+
+        do s=0,MAXTUBEFLUIDS
+            call fillSyntheticCornerVar(tubeShell%avgP(s), 2000.0_rp + 100.0_rp*real(s, rp))
+            call fillSyntheticCornerVar(tubeShell%avgN(s), 3000.0_rp + 100.0_rp*real(s, rp))
+            call fillSyntheticCornerVar(tubeShell%stdP(s), 4000.0_rp + 100.0_rp*real(s, rp))
+            call fillSyntheticCornerVar(tubeShell%stdN(s), 5000.0_rp + 100.0_rp*real(s, rp))
+            call fillSyntheticCornerVar(tubeShell%bcP(s), 6000.0_rp + 100.0_rp*real(s, rp))
+            call fillSyntheticCornerVar(tubeShell%bcN(s), 7000.0_rp + 100.0_rp*real(s, rp))
+        enddo
+
+        do j=tubeShell%lat0%jsv,tubeShell%lat0%jev
+            do i=tubeShell%lat0%isv,tubeShell%lat0%iev
+                tubeShell%lat0%data(i,j) = 0.25_rp - 0.002_rp*real(i - tubeShell%lat0%isv, rp)
+                tubeShell%lon0%data(i,j) = 0.10_rp + 0.01_rp*real(j - tubeShell%lon0%jsv, rp)
+                tubeShell%invlat%data(i,j) = 0.40_rp + 0.001_rp*real(i - tubeShell%invlat%isv, rp)
+                tubeShell%latc%data(i,j) = -0.30_rp + 0.0015_rp*real(i - tubeShell%latc%isv, rp) - 0.0005_rp*real(j - tubeShell%latc%jsv, rp)
+                tubeShell%lonc%data(i,j) = 0.30_rp + 0.002_rp*real(i - tubeShell%lonc%isv, rp) + 0.01_rp*real(j - tubeShell%lonc%jsv, rp)
+                tubeShell%wMAG%data(i,j) = 0.20_rp + 0.001_rp*real(i - tubeShell%wMAG%isv, rp) + 0.002_rp*real(j - tubeShell%wMAG%jsv, rp)
+                tubeShell%TioTe0%data(i,j) = 2.0_rp + 0.01_rp*real(i - tubeShell%TioTe0%isv, rp) + 0.005_rp*real(j - tubeShell%TioTe0%jsv, rp)
+                tubeShell%topo%data(i,j) = real(TUBE_CLOSED, rp)
+            enddo
+        enddo
+
+        if (present(firstClosedIO)) then
+            do j=tubeShell%topo%jsv,tubeShell%topo%jev
+                ! Make a phi-periodic open/closed front with a few harmonics so the
+                ! synthetic topology looks more like the real wavering OCB shape.
+                phase = modulo(parentSG%ph(j), 2.0_rp*PI)
+                frontShift = 2.5_rp*sin(phase - 0.35_rp) + 1.0_rp*sin(3.0_rp*phase + 0.60_rp)
+                firstClosedI = nint(real(firstClosedIO, rp) + frontShift)
+                firstClosedI = max(tubeShell%topo%isv, min(firstClosedI, tubeShell%topo%iev+1))
+
+                ! Open field is on the poleward/smaller-theta side of the front.
+                if (firstClosedI > tubeShell%topo%isv) then
+                    tubeShell%topo%data(tubeShell%topo%isv:firstClosedI-1, j) = real(TUBE_OPEN, rp)
+                endif
+                if (firstClosedI <= tubeShell%topo%iev) then
+                    tubeShell%topo%data(firstClosedI:tubeShell%topo%iev, j) = real(TUBE_CLOSED, rp)
+                endif
+            enddo
+        endif
+
+        call applyClosedTubeMasks(tubeShell)
+    end subroutine fillSyntheticTubeShell
+
+
+    subroutine applyRuntimeThetaUOverride(raiCpl)
+        !! Reproduce the runtime thetaU logic used in raiCplInitModel so tests can
+        !! initialize the child grid from mhdRin without depending on full startup.
+        type(raijuCoupler_T), intent(inout) :: raiCpl
+
+        real(rp), dimension(NDIM) :: rxyz
+        real(rp) :: thetaU
+
+        rxyz(XDIR) = max(raiCpl%opt%mhdRin, 1.0_rp)
+        rxyz(YDIR) = 0.0_rp
+        rxyz(ZDIR) = 0.0_rp
+        rxyz = DipoleShift(rxyz, raiCpl%opt%voltGrid%radius)
+        thetaU = atan2(rxyz(XDIR), rxyz(ZDIR))
+        thetaU = min(thetaU, raiCpl%opt%voltGrid%th(raiCpl%opt%voltGrid%Nt/2))
+        call raiCpl%raiApp%opt%thetaU%set(thetaU*rad2deg)
+    end subroutine applyRuntimeThetaUOverride
+
+
+    subroutine applyClosedTubeMasks(tubeShell)
+        !! Mirror the current production convention that most TubeShell quantities are
+        !! only valid for IMAG on closed field lines and therefore share the topo mask.
+        type(TubeShell_T), intent(inout) :: tubeShell
+
+        logical, dimension(tubeShell%topo%isv:tubeShell%topo%iev, tubeShell%topo%jsv:tubeShell%topo%jev) :: topoMask
+        integer :: n, s
+
+        where (abs(tubeShell%topo%data - real(TUBE_CLOSED, rp)) < TINY)
+            topoMask = .true.
+        elsewhere
+            topoMask = .false.
+        end where
+
+        do n=1,NDIM
+            tubeShell%X_bmin(n)%mask = topoMask
+            tubeShell%X_maxRad(n)%mask = topoMask
+        enddo
+
+        tubeShell%latc%mask = topoMask
+        tubeShell%lonc%mask = topoMask
+        tubeShell%bmin%mask = topoMask
+        tubeShell%bVol%mask = topoMask
+        tubeShell%Lb%mask = topoMask
+        tubeShell%Tb%mask = topoMask
+        tubeShell%wMAG%mask = topoMask
+        tubeShell%rCurv%mask = topoMask
+        tubeShell%avgBeta%mask = topoMask
+        do s=0,MAXTUBEFLUIDS
+            tubeShell%avgP(s)%mask = topoMask
+            tubeShell%avgN(s)%mask = topoMask
+            tubeShell%stdP(s)%mask = topoMask
+            tubeShell%stdN(s)%mask = topoMask
+        enddo
+        tubeShell%TioTe0%mask = topoMask
+    end subroutine applyClosedTubeMasks
 
 end module raiCplTestHelper
