@@ -203,7 +203,10 @@ module raijuPreAdvancer
         real(rp), dimension(shGrid%isg:shGrid%ieg+1,&
                             shGrid%jsg:shGrid%jeg+1), intent(inout) :: pGC
 
-        pGC = alamc*bVol**(-2./3.)
+        pGC = 0.0_rp
+        where (bVol > TINY)
+            pGC = alamc*bVol**(-2.0_rp/3.0_rp)
+        end where
 
     end subroutine potGC
 

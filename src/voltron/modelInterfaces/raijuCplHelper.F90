@@ -96,6 +96,9 @@ module raijuCplHelper
         raiCpl%pot_total%data = 0.0
         raiCpl%pot_corot%data = 0.0
         raiCpl%vaFrac%data = 0.5
+        raiCpl%bmin(XDIR)%data = 0.0
+        raiCpl%bmin(YDIR)%data = 0.0
+        raiCpl%bmin(ZDIR)%data = 0.0
 
     end subroutine raijuCpl_init
 
@@ -310,27 +313,41 @@ module raijuCplHelper
 
         State%topo = raiCpl%topo%data
 
-        ! Copy no matter the topo value
-        do i=1,NDIM
-            State%xyzMin  (:,:,i) = raiCpl%xyzMin(i)%data
-            State%xyzMincc(:,:,i) = raiCpl%xyzMincc(i)%data
-        enddo
-        State%thcon(:,:)     = raiCpl%thcon%data
-        State%phcon(:,:)     = raiCpl%phcon%data
-        State%Bmin(:,:,ZDIR) = raiCpl%bmin(ZDIR)%data
-        State%bvol(:,:)      = raiCpl%bvol%data
-        State%vaFrac(:,:)    = raiCpl%vaFrac%data
+        ! Reset corner-centered quantities before we selectively write to them
+        call fillArray(State%xyzMin    , 0.0_rp)
+        call fillArray(State%radMax    , 0.0_rp)
+        call fillArray(State%thcon     , 0.0_rp)
+        call fillArray(State%phcon     , 0.0_rp)
+        call fillArray(State%Bmin      , 0.0_rp)
+        call fillArray(State%bvol      , 0.0_rp)
+        call fillArray(State%vaFrac    , 0.0_rp)
         
         !$OMP PARALLEL DO default(shared) &
         !$OMP private(i,j)
         do j=shGr%jsg,shGr%jeg+1
             do i=shGr%isg,shGr%ieg+1
+
+                if (State%topo(i,j) .eq. RAIJUOPEN) then
+                    cycle
+                endif
+
+                do k=1,NDIM
+                    State%xyzMin(i,j,k) = raiCpl%xyzMin(k)%data(i,j)
+                    ! Right now, raiCpl just has ZDIR populated because its a scalar coming from TubeShell.
+                    ! But doing three dimension copy anyways just in case that changes
+                    State%bmin(i,j,k) = raiCpl%bmin(k)%data(i,j)
+                enddo
                 State%radMax(i,j) = sqrt(raiCpl%xyzMaxRad(XDIR)%data(i,j)**2 + raiCpl%xyzMaxRad(YDIR)%data(i,j)**2 + raiCpl%xyzMaxRad(ZDIR)%data(i,j)**2)
+                State%thcon (i,j) = raiCpl%thcon %data(i,j)
+                State%phcon (i,j) = raiCpl%phcon %data(i,j)
+                State%bvol  (i,j) = raiCpl%bvol  %data(i,j)
+                State%vaFrac(i,j) = raiCpl%vaFrac%data(i,j)
             enddo    
         enddo
         
 
-        ! Reset quantities we will only selectively write to
+        ! Reset cell-center quantities we selectively write to
+        call fillArray(State%xyzMincc  , 0.0_rp)
         call fillArray(State%Pavg     , 0.0_rp)
         call fillArray(State%Davg     , 0.0_rp)
         call fillArray(State%Pstd     , 0.0_rp)
@@ -357,6 +374,9 @@ module raijuCplHelper
                     State%Davg(i,j,k) = raiCpl%Davg(k)%data(i,j)
                     State%Pstd(i,j,k) = raiCpl%Pstd(k)%data(i,j) / max(State%Pavg(i,j,k), TINY)  ! Normalize
                     State%Dstd(i,j,k) = raiCpl%Dstd(k)%data(i,j) / max(State%Davg(i,j,k), TINY)
+                enddo
+                do k=1,NDIM
+                    State%xyzMincc(i,j,k) = raiCpl%xyzMincc(k)%data(i,j)
                 enddo
 
                 State%bvol_cc(i,j) = raiCpl%bvol_cc%data(i,j)

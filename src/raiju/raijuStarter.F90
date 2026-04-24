@@ -320,7 +320,7 @@ module raijustarter
         logical :: doHack_constB
 
         ! Set grid params
-        call iXML%Set_Val(Grid%nB, "grid/Nbnd", 4      )  ! Number of cells between open boundary and active domain
+        call iXML%Set_Val(Grid%nBufferCells, "grid/Nbuffer", 4      )  ! Number of cells between open boundary and active domain
 
         ! If we are restarting, use shellGrid from file
         if (Model%isRestart) then

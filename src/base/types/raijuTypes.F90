@@ -362,7 +362,8 @@ module raijutypes
         real(rp), dimension(:,:), allocatable :: Brcc
             !! (Ngi, Ngj) [nT] same as BrFace but at cell centers
 
-        integer :: nB ! Number of buffer cells between open region and active domain
+        integer :: nBufferCells 
+            !! Number of buffer cells between open region and active domain
 
         ! Flags
         logical :: ignoreConfigMismatch

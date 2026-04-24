@@ -207,7 +207,7 @@ contains
 
         @assertLessThanOrEqual(abs(raiCpl%pot_total%data(iOpen,jOpen) - raiCpl%raiApp%State%espot(iOpen,jOpen)), testTol, "raiCpl2RAIJU should always copy pot_total into State%espot")
         @assertEqual(int(raiCpl%topo%data(iOpen+1,jOpen+1)), raiCpl%raiApp%State%topo(iOpen+1,jOpen+1), "raiCpl2RAIJU should always copy topology corners")
-        @assertLessThanOrEqual(abs(raiCpl%xyzMin(XDIR)%data(iOpen+1,jOpen+1) - raiCpl%raiApp%State%xyzMin(iOpen+1,jOpen+1,XDIR)), testTol, "raiCpl2RAIJU should always copy xyzMin corners")
+        @assertLessThanOrEqual(abs(raiCpl%xyzMin(XDIR)%data(iClosed+1,jClosed+1) - raiCpl%raiApp%State%xyzMin(iClosed+1,jClosed+1,XDIR)), testTol, "raiCpl2RAIJU should copy xyzMin on closed corners")
 
         expRadMax = sqrt(raiCpl%xyzMaxRad(1)%data(iClosed+1,jClosed+1)**2 + raiCpl%xyzMaxRad(2)%data(iClosed+1,jClosed+1)**2 + raiCpl%xyzMaxRad(3)%data(iClosed+1,jClosed+1)**2)
         @assertLessThanOrEqual(abs(expRadMax - raiCpl%raiApp%State%radMax(iClosed+1,jClosed+1)), testTol, "raiCpl2RAIJU should derive corner radMax from xyzMaxRad")
@@ -216,6 +216,7 @@ contains
         @assertLessThanOrEqual(abs(raiCpl%Davg(0)%data(iClosed,jClosed) - raiCpl%raiApp%State%Davg(iClosed,jClosed,0)), testTol, "raiCpl2RAIJU should copy closed-cell Davg")
         @assertLessThanOrEqual(abs(raiCpl%Pstd(0)%data(iClosed,jClosed)/max(raiCpl%Pavg(0)%data(iClosed,jClosed), TINY) - raiCpl%raiApp%State%Pstd(iClosed,jClosed,0)), testTol, "raiCpl2RAIJU should normalize closed-cell Pstd by Pavg")
         @assertLessThanOrEqual(abs(raiCpl%Dstd(0)%data(iClosed,jClosed)/max(raiCpl%Davg(0)%data(iClosed,jClosed), TINY) - raiCpl%raiApp%State%Dstd(iClosed,jClosed,0)), testTol, "raiCpl2RAIJU should normalize closed-cell Dstd by Davg")
+        @assertLessThanOrEqual(abs(raiCpl%xyzMincc(XDIR)%data(iClosed,jClosed) - raiCpl%raiApp%State%xyzMincc(iClosed,jClosed,XDIR)), testTol, "raiCpl2RAIJU should copy xyzMincc into closed cells")
         @assertLessThanOrEqual(abs(raiCpl%Tb%data(iClosed,jClosed) - raiCpl%raiApp%State%Tb%data(iClosed,jClosed)), testTol, "raiCpl2RAIJU should copy Tb into closed cells")
         @assertTrue(raiCpl%raiApp%State%Tb%mask(iClosed,jClosed), "raiCpl2RAIJU should mark closed copied cells in the Tb mask")
 
@@ -224,6 +225,13 @@ contains
 
         @assertLessThanOrEqual(abs(raiCpl%raiApp%State%Pavg(iOpen,jOpen,0)), testTol, "raiCpl2RAIJU should leave open-cell Pavg at its reset default")
         @assertLessThanOrEqual(abs(raiCpl%raiApp%State%Davg(iOpen,jOpen,0)), testTol, "raiCpl2RAIJU should leave open-cell Davg at its reset default")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%xyzMin(iOpen+1,jOpen+1,XDIR)), testTol, "raiCpl2RAIJU should leave open-corner xyzMin at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%thcon(iOpen+1,jOpen+1)), testTol, "raiCpl2RAIJU should leave open-corner thcon at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%phcon(iOpen+1,jOpen+1)), testTol, "raiCpl2RAIJU should leave open-corner phcon at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%bvol(iOpen+1,jOpen+1)), testTol, "raiCpl2RAIJU should leave open-corner bvol at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%vaFrac(iOpen+1,jOpen+1)), testTol, "raiCpl2RAIJU should leave open-corner vaFrac at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%radMax(iOpen+1,jOpen+1)), testTol, "raiCpl2RAIJU should leave open-corner radMax at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%xyzMincc(iOpen,jOpen,XDIR)), testTol, "raiCpl2RAIJU should leave open-cell xyzMincc at zero")
         @assertLessThanOrEqual(abs(raiCpl%raiApp%State%bvol_cc(iOpen,jOpen)), testTol, "raiCpl2RAIJU should leave open-cell bvol_cc at zero")
         @assertEqual(HUGE, raiCpl%raiApp%State%rCurv(iOpen,jOpen), "raiCpl2RAIJU should leave open-cell rCurv at HUGE")
         @assertEqual(def_tiote, raiCpl%raiApp%State%tiote(iOpen,jOpen), "raiCpl2RAIJU should leave open-cell tiote at its reset default")

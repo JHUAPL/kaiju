@@ -305,8 +305,10 @@ submodule (volttypes) raijuCplTypesSub
             ! record the grid type info
             ! gtype is a proxy of raiju active, buffer, inactive
             imP(RAI_GTYPE) = (State%active(i0,j0)*1.0_rp+1.0)/2.0  ! "-1=Inactive, 0=Buffer, 1=Active" -> 0, 0.5, and 1.0        
-            imP(RAI_THCON) = State%thcon(i0,j0) ! conjugate co-lat in radians, 0-pi
-            imP(RAI_PHCON) = State%phcon(i0,j0) ! conjugate long in radians, 0-2pi
+            if (State%topo(i0,j0) .eq. RAIJUCLOSED) then
+                imP(RAI_THCON) = State%thcon(i0,j0) ! conjugate co-lat in radians, 0-pi
+                imP(RAI_PHCON) = State%phcon(i0,j0) ! conjugate long in radians, 0-2pi
+            endif
             if (State%active(i0,j0) .eq. RAIJUINACTIVE) then
                 return
             endif
