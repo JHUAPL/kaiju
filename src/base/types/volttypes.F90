@@ -190,6 +190,7 @@ module volttypes
         ! --- Calculated settings --- !
         integer :: iFirstCellInGamGhost
             !! This cell bounds the GAMERA ghost/active boundary. Higher lat is full gam active, lower lat is full gam ghost
+            !! This should also be an active RAIJU cell
 
         ! --- Grid --- !
         type(ShellGrid_T) :: shGr

@@ -8,12 +8,15 @@ module testRaiCplInit
     use planethelper, only : DipColat2L, InvLatitude
 
     use volttypes, only : raijuCoupler_T, IMAG_nMHD_R_NEAREARTH
+    use raijudefs, only : RAIJUACTIVE
     use raijutypes, only : raijuApp_T
     use raijustarter, only : raijuInit
+    use raijuDomain, only : setActiveDomain
+    use voltCplTypes, only : TubeShell_T
     use raijuCplHelper
 
     use raiCplTestHelper, only : raiCplTestNG, raiCplTestNGb, nRaiCplTestProfiles, raiCplTestProfileNames, &
-        genGlobalVoltParentSG, getRaiCplTestMhdProfile, initRaiCplTestOpt
+        genGlobalVoltParentSG, getRaiCplTestMhdProfile, initRaiCplTestOpt, initReadyRaiCpl, fillSyntheticTubeShell
 
     implicit none
 
@@ -138,6 +141,40 @@ contains
             end block
         enddo
     end subroutine testSetRaijuILowLat_MHD_setsExpectedIndices
+
+
+    @test
+    subroutine testIFirstCellInGamGhost_isAnActiveRaijuCell()
+        !! Once we populate a sane closed-domain state and run active-domain setup,
+        !! the MHD low-lat boundary marker should itself land on an active Raiju cell.
+        !! This is the important contract for routines that fall back to
+        !! iFirstCellInGamGhost as a representative low-lat cell.
+        type(XML_Input_T) :: xmlInp
+        integer :: iProf
+        character(len=256) :: msg
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+
+        do iProf=1,nRaiCplTestProfiles
+            block
+                type(raijuCoupler_T) :: raiCpl
+                type(TubeShell_T) :: tubeShell
+
+                call initReadyRaiCpl(raiCpl, xmlInp, parentSG, raiCplTestProfileNames(iProf))
+
+                call fillSyntheticTubeShell(parentSG, tubeShell)
+                call tubeShell2RaiCpl(parentSG, tubeShell, raiCpl)
+                call raiCpl2RAIJU(raiCpl)
+                call setActiveDomain(raiCpl%raiApp%Model, raiCpl%raiApp%Grid, raiCpl%raiApp%State)
+
+                write(msg,'(a,a,a)') "iFirstCellInGamGhost should resolve to an actual Raiju cell for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(raiCpl%iFirstCellInGamGhost <= raiCpl%shGr%ie, trim(msg))
+
+                write(msg,'(a,a,a)') "iFirstCellInGamGhost should be active across physical phi for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(all(raiCpl%raiApp%State%active(raiCpl%iFirstCellInGamGhost, raiCpl%shGr%js:raiCpl%shGr%je) == RAIJUACTIVE), trim(msg))
+            end block
+        enddo
+    end subroutine testIFirstCellInGamGhost_isAnActiveRaijuCell
 
 
     @test

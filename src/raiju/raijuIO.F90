@@ -16,8 +16,8 @@ module raijuIO
 
     implicit none
 
-    integer, parameter, private :: MAXIOVAR = 100
-    logical, private :: doRoot = .true. !Whether root variables need to be written
+    integer, parameter, private :: MAXIOVAR = 200
+    logical, private :: doRoot = .true. !Whether root variables need to be written to main output file
     logical, private :: doFat = .false. !Whether to output lots of extra datalogical, private :: doRoot = .true. !Whether root variables need to be written
 
     contains
@@ -27,15 +27,59 @@ module raijuIO
         type(raijuGrid_T), intent(in) :: Grid
         logical, optional, intent(in) :: doGhostsO
 
+        logical :: doGhosts
+        logical :: fExist
+        type(IOVAR_T), dimension(MAXIOVAR) :: IOVars
+
+        doRoot = .false. ! Don't call again
+
+        if (present(doGhostsO)) then
+            doGhosts = doGhostsO
+        else
+            doGhosts = .false.
+        endif
+
+        Model%raijuH5 = trim(Model%RunID) // ".raiju.h5"
+
+        fExist = CheckFile(Model%raijuH5)
+        write(*,*) "RAIJU outputting to ",trim(Model%raijuH5)
+
+        if(.not. Model%isRestart) then
+            ! Remove all old files, start fresh
+            call CheckAndKill(Model%raijuH5)
+        endif
+
+        if (Model%isRestart .and. fExist) then
+            ! No need to do anything because file already exist
+            !!TODO: When more output files are active, maybe put in a check for each of them
+            return
+        endif
+
+        ! If still here, proceed to init
+        call raijuWriteRootH5Data(Model, Grid, fnameO=Model%raijuH5, doGhostsO=doGhosts)
+        
+    end subroutine raijuInitIO
+
+
+    subroutine raijuWriteRootH5Data(Model, Grid, fnameO, doGhostsO)
+        type(raijuModel_T), intent(in) :: Model
+        type(raijuGrid_T) , intent(in) :: Grid
+        character(len=strLen), optional, intent(in) :: fnameO
+        logical, optional, intent(in) :: doGhostsO
+
         integer :: is, ie, js, je
         logical :: doGhosts
         integer :: i
         logical :: fExist
         real(rp), dimension(:,:), allocatable :: lat2D, lon2D
         type(IOVAR_T), dimension(MAXIOVAR) :: IOVars
-        character(len=strLen) :: gStr
+        character(len=strLen) :: fStr, gStr
 
-        doRoot = .false. ! Don't call again
+        if(present(fnameO)) then
+            fStr = trim(fnameO)
+        else
+            fStr = trim(Model%raijuH5)
+        endif
 
         if (present(doGhostsO)) then
             doGhosts = doGhostsO
@@ -55,25 +99,9 @@ module raijuIO
             je = Grid%shGrid%je
         endif
 
-        associate(sh => Grid%shGrid, spc=>Grid%spc)
-        Model%raijuH5 = trim(Model%RunID) // ".raiju.h5"
+        fExist = CheckFile(fStr)
 
-        fExist = CheckFile(Model%raijuH5)
-        write(*,*) "RAIJU outputting to ",trim(Model%raijuH5)
-
-        if(.not. Model%isRestart) then
-            ! Remove all old files, start fresh
-            call CheckAndKill(Model%raijuH5)
-        endif
-
-        if (Model%isRestart .and. fExist) then
-            ! No need to do anything because file already exist
-            !!TODO: When more output files are active, maybe put in a check for each of them
-            return
-        endif
-
-        ! If still here, proceed to init
-
+        associate(sh=>Grid%shGrid, spc=>Grid%spc)
         ! Add spatial grid as 2D array
         allocate(lat2D(is:ie+1,js:je+1))  ! +1 because we're doing corners
         allocate(lon2D(is:ie+1,js:je+1))
@@ -86,7 +114,6 @@ module raijuIO
             lon2D(i,:) = sh%ph(js:je+1)
         enddo
 
-        ! Ready for output
         ! Some model setting info
         call ClearIO(IOVars)
         call AddOutVar(IOVars,"doDebugOutput" ,Model%doOutput_debug   )  ! Attr
@@ -97,14 +124,13 @@ module raijuIO
         call AddOutVar(IOVars,"doActiveShell",Model%doActiveShell     )  ! Attr
         call AddOutVar(IOVars,"nSpcIn",Model%nSpcMHD)  ! Attr
         call AddOutVar(IOVars,"nSpcRAIJU",Model%nSpc)  ! Attr
-        call WriteVars(IOVars,.true.,Model%raijuH5)
 
-        ! Root data
-        call ClearIO(IOVars)
         call AddOutVar(IOVars,"X",lat2D,uStr="radians")
         call AddOutVar(IOVars,"Y",lon2D,uStr="radians")
-        call WriteVars(IOVars,.true.,Model%raijuH5)
+        call WriteVars(IOVars,.true.,fStr)
+        
         ! Grid data
+        call ClearIO(IOVars)
         call AddOutVar(IOVars,"th_surf"  ,Grid%thRp  (is:ie+1),uStr="radians",dStr="(corner) Thetas mapped to 1 Rp")
         call AddOutVar(IOVars,"thcc_surf",Grid%thcRp (is:ie  ),uStr="radians",dStr="(cell) Thetas mapped to 1 Rp"  )
         call AddOutVar(IOVars,"Bmag"     ,Grid%Bmag  (is:ie,js:je),uStr="nT")
@@ -114,35 +140,18 @@ module raijuIO
         call AddOutVar(IOVars,"alamc"    ,Grid%alamc,uStr="eV * (Rp/nT)^(2/3)")
         call AddOutVar(IOVars,"areaFace",Grid%areaFace(is:ie+1,js:je+1,:),uStr="Rp^2")
         call AddOutVar(IOVars,"lenFace" ,Grid%lenFace (is:ie+1,js:je+1,:),uStr="Rp")
-        call WriteVars(IOVars,.true.,Model%raijuH5,"Grid")
+        call WriteVars(IOVars,.true.,fStr,"Grid")
 
-        call writeShellGrid(Grid%shGrid, Model%raijuH5, "Grid/ShellGrid")
+        call writeShellGrid(Grid%shGrid, fStr, "Grid/ShellGrid")
 
         ! Output detailed lambda grid info
-        do i=1,Grid%nSpc
-            call ClearIO(IOVars)
-            ! Attrs
-            call AddOutVar(IOVars,"flav"     ,spc(i)%flav    )
-            call AddOutVar(IOVars,"N"        ,spc(i)%N       )
-            call AddOutVar(IOVars,"fudge"    ,spc(i)%fudge   )
-            call AddOutVar(IOVars,"numNuc_p" ,spc(i)%numNuc_p)
-            call AddOutVar(IOVars,"numNuc_n" ,spc(i)%numNuc_n)
-            call AddOutVar(IOVars,"spcType"  ,spc(i)%spcType )
-            call AddOutVar(IOVars,"q"        ,spc(i)%q       )
-            call AddOutVar(IOVars,"amu"      ,spc(i)%amu     )
-            call AddOutVar(IOVars,"kStart"   ,spc(i)%kStart-1)  ! Change to assume zero-based
-            call AddOutVar(IOVars,"kEnd"     ,spc(i)%kEnd  -1)  ! Change to assume zero-based
-            ! Datasets
-            call AddOutVar(IOVars,"alami",spc(i)%alami,uStr="eV * (Rx/nT)^(2/3)")
-            write(gStr,'(I0)') spc(i)%flav  ! Idk if this is the easiest way to format ints as strings
-            call WriteVars(IOVars,.true.,Model%raijuH5,"Species",gStr)
-        enddo
+        call writeSpeciesInfo(Model, Grid, fStr)
 
         ! Output planet info
-        call writePlanetParams(Model%planet, .true., Model%raijuH5)
+        call writePlanetParams(Model%planet, .true., fStr)
         end associate
 
-    end subroutine raijuInitIO
+    end subroutine raijuWriteRootH5Data
 
 
     subroutine WriteRaiju(Model, Grid, State, gStr, doGhostsO)
@@ -152,6 +161,7 @@ module raijuIO
         character(len=strLen), intent(in) :: gStr
         logical, optional, intent(in) :: doGhostsO
 
+        character(len=strLen) :: tmpStr
         type(IOVAR_T), dimension(MAXIOVAR) :: IOVars
         integer :: i,j,k,s, nClkSteps
         integer :: is, ie, js, je, ks, ke
@@ -164,7 +174,8 @@ module raijuIO
         real(rp), dimension(:,:,:), allocatable :: outTmp3D
         real(rp), dimension(:,:,:,:), allocatable :: outTmp4D
         logical , dimension(:,:,:), allocatable :: tmpGood3D
-        real(rp), dimension(:,:,:), allocatable :: outPrecipN, outPrecipE, outPrecipAvgE, outCCHeatFlux
+        real(rp), dimension(:,:,:), allocatable :: outPrecipN, outPrecipE, outDeltaPressure, outCCHeatFlux
+        real(rp), dimension(Model%nSpc) :: dpsdst_spc
 
         if (present(doGhostsO)) then
             doGhosts = doGhostsO
@@ -193,6 +204,14 @@ module raijuIO
         !Reset IO chain
         call ClearIO(IOVars)
 
+        ! Calc dpsdst to add to attributes
+        do s=1,Model%nSpc
+            dpsdst_spc(s) = spcEta2DPS(Model, Grid, State%bvol_cc, State%eta, Grid%spc(s), State%active .eq. RAIJUACTIVE)
+            write(tmpStr, '(A,I0)')"DPSDst_",Grid%spc(s)%flav
+            call AddOutVar(IOVars, trim(tmpStr), dpsdst_spc(s))  ! Save as attribute
+        enddo
+        call AddOutVar(IOVars,"DPSDst_total",sum(dpsdst_spc)) !Save total over all species
+        
         ! Add attributes
         call AddOutVar(IOVars,"time",State%t)
         call AddOutVar(IOVars,"MJD",State%mjd)
@@ -239,20 +258,25 @@ module raijuIO
         deallocate(outTmp3D)
 
         ! Coupling things
-        call AddOutVar(IOVars,"dtCpl"  ,State%dt)  ! Attr
-        call AddOutVar(IOVars,"xmin"   ,State%xyzMin (is:ie+1,js:je+1,XDIR)  ,uStr="Rx",dStr="(corners) X location of bmin surface")
-        call AddOutVar(IOVars,"ymin"   ,State%xyzMin (is:ie+1,js:je+1,YDIR)  ,uStr="Rx",dStr="(corners) Y location of bmin surface")
-        call AddOutVar(IOVars,"zmin"   ,State%xyzMin (is:ie+1,js:je+1,ZDIR)  ,uStr="Rx",dStr="(corners) Z location of bmin surface")
-        call AddOutVar(IOVars,"topo"   ,State%topo   (is:ie+1,js:je+1)*1.0_rp,uStr="0=Open, 1=Closed",dStr="(corners) Magnetic topology")
-        call AddOutVar(IOVars,"active" ,State%active (is:ie,js:je)*1.0_rp    ,uStr="-1=Inactive, 0=Buffer, 1=Active")
-        call AddOutVar(IOVars,"bVol"   ,State%bvol   (is:ie+1,js:je+1)       ,uStr="Rx/nT",dStr="(corners) Flux Tube Volume")
-        call AddOutVar(IOVars,"vaFrac" ,State%vaFrac (is:ie+1,js:je+1)       ,uStr="fraction",dStr="Fraction of Alfven speed over magnetofast + ExB speed")
-        call AddOutVar(IOVars,"Pavg_in",State%Pavg   (is:ie,js:je, :)        ,uStr="nPa" ,dStr="Pressures from imagtubes")
-        call AddOutVar(IOVars,"Davg_in",State%Davg   (is:ie,js:je, :)        ,uStr="#/cc",dStr="Densities from imagtubes")
-        call AddOutVar(IOVars,"Pstd_in",State%Pstd   (is:ie,js:je, :)        ,uStr="normalized" ,dStr="Std. dev. of species pressure from imagtubes")
-        call AddOutVar(IOVars,"Dstd_in",State%Dstd   (is:ie,js:je, :)        ,uStr="normalized" ,dStr="Std. dev. of species density from imagtubes")
+        call AddOutVar(IOVars,"dtCpl"   ,State%dt)  ! Attr
+        call AddOutVar(IOVars,"xmin"    ,State%xyzMin (is:ie+1,js:je+1,XDIR)  ,uStr="Rx",dStr="(corners) X location of bmin surface")
+        call AddOutVar(IOVars,"ymin"    ,State%xyzMin (is:ie+1,js:je+1,YDIR)  ,uStr="Rx",dStr="(corners) Y location of bmin surface")
+        call AddOutVar(IOVars,"zmin"    ,State%xyzMin (is:ie+1,js:je+1,ZDIR)  ,uStr="Rx",dStr="(corners) Z location of bmin surface")
+        call AddOutVar(IOVars,"radMax"   ,State%radMax    (is:ie+1,js:je+1)   ,uStr="Rx",dStr="(corners) max radius of field line")
+        call AddOutVar(IOVars,"radMax_cc",State%radMax_cc (is:ie  ,js:je  )   ,uStr="Rx",dStr="max radius of field line")
+        call AddOutVar(IOVars,"rCurv"   ,State%rCurv  (is:ie,js:je)           ,uStr="Rx",dStr="Min curvature radius")
+        call AddOutVar(IOVars,"topo"    ,State%topo   (is:ie+1,js:je+1)*1.0_rp,uStr="0=Open, 1=Closed",dStr="(corners) Magnetic topology")
+        call AddOutVar(IOVars,"active"  ,State%active (is:ie,js:je)*1.0_rp    ,uStr="-1=Inactive, 0=Buffer, 1=Active")
+        call AddOutVar(IOVars,"bVol"    ,State%bvol   (is:ie+1,js:je+1)       ,uStr="Rx/nT",dStr="(corners) Flux Tube Volume")
+        call AddOutVar(IOVars,"vaFrac"  ,State%vaFrac (is:ie+1,js:je+1)       ,uStr="fraction",dStr="Fraction of Alfven speed over magnetofast + ExB speed")
+        call AddOutVar(IOVars,"Pavg_in" ,State%Pavg   (is:ie,js:je, :)        ,uStr="nPa" ,dStr="Pressures from imagtubes")
+        call AddOutVar(IOVars,"Davg_in" ,State%Davg   (is:ie,js:je, :)        ,uStr="#/cc",dStr="Densities from imagtubes")
+        call AddOutVar(IOVars,"Pstd_in" ,State%Pstd   (is:ie,js:je, :)        ,uStr="normalized" ,dStr="Std. dev. of species pressure from imagtubes")
+        call AddOutVar(IOVars,"Dstd_in" ,State%Dstd   (is:ie,js:je, :)        ,uStr="normalized" ,dStr="Std. dev. of species density from imagtubes")
         call AddOutVar(IOVars,"domWeights",State%domWeights(is:ie,js:je)     ,                   dStr="Weights used for smoothing moments for questionable cells along boundary")
         call AddOutSGV(IOVars,"Tbounce",State%Tb, outBndsO=outBnds2D, uStr="[s]", dStr="Bounce timescale along field line (Alfven crossing time)", doWriteMaskO=.false.)
+        call AddOutVar(IOVars,"bndLoc"    ,State%bndLoc    (js:je)*1.0_rp    ,dStr="Inactive cell closest to planet")
+        call AddOutVar(IOVars,"activeLoc" ,State%activeLoc (js:je)*1.0_rp    ,dStr="Active cell furthest from planet")
 
         if (Model%doOwnCorot) then
             ! If we are addng our own corotation potential, then its not included in espot
@@ -299,14 +323,15 @@ module raijuIO
 
         !--- Losses ---!
         if (Model%doLosses) then
+            ! (Ni, Nj, Nk)
+            call AddOutVar(IOVars, "lossRate", State%lossRates(is:ie,js:je,:), uStr="1/s")
+
             ! Calculate accumulated precipitation for each species
             allocate(outPrecipN   (is:ie,js:je,Grid%nSpc))
             allocate(outPrecipE   (is:ie,js:je,Grid%nSpc))
-            allocate(outPrecipAvgE(is:ie,js:je,Grid%nSpc))
             allocate(outCCHeatFlux(is:ie,js:je,Grid%nSpc))
             outPrecipN    = 0.0_rp
             outPrecipE    = 0.0_rp
-            outPrecipAvgE = 0.0_rp
             outCCHeatFlux = 0.0_rp
             do s=1,Grid%nSpc
                 ks = Grid%spc(s)%kStart
@@ -317,22 +342,25 @@ module raijuIO
                 enddo
                 outCCHeatFlux(:,:,s) = sum(State%CCHeatFlux (is:ie,js:je,kS:kE), dim=3)
 
-                where (outPrecipN(:,:,s) > TINY)
-                    outPrecipAvgE(:,:,s) = outPrecipE(:,:,s)/outPrecipN(:,:,s) * erg2kev  ! Avg E [keV]
-                elsewhere
-                    outPrecipAvgE(:,:,s) = 0.0
-                end where
             enddo
             call AddOutVar(IOVars, "precipNFlux", outPrecipN   , uStr="#/cm^2/s")
             call AddOutVar(IOVars, "precipEFlux", outPrecipE   , uStr="erg/cm^2/s")
-            !call AddOutVar(IOVars, "precipAvgE" , outPrecipAvgE, uStr="keV")
             call AddOutVar(IOVars, "CCHeatFlux" , outCCHeatFlux, uStr="eV/cm^2/s")
             deallocate(outPrecipN)
             deallocate(outPrecipE)
-            deallocate(outPrecipAvgE)
             deallocate(outCCHeatFlux)
-            ! (Ni, Nj, Nk)
-            call AddOutVar(IOVars, "lossRate", State%lossRates(is:ie,js:je,:), uStr="1/s")
+
+            allocate(outDeltaPressure(is:ie,js:je,Grid%nSpc))
+            outDeltaPressure = 0.0_rp
+            do j=js,je
+                do i=is,ie
+                    do s=1,Grid%nSpc
+                        outDeltaPressure(i,j,s) = outDeltaPressure(i,j,s) + SpcEta2Press(grid%spc(s), State%dEta_dt(i,j,Grid%spc(s)%kStart:Grid%spc(s)%kEnd), State%bVol_cc(i,j))
+                    enddo
+                enddo
+            enddo
+            call AddOutVar(IOVars, "dPressure_dt" , outDeltaPressure, uStr="nPa/s")
+            deallocate(outDeltaPressure)
 
             if (Model%doOutput_3DLoss) then
                 call AddOutVar(IOVars, "dEta_dt" , State%dEta_dt(is:ie,js:je,:), uStr="eta_units/s")
@@ -413,6 +441,9 @@ module raijuIO
             deallocate(outTmp2D)
         endif
 
+        ! Species/flavor info
+        call WriteRaijuSpeciesStepInfo(Model, Grid, State, IOVars)
+
         !Performance Metrics
         nClkSteps = readNCalls('DeepUpdate')
         call AddOutVar(IOVars, "_perf_stepTime", readClock(1)/nClkSteps)
@@ -430,6 +461,39 @@ module raijuIO
         endif
 
     end subroutine WriteRaiju
+
+
+    subroutine WriteRaijuSpeciesStepInfo(Model, Grid, State, IOVars)
+        !! Calculates and writes some higher-level species/flavor info to help with postprocessing and analysis
+        type(raijuModel_T), intent(inout) :: Model
+        type(raijuGrid_T ), intent(in) :: Grid
+        type(raijuState_T), intent(in) :: State
+        type(IOVAR_T), dimension(MAXIOVAR), intent(inout) :: IOVars
+
+        character(len=strLen) :: tmpStr
+        integer :: s, sIdx
+        integer, dimension(2) :: mpLoc
+        real(rp), dimension(Grid%nSpc) :: maxPress, maxDen
+
+        ! Max Density and Pressure
+        do s=1, Model%nSpc
+            sIdx = spcIdx(Grid, Grid%spc(s)%flav)
+            if (Grid%spc(s)%flav == F_PSPH) then
+                mPLoc = maxloc(State%Den(sIdx)%data, mask=State%active==RAIJUACTIVE)  ! First element = 1, need to account for index offset after
+            else
+                mPLoc = maxloc(State%Press(sIdx)%data, mask=State%active==RAIJUACTIVE)  ! First element = 1, need to account for index offset after
+            endif
+            mpLoc(1) = mpLoc(1) + Grid%shGrid%isg - 1
+            mpLoc(2) = mpLoc(2) + Grid%shGrid%jsg - 1
+
+            maxPress(s) = State%Press(sIdx)%data(mPLoc(1), mpLoc(2))
+            maxDen(s)   = State%Den  (sIdx)%data(mPLoc(1), mpLoc(2))!/Grid%spc(sIdx)%amu
+        enddo
+
+        call AddOutVar(IOVars, "spc_maxPress", maxPress, uStr="[nPa]", dStr="Max pressure for each species/flavor")
+        call AddOutVar(IOVars, "spc_maxDen"  , maxDen  , uStr="[#/cc]", dStr="Max density for each species/flavor")
+
+    end subroutine WriteRaijuSpeciesStepInfo
 
 
     subroutine WriteRaijuRes(Model, Grid, State, opt, ResF)
@@ -524,6 +588,8 @@ module raijuIO
         call AddOutVar(IOVars,"xmin"   ,State%xyzMin (:,:,XDIR)  ,uStr="Rx",dStr="(corners) X location of bmin surface")
         call AddOutVar(IOVars,"ymin"   ,State%xyzMin (:,:,YDIR)  ,uStr="Rx",dStr="(corners) Y location of bmin surface")
         call AddOutVar(IOVars,"zmin"   ,State%xyzMin (:,:,ZDIR)  ,uStr="Rx",dStr="(corners) Z location of bmin surface")
+        call AddOutVar(IOVars,"radMax"   ,State%radMax    (is:ie+1,js:je+1)   ,uStr="Rx",dStr="(corners) max radius of field line")
+        call AddOutVar(IOVars,"radMax_cc",State%radMax_cc (is:ie  ,js:je  )   ,uStr="Rx",dStr="max radius of field line")
         call AddOutVar(IOVars,"bminX"  ,State%Bmin   (:,:,XDIR)  ,uStr="nT")
         call AddOutVar(IOVars,"bminY"  ,State%Bmin   (:,:,YDIR)  ,uStr="nT")
         call AddOutVar(IOVars,"bminZ"  ,State%Bmin   (:,:,ZDIR)  ,uStr="nT")
@@ -564,6 +630,7 @@ module raijuIO
         call AddOutSGV(IOVars, "precipNFlux_Nk", State%precipNFlux, doWriteMaskO=.true., uStr="#/cm^2/s")
         call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux, doWriteMaskO=.true., uStr="erg/cm^2/s")
         call AddOutVar(IOVars, "precipLossRates_Nk", State%lossRates(:,:,:), uStr="1/s")
+        ! (Probably not needed but we will save anyways)
         call AddOutVar(IOVars, "gradPotE"    , State%gradPotE_cc     (:,:,:), uStr="V/m")
         call AddOutVar(IOVars, "gradPotCorot", State%gradPotCorot_cc (:,:,:), uStr="V/m")
         call AddOutVar(IOVars, "gradVM"      , State%gradVM_cc       (:,:,:), uStr="V/m/lambda")
@@ -618,6 +685,8 @@ module raijuIO
         call AddInVar(IOVars,"xmin"   )
         call AddInVar(IOVars,"ymin"   )
         call AddInVar(IOVars,"zmin"   )
+        call AddInVar(IOVars,"radMax" )
+        call AddInVar(IOVars,"radMax_cc")
         call AddInVar(IOVars,"bminX"  )
         call AddInVar(IOVars,"bminY"  )
         call AddInVar(IOVars,"bminZ"  )
@@ -676,6 +745,8 @@ module raijuIO
         call IOArray2DFill(IOVars, "xmin" , State%xyzMin(:,:,XDIR))
         call IOArray2DFill(IOVars, "ymin" , State%xyzMin(:,:,YDIR))
         call IOArray2DFill(IOVars, "zmin" , State%xyzMin(:,:,ZDIR))
+        call IOArray2DFill(IOVars, "radMax"   , State%radMax(:,:))
+        call IOArray2DFill(IOVars, "radMax_cc", State%radMax_cc(:,:))
         call IOArray2DFill(IOVars, "bminX", State%Bmin  (:,:,XDIR))
         call IOArray2DFill(IOVars, "bminY", State%Bmin  (:,:,YDIR))
         call IOArray2DFill(IOVars, "bminZ", State%Bmin  (:,:,ZDIR))
@@ -747,4 +818,134 @@ module raijuIO
 
     end subroutine ReadRaijuResState
 
+
+    subroutine WriteRaijuBlackBox(raiApp)
+        class(raijuApp_T), intent(in) :: raiApp
+
+        character(len=strLen) :: outF
+        type(IOVAR_T), dimension(300) :: IOVars
+        integer :: is, ie, js, je, ks, ke
+        integer :: i,j,k,s, nClkSteps
+        integer, dimension(4) :: outBnds2D
+        real(rp) :: axT, axP
+        real(rp), dimension(:,:), allocatable :: outTmp2D
+
+        write(outF,"(A,A)") "CRASH",trim(raiApp%Model%raijuH5)
+
+        write(*,*)"Writing raiju black box to ",trim(outF)
+
+        call raijuWriteRootH5Data(raiApp%Model, raiApp%Grid, fnameO=outF, doGhostsO=.true.)
+
+        call ClearIO(IOVars)
+
+        associate(Model=>raiApp%Model, Grid=>raiApp%Grid, State=>raiApp%State)
+
+        is = Grid%shGrid%isg
+        ie = Grid%shGrid%ieg
+        js = Grid%shGrid%jsg
+        je = Grid%shGrid%jeg
+        outBnds2D = (/is,ie,js,je/)
+
+        call AddOutVar(IOVars,"time",State%t)
+        call AddOutVar(IOVars,"MJD",State%mjd)
+        ! Save axis of rotation as attributes
+        if (Model%doGeoCorot) then
+            call GeoAxisTP(axT, axP)
+        else
+            axT = 0.0
+            axP = 0.0
+        endif
+        call AddOutVar(IOVars,"rotAxisT",axT)  ! Radians
+        call AddOutVar(IOVars,"rotAxisP",axP)  ! Radians
+
+        call AddOutVar(IOVars, "dtk", State%dtk, uStr="s")
+        call AddOutVar(IOVars, "nStepk", State%nStepk*1.0_rp, uStr="#", dStr="Number of steps each channel has taken")
+        call AddOutVar(IOVars,"bminX",State%Bmin(is:ie+1,js:je+1,XDIR),uStr="nT")
+        call AddOutVar(IOVars,"bminY",State%Bmin(is:ie+1,js:je+1,YDIR),uStr="nT")
+        call AddOutVar(IOVars,"bminZ",State%Bmin(is:ie+1,js:je+1,ZDIR),uStr="nT")
+
+        call AddOutVar(IOVars,"eta"    ,State%eta    (is:ie,js:je, :),uStr="#/cm^3 * Rx/T") !! TODO: Maybe swap with just intensity instead
+        call AddOutVar(IOVars,"eta_avg",State%eta_avg(is:ie,js:je, :),uStr="#/cm^3 * Rx/T") !! TODO: Maybe swap with just intensity instead
+
+
+        ! Coupling things
+        call AddOutVar(IOVars,"dtCpl"  ,State%dt)  ! Attr
+        call AddOutVar(IOVars,"xmin"   ,State%xyzMin (is:ie+1,js:je+1,XDIR)  ,uStr="Rx",dStr="(corners) X location of bmin surface")
+        call AddOutVar(IOVars,"ymin"   ,State%xyzMin (is:ie+1,js:je+1,YDIR)  ,uStr="Rx",dStr="(corners) Y location of bmin surface")
+        call AddOutVar(IOVars,"zmin"   ,State%xyzMin (is:ie+1,js:je+1,ZDIR)  ,uStr="Rx",dStr="(corners) Z location of bmin surface")
+        call AddOutVar(IOVars,"topo"   ,State%topo   (is:ie+1,js:je+1)*1.0_rp,uStr="0=Open, 1=Closed",dStr="(corners) Magnetic topology")
+        call AddOutVar(IOVars,"colatc" ,State%thcon  (is:ie+1,js:je+1)       ,uStr="radians",dStr="(corners) Congugate latitude")
+        call AddOutVar(IOVars,"lonc"   ,State%phcon  (is:ie+1,js:je+1)       ,uStr="radians",dStr="(corners) Congugate longitude")
+        call AddOutVar(IOVars,"active" ,State%active (is:ie,js:je)*1.0_rp    ,uStr="-1=Inactive, 0=Buffer, 1=Active")
+        call AddOutVar(IOVars,"active_last" ,State%active_last (is:ie,js:je)*1.0_rp    ,uStr="-1=Inactive, 0=Buffer, 1=Active")
+        call AddOutVar(IOVars,"OCBDist",State%OCBDist(is:ie,js:je)*1.0_rp    ,dStr="Cell distance from an open closed boundary")
+        call AddOutVar(IOVars,"bVol"   ,State%bvol   (is:ie+1,js:je+1)       ,uStr="Rx/nT",dStr="(corners) Flux Tube Volume")
+        call AddOutVar(IOVars,"bVol_cc",State%bvol_cc(is:ie,js:je)           ,uStr="Rx/nT",dStr="(corners) Flux Tube Volume")
+        call AddOutVar(IOVars,"vaFrac" ,State%vaFrac (is:ie+1,js:je+1)       ,uStr="fraction",dStr="Fraction of Alfven speed over magnetofast + ExB speed")
+        call AddOutVar(IOVars,"Pavg_in",State%Pavg   (is:ie,js:je, :)        ,uStr="nPa" ,dStr="Pressures from imagtubes")
+        call AddOutVar(IOVars,"Davg_in",State%Davg   (is:ie,js:je, :)        ,uStr="#/cc",dStr="Densities from imagtubes")
+        call AddOutVar(IOVars,"Pstd_in",State%Pstd   (is:ie,js:je, :)        ,uStr="normalized" ,dStr="Std. dev. of species pressure from imagtubes")
+        call AddOutVar(IOVars,"Dstd_in",State%Dstd   (is:ie,js:je, :)        ,uStr="normalized" ,dStr="Std. dev. of species density from imagtubes")
+        call AddOutVar(IOVars,"tiote"  ,State%tiote  (is:ie,js:je)           ,uStr="normalized" ,dStr="Ratio of ion temperature over electron temperature")
+        call AddOutVar(IOVars,"domWeights",State%domWeights(is:ie,js:je)     ,                   dStr="Weights used for smoothing moments for questionable cells along boundary")
+        call AddOutSGV(IOVars,"Tbounce",State%Tb, outBndsO=outBnds2D, uStr="[s]", dStr="Bounce timescale along field line (Alfven crossing time)", doWriteMaskO=.false.)
+        call AddOutVar(IOVars,"bndLoc"    ,State%bndLoc    (js:je)*1.0_rp    ,dStr="Inactive cell closest to planet")
+        call AddOutVar(IOVars,"activeLoc" ,State%activeLoc (js:je)*1.0_rp    ,dStr="Active cell furthest from planet")
+
+        call AddOutVar(IOVars,"pot_iono",State%espot(is:ie+1,js:je+1))
+        call AddOutVar(IOVars,"pot_corot",State%pot_corot(is:ie+1,js:je+1),uStr="kV",dStr="(corners) Corotation potential")
+
+        allocate(outTmp2D(Grid%shGrid%isg:Grid%shGrid%ieg, Grid%Nk))
+        where (State%activeShells)
+            outTmp2D = 1.0
+        elsewhere
+            outTmp2D = 0.0
+        end where
+        call AddOutVar(IOVars,"activeShells",outTmp2D,uStr="[Ni, Nk]")
+        deallocate(outTmp2D)
+
+
+        ! Moments
+        call AddOutSGV(IOVars, "Pressure", State%Press, outBndsO=outBnds2D, uStr="nPa" , dStr="Pressure from RAIJU flavors", doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Density" , State%Den  , outBndsO=outBnds2D, uStr="#/cc", dStr="Density from RAIJU flavors" , doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Pressure_avg", State%Press_avg, outBndsO=outBnds2D, uStr="nPa" , dStr="Step-averaged Pressure from RAIJU flavors", doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Density_avg" , State%Den_avg  , outBndsO=outBnds2D, uStr="#/cc", dStr="Step-averaged Density from RAIJU flavors" , doWriteMaskO=.false.)
+
+        call AddOutVar(IOVars, "lossRate", State%lossRates(is:ie,js:je,:), uStr="1/s")
+        call AddOutVar(IOVars, "lossRatePrecip", State%lossRatesPrecip(is:ie,js:je,:), uStr="1/s")
+
+        call AddOutVar(IOVars, "dEta_dt" , State%dEta_dt(is:ie,js:je,:), uStr="eta_units/s")
+        call AddOutVar(IOVars, "CCHeatFlux_Nk" , State%CCHeatFlux (is:ie,js:je,:), uStr="eV/cm^2/s")
+        call AddOutSGV(IOVars, "precipNFlux_Nk", State%precipNFlux, outBndsO=outBnds2D, uStr="#/cm^2/s" , dStr="precipNFlux from RAIJU flavors", doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux, outBndsO=outBnds2D, uStr="erg/cm^2/s" , dStr="precipEFlux from RAIJU flavors", doWriteMaskO=.false.)
+
+        call AddOutVar(IOVars, "gradPotE_cc"    , State%gradPotE_cc    (is:ie,js:je,:) , uStr="V/m")
+        call AddOutVar(IOVars, "gradPotCorot_cc", State%gradPotCorot_cc(is:ie,js:je,:) , uStr="V/m")
+        call AddOutVar(IOVars, "gradVM_cc"      , State%gradVM_cc      (is:ie,js:je,:) , uStr="V/m/lambda")
+
+        call AddOutVar(IOVars, "eta_half"     , State%eta_half     (is:ie  ,js:je  ,:)  , uStr="#/cm^3 * Rx/T")
+        call AddOutVar(IOVars, "iVel"         , State%iVel         (is:ie+1,js:je+1,:,:), uStr="m/s")
+        call AddOutVar(IOVars, "iVelL"        , State%iVelL        (is:ie+1,js:je+1,:,:), uStr="m/s")
+        call AddOutVar(IOVars, "iVelR"        , State%iVelR        (is:ie+1,js:je+1,:,:), uStr="m/s")
+        call AddOutVar(IOVars, "cVel"         , State%cVel         (is:ie  ,js:je  ,:,:), uStr="m/s")
+
+        if (allocated(State%etaFacePDML)) then
+            call AddOutVar(IOVars, "etaFaceReconL", State%etaFaceReconL(is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
+            call AddOutVar(IOVars, "etaFaceReconR", State%etaFaceReconR(is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
+            call AddOutVar(IOVars, "etaFacePDML"  , State%etaFacePDML  (is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
+            call AddOutVar(IOVars, "etaFacePDMR"  , State%etaFacePDMR  (is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
+            call AddOutVar(IOVars, "etaFlux"      , State%etaFlux      (is:ie+1,js:je+1,:,:), uStr="(#/cm^3 * Rx/T) * m^2 / s")
+        endif
+
+        nClkSteps = readNCalls('DeepUpdate')
+        call AddOutVar(IOVars, "_perf_stepTime", readClock(1)/nClkSteps)
+        call AddOutVar(IOVars, "_perf_preAdvance", readClock("Pre-Advance")/nClkSteps)
+        call AddOutVar(IOVars, "_perf_advanceState", readClock("AdvanceState")/nClkSteps)
+        call AddOutVar(IOVars, "_perf_moments", readClock("Moments Eval")/nClkSteps)
+
+        call WriteVars(IOVars,.true.,outF,gstrO="Step#0")
+
+        end associate
+
+    end subroutine WriteRaijuBlackBox
 end module raijuIO

@@ -234,6 +234,14 @@ submodule (volttypes) raijuCplTypesSub
 
             associate(State=>App%raiApp%State)
             ! No matter where th/ph actually ends up on this part of raiju's grid, we will give it info from raiju cell closest to gamera's first ghost cell
+            ! Right now, we expect this to be an active raiju cell. So lets check and, if not, complain and die
+            if (State%active(App%iFirstCellInGamGhost,j0) .ne. RAIJUACTIVE) then
+                write(*,*)"ERROR in getMomentsRAIJU's setLowLatDefaultMoments: unexpected non-active domain"
+                write(*,*)"Requested th,ph=",th,ph
+                write(*,*)"iFirstCell,j0=",App%iFirstCellInGamGhost,j0
+                write(*,*)"Active val=",State%active(App%iFirstCellInGamGhost,j0)
+            endif
+
             tScl = App%tscl_mhdIngest%data(App%iFirstCellInGamGhost, j0)
             if (t < App%startup_blendTscl) then
                 rampC = RampDown(t, 0.0_rp, App%startup_blendTscl)
