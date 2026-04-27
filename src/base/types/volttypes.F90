@@ -5,6 +5,7 @@ module volttypes
     use cmidefs
     use kronos
     use ioclock
+    use dktypes
     use mixtypes
     use ebtypes
     use gcmtypes
@@ -357,6 +358,7 @@ module volttypes
 
         !Apps
         type(mixApp_T) :: remixApp
+        type(dkApp_T) :: dkApp
         type(mhd2Mix_T) :: mhd2mix
 
         type(ebTrcApp_T)  :: ebTrcApp

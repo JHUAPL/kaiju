@@ -20,17 +20,17 @@ module mixdefs
      enumerator :: MHDPSI=1
   end enum
 
-  enum, bind(C)
-     enumerator :: LOMPE=1
-  end enum
+!   enum, bind(C)
+!      enumerator :: LOMPE=1
+!   end enum
 
-  enum, bind(C)
-     enumerator :: NONE=1,ADHOC,CMIT
-  end enum
+!   enum, bind(C)
+!      enumerator :: NONE=1,ADHOC,CMIT
+!   end enum
 
-  enum, bind(C)
-     enumerator :: KAE23=1,ROB87
-  end enum
+!   enum, bind(C)
+!      enumerator :: KAE23=1,ROB87
+!   end enum
 
   ! enumerator for transform variables
   enum, bind(C)

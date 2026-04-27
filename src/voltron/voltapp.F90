@@ -4,6 +4,8 @@ module voltapp
     use mixtypes
     use mixdefs
     use mixmain
+    use dkinit
+    use dkmain
     use ebtypes
     use chmpdefs
     use starter
@@ -395,6 +397,9 @@ module voltapp
         ! There is no space for optFileName, we directly pass inpXML
         call vApp%remixApp%InitModel(xmlInp)
 
+        call initDKmesh(vapp%dkApp,vApp%remixApp%ion)
+        call initDK(vApp%dkApp, xmlInp)
+
         if(isRestart) then
             call vApp%remixApp%ReadRestart(resId=RunID,nRes=vApp%IO%nRes)
         endif
@@ -436,6 +441,7 @@ module voltapp
             maxF107 = f107%getMax()
 
             call updateF107(vApp%remixApp%ion,maxF107)
+            vApp%dkApp%params%f107 = maxF107
     
             if (vApp%isLoud) write(*,*) 'Using F10.7 = ', maxF107        
         endif                
@@ -485,44 +491,48 @@ module voltapp
         class(voltApp_T), intent(inout) :: vApp
         real(rp) :: curTilt
 
-        ! convert gamera inputs to remix
-        call MJDRecalc(vApp%MJD)
-        if ( vApp%doDeep .and. (vApp%time>0) ) then
-            call CoupleIMagToMix(vApp)
-        endif
-        call mapGameraToRemix(vApp%mhd2mix, vApp%remixApp)
+        ! ! convert gamera inputs to remix
+        ! call MJDRecalc(vApp%MJD)
+        ! if ( vApp%doDeep .and. (vApp%time>0) ) then
+        !     call CoupleIMagToMix(vApp)
+        ! endif
+        ! call mapGameraToRemix(vApp%mhd2mix, vApp%remixApp)
+
+        ! ! determining the current dipole tilt
+        ! call vApp%tilt%getValue(vApp%time,curTilt)
+        ! vApp%remixApp%IO%tilt = curTilt
+        ! vApp%remixApp%IO%time = vApp%time
+
+        ! if (vApp%doGCM) then
+        !     ! call getConductance(vApp%remixApp%ion, vApp%remixApp%IO, vApp%gcm)
+        ! else
+        !     call mix_transform_grid(vApp%remixApp%ion)
+        !     ! call getConductance(vApp%remixApp%ion, vApp%remixApp%IO)
+        ! endif
+
+        if (.not. vApp%doGCM) call mix_transform_grid(vApp%remixApp%ion)
+        
+
+        call vApp%remixApp%AdvanceModel(0.0_rp) ! steady-state, dt=0
+
+
+    end subroutine runRemix
+
+!----------
+    subroutine runDK(vApp)
+        class(voltApp_T), intent(inout) :: vApp
+        real(rp) :: curTilt
 
         ! determining the current dipole tilt
         call vApp%tilt%getValue(vApp%time,curTilt)
-        vApp%remixApp%IO%tilt = curTilt
-        vApp%remixApp%IO%time = vApp%time
+        vApp%dkApp%IO%tilt = curTilt
+        vApp%dkApp%IO%time = vApp%time
 
-        ! solve for remix output
-        ! if (vApp%time<=0) then
-        !     call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.false.)
-        ! else if (vApp%doGCM) then
-        !     call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
-        ! else
-        !     call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.true.)
-        ! endif
+        if (vApp%doGCM) call DKdogcm(vApp%dkApp,vApp%gcm)
 
-        if (vApp%doGCM) then
-            call getConductance(vApp%remixApp%ion, vApp%remixApp%IO, vApp%gcm)
-        else
-            call getConductance(vApp%remixApp%ion, vApp%remixApp%IO)
-        endif
-        
-        
-        ! if (vApp%doGCM) then
-        !     call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
-        ! else
-        !     call vApp%remixApp%AdvanceModel(0.0_rp) ! steady-state, dt=0
-        ! endif
-        call vApp%remixApp%AdvanceModel(0.0_rp) ! steady-state, dt=0
+        call DKcompute(vApp%dkApp)
 
-        
-
-    end subroutine runRemix
+    end subroutine runDK
 
 !----------
 !Deep coupling stuff (time coming from vApp%time, so in seconds)
@@ -530,11 +540,21 @@ module voltapp
         class(gamApp_T) , intent(inout) :: gApp
         class(voltApp_T), intent(inout) :: vApp
 
+        call MJDRecalc(vApp%MJD)
+
         !Remix code moved from old shallow coupling
         ! convert gamera data to mixInput
         call Tic("G2R")
         call convertGameraToRemix(vApp%mhd2mix, gApp, vApp%remixApp)
+        call VoltToMix(vApp)
         call Toc("G2R")
+
+        ! run DK for conductance and precipitation
+        call Tic("DK", .true.)
+        call getMixToDK(vApp%remixApp, vApp%dkApp)
+        call runDK(vApp)
+        call getDKToMix(vApp%remixApp, vApp%dkApp)
+        call Toc("DK", .true.)
 
         ! run remix
         call Tic("ReMIX", .true.)
@@ -866,53 +886,65 @@ module voltapp
 
     end subroutine genVoltShellGrid
 
-    ! Get conductance/conductivity from GCM/DK/etc for Remix/GPS
-    subroutine getConductance(I,mixIOobj,gcm)
-        type(mixIon_T),dimension(:),intent(inout) :: I
-        type(mixIO_T), intent(in) :: mixIOobj  
-        type(gcm_T),optional,intent(inout) :: gcm
+    ! ! Get conductance/conductivity from GCM/DK/etc for Remix/GPS
+    ! subroutine getConductance(I,mixIOobj,gcm)
+    !     type(mixIon_T),dimension(:),intent(inout) :: I
+    !     type(mixIO_T), intent(in) :: mixIOobj  
+    !     type(gcm_T),optional,intent(inout) :: gcm
 
-        logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
-        integer :: h,NumH
+    !     logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
+    !     integer :: h,NumH
 
-        ! here we should check if Remix or GPS
-        NumH = size(I)
+    !     ! here we should check if Remix or GPS
+    !     NumH = size(I)
 
-        if (present(gcm)) then
-            doModel = .true.
-        else
-            call mix_transform_grid(I)
-            if (mixIOobj%time<=0) then
-                doModel = .false.
-            end if
-        end if
+    !     if (present(gcm)) then
+    !         doModel = .true.
+    !     else
+    !         call mix_transform_grid(I)
+    !         if (mixIOobj%time<=0) then
+    !             doModel = .false.
+    !         end if
+    !     end if
 
-        do h=1,NumH
-            if (I(h)%St%hemisphere.eq.NORTH) then
-                I(h)%St%tilt = mixIOobj%tilt
-            else
-                I(h)%St%tilt = -mixIOobj%tilt
-            end if
+    !     do h=1,NumH
+    !         if (I(h)%St%hemisphere.eq.NORTH) then
+    !             I(h)%St%tilt = mixIOobj%tilt
+    !         else
+    !             I(h)%St%tilt = -mixIOobj%tilt
+    !         end if
 
-            if (doModel) then
-                I(h)%conductance%const_sigma = I(h)%P%const_sigma         
-            else
-                I(h)%conductance%const_sigma = .true.            
-            end if
+    !         if (doModel) then
+    !             I(h)%conductance%const_sigma = I(h)%P%const_sigma         
+    !         else
+    !             I(h)%conductance%const_sigma = .true.            
+    !         end if
 
-            call Tic("MIX-COND")
-            call conductance_euv(I(h)%conductance,I(h)%G,I(h)%St)
-            call dragonking_total(I(h)%aurora,I(h)%G,I(h)%St,I(h)%conductance)
+    !         call Tic("MIX-COND")
+    !         call conductance_euv(I(h)%conductance,I(h)%G,I(h)%St)
+    !         call dragonking_total(I(h)%aurora,I(h)%G,I(h)%St,I(h)%conductance)
 
-            if (present(gcm)) then
-                call conductance_total(I(h)%conductance,I(h)%G,I(h)%St,gcm,h)
-            else
-                call conductance_total(I(h)%conductance,I(h)%G,I(h)%St)
-            end if
-            call Toc("MIX-COND")
-        end do
+    !         if (present(gcm)) then
+    !             call conductance_total(I(h)%conductance,I(h)%G,I(h)%St,gcm,h)
+    !         else
+    !             call conductance_total(I(h)%conductance,I(h)%G,I(h)%St)
+    !         end if
+    !         call Toc("MIX-COND")
+    !     end do
 
-    end subroutine getConductance
+    ! end subroutine getConductance
+
+    !----------
+    subroutine VoltToMix(vApp)
+        class(voltApp_T), intent(inout) :: vApp
+
+        ! convert gamera inputs to remix
+        if ( vApp%doDeep .and. (vApp%time>0) ) then
+            call CoupleIMagToMix(vApp)
+        endif
+        call mapGameraToRemix(vApp%mhd2mix, vApp%remixApp)
+
+    end subroutine VoltToMix
 
 
 end module voltapp
