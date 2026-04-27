@@ -121,10 +121,11 @@ submodule (volttypes) raijuCplTypesSub
         integer :: s  ! Iterators
         integer :: i0, j0  ! i,j cell that provided th,ph are in
         integer :: idx_psph
-        real(rp) :: Req
+        real(rp) :: Req, ReqLowLatBC, thLowLatBC
         real(rp) :: d_cold, t_cold, d_hot, p_hot
         real(rp) :: tScl, rampC
         real(rp) :: wMHD,wRAI,alpha,beta,p_mhd
+        real(rp) :: xeq, yeq
 
         real(rp), parameter :: wRAI0 = 0.5
 
@@ -147,6 +148,8 @@ submodule (volttypes) raijuCplTypesSub
 
         ! Need j0 now cause we'll use it even if theta is lower lat than raiju grid
         call getSGCellJLoc(sh, ph, j0)
+        ReqLowLatBC = DipColat2L(sh%thcRp(App%iFirstCellInGamGhost))
+        thLowLatBC  = sh%thc(App%iFirstCellInGamGhost)
 
         if (th > sh%maxTheta) then
             ! Below low lat boundary, do low lat boundary stuff
@@ -159,8 +162,8 @@ submodule (volttypes) raijuCplTypesSub
         call getSGCellILoc(sh, th, i0)
 
         !Req = norm2(State%xyzMincc(i0,j0,:))
-        Req = DipColat2L(sh%thc(i0))
-        if (Req < App%opt%mhdRin) then
+        Req = DipColat2L(sh%thcRp(i0))
+        if (Req < ReqLowLatBC) then
             ! On grid but below MHD active boundary, also do low lat stuff
             isEdible = .true.
             call setLowLatDefaultMoments()
@@ -232,7 +235,7 @@ submodule (volttypes) raijuCplTypesSub
 
         subroutine setLowLatDefaultMoments()
 
-            associate(State=>App%raiApp%State)
+            associate(State=>App%raiApp%State, sh=>App%raiApp%Grid%shGrid)
             ! No matter where th/ph actually ends up on this part of raiju's grid, we will give it info from raiju cell closest to gamera's first ghost cell
             ! Right now, we expect this to be an active raiju cell. So lets check and, if not, complain and die
             if (State%active(App%iFirstCellInGamGhost,j0) .ne. RAIJUACTIVE) then
@@ -242,7 +245,7 @@ submodule (volttypes) raijuCplTypesSub
                 write(*,*)"Active val=",State%active(App%iFirstCellInGamGhost,j0)
             endif
 
-            tScl = App%tscl_mhdIngest%data(App%iFirstCellInGamGhost, j0)
+            call InterpShellVar_TSC_pnt(sh, App%tscl_mhdIngest, thLowLatBC, ph, tScl)
             if (t < App%startup_blendTscl) then
                 rampC = RampDown(t, 0.0_rp, App%startup_blendTscl)
                 tScl = rampC*30.0_rp*tScl + (1-rampC)*tScl  ! No good reason for 30 except for wanting starting tScl to be ~8-10 minutes
@@ -250,9 +253,11 @@ submodule (volttypes) raijuCplTypesSub
             imW(IM_TSCL) = tScl
             if (App%raiApp%Model%doPlasmasphere) then
                 idx_psph = spcIdx(App%raiApp%Grid, F_PSPH)
-                d_cold = State%Den_avg(idx_psph)%data(App%iFirstCellInGamGhost,j0)
+                call InterpShellVar_TSC_pnt(sh, State%Den_avg(idx_psph), thLowLatBC, ph, d_cold)
             else
-                d_cold = GallagherXY(State%xyzMincc(App%iFirstCellInGamGhost,j0,XDIR),State%xyzMincc(App%iFirstCellInGamGhost,j0,YDIR))
+                call InterpShellVar_TSC_pnt(App%shGr, App%xyzMincc(XDIR), thLowLatBC, ph, xeq)
+                call InterpShellVar_TSC_pnt(App%shGr, App%xyzMincc(YDIR), thLowLatBC, ph, yeq)
+                d_cold = GallagherXY(xeq, yeq)
             endif
             
             imW(IM_D_COLD) = d_cold  ! [#/cc]

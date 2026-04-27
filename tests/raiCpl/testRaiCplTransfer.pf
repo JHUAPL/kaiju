@@ -1,18 +1,22 @@
 module testRaiCplTransfer
 
     use testHelper
-    use kdefs, only : rp, TINY, HUGE, NDIM, XDIR, ZDIR, PI
+    use kdefs, only : rp, TINY, HUGE, NDIM, XDIR, YDIR, ZDIR, PI
 
     use shellGrid, only : ShellGrid_T, ShellGridVar_T, SHGR_CC, SHGR_CORNER, deallocShellGrid, initShellVar
-    use shellInterp, only : InterpShellVar_ParentToChild
+    use shellInterp, only : InterpShellVar_ParentToChild, InterpShellVar_TSC_pnt
     use shellUtils, only : toCenter2D
     use xml_input, only : XML_Input_T, New_XML_Input
+    use planethelper, only : DipColat2L, DkT2P
 
-    use volttypes, only : raijuCoupler_T, voltApp_T
-    use raijudefs, only : RAIJUCLOSED, RAIJUOPEN, def_tiote
+    use volttypes, only : raijuCoupler_T, voltApp_T, IMAG_nMHD_R_NEAREARTH, IM_D_RING, IM_P_RING, IM_D_COLD, IM_P_COLD, IM_TSCL
+    use raijudefs, only : RAIJUCLOSED, RAIJUOPEN, RAIJUACTIVE, RAIJUINACTIVE, F_PSPH, RAIJUHPLUS, RAIJUELE, def_tiote
     use voltCplTypes, only : TubeShell_T, TUBE_CLOSED
+    use raijuSpeciesHelper, only : spcIdx
+    use raijuDomain, only : setActiveDomain
+    use imaghelper, only : PsphTemp_Genestreti
 
-    use raijuCplHelper, only : tubeShell2RaiCpl, raiCpl2RAIJU, packRaijuCoupler_RT
+    use raijuCplHelper, only : tubeShell2RaiCpl, raiCpl2RAIJU, packRaijuCoupler_RT, raiCpl_calcTsclMHD
     use raiCplTestHelper
 
     implicit none
@@ -277,6 +281,134 @@ contains
     end subroutine testPackRaijuCouplerRT_updatesTimeAndMappedState
 
 
+    @test
+    subroutine testGetMomentsRAIJU_selectsExpectedBranchByLocation()
+        !! Check the main getMomentsRAIJU location branches:
+        !! off-grid poleward, on-grid inactive, on-grid active, and on-grid low-lat fallback.
+        type(XML_Input_T) :: xmlInp
+        type(raijuCoupler_T) :: raiCpl
+        real(rp) :: tEval
+        real(rp) :: thPoleward, phPoleward
+        real(rp) :: thInactive, phInactive
+        real(rp) :: thActive, phActive
+        real(rp) :: thLowLat
+        real(rp) :: imW(IM_D_RING:IM_TSCL), expW(IM_D_RING:IM_TSCL)
+        logical :: isEdible
+        integer :: iActive, jActive, iInactive, jInactive
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+        call initMomentReadyRaiCpl(raiCpl, xmlInp, "lfmD_2p0")
+        call findMomentBranchCells(raiCpl, iActive, jActive, iInactive, jInactive)
+
+        @assertTrue(iActive > 0 .and. jActive > 0, "Moment test fixture should provide an active on-grid cell poleward of the low-lat boundary")
+        @assertTrue(iInactive > 0 .and. jInactive > 0, "Moment test fixture should provide an inactive on-grid cell poleward of the low-lat boundary")
+        @assertTrue(raiCpl%iFirstCellInGamGhost <= raiCpl%shGr%ie, "Moment test fixture should have at least one cell equatorward of iFirstCellInGamGhost")
+
+        tEval = raiCpl%startup_blendTscl + 10.0_rp
+
+        thPoleward = raiCpl%shGr%minTheta - 1.0e-6_rp
+        phPoleward = raiCpl%shGr%phc(jActive)
+        call raiCpl%getMoments(thPoleward, phPoleward, tEval, imW, isEdible)
+        @assertFalse(isEdible, "Poleward points outside the Raiju domain should not be edible")
+
+        thInactive = raiCpl%shGr%thc(iInactive)
+        phInactive = raiCpl%shGr%phc(jInactive)
+        call raiCpl%getMoments(thInactive, phInactive, tEval, imW, isEdible)
+        @assertFalse(isEdible, "On-grid points in the inactive region should not be edible")
+
+        thActive = raiCpl%shGr%thc(iActive)
+        phActive = raiCpl%shGr%phc(jActive)
+        call raiCpl%getMoments(thActive, phActive, tEval, imW, isEdible)
+        call calcExpectedActiveMoments(raiCpl, thActive, phActive, expW)
+        @assertTrue(isEdible, "On-grid active points poleward of the low-lat boundary should be edible")
+        @assertTrue(all(abs(imW - expW) <= testTol), "Active-domain getMomentsRAIJU output should match TSC-interpolated Raiju moments")
+
+        thLowLat = raiCpl%shGr%thc(raiCpl%iFirstCellInGamGhost + 1)
+        call raiCpl%getMoments(thLowLat, phActive, tEval, imW, isEdible)
+        call calcExpectedLowLatMoments(raiCpl, phActive, expW)
+        @assertTrue(isEdible, "On-grid points equatorward of the low-lat boundary should use the low-lat fallback and remain edible")
+        @assertTrue(all(abs(imW - expW) <= testTol), "Low-lat getMomentsRAIJU output should match the boundary-value fallback moments")
+    end subroutine testGetMomentsRAIJU_selectsExpectedBranchByLocation
+
+
+    @test
+    subroutine testGetMomentsRAIJU_lowLatProfileSamplesFollowBoundaryFallback()
+        !! Sample along one near-Earth MHD profile and verify that points below the
+        !! low-lat boundary all return the same boundary-based fallback moments,
+        !! while the first active interval above the boundary still uses active moments.
+        type(XML_Input_T) :: xmlInp
+        type(raijuCoupler_T) :: raiCpl
+        real(rp), dimension(raiCplTestNGb + IMAG_nMHD_R_NEAREARTH) :: mhdRAll
+        real(rp), dimension(raiCplTestNG) :: mhdRinGcc
+        real(rp), dimension(IMAG_nMHD_R_NEAREARTH) :: mhdRNearEarth
+        real(rp) :: mhdRin
+        real(rp) :: reqLowLatBC, reqSample, thSample, phSample
+        real(rp) :: tEval, frac
+        real(rp) :: imW(IM_D_RING:IM_TSCL), expW(IM_D_RING:IM_TSCL)
+        logical :: isEdible
+        integer :: iActive, jActive, iInactive, jInactive
+        integer :: iReq, iFrac
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+        call initMomentReadyRaiCpl(raiCpl, xmlInp, "lfmD_2p0")
+        call findMomentBranchCells(raiCpl, iActive, jActive, iInactive, jInactive)
+        call getRaiCplTestMhdProfile("lfmD_2p0", mhdRAll, mhdRinGcc, mhdRNearEarth, mhdRin)
+
+        tEval = raiCpl%startup_blendTscl + 10.0_rp
+        phSample = raiCpl%shGr%phc(jActive)
+        reqLowLatBC = DipColat2L(raiCpl%shGr%thcRp(raiCpl%iFirstCellInGamGhost))
+        call calcExpectedLowLatMoments(raiCpl, phSample, expW)
+
+        do iReq=1,raiCplTestNGb+1
+            if (abs(mhdRAll(iReq+1) - mhdRAll(iReq)) <= TINY) cycle
+
+            do iFrac=1,4
+                frac = real(iFrac, rp)/5.0_rp
+                reqSample = (1.0_rp - frac)*mhdRAll(iReq) + frac*mhdRAll(iReq+1)
+                thSample = thetaForDipoleLOnShell(raiCpl%shGr, reqSample)
+                call raiCpl%getMoments(thSample, phSample, tEval, imW, isEdible)
+
+                if (reqSample < reqLowLatBC - TINY) then
+                    @assertTrue(isEdible, "Low-lat profile samples should remain edible")
+                    @assertTrue(all(abs(imW - expW) <= testTol), "All samples below the low-lat boundary should return the same boundary fallback moments")
+                else
+                    call calcExpectedActiveMoments(raiCpl, thSample, phSample, expW)
+                    @assertTrue(isEdible, "The first active interval above the low-lat boundary should use active moments")
+                    @assertTrue(all(abs(imW - expW) <= testTol), "Samples above the low-lat boundary should still use active-domain moments")
+                endif
+            enddo
+        enddo
+    end subroutine testGetMomentsRAIJU_lowLatProfileSamplesFollowBoundaryFallback
+
+
+    @test
+    subroutine testGetMomentsRAIJU_boundaryColdTermsMatchLowLatFallback()
+        !! The cold-density/cold-pressure/tscl values should be continuous across the
+        !! active-to-low-lat handoff because the fallback now evaluates at thLowLatBC.
+        type(XML_Input_T) :: xmlInp
+        type(raijuCoupler_T) :: raiCpl
+        real(rp) :: tEval, phSample
+        real(rp) :: imBoundary(IM_D_RING:IM_TSCL), imLowLat(IM_D_RING:IM_TSCL)
+        logical :: isEdibleBoundary, isEdibleLowLat
+        integer :: iActive, jActive, iInactive, jInactive
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+        call initMomentReadyRaiCpl(raiCpl, xmlInp, "lfmD_2p0")
+        call findMomentBranchCells(raiCpl, iActive, jActive, iInactive, jInactive)
+
+        tEval = raiCpl%startup_blendTscl + 10.0_rp
+        phSample = raiCpl%shGr%phc(jActive)
+
+        call raiCpl%getMoments(raiCpl%shGr%thc(raiCpl%iFirstCellInGamGhost), phSample, tEval, imBoundary, isEdibleBoundary)
+        call raiCpl%getMoments(raiCpl%shGr%thc(raiCpl%iFirstCellInGamGhost + 1), phSample, tEval, imLowLat, isEdibleLowLat)
+
+        @assertTrue(isEdibleBoundary .and. isEdibleLowLat, "Boundary and first low-lat sample points should both be edible")
+        @assertLessThanOrEqual(abs(imBoundary(IM_D_COLD) - imLowLat(IM_D_COLD)), testTol, "Cold density should be continuous across the low-lat handoff")
+        @assertLessThanOrEqual(abs(imBoundary(IM_P_COLD) - imLowLat(IM_P_COLD)), testTol, "Cold pressure should be continuous across the low-lat handoff")
+        @assertLessThanOrEqual(abs(imBoundary(IM_TSCL)   - imLowLat(IM_TSCL  )), testTol, "MHD ingest timescale should be continuous across the low-lat handoff")
+    end subroutine testGetMomentsRAIJU_boundaryColdTermsMatchLowLatFallback
+
+
     subroutine childSubsetStarts(childSG, subis, subjs)
         type(ShellGrid_T), intent(in) :: childSG
         integer, intent(out) :: subis, subjs
@@ -323,5 +455,124 @@ contains
             enddo
         enddo
     end subroutine findMaskedInterpDifference
+
+
+    subroutine initMomentReadyRaiCpl(raiCpl, xmlInp, profileName)
+        !! Build a fully initialized raiCpl fixture with synthetic coupled moments
+        !! already mapped into RAIJU state and tscl_mhdIngest calculated.
+        type(raijuCoupler_T), intent(inout) :: raiCpl
+        type(XML_Input_T), intent(inout) :: xmlInp
+        character(len=*), intent(in) :: profileName
+
+        type(TubeShell_T) :: tubeShell
+        integer :: firstClosedI0
+
+        call initReadyRaiCpl(raiCpl, xmlInp, parentSG, profileName)
+
+        firstClosedI0 = raiCpl%shGr%bndis - raiCpl%shGr%Ngn + 6
+        call fillSyntheticTubeShell(parentSG, tubeShell, firstClosedIO=firstClosedI0)
+        call tubeShell2RaiCpl(parentSG, tubeShell, raiCpl)
+        call raiCpl2RAIJU(raiCpl)
+        call setActiveDomain(raiCpl%raiApp%Model, raiCpl%raiApp%Grid, raiCpl%raiApp%State)
+        call raiCpl_calcTsclMHD(raiCpl)
+    end subroutine initMomentReadyRaiCpl
+
+
+    subroutine findMomentBranchCells(raiCpl, iActive, jActive, iInactive, jInactive)
+        !! Find one active and one inactive cell poleward of the low-lat fallback
+        !! boundary so getMomentsRAIJU can exercise its location branches.
+        type(raijuCoupler_T), intent(in) :: raiCpl
+        integer, intent(out) :: iActive, jActive, iInactive, jInactive
+
+        integer :: i, j, iHi
+
+        iActive = -1
+        jActive = -1
+        iInactive = -1
+        jInactive = -1
+        iHi = min(raiCpl%iFirstCellInGamGhost - 1, raiCpl%shGr%ie)
+
+        do j=raiCpl%shGr%js, raiCpl%shGr%je
+            do i=raiCpl%shGr%is, iHi
+                if (raiCpl%raiApp%State%active(i,j) == RAIJUACTIVE .and. iActive < 0) then
+                    iActive = i
+                    jActive = j
+                endif
+                if (raiCpl%raiApp%State%active(i,j) == RAIJUINACTIVE .and. iInactive < 0) then
+                    iInactive = i
+                    jInactive = j
+                endif
+                if (iActive > 0 .and. iInactive > 0) return
+            enddo
+        enddo
+    end subroutine findMomentBranchCells
+
+
+    subroutine calcExpectedActiveMoments(raiCpl, th, ph, imW)
+        !! Rebuild the active-domain getMomentsRAIJU answer from the underlying
+        !! TSC-interpolated state variables. This assumes test t > startupTscl.
+        type(raijuCoupler_T), intent(in) :: raiCpl
+        real(rp), intent(in) :: th, ph
+        real(rp), intent(out) :: imW(IM_D_RING:IM_TSCL)
+
+        integer :: s, idx_psph
+        real(rp) :: dCold, dHot, pHot, tScl
+
+        imW = 0.0_rp
+        call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%tscl_mhdIngest, th, ph, tScl)
+        imW(IM_TSCL) = tScl
+
+        idx_psph = spcIdx(raiCpl%raiApp%Grid, F_PSPH)
+        call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%raiApp%State%Den_avg(idx_psph), th, ph, dCold)
+        imW(IM_D_COLD) = dCold
+        imW(IM_P_COLD) = DkT2P(dCold, PsphTemp_Genestreti(dCold))
+
+        do s=1,raiCpl%raiApp%Model%nSpc
+            if (raiCpl%raiApp%Grid%spc(s)%spcType == RAIJUHPLUS) then
+                call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%raiApp%State%Den_avg(s), th, ph, dHot)
+                call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%raiApp%State%Press_avg(s), th, ph, pHot)
+                imW(IM_D_RING) = imW(IM_D_RING) + dHot
+                imW(IM_P_RING) = imW(IM_P_RING) + pHot
+            elseif (raiCpl%raiApp%Grid%spc(s)%spcType == RAIJUELE) then
+                call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%raiApp%State%Press_avg(s), th, ph, pHot)
+                imW(IM_P_RING) = imW(IM_P_RING) + pHot
+            endif
+        enddo
+    end subroutine calcExpectedActiveMoments
+
+
+    subroutine calcExpectedLowLatMoments(raiCpl, ph, imW)
+        !! Rebuild the low-lat fallback moments using the boundary cell-center
+        !! location that getMomentsRAIJU now samples with TSC interpolation.
+        type(raijuCoupler_T), intent(in) :: raiCpl
+        real(rp), intent(in) :: ph
+        real(rp), intent(out) :: imW(IM_D_RING:IM_TSCL)
+
+        integer :: idx_psph
+        real(rp) :: thLowLatBC, dCold, tScl
+
+        imW = 0.0_rp
+        thLowLatBC = raiCpl%shGr%thc(raiCpl%iFirstCellInGamGhost)
+
+        call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%tscl_mhdIngest, thLowLatBC, ph, tScl)
+        imW(IM_TSCL) = tScl
+
+        idx_psph = spcIdx(raiCpl%raiApp%Grid, F_PSPH)
+        call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%raiApp%State%Den_avg(idx_psph), thLowLatBC, ph, dCold)
+        imW(IM_D_COLD) = dCold
+        imW(IM_P_COLD) = DkT2P(dCold, PsphTemp_Genestreti(dCold))
+    end subroutine calcExpectedLowLatMoments
+
+
+    function thetaForDipoleLOnShell(sh, reqL) result(theta)
+        !! Convert an equatorial dipole L shell to the corresponding shell-grid
+        !! colatitude at the current shell radius.
+        type(ShellGrid_T), intent(in) :: sh
+        real(rp), intent(in) :: reqL
+
+        real(rp) :: theta
+
+        theta = asin(sqrt(sh%radius/reqL))
+    end function thetaForDipoleLOnShell
 
 end module testRaiCplTransfer

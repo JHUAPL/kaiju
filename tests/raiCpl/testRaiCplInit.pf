@@ -5,10 +5,9 @@ module testRaiCplInit
 
     use shellGrid, only : ShellGrid_T, SHGR_CC, SHGR_CORNER, deallocShellGrid
     use xml_input
-    use planethelper, only : DipColat2L, InvLatitude
+    use planethelper, only : DipColat2L
 
     use volttypes, only : raijuCoupler_T, IMAG_nMHD_R_NEAREARTH
-    use raijudefs, only : RAIJUACTIVE
     use raijutypes, only : raijuApp_T
     use raijustarter, only : raijuInit
     use raijuDomain, only : setActiveDomain
@@ -276,5 +275,6 @@ contains
             iReq = iReq - 1
         enddo
     end function expectedLowLatIndex
+
 
 end module testRaiCplInit
