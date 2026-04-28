@@ -472,10 +472,15 @@ module voltapp
     subroutine runRemix(vApp)
         class(voltApp_T), intent(inout) :: vApp
         real(rp) :: curTilt
+        logical :: doStartupConstSigma
 
         ! convert gamera inputs to remix
         call MJDRecalc(vApp%MJD)
-        if ( vApp%doDeep .and. (vApp%time>0) ) then
+        ! Keep REMIX on constant conductance until one full deep-coupling interval
+        ! has elapsed, so IMAG has had a chance to produce valid precip-driven
+        ! conductance inputs before we try to use them.
+        doStartupConstSigma = (vApp%time <= max(0.0_rp, vApp%DeepDT))
+        if ( vApp%doDeep .and. (.not. doStartupConstSigma) ) then
             call CoupleIMagToMix(vApp)
         endif
         call mapGameraToRemix(vApp%mhd2mix, vApp%remixApp)
@@ -484,7 +489,7 @@ module voltapp
         call vApp%tilt%getValue(vApp%time,curTilt)
 
         ! solve for remix output
-        if (vApp%time<=0) then
+        if (doStartupConstSigma) then
             call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.false.)
         else if (vApp%doGCM) then
             call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
@@ -838,4 +843,3 @@ module voltapp
     end subroutine genVoltShellGrid
 
 end module voltapp
-

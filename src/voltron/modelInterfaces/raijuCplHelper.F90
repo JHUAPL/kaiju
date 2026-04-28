@@ -145,7 +145,8 @@ module raijuCplHelper
         raiCpl%iFirstCellInGamGhost = i
         if (doVerbose) then
             write(*,*)"Setting RAICPL iFirstCellInGamGhost to ",i
-            write(*,*)" RAIJU colat [deg], L:",rad2deg*sh%thc(i), DipColat2L(sh%thcRp(i))
+            ! Show upper face value since that's the lowest lat extent of the cell
+            write(*,*)" RAIJU colat [deg], L:",rad2deg*sh%th(i+1), DipColat2L(sh%thcRp(i+1))
             write(*,*)" MHD_Rin:",raiCpl%opt%mhdRin
         endif
 
@@ -164,7 +165,8 @@ module raijuCplHelper
         endif
         if (doVerbose) then
             write(*,*)"Setting RAIJU iLowLat_Evol to ",i
-            write(*,*)" RAIJU colat [deg], L:",rad2deg*sh%thc(i), DipColat2L(sh%thRp(i))
+            ! Show upper face value since that's the lowest lat extent of the cell
+            write(*,*)" RAIJU colat [deg], L:",rad2deg*sh%th(i+1), DipColat2L(sh%thcRp(i+1))
             write(*,*)" MHD_Rin:",raiCpl%opt%mhdRin
         endif
 
@@ -179,7 +181,8 @@ module raijuCplHelper
         raiCpl%raiApp%Model%iLowLat_BndLoss = i
         if (doVerbose) then
             write(*,*)"Setting RAIJU iLowLat_BndLoss to ",i
-            write(*,*)" RAIJU colat [deg], L:",rad2deg*sh%thc(i), DipColat2L(sh%thcRp(i))
+            ! Show upper face value since that's the lowest lat extent of the cell
+            write(*,*)" RAIJU colat [deg], L:",rad2deg*sh%th(i+1), DipColat2L(sh%thcRp(i+1))
             write(*,*)" Ref gam cell rad: ",raiCpl%opt%mhdR_nearEarth_arr(n_mhdCellsForBndLoss)
         endif
 
