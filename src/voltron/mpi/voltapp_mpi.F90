@@ -378,18 +378,28 @@ module voltapp_mpi
     subroutine startDeep(vApp)
         type(voltAppMpi_T), intent(inout) :: vApp
 
+        call MJDRecalc(vApp%MJD)
+        
         ! convert gamera data to mixInput
         call Tic("G2R")
         call convertGameraToRemix(vApp%mhd2mix, vApp%gApp, vApp%remixApp)
+        call VoltToMix(vApp)
         call Toc("G2R")
-
-        call MJDRecalc(vApp%MJD)
+        
 
         if (vApp%doGCM .and. vApp%time >=0 .and. vApp%gcmCplRank /= -1) then
             call Tic("GCM2MIX")
             call coupleGCM2MIX(vApp%gcm,vApp%remixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank)
             call Toc("GCM2MIX")
         end if
+
+        write(*,*) "DK in Voltapp_mpi"
+        ! run DK for conductance and precipitation
+        call Tic("DK", .true.)
+        call getMixToDK(vApp%remixApp, vApp%dkApp)
+        call runDK(vApp)
+        call getDKToMix(vApp%remixApp, vApp%dkApp)
+        call Toc("DK", .true.)
 
         ! tubes are only done after spinup
         if(vApp%doDeep .and. vApp%time >= 0) then
