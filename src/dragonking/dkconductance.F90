@@ -57,6 +57,10 @@ module dkconductance
       real(rp) :: dT,upTau,dnTau,wAvgU,wAvgD
       integer :: i,j
 
+      !Initialize delta conductances to zero to avoid using uninitialized memory
+      conductance%deltaSigmaP = 0.0_rp
+      conductance%deltaSigmaH = 0.0_rp
+
       !Save old Sigs
       allocate(SigH0(grid%Np,grid%Nt))
       allocate(SigP0(grid%Np,grid%Nt))
