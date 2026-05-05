@@ -12,7 +12,7 @@ module raijuetautils
     real(rp), private, parameter :: kapDefault = 6.0
 
     !Quad prec. parameters for erf difference
-    real(qp), parameter, private :: p  =  0.3275911  , &
+    real(qp), parameter, private :: p_erf  =  0.3275911  , &
                                     a1 =  0.254829592, &
                                     a2 = -0.284496736, &
                                     a3 =  1.421413741, &
@@ -178,6 +178,26 @@ module raijuetautils
     end function SpcEta2Press
 
 
+    function SpcEta2kT(spc, eta, bVol) result(kT)
+        !! Take a species' eta at a specific point, and calculate kT [keV] based on summed moments
+        type(raijuSpecies_T), intent(in) :: spc
+            !! Species info
+        real(rp), dimension(spc%kStart:spc%kEnd), intent(in) :: eta
+            !! Etas we are summing
+        real(rp), intent(in) ::  bVol
+            !! Flux tube volume [Rx/nT]
+
+        real(rp) :: D, P
+        real(rp) :: kT
+            !! [keV]
+
+        D = SpcEta2Den(spc, eta, bVol)
+        P = SpcEta2Press(spc, eta, bVol)
+        kT = DP2kT(D, P)
+        
+    end function SpcEta2kT
+
+
     function spcEta2DPS(Model, Grid, bVol_cc, eta, spc, isGood) result(dpsdst)
         !! Calculate total DPS-Dst for given species within the defined isGood domain
         type(raijuModel_T), intent(in) :: Model
@@ -206,8 +226,33 @@ module raijuetautils
         enddo
     end function spcEta2DPS
 
+    !Similar to above but force dipole assumption
+    function spcEta2DipDPS(Model,Grid,eta,spc) result(dpsdst)
+        type(raijuModel_T), intent(in) :: Model
+        type(raijuGrid_T) , intent(in) :: Grid
+        real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg, Grid%shGrid%jsg:Grid%shGrid%jeg, Grid%Nk), intent(in) :: eta
+        type(raijuSpecies_T), intent(in) :: spc
 
-    subroutine DkT2SpcEta(Model, spc, eta, D, kT, vm, doAccumulateO, etaBelowO)
+        real(rp) :: dpsdst
+        integer :: i,j
+        real(rp) :: L,P,E,bVol0,enDen
+
+        dpsdst = 0.0
+        do j=Grid%shGrid%jsg,Grid%shGrid%jeg
+            do i=Grid%shGrid%isg,Grid%shGrid%ieg
+                L = DipColat2L(Grid%thcRp(i))
+                bVol0 = DipFTV_L(L) !Re/nT
+                P = SpcEta2Press(spc, eta(i,j,spc%kStart:spc%kEnd), bVol0)  ! [nPa]
+                enDen = (P*1.0D-9)*(bVol0*Model%planet%rp_m*1.0D9)*(Grid%Brcc(i,j)*1.0D-9)/kev2J
+                ! p[J/m^3] * bVol[m/T] * B[T]  = [J/m^2] * keV/J = [keV/m^2]
+                E = enDen*(Grid%areaCC(i,j)*Model%planet%ri_m**2) !  [keV/m^2]* Re^2[m^2] = [keV]
+                dpsdst = dpsdst - 4.2*(1.0D-30)*energy  ! [nT]
+            enddo
+        enddo
+
+    end function spcEta2DipDPS
+
+    subroutine DkT2SpcEta(Model, spc, eta, D, kT, vm, doAccumulateO, etaBelowO, etaAboveO)
         !! Take a density and pressure, and map it to RAIJU eta channels for given species
         type(raijuModel_T), intent(in) :: Model
         type(raijuSpecies_T), intent(in) :: spc
@@ -216,14 +261,21 @@ module raijuetautils
             !! len(spc%N) etas we need to populate
         real(rp), intent(in) :: D, kT, vm
             !! Density [#/cc], Energy [keV], bVol^-2/3 [(Rx/nT)^(-2/3)]
-        real(rp), optional, intent(out) :: etaBelowO
-            !! If provided, we will return the eta that's below the lowest channel of this species
         logical, optional, intent(in) :: doAccumulateO
             !! Whether or not to zero out etas before putting in new stuff
+        real(rp), optional, intent(out) :: etaBelowO
+            !! If provided, we will return the eta that's below the lowest channel of this species
+        real(rp), optional, intent(out) :: etaAboveO
+            !! If provided, we will return the eta that's above the highest channel of this species
 
         
         integer :: k
         logical :: doAccumulate
+        real(rp) :: eng_mult = 10.0_rp
+        real(rp) :: alam_max
+
+        if (present(etaBelowO)) etaBelowO = 0.0
+        if (present(etaAboveO)) etaAboveO = 0.0
 
         if (present(doAccumulateO)) then
             doAccumulate = doAccumulateO
@@ -252,7 +304,6 @@ module raijuetautils
             return
         endif
 
-
         do k=spc%kStart,spc%kEnd
             eta(k) = eta(k) + Model%dp2etaMap(Model,D,kT,vm,abs(spc%alami(k)),abs(spc%alami(k+1)))
                 !! Model%dp2etaMap may point to one of the functions below, like Maxwell2Eta
@@ -261,6 +312,16 @@ module raijuetautils
 
         if (present(etaBelowO)) then
             etaBelowO = Model%dp2etaMap(Model,D,kT,vm,0.0_rp,abs(spc%alami(spc%kStart)))
+        endif
+
+        if(present(etaAboveO)) then
+            alam_max = eng_mult*(kT*1.0D3)/vm  ! Max lambda we will evaluate up to
+            if (alam_max <= abs(spc%alami(spc%kEnd+1))) then
+                etaAboveO = 0.0_rp  ! If 10x kt isn't above the max lambda channel, call it good and go home
+            else
+                ! Otherwise, evaluate
+                etaAboveO = Model%dp2etaMap(Model,D,kT,vm,abs(spc%alami(spc%kEnd+1)), alam_max)
+            endif
         endif
 
         
@@ -280,6 +341,11 @@ module raijuetautils
         real(rp) :: A0,kapgam,kapbar,kArg,delscl
         real(rp) :: etaK
             !! Eta in units of [#/cc * Rx/T]
+        
+        if(amin > amax) then
+            write(*,*)"ERROR in raiju Kappa: amin > amax"
+            stop
+        endif
         etaK = 0.0
 
         kap = Model%kappa
@@ -317,25 +383,33 @@ module raijuetautils
         real(rp), intent(in) :: D,kT,vm,amin,amax
             !! Density [#/cc], kT [keV], vm [(Rx/nT)^(-2/3)],
             !! min and max lambda vals [eV * (Rx/nT)^(2/3)]
-        real(rp) :: A0
+        real(rp) :: A0, kT_safe
             !! Flux tube content
         real(qp) :: xp,xm,tp,tm,ep,em,erfdiff,expdiff,etaq
             !! (Quad precision) Variables for experfdiff calculation
         real(rp) :: etaK
             !! Eta in units of [#/cc * Rx/T]
+        
+         if(amin > amax) then
+            write(*,*)"ERROR in raiju Maxwell: amin > amax"
+            stop
+        endif
+
         etaK = 0.0
 
-        A0 = D/(vm**1.5)*sclEta ! #/cc * Rx/nT * nT/T -> #/cc*Rx/T
-        xp = sqrt(abs(amax)*vm / (kT*1.e3))  ! [eV/eV]
-        xm = sqrt(abs(amin)*vm / (kT*1.e3))
+        kT_safe = max(kT, TINY)
 
-        tp = 1.0/(1.0+p*xp)
-        tm = 1.0/(1.0+p*xm)
+        A0 = D/(vm**1.5)*sclEta ! #/cc * Rx/nT * nT/T -> #/cc*Rx/T
+        xp = sqrt(abs(amax)*vm / (kT_safe*1.e3))  ! [eV/eV]
+        xm = sqrt(abs(amin)*vm / (kT_safe*1.e3))
+
+        tp = 1.0/(1.0+p_erf*xp)
+        tm = 1.0/(1.0+p_erf*xm)
         ep = exp(-(xp**2.0))
         em = exp(-(xm**2.0))
 
         erfdiff = - (a1*tp + a2*(tp**2.0) + a3*(tp**3.0) + a4*(tp**4.0) + a5*(tp**5.0))*ep &
-                + (a1*tm + a2*(tm**2.0) + a3*(tm**3.0) + a4*(tm**4.0) + a5*(tm**5.0))*em
+                  + (a1*tm + a2*(tm**2.0) + a3*(tm**3.0) + a4*(tm**4.0) + a5*(tm**5.0))*em
 
         expdiff = 2.0*(xp*ep - xm*em)/sqrt(QPI) !Using quad prec PI
         etaq = A0*(erfdiff-expdiff)
@@ -399,24 +473,42 @@ module raijuetautils
         real(rp) :: Kp
 
         integer :: i,j
-        real(rp) :: den, vm
+        real(rp) :: den
         real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg,&
                             Grid%shGrid%jsg:Grid%shGrid%jeg) :: etaPsph
+        real(rp) :: Rx, Ry
 
         write(*,*) "RAIJU initializing plasmasphere with Kp =",Kp
 
         etaPsph = 0.0
 
         !$OMP PARALLEL DO default(shared) &
-        !$OMP schedule(dynamic) &
-        !$OMP private(i,j,den,vm)
+        !$OMP private(i,j,Rx,Ry,den)
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
-            do i=Grid%shGrid%isg,Grid%shGrid%ieg
-                den = GallagherXY(State%xyzMincc(i,j,XDIR), State%xyzMincc(i,j,YDIR), Kp)  ! [#/cc]
-                !vm = State%bvol_cc(i,j)**(-2./3.)
+            do i=Grid%shGrid%isg,Grid%shGrid%ie+1
+                !! Note: Going as low as first raiju low lat ghost
+                if (State%active(i,j) == RAIJUINACTIVE) then
+                    cycle
+                endif
+                Rx = 0.25*sum(State%xyzMin(i:i+1,j:j+1,XDIR))
+                Ry = 0.25*sum(State%xyzMin(i:i+1,j:j+1,YDIR))
+                !den = GallagherXY(State%xyzMincc(i,j,XDIR), State%xyzMincc(i,j,YDIR), Kp)  ! [#/cc]
+                den = GallagherXY(Rx, Ry, Kp)  ! [#/cc]
                 etaPsph(i,j) = den*State%bvol_cc(i,j)*sclEta
             enddo
         enddo
+        ! Now we extend that ghost value through the rest to avoid crazy gradients
+        ! This one keeps density constant, but actually leads to more extreme gradients in eta, which is what we're actually pushing around
+        !do j=Grid%shGrid%jsg,Grid%shGrid%jeg
+        !    den = GallagherXY(State%xyzMincc(Grid%shGrid%ie+1,j,XDIR), State%xyzMincc(Grid%shGrid%ie+1,j,YDIR), Kp)  ! [#/cc]
+        !    etaPsph(Grid%shGrid%ie+2:,j) = den*State%bvol_cc(Grid%shGrid%ie+2:,j)*sclEta
+        !enddo
+        do j=Grid%shGrid%jsg,Grid%shGrid%jeg
+            etaPsph(Grid%shGrid%ie+2:,j) = etaPsph(Grid%shGrid%ie+1,j)
+        enddo
+        
+
+        !write(*,*)etaPsph(:,Grid%shGrid%js)
 
     end function getInitPsphere
 
@@ -426,7 +518,7 @@ module raijuetautils
         type(raijuGrid_T) , intent(in) :: Grid
         type(raijuState_T), intent(inout) :: State
 
-        integer :: i,j,k0
+        integer :: i,i_eval,j,k0
         real(rp), parameter :: maxX = 2.0 !Max over-filling relative to target, i.e. don't go above maxX x den-target
         real(rp), parameter :: day2s = 24.0*60.0*60,s2day=1.0/day2s
         real(rp) :: NowKp
@@ -436,21 +528,23 @@ module raijuetautils
         
         k0 = Grid%spc(spcIdx(Grid, F_PSPH))%kStart !plasmasphere index
         NowKp = State%KpTS%evalAt(State%t)
-
+        call SetKp0(NowKp) !Update state of Gallagher
+        
         !$OMP PARALLEL DO default(shared) &
-        !$OMP private(i,j,xeq,yeq,rad,dppT,cc2eta,eta2cc) &
+        !$OMP private(i,i_eval,j,xeq,yeq,rad,dppT,cc2eta,eta2cc) &
         !$OMP private(dpsph,etaT,deta,dndt)
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
                 if (State%active(i,j) == RAIJUACTIVE) then
-
-                    xeq = State%xyzMincc(i,j,XDIR)
-                    yeq = State%xyzMincc(i,j,YDIR)
+                    i_eval = min(i, Grid%shGrid%ie+1)  ! Always eval low lat ghosts at same first raiju ghost cell
+                    xeq = State%xyzMincc(i_eval,j,XDIR)
+                    yeq = State%xyzMincc(i_eval,j,YDIR)
                     rad = sqrt(xeq**2.0 + yeq**2.0)
+                    !rad = State%radMax_cc(i_eval, j)
 
                     !Closed field line, calculate Gallagher w/ current Kp to get target density
                     dppT = GallagherXY(xeq,yeq,NowKp)
-                    cc2eta = State%bvol_cc(i,j)*sclEta
+                    cc2eta = State%bvol_cc(i_eval,j)*sclEta
                     eta2cc = 1.0/cc2eta !Convert eta to #/cc
 
                     dpsph = eta2cc*State%eta(i,j,k0) !Current plasmasphere density [#/cc]

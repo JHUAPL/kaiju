@@ -113,4 +113,12 @@ submodule (raijutypes) raijuTypesSub
 
     end subroutine raiCleanup
 
+
+    module subroutine raiWriteBlackBox(App)
+        class(raijuApp_T), intent(in) :: App
+        
+        call WriteRaijuBlackBox(App)
+
+    end subroutine raiWriteBlackBox
+
 end submodule raijuTypesSub

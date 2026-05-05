@@ -594,6 +594,9 @@ module raijutypes
         procedure :: WriteSlimFileOutput => raiWriteSlimFileOutput
         procedure :: AdvanceModel        => raiAdvanceModel
         procedure :: Cleanup             => raiCleanup
+    
+        ! My own
+        procedure :: WriteBlackBox => raiWriteBlackBox
     end type raijuApp_T
 
 !------
@@ -645,6 +648,10 @@ module raijutypes
         module subroutine raiCleanup(App)
             class(raijuApp_T), intent(inout) :: App
         end subroutine raiCleanup
+
+        module subroutine raiWriteBlackBox(App)
+            class(raijuApp_T), intent(in) :: App
+        end subroutine raiWriteBlackBox
 
     end interface
 
