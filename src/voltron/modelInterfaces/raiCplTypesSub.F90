@@ -430,7 +430,6 @@ submodule (volttypes) raijuCplTypesSub
         integer, intent(in) :: nStep
 
         call App%raiApp%WriteFileOutput(nStep)
-        call App%raiApp%WriteBlackBox()
 
     end subroutine
 

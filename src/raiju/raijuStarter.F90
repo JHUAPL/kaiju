@@ -215,9 +215,7 @@ module raijustarter
         else
             call iXML%Set_Val(Model%doOwnCorot, "prob/doCorot",.false.)
         endif
-        if (Model%doOwnCorot) then
-            call iXML%Set_Val(Model%doGeoCorot, "prob/doGeoCorot",.false.)
-        endif
+        call iXML%Set_Val(Model%doGeoCorot, "prob/doGeoCorot",.false.)
 
         ! Lambda channel settings
         call iXML%Set_Val(Model%doDynamicLambdaRanges, "lambdas/dynamicRanges",.false.)
@@ -334,7 +332,7 @@ module raijustarter
         select case(tmpStr)
             case("RESTART")
                 Grid%gType = RAI_G_SHGRID ! Idk, not important right now
-                call GenShellGridFromFile(Grid%shGrid, RAI_SG_NAME, Model%ResF)
+                call GenShellGridFromFile(Grid%shGrid, RAI_SG_NAME, Model%ResF, "Grid/ShellGrid")
             case("UNISPH")
                 Grid%gType = RAI_G_UNISPH
                 ! Generate our own grid from scratch

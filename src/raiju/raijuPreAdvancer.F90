@@ -229,7 +229,10 @@ module raijuPreAdvancer
 
         ! Grab 2D potentials
         call potExB(Grid%shGrid, State, pExB)
-        call potCorot(Model%planet, Grid%shGrid, pCorot, Model%doGeoCorot)
+        pCorot = 0.0_rp
+        if (Model%doOwnCorot) then
+            call potCorot(Model%planet, Grid%shGrid, pCorot, Model%doGeoCorot)
+        endif
         
         ! Build 3D effective potential
         !$OMP PARALLEL DO default(shared) &
