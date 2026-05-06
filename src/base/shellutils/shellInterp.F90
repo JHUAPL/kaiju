@@ -475,6 +475,9 @@ module shellInterp
             stop
         endif
 
+        destVar%data = 0.0_rp
+        destVar%mask = .false.
+
         ! Determine SGV bounds of source var that map to destination grid's bounds
         call ijExtra_SGV(srcVar%loc, iExtra, jExtra)
 

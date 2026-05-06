@@ -346,8 +346,10 @@ module raijuColdStartHelper
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
                 do k = spc%kStart,spc%kEnd
-                    tau = lossCX%calcTau(Model, Grid, State, i, j, k)
-                    etaCS(i,j,k) = etaCS(i,j,k)*exp(-tCX/tau)
+                    if (State%active(i,j) .ne. RAIJUINACTIVE) then
+                        tau = lossCX%calcTau(Model, Grid, State, i, j, k)
+                        etaCS(i,j,k) = etaCS(i,j,k)*exp(-tCX/tau)
+                    endif
                 enddo
             enddo
         enddo

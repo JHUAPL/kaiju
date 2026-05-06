@@ -82,11 +82,7 @@ module raijuDomain
                 vaFrac_cc(i,j) = 0.25*(sum(State%vaFrac(i:i+1,j:j+1)))
                 
                 ! Also, apply buffer outer boundary constraint
-                !xyMin = sqrt(State%xyzMin(i,j,XDIR)**2 + State%xyzMin(i,j,YDIR)**2)
-                ! Simple circle limit
-                !if ( (xyMin > Model%maxTail_buffer) .or. xyMin > Model%maxSun_buffer) then
-                rMin22 = sqrt(State%xyzMin(i:i+1,j:j+1,XDIR)**2 + State%xyzMin(i:i+1,j:j+1,YDIR)**2)
-                if ( any(rMin22 > Model%maxTail_buffer) .or. any(rMin22 > Model%maxSun_buffer) ) then
+                if ( any(State%radMax(i:i+1,j:j+1) > Model%maxTail_buffer) .or. any(State%radMax(i:i+1,j:j+1) > Model%maxSun_buffer) ) then
                     isInactive(i,j) = .true.
                     domWeights(i,j) = 0.0_rp
                 endif
@@ -115,10 +111,13 @@ module raijuDomain
         enddo
 
         ! Handle periodic boundary in j direction
-        isInactive(:, sh%jsg:sh%js-1) = isInactive(:, sh%je-sh%Ngw+1:sh%je)
-        isInactive(:, sh%je+1:sh%jeg) = isInactive(:, sh%js:sh%js+sh%Nge-1)
-        bndLoc(sh%jsg:sh%js-1) = bndLoc(sh%je-sh%Ngw+1:sh%je)
-        bndLoc(sh%je+1:sh%jeg) = bndLoc(sh%js:sh%js+sh%Nge-1)
+        !isInactive(:, sh%jsg:sh%js-1) = isInactive(:, sh%je-sh%Ngw+1:sh%je)
+        !isInactive(:, sh%je+1:sh%jeg) = isInactive(:, sh%js:sh%js+sh%Nge-1)
+        call wrapJcc(sh, isInactive)
+        !isInactive(:, sh%jsg:sh%js-1) = isInactive(:, sh%je-sh%Ngw+1:sh%je)
+        !isInactive(:, sh%je+1:sh%jeg) = isInactive(:, sh%js:sh%js+sh%Nge-1)
+        bndLoc(sh%jsg:sh%js-1) = bndLoc(sh%je-sh%Nge+1:sh%je)
+        bndLoc(sh%je+1:sh%jeg) = bndLoc(sh%js:sh%js+sh%Ngw-1)
 
         ! Try to make boundary smooth in ionosphere
         bndL = bndLoc
@@ -134,7 +133,7 @@ module raijuDomain
         do j=sh%je,sh%js, -1
             bndL(j) = max(bndL(j), bndL(j+1)-n_bndLim)
         enddo
-        bndL(sh%isg:sh%is-1) = bndL(sh%is)  ! Extend final left sweep into ghosts
+        bndL(sh%jsg:sh%js-1) = bndL(sh%js)  ! Extend final left sweep into ghosts
         ! Now combine back into bndLoc
         do j=sh%jsg,sh%jeg
             bndLoc(j) = max(bndL(j), bndR(j))
@@ -155,6 +154,7 @@ module raijuDomain
             enddo
         enddo
         isInactive = isInactive_tmp
+        call wrapJcc(sh, isInactive)
 
         end associate
 
@@ -411,9 +411,8 @@ module raijuDomain
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
                 if (ocbDist(i,j) > 0) then  !! OCBdist will be zero in inactive zone, we want to avoid editing those cells
-                    xyMin = sqrt(State%xyzMin(i,j,XDIR)**2 + State%xyzMin(i,j,YDIR)**2)
                     ! Simple circle limit
-                    if ( (xyMin > Model%maxTail_active) .or. xyMin > Model%maxSun_active) then
+                    if ( any(State%radMax_cc(i:i+1,j:j+1) > Model%maxTail_active) .or. any(State%radMax_cc(i:i+1,j:j+1) > Model%maxSun_active)) then
                         isBuffer(i,j) = .true.
                     endif
                 endif
@@ -468,6 +467,8 @@ module raijuDomain
                 enddo
             enddo
         enddo
+
+        call wrapJcc(sh, ocbDist)
         
     end subroutine CalcOCBDist
 
