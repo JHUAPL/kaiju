@@ -393,7 +393,6 @@ module voltapp_mpi
             call Toc("GCM2MIX")
         end if
 
-        write(*,*) "DK in Voltapp_mpi"
         ! run DK for conductance and precipitation
         call Tic("DK", .true.)
         call getMixToDK(vApp%remixApp, vApp%dkApp)

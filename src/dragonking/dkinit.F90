@@ -48,6 +48,12 @@ module dkinit
       
       ! Initialize variables
       do h=1,numH
+         if (h .eq. NORTH) then
+          dkApp%vars(h)%hemisphere = NORTH
+        else if (h .eq. SOUTH) then
+          dkApp%vars(h)%hemisphere = SOUTH
+        end if
+
         call initDKvars(dkApp%aurora(h), dkApp%conductance(h), dkApp%vars(h), dkApp%grid(h))
 
         dkApp%aurora(h)%alpha_RCM = 1.0/(def_tiote+1.0)

@@ -71,7 +71,7 @@ module dkconductance
          ! Use GCM conductance.
          vars%SigmaP = max(params%pedmin,vars%SigmaPgcm)
          vars%SigmaH = max(params%hallmin,vars%SigmaHgcm)
-      else if (conductance%const_sigma) then
+      else if (params%const_sigma) then
          ! Use constant conductance.
          vars%SigmaP = params%ped0
          vars%SigmaH = 0.D0

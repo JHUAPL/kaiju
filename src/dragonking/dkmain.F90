@@ -139,11 +139,14 @@ module dkmain
                 dkApp%vars(h)%tilt = -dkApp%IO%tilt
             end if
 
-            if (doModel) then
-                dkApp%conductance(h)%const_sigma = dkApp%params%const_sigma         
-            else
-                dkApp%conductance(h)%const_sigma = .true.            
-            end if
+            ! if (doModel) then
+            !     dkApp%conductance(h)%const_sigma = dkApp%params%const_sigma         
+            ! else
+            !     dkApp%conductance(h)%const_sigma = .true.            
+            ! end if
+
+            ! When not running the full model, this forces constant conductance regardless of config
+            if (.not. doModel) dkApp%params%const_sigma = .true. 
 
             call Tic("DK-COND")
             call conductance_euv(dkApp%conductance(h),dkApp%grid(h),dkApp%vars(h),dkApp%params)
