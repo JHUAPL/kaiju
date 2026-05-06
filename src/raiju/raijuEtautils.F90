@@ -2,6 +2,7 @@ module raijuetautils
 
     use planethelper
     use earthhelper
+    use, intrinsic :: ieee_arithmetic
 
     use raijudefs
     use raijutypes
@@ -58,7 +59,6 @@ module raijuetautils
 
         associate (shG => Grid%shGrid, spc => Grid%spc)
             !$OMP PARALLEL DO default(shared) &
-            !$OMP schedule(dynamic) &
             !$OMP private(i,j,s)
             do j=shG%jsg,shG%jeg
                 do i=shG%isg,shG%ieg
@@ -69,6 +69,17 @@ module raijuetautils
                             p_Den  (s)%mask(i,j) = .false.
                             p_Press(s)%mask(i,j) = .false.
                             cycle
+                        endif
+
+                        ! Quick NaN check
+                        if (any(ieee_is_nan(p_eta(i,j,spc(s)%kStart:spc(s)%kEnd)))) then
+                            write(*,*)"ERROR in RAIJU's EvalMoments: this i,j has a NaN in species s=",s
+                            write(*,*)"i,j,thc,phc=",i,j,shG%thc(i),shG%phc(j)
+                            write(*,*)"Etas:"
+                            write(*,*)p_eta(i,j,spc(s)%kStart:spc(s)%kEnd)
+                            call State%myRaiApp%WriteBlackBox()
+                            write(*,*)"Goodbye"
+                            stop
                         endif
 
                         p_Den(s)%data(i,j) = SpcEta2Den(spc(s), &  ! Species details

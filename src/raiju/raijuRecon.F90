@@ -77,7 +77,7 @@ module raijuRecon
         real(rp), intent(in) :: q1, q2, q3
         real(rp) :: qi
 
-        qi = q1*C5Up(1) + q2*C5Up(2) + q3*C5Up(3)
+        qi = q1*C3Up(1) + q2*C3Up(2) + q3*C3Up(3)
     end function Upwind3
 
 

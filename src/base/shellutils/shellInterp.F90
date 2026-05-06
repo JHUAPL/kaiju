@@ -6,6 +6,7 @@ module shellInterp
     use math
     use shellgrid
     use shellutils
+    use, intrinsic :: ieee_arithmetic
 
     implicit none
 
@@ -218,6 +219,7 @@ module shellInterp
         real(rp), dimension(NumTSC) :: Ws,Qs
         logical , dimension(NumTSC) :: isGs
         integer :: ipnt,jpnt,n,di,dj
+        integer, dimension(NumTSC) :: iQs, jQs
 
         ! Default return values
         Qinterp = 0.0
@@ -368,16 +370,43 @@ module shellInterp
                 Qs(n) = sgVar%data(ipnt,jpnt)
                 Ws(n) = wE(di)*wZ(dj)
                 isGs(n) = sgVar%mask(ipnt,jpnt)
+                iQs(n) = ipnt
+                jQs(n) = jpnt
                 if(present(srcMaskO)) then
                     isGs(n) = isGs(n) .and. srcMaskO(ipnt,jpnt)
                 endif
 
-                if (.not. isGs(n)) Ws(n) = 0.0
+                if (.not. isGs(n)) then
+                    Ws(n) = 0.0_rp
+                    Qs(n) = 0.0_rp
+                endif
 
                 n = n + 1
             enddo
         enddo
 
+        if (any(.not. ieee_is_finite(Ws))) then
+            write(*,*)"ERROR in InterpShellVar_TSC_pnt: We have a bad interpolation weight!"
+            write(*,*)"ShellGrid name:",sgSource%name
+            write(*,*)"th, ph: ",th, ph
+            write(*,*)"i0, j0:",i0,j0
+            write(*,*)"Qs:",Qs
+            write(*,*)"Ws:",Ws
+            write(*,*)"isGs:",isGs
+            stop
+        endif
+        if (any((.not. ieee_is_finite(Qs)) .and. isGs)) then
+            write(*,*)"ERROR in InterpShellVar_TSC_pnt: We have a bad source value in active stencil!"
+            write(*,*)"ShellGrid name:",sgSource%name
+            write(*,*)"th, ph: ",th, ph
+            write(*,*)"i0, j0:",i0,j0
+            write(*,*)"stencil i:",iQs
+            write(*,*)"stencil j:",jQs
+            write(*,*)"Qs:",Qs
+            write(*,*)"Ws:",Ws
+            write(*,*)"isGs:",isGs
+            stop
+        endif
         ! Renormalize only if some stencil weight survived masking.
         if (sum(Ws) <= TINY) then
             return
@@ -386,6 +415,18 @@ module shellInterp
 
         ! Get final value
         Qinterp = dot_product(Qs,Ws)
+        if (.not. ieee_is_finite(Qinterp)) then
+            write(*,*)"ERROR in InterpShellVar_TSC_pnt: Interpolated value is not finite!"
+            write(*,*)"ShellGrid name:",sgSource%name
+            write(*,*)"th, ph: ",th, ph
+            write(*,*)"i0, j0:",i0,j0
+            write(*,*)"stencil i:",iQs
+            write(*,*)"stencil j:",jQs
+            write(*,*)"Qs:",Qs
+            write(*,*)"Ws:",Ws
+            write(*,*)"isGs:",isGs
+            stop
+        endif
         if (present(goodInterpO)) goodInterpO = .true.
 
         ! Have some internal functions

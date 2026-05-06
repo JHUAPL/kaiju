@@ -392,6 +392,10 @@ module raijutypes
 
 
     type raijuState_T
+    
+        class(raijuApp_T), pointer :: myRaiApp => null()
+            !! Poiner to our parent raiju app so that routines that only have this type can call app stuff if necessary (like WriteBlackBox)
+
         logical :: isFirstCpl = .true.
 
         real(rp) :: t, dt

@@ -221,7 +221,24 @@ submodule (volttypes) raijuCplTypesSub
                 call InterpShellVar_TSC_pnt(App%shGr, App%avgBeta  , th, ph, beta )
                 call InterpShellVar_TSC_pnt(App%shGr, App%Pavg(BLK), th, ph, p_mhd) !MHD flux-tube averaged pressure (sum over all fluids)
                 alpha = 1.0 + beta*5.0/6.0
+                if (.not. ieee_is_finite(beta) .or. .not. ieee_is_finite(alpha)) then
+                    write(*,*) "ERROR in getMomentsRAIJU: Wolf-limit beta/alpha is not finite"
+                    write(*,*) "th, ph =", th, ph
+                    write(*,*) "beta, alpha, p_mhd =", beta, alpha, p_mhd
+                    call State%myRaiApp%WriteBlackBox()
+                    write(*,*) "Goodbye"
+                    stop
+                endif
+                alpha = max(alpha, TINY)
                 wRAI  = 1.0/alpha !Full wolf-limited weight
+                if (.not. ieee_is_finite(wRAI)) then
+                    write(*,*) "ERROR in getMomentsRAIJU: Wolf-limit weight is not finite"
+                    write(*,*) "th, ph =", th, ph
+                    write(*,*) "beta, alpha, p_mhd =", beta, alpha, p_mhd
+                    call State%myRaiApp%WriteBlackBox()
+                    write(*,*) "Goodbye"
+                    stop
+                endif
                 wRAI = max(wRAI,wRAI0) !Don't allow Raiju contribution to drop below wRCM0
                 call ClampValue(wRAI,0.0_rp,1.0_rp)
                 wMHD = 1 - wRAI ! = (alpha-1)/alpha w/o any clamping
@@ -348,12 +365,17 @@ submodule (volttypes) raijuCplTypesSub
                     imP(RAI_EDEN ) = imP(RAI_EDEN ) + d_hot*1.0e6 ! uStr="#/cc" -> /m^3 , dStr="Density from RAIJU flavors"
                     imP(RAI_EPRE ) = imP(RAI_EPRE ) + p_hot*1.0e-9 ! uStr="nPa" -> Pa , dStr="Pressure from RAIJU flavors"
                     do k=ks,ke
-                        !if(.not. isnan(State%precipNFlux(i0,j0,k))) then
-                        if(.not. isnan(State%precipNFlux(k)%data(i0,j0))) then ! use mask?
-                            call InterpShellVar_TSC_pnt(sh, State%precipNFlux(k), th, ph, dn_flux)
-                            imP(RAI_ENFLX) = imP(RAI_ENFLX) + dn_flux ! uStr="#/cm^2/s"
-                            call InterpShellVar_TSC_pnt(sh, State%precipEFlux(k), th, ph, de_flux)
-                            imP(RAI_EFLUX) = imP(RAI_EFLUX) + de_flux ! uStr="erg/cm^2/s"
+                        call InterpShellVar_TSC_pnt(sh, State%precipNFlux(k), th, ph, dn_flux)
+                        imP(RAI_ENFLX) = imP(RAI_ENFLX) + dn_flux ! uStr="#/cm^2/s"
+                        call InterpShellVar_TSC_pnt(sh, State%precipEFlux(k), th, ph, de_flux)
+                        imP(RAI_EFLUX) = imP(RAI_EFLUX) + de_flux ! uStr="erg/cm^2/s"
+                        if (isnan(imP(RAI_ENFLX)) .or. isnan(imP(RAI_EFLUX))) then
+                            write(*,*) "ERROR in getMomentsPrecipRAIJU: Flux has a NaN"
+                            write(*,*)"i,j,k=",i,j,k
+                            write(*,*)"nflux, eFlux=",imP(RAI_ENFLX),imP(RAI_EFLUX)
+                            call State%myRaiApp%WriteBlackBox()
+                            write(*,*)"Goodbye"
+                            stop
                         endif
                     enddo
 
@@ -430,6 +452,7 @@ submodule (volttypes) raijuCplTypesSub
         integer, intent(in) :: nStep
 
         call App%raiApp%WriteFileOutput(nStep)
+        !call App%raiApp%WriteBlackBox()
 
     end subroutine
 

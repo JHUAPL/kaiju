@@ -58,7 +58,7 @@ module raijustarter
             call raijuInitGrid(app%Model, app%Grid, app%opt, iXML)
         endif
 
-        call raijuInitState(app%Model,app%Grid,app%State,iXML)
+        call raijuInitState(app,app%Model,app%Grid,app%State,iXML)
 
         ! Do losses after everything else has been set, just in case they need something from it
         call initRaiLosses(app%Model, app%Grid, app%State, iXML)
@@ -382,13 +382,16 @@ module raijustarter
     end subroutine raijuInitGrid
 
 
-    subroutine raijuInitState(Model, Grid, State, iXML)
+    subroutine raijuInitState(raiApp, Model, Grid, State, iXML)
+        class(raijuApp_T), target, intent(in) :: raiApp
         type(raijuModel_T), intent(inout) :: Model
         type(raijuGrid_T) , intent(in)    :: Grid
         type(raijuState_T), intent(inout) :: State
         type(XML_Input_T), intent(in)   :: iXML
 
         integer :: s
+
+        State%myRaiApp => raiApp
 
         ! Allocate arrays
 
