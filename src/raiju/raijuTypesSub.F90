@@ -116,8 +116,10 @@ submodule (raijutypes) raijuTypesSub
 
     module subroutine raiWriteBlackBox(App)
         class(raijuApp_T), intent(in) :: App
-        
+
+        !$OMP CRITICAL(raiju_blackbox_write)
         call WriteRaijuBlackBox(App)
+        !$OMP END CRITICAL(raiju_blackbox_write)
 
     end subroutine raiWriteBlackBox
 
