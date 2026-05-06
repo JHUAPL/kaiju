@@ -120,11 +120,13 @@ module dkmain
         ! type(mixIO_T), intent(in) :: mixIOobj  
         type(gcm_T),optional,intent(inout) :: gcm
 
-        logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
+        ! logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
+        logical :: doModel
         integer :: h,NumH
 
         ! here we should check if Remix or GPS
         NumH = size(dkApp%vars)
+        doModel = .true. ! always default to xml input deck unless doModelOpt is present and on
 
         if (dkApp%params%doGCM) then
             doModel = .true.
@@ -139,14 +141,13 @@ module dkmain
                 dkApp%vars(h)%tilt = -dkApp%IO%tilt
             end if
 
-            ! if (doModel) then
-            !     dkApp%conductance(h)%const_sigma = dkApp%params%const_sigma         
-            ! else
-            !     dkApp%conductance(h)%const_sigma = .true.            
-            ! end if
+            if (doModel) then
+                dkApp%conductance(h)%const_sigma = dkApp%params%const_sigma         
+            else
+                dkApp%conductance(h)%const_sigma = .true.            
+            end if
 
-            ! When not running the full model, this forces constant conductance regardless of config
-            if (.not. doModel) dkApp%params%const_sigma = .true. 
+            ! if (.not. doModel) dkApp%params%const_sigma = .true. 
 
             call Tic("DK-COND")
             call conductance_euv(dkApp%conductance(h),dkApp%grid(h),dkApp%vars(h),dkApp%params)

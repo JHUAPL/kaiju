@@ -365,6 +365,8 @@ module dkaurora
 
          if(mhd_nflx>GuABNF .and. mhd_SigPH>rcm_SigPH) then
             aur_type = AT_RMono
+            num_flux = mhd_nflx
+            avg_eng = mhd_eavg
          else
             num_flux = rcm_nflx
             avg_eng = rcm_eavg

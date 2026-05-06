@@ -71,7 +71,7 @@ module dkconductance
          ! Use GCM conductance.
          vars%SigmaP = max(params%pedmin,vars%SigmaPgcm)
          vars%SigmaH = max(params%hallmin,vars%SigmaHgcm)
-      else if (params%const_sigma) then
+      else if (conductance%const_sigma) then
          ! Use constant conductance.
          vars%SigmaP = params%ped0
          vars%SigmaH = 0.D0
@@ -98,7 +98,7 @@ module dkconductance
       endif
 
       !Before applying cap, do optional exponential smoothing
-      if ( (.not. params%const_sigma) .and. params%doEMA ) then
+      if ( (.not. conductance%const_sigma) .and. params%doEMA ) then
          !Want 95% of weight to come from last tau seconds
          !Lazily setting values here
          dT = 5.D0
@@ -135,7 +135,7 @@ module dkconductance
       deallocate(SigH0)
 
       ! Apply cap
-      if ((params%apply_cap).and.(.not. params%const_sigma).and.(.not. params%doGCM)) then
+      if ((params%apply_cap).and.(.not. conductance%const_sigma).and.(.not. params%doGCM)) then
          vars%SigmaP = max(params%pedmin,vars%SigmaP)
          vars%SigmaH = min(max(params%hallmin,vars%SigmaH),vars%SigmaP*params%sigma_ratio)
       endif
