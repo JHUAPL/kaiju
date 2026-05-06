@@ -128,7 +128,7 @@ module tubehelper
         bTube%avgN(:) = 0.0
         bTube%stdN(:) = 0.0
 
-        bTube%TioTe0 = 1.0 !Meh
+        bTube%TioTe0 = def_tiote !Meh
         
     end subroutine DipoleTube
 

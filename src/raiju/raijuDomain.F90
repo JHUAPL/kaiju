@@ -583,64 +583,97 @@ module raijuDomain
         type(raijuState_T), intent(in) :: State
         integer, dimension(Grid%shGrid%isg:Grid%shGrid%ieg,Grid%shGrid%jsg:Grid%shGrid%jeg), intent(inout) :: active
 
-        integer :: i,j
+        integer :: i,j, iWalk
         integer :: iBufStart, iActStart
         real(rp) :: radL, radR
 
-        !do j=Grid%shGrid%jsg,Grid%shGrid%jeg
-        !    i = Grid%shGrid%ie
-        !    rad_next = sqrt(State%xyzMincc(i-1,j,XDIR)**2 + State%xyzMincc(i-1,j,YDIR)**2)
-        !    do while(rad_next < Model%activeDomRad)
-        !        i = i - 1
-        !        rad_next = sqrt(State%xyzMincc(i-1,j,XDIR)**2 + State%xyzMincc(i-1,j,YDIR)**2)
-        !    enddo
-        !    ! i is now the last cell in this j within activeDomRad
-        !    if (State%active(i,j) .ne. RAIJUACTIVE) then
-        !        ! Something bad happened, active domain is really small
-        !        ! Throw caution to the wind and make it active anyways, good luck everybody
-        !        active(i              :Grid%shGrid%ieg ,j) = RAIJUACTIVE
-        !        active(i-Grid%nB-1    :i-1             ,j) = RAIJUBUFFER
-        !        active(Grid%shGrid%isg:i-Grid%nB-2     ,j) = RAIJUINACTIVE
-        !    endif
-        !enddo
+!        do j=Grid%shGrid%jsg,Grid%shGrid%jeg
+!            i = Grid%shGrid%is
+!            
+!            radL = State%radMax(i,j)
+!            radR = State%radMax(i,j+1)
+!            do while (i < Grid%shGrid%ie .and. (radL > Model%activeDomRad .or. radR > Model%activeDomRad))
+!                i = i + 1
+!                radL = State%radMax(i,j)
+!                radR = State%radMax(i,j+1)
+!            enddo
+!
+!            ! i is now the first cell that has corners under activeDomRad
+!            ! If this point is active, we're good and have nothing to do for this j
+!            if (State%active(i,j) .eq. RAIJUACTIVE) then
+!                cycle
+!            endif
+!
+!            ! If still here, something went wrong and active domain is very limited.
+!            ! Try to save it by ignoring all but the most important constraint that the field line is closed
+!            ! Move i nBuffer cells outward since we gotta add buffer cells and do the rest of our checks from there
+!            i = max(Grid%shGrid%isg, i - Grid%nBufferCells)
+!            do while ( i < Grid%shGrid%ie .and. any(State%topo(i:i+1,j:j+1) .eq. RAIJUOPEN) )
+!                i = i + 1
+!            enddo
+!
+!            ! Now i is a safe cell topology-wise, we can set active domain as we want from here
+!            iBufStart = min(i, Grid%shGrid%ieg)
+!            iActStart = min(iBufStart + Grid%nBufferCells, Grid%shGrid%ieg)
+!
+!            active(Grid%shGrid%isg:iBufStart-1, j) = RAIJUINACTIVE
+!            if (iActStart > iBufStart) then
+!                active(iBufStart:iActStart-1, j) = RAIJUBUFFER
+!            endif
+!            if (iActStart <= Grid%shGrid%ieg) then
+!                active(iActStart:Grid%shGrid%ieg, j) = RAIJUACTIVE
+!            endif
+!        enddo
 
+        !$OMP PARALLEL DO default(shared) &
+        !$OMP private(i,j,radL,radR,iWalk,iBufStart,iActStart)
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
-            i = Grid%shGrid%is
-            
-            radL = norm2(State%xyzMin(i,j  ,:))
-            radR = norm2(State%xyzMin(i,j+1,:))
-            do while (i < Grid%shGrid%ie .and. (radL > Model%activeDomRad .or. radR > Model%activeDomRad))
-                i = i + 1
-                radL = norm2(State%xyzMin(i,j  ,:))
-                radR = norm2(State%xyzMin(i,j+1,:))
+            do i=Grid%shGrid%ie,Grid%shGrid%is,-1
+
+                radL = State%radMax(i,j)
+                radR = State%radMax(i,j+1)
+                if (radL > Model%activeDomRad .or. radR > Model%activeDomRad) then
+                    ! Out of our jurisdiction, pass on this j
+                    exit
+                endif
+
+                ! Otherwise, inspect
+                if (State%active(i,j) .eq. RAIJUACTIVE) then
+                    ! This i,j is clear
+                    cycle
+                endif
+
+                ! If still here, we are within activeDomRad and we ran into either an INACTIVE or BUFFER cell
+                ! Keep walking out until either we hit bad topology or active would be placed within activeDomRad
+                do while (iWalk > Grid%shGrid%is .or. radL > Model%activeDomRad .or. radR > Model%activeDomRad &
+                          .or. any(State%topo(iWalk:iWalk+1,j:j+1) .eq. RAIJUINACTIVE))
+                    iWalk = i - 1
+                    radL = State%radMax(iWalk,j)
+                    radR = State%radMax(iWalk,j+1)
+                enddo
+
+                if (iWalk == Grid%shGrid%is) then
+                    ! We didn't find any good values above i,j don't rock the boat even harder
+                    exit
+                endif
+
+                ! Now iWalk is one cell too far, make it the last usable cell
+                iWalk = iWalk + 1
+                ! Now iWalk is a safe cell topology-wise, we can set active domain as we want from here
+                iBufStart = min(iWalk, Grid%shGrid%ieg)
+                iActStart = min(iBufStart + Grid%nBufferCells, Grid%shGrid%ieg)
+                active(Grid%shGrid%isg:iBufStart-1, j) = RAIJUINACTIVE
+                if (iActStart > iBufStart) then
+                    active(iBufStart:iActStart-1, j) = RAIJUBUFFER
+                endif
+                if (iActStart <= Grid%shGrid%ieg) then
+                    active(iActStart:Grid%shGrid%ieg, j) = RAIJUACTIVE
+                endif
+                ! We are done for this j now
+                exit
             enddo
-
-            ! i is now the first cell that has corners under activeDomRad
-            ! If this point is active, we're good and have nothing to do for this j
-            if (State%active(i,j) .eq. RAIJUACTIVE) then
-                cycle
-            endif
-
-            ! If still here, something went wrong and active domain is very limited.
-            ! Try to save it by ignoring all but the most important constraint that the field line is closed
-            ! Move i nBuffer cells outward since we gotta add buffer cells and do the rest of our checks from there
-            i = max(Grid%shGrid%isg, i - Grid%nBufferCells)
-            do while ( i < Grid%shGrid%ie .and. any(State%topo(i:i+1,j:j+1) .eq. RAIJUOPEN) )
-                i = i + 1
-            enddo
-
-            ! Now i is a safe cell topology-wise, we can set active domain as we want from here
-            iBufStart = min(i, Grid%shGrid%ieg)
-            iActStart = min(iBufStart + Grid%nBufferCells, Grid%shGrid%ieg)
-
-            active(Grid%shGrid%isg:iBufStart-1, j) = RAIJUINACTIVE
-            if (iActStart > iBufStart) then
-                active(iBufStart:iActStart-1, j) = RAIJUBUFFER
-            endif
-            if (iActStart <= Grid%shGrid%ieg) then
-                active(iActStart:Grid%shGrid%ieg, j) = RAIJUACTIVE
-            endif
         enddo
+
     end subroutine forceActiveWithinRadius
 
 end module raijuDomain

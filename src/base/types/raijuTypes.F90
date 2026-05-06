@@ -427,9 +427,6 @@ module raijutypes
 
         logical, dimension(:,:), allocatable :: activeShells
             !! (Ngi, Nk) i shells that should be evolved for a given lambda
-        real(rp), dimension(:,:,:), allocatable :: pEff
-            !! (Ngi+1, Ngj+1, Nk) [V] Effective potential (ExB + corot + gradient-curvature)
-            !! Not actually used in calculations, but helpful for output
         real(rp), dimension(:,:,:), allocatable :: gradPotE_cc, gradPotCorot_cc, gradVM_cc
             !! (Ngi, Ngj,2) [V/m] Th/phi gradient of the ionospheric potential, corotation potential, and flux tube volume raised to -2/3
             !! Cell-centered, calculated using Green-Gauss method
@@ -475,7 +472,7 @@ module raijutypes
         real(rp), dimension(:,:), allocatable :: bvol_cc
             !! (Ngi, Ngj) [Rp/nT] Flux-tube volume averaged from corners
         real(rp), dimension(:,:), allocatable :: rCurv
-            !! (Ngi, Ngj) [Rp] Curvature radius
+            !! (Ngi+1, Ngj+1) [Rp] Curvature radius
         real(rp), dimension(:,:), allocatable :: vaFrac
             !! (Ngi+1, Ngj+1) Fraction of total velocity coming from Alfven speed
             !! Used to limit active region to tubes that can reasonably be treated as averaged and slowly-evolving
@@ -586,6 +583,7 @@ module raijutypes
         type(raijuState_T) :: State
         
         type(raijuOptions_T) :: opt
+        logical :: blackBoxHasBeenCalled = .false.
 
         contains
 
@@ -653,8 +651,9 @@ module raijutypes
             class(raijuApp_T), intent(inout) :: App
         end subroutine raiCleanup
 
-        module subroutine raiWriteBlackBox(App)
-            class(raijuApp_T), intent(in) :: App
+        module subroutine raiWriteBlackBox(App, dieAfterWrite)
+            class(raijuApp_T), intent(inout) :: App
+            logical, optional, intent(in) :: dieAfterWrite
         end subroutine raiWriteBlackBox
 
     end interface
@@ -763,7 +762,6 @@ module raijutypes
     end subroutine raiAppOverride_setVal
 
 end module raijutypes
-
 
 
 

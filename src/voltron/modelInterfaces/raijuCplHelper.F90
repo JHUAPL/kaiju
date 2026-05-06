@@ -72,7 +72,7 @@ module raijuCplHelper
             call initShellVar(raiCpl%shGr, SHGR_CORNER, raiCpl%vaFrac)
             call initShellVar(raiCpl%shGr, SHGR_CORNER, raiCpl%bVol)
             call initShellVar(raiCpl%shGr, SHGR_CC    , raiCpl%bvol_cc)
-            call initShellVar(raiCpl%shGr, SHGR_CC    , raiCpl%rCurv)
+            call initShellVar(raiCpl%shGr, SHGR_CORNER, raiCpl%rCurv)
 
             allocate(raiCpl%Pavg(0:nFluidIn))
             allocate(raiCpl%Davg(0:nFluidIn))
@@ -344,6 +344,7 @@ module raijuCplHelper
                 State%thcon (i,j) = raiCpl%thcon %data(i,j)
                 State%phcon (i,j) = raiCpl%phcon %data(i,j)
                 State%bvol  (i,j) = raiCpl%bvol  %data(i,j)
+                State%rCurv (i,j) = raiCpl%rCurv %data(i,j)
                 State%vaFrac(i,j) = raiCpl%vaFrac%data(i,j)
             enddo    
         enddo
@@ -383,7 +384,6 @@ module raijuCplHelper
                 enddo
 
                 State%bvol_cc(i,j) = raiCpl%bvol_cc%data(i,j)
-                State%rCurv  (i,j) = raiCpl%rCurv%data(i,j)
                 State%tiote  (i,j) = raiCpl%tiote%data(i,j)
                 State%Tb%data(i,j) = raiCpl%Tb%data(i,j)
                 State%Tb%mask(i,j) = .true.

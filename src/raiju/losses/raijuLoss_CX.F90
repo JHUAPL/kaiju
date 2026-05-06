@@ -75,6 +75,7 @@ module raijuLoss_CX
         if (State%bvol_cc(i,j) < TINY) then
             write(*,*) "ERROR in CXLossCalcTau: bVol for requested point is below TINY!"
             write(*,*)State%bvol_cc(i,j)
+            write(*,*)"i,j,k=",i,j,k
             call State%myRaiApp%WriteBlackBox()
             write(*,*)"Goodbye"
             stop

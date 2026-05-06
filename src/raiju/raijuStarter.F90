@@ -418,9 +418,6 @@ module raijustarter
             ! I shells shat should be evolved for each k
             allocate( State%activeShells (sh%isg:sh%ieg, Grid%Nk) )
             State%activeShells = .false.
-            ! Effective potential (used for output only)
-            allocate( State%pEff(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk) )
-            call fillArray(State%pEff, 0.0_rp)
             ! Interface and cell velocities
             allocate( State%gradPotE_cc    (sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
             call fillArray(State%gradPotE_cc, 0.0_rp)
@@ -479,7 +476,7 @@ module raijustarter
             call fillArray(State%bvol, 0.0_rp)
             allocate( State%bvol_cc  (sh%isg:sh%ieg  , sh%jsg:sh%jeg  ) )
             call fillArray(State%bvol_cc, 0.0_rp)
-            allocate( State%rCurv    (sh%isg:sh%ieg  , sh%jsg:sh%jeg  ) )
+            allocate( State%rCurv    (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1) )
             call fillArray(State%rCurv, 0.0_rp)
             allocate( State%vaFrac   (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1) )
             call fillArray(State%vaFrac, 0.0_rp)
