@@ -609,23 +609,40 @@ module raijuPreAdvancer
         real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg,&
                             Grid%shGrid%jsg:Grid%shGrid%jeg, 2), optional, intent(in) :: gradVMO
             !! Optional gradVM to use in place of State's gradVM, in case you wanna do testing on gradVM calculation
-        real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg, Grid%shGrid%jsg:Grid%shGrid%jeg, 2) :: gradPot
+        !real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg, Grid%shGrid%jsg:Grid%shGrid%jeg, 2) :: gradPot
         integer :: i,j
-        
-        ! Ionospheric ExB and gradient-curvature drifts
-        if (present(gradVMO)) then
-            gradPot = State%gradPotE_cc + Grid%alamc(k)*gradVMO
-        else
-            gradPot = State%gradPotE_cc + Grid%alamc(k)*State%gradVM_cc
-        endif
+        real(rp) :: gP,gT
 
-        ! If doing our own corotation, assuming ExB pot didn't include it already. Add it ourselves
-        if (Model%doOwnCorot) then
-            gradPot = gradPot + State%gradPotCorot_cc
-        endif
+        ! Not threading b/c already in threaded regin
+        do j=Grid%shGrid%jsg,Grid%shGrid%jeg
+            do i=Grid%shGrid%isg,Grid%shGrid%ieg
+                ! Set gP,gT = phi,theta components of gradient of effective potential
+                ! Always have regular potential
+                gP = State%gradPotE_cc(i,j,RAI_PH)
+                gT = State%gradPotE_cc(i,j,RAI_TH)
 
-        Vtp(:,:,RAI_TH) =      gradPot(:,:,RAI_PH) / (Grid%Brcc*1.0e-9)  ! [m/s]
-        Vtp(:,:,RAI_PH) = -1.0*gradPot(:,:,RAI_TH) / (Grid%Brcc*1.0e-9)  ! [m/s]
+                if (i <= Model%iLowLat_Evol) then
+                    ! This is a normal location, include FTV gradient term
+                    if (present(gradVMO)) then 
+                        !The customer is always right
+                        gP = gP + Grid%alamc(k)*gradVMO(i,j,RAI_PH)
+                        gT = gT + Grid%alamc(k)*gradVMO(i,j,RAI_TH)
+                    else
+                        gP = gP + Grid%alamc(k)*State%gradVM_cc(i,j,RAI_PH)
+                        gT = gT + Grid%alamc(k)*State%gradVM_cc(i,j,RAI_TH)
+                    endif
+                endif !Otherwise, ignore energy-dep. part
+
+                ! If doing our own corotation, assuming ExB pot didn't include it already. Add it ourselves
+                if (Model%doOwnCorot) then
+                    gP = gP + State%gradPotCorot_cc(i,j,RAI_PH)
+                    gT = gT + State%gradPotCorot_cc(i,j,RAI_TH)
+                endif
+
+                Vtp(i,j,RAI_TH) =      gP / (Grid%Brcc(i,j)*1.0e-9)  ! [m/s]
+                Vtp(i,j,RAI_PH) = -1.0*gT / (Grid%Brcc(i,j)*1.0e-9)  ! [m/s]
+            enddo
+        enddo
 
     end subroutine calcVelocity_cc
 
@@ -642,6 +659,7 @@ module raijuPreAdvancer
                            Grid%shGrid%jsg:Grid%shGrid%jeg) :: isGCC
         real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg+1,&
                             Grid%shGrid%jsg:Grid%shGrid%jeg+1,2) :: tmpVelL, tmpVelR
+        real(rp) :: vRecon
         integer :: i,j
         
         iVelL = 0.0
@@ -655,12 +673,68 @@ module raijuPreAdvancer
         ! ReconFaces is gonna take one cc value and reconstruct at cell faces
         ! But phi velocity at theta edge is meaningless for us
         ! So we make two temporary arrays, and then just pack the meaningful components into iVelL and iVelR at the end
-        call ReconFaces(Model, Grid, isGCC, State%cVel(:,:,k,RAI_TH), tmpVelL, tmpVelR, doOMPO=.false.)
-        iVelL(:,:,RAI_TH) = tmpVelL(:,:,RAI_TH)
-        iVelR(:,:,RAI_TH) = tmpVelR(:,:,RAI_TH)
-        call ReconFaces(Model, Grid, isGCC, State%cVel(:,:,k,RAI_PH), tmpVelL, tmpVelR, doOMPO=.false.)
-        iVelL(:,:,RAI_PH) = tmpVelL(:,:,RAI_PH)
-        iVelR(:,:,RAI_PH) = tmpVelR(:,:,RAI_PH)
+        !call ReconFaces(Model, Grid, isGCC, State%cVel(:,:,k,RAI_TH), tmpVelL, tmpVelR, doOMPO=.false.)
+        !iVelL(:,:,RAI_TH) = tmpVelL(:,:,RAI_TH)
+        !iVelR(:,:,RAI_TH) = tmpVelR(:,:,RAI_TH)
+        !call ReconFaces(Model, Grid, isGCC, State%cVel(:,:,k,RAI_PH), tmpVelL, tmpVelR, doOMPO=.false.)
+        !iVelL(:,:,RAI_PH) = tmpVelL(:,:,RAI_PH)
+        !iVelR(:,:,RAI_PH) = tmpVelR(:,:,RAI_PH)
+
+                ! Trying out even order reconstruction, no extra limiting since we already did that to the gradients
+        associate(sh=>Grid%shGrid)
+        ! Only looping over non-ghost cell faces, since ghosts are not allowed to evolve
+        do j=sh%js,sh%je+1
+            do i=sh%is,sh%ie+1
+                ! Theta dir first
+                if (.not. isGCC(i,j) .or. .not. isGCC(i-1,j)) then
+                    ! We are on a face bordering an inactive cell, no flux allowed here
+                    iVelL(i,j,RAI_TH) = 0.0_rp
+                    iVelR(i,j,RAI_TH) = 0.0_rp
+                else            
+                    vRecon = reconVel_pnt(State%cVel(i-4:i+3,j,k,RAI_TH)*Grid%areaCC(i-4:i+3,j), & 
+                                      isGCC(i-4:i+3,j), Grid%areaFace(i,j,RAI_TH))
+
+                    iVelL(i,j,RAI_TH) = vRecon
+                    iVelR(i,j,RAI_TH) = vRecon
+                endif
+
+                ! Phi dir
+                if (.not. isGCC(i,j) .or. .not. isGCC(i,j-1)) then
+                    ! We are on a face bordering an inactive cell, no flux allowed here
+                    iVelL(i,j,RAI_PH) = 0.0_rp
+                    iVelR(i,j,RAI_PH) = 0.0_rp
+                else
+                    ! Only looping over non-ghost cell faces, since ghosts are not allowed to evolve
+                    vRecon = reconVel_pnt(State%cVel(i,j-4:j+3,k,RAI_PH)*Grid%areaCC(i,j-4:j+3), &
+                                      isGCC(i,j-4:j+3), Grid%areaFace(i,j,RAI_PH))
+                    iVelL(i,j,RAI_PH) = vRecon
+                    iVelR(i,j,RAI_PH) = vRecon
+                endif
+            enddo
+        enddo
+        end associate
+
+        contains
+
+        function reconVel_pnt(vA, isG_stencil, areaFace) result (vRec)
+            real(rp), dimension(8), intent(in) :: vA
+            logical, dimension(8), intent(in) :: isG_stencil
+            real(rp) :: areaFace
+
+            real(rp) :: vRec
+
+            if(all(isG_stencil)) then
+                vRec = Central8(vA)/areaFace
+            elseif(all(isG_stencil(2:7))) then
+                vRec = Central6(vA)/areaFace
+            elseif(all(isG_stencil(3:6))) then
+                vRec = Central4(vA)/areaFace
+            elseif(all(isG_stencil(4:5))) then
+                vRec = 0.5*(vA(4) + vA(5))/areaFace
+            else
+                vRec = 0.0_rp
+            endif
+        end function reconVel_pnt
 
     end subroutine reconVelocityLRs
 
