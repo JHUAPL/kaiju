@@ -462,7 +462,7 @@ module shellInterp
         type(ShellGrid_T   ), intent(in) :: destGrid
         type(ShellGridVar_T), intent(inout) :: destVar
         logical, dimension(srcVar%isv:srcVar%iev, srcVar%jsv:srcVar%jev), optional, intent(in) :: srcMaskO
-            !! If provided, use this source mask instead of srcVar%mask
+            !! If provided, use this source mask alongside srcVar%mask
 
         integer :: subis, subie, subjs, subje, iExtra, jExtra
         type(ShellGridVar_T) :: src2destVar
@@ -476,7 +476,6 @@ module shellInterp
         endif
 
         destVar%data = 0.0_rp
-        destVar%mask = .false.
 
         ! Determine SGV bounds of source var that map to destination grid's bounds
         call ijExtra_SGV(srcVar%loc, iExtra, jExtra)
