@@ -646,9 +646,10 @@ module raijuDomain
 
                 ! If still here, we are within activeDomRad and we ran into either an INACTIVE or BUFFER cell
                 ! Keep walking out until either we hit bad topology or active would be placed within activeDomRad
+                iWalk = i
                 do while (iWalk > Grid%shGrid%is .or. radL > Model%activeDomRad .or. radR > Model%activeDomRad &
                           .or. any(State%topo(iWalk:iWalk+1,j:j+1) .eq. RAIJUINACTIVE))
-                    iWalk = i - 1
+                    iWalk = iWalk - 1
                     radL = State%radMax(iWalk,j)
                     radR = State%radMax(iWalk,j+1)
                 enddo
