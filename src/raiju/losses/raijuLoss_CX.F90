@@ -84,7 +84,7 @@ module raijuLoss_CX
         endif
 
         ! Neutral
-        rLoc = norm2(State%xyzMincc(i,j,:))  ! [Rp]
+        rLoc = State%radMax_cc(i,j) ! [Rp]
         Ngeo = OstgaardGeocorona(rLoc)  ! [#/cc]
 
         ! Ion

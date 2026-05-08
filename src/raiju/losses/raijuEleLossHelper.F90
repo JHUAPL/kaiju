@@ -79,7 +79,7 @@ module raijuEleLossHelper
 
         KE = abs(Grid%alamc(k))*vm * 1.0D-6  ! Energy [MeV]
 
-        L = sqrt(State%xyzMincc(i,j,XDIR)**2 + State%xyzMincc(i,j,YDIR)**2)  ! Eq projection of bmin point, kinda L shell [Rp]
+        L = State%radMax_cc(i,j)
         A = 0.08_rp*KE**(-1.32_rp)
         B = 0.4*10**(2.0_rp*L - 6.0_rp + 0.4_rp*log10(KE)/log10(2.0_rp))
         l_0 = min(A, B)  ! [1/days]

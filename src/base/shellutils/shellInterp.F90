@@ -387,7 +387,7 @@ module shellInterp
 
         if (any(.not. ieee_is_finite(Ws))) then
             write(*,*)"ERROR in InterpShellVar_TSC_pnt: We have a bad interpolation weight!"
-            write(*,*)"ShellGrid name:",sgSource%name
+            write(*,*)"ShellGrid name:",trim(sgSource%name)
             write(*,*)"th, ph: ",th, ph
             write(*,*)"i0, j0:",i0,j0
             write(*,*)"Qs:",Qs
@@ -397,7 +397,7 @@ module shellInterp
         endif
         if (any((.not. ieee_is_finite(Qs)) .and. isGs)) then
             write(*,*)"ERROR in InterpShellVar_TSC_pnt: We have a bad source value in active stencil!"
-            write(*,*)"ShellGrid name:",sgSource%name
+            write(*,*)"ShellGrid name:",trim(sgSource%name)
             write(*,*)"th, ph: ",th, ph
             write(*,*)"i0, j0:",i0,j0
             write(*,*)"stencil i:",iQs
@@ -417,7 +417,7 @@ module shellInterp
         Qinterp = dot_product(Qs,Ws)
         if (.not. ieee_is_finite(Qinterp)) then
             write(*,*)"ERROR in InterpShellVar_TSC_pnt: Interpolated value is not finite!"
-            write(*,*)"ShellGrid name:",sgSource%name
+            write(*,*)"ShellGrid name:",trim(sgSource%name)
             write(*,*)"th, ph: ",th, ph
             write(*,*)"i0, j0:",i0,j0
             write(*,*)"stencil i:",iQs

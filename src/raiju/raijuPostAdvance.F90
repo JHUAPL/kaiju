@@ -7,10 +7,39 @@ module raijuPostAdvancer
     use raijuSpeciesHelper
     use raijuetautils
 
+    use, intrinsic :: ieee_arithmetic
+
     implicit none
 
     contains
 
+
+    subroutine raijuPostAdvanceChecks(Model, Grid, State)
+        type(raijuModel_T), intent(in) :: Model
+        type(raijuGrid_T ), intent(in) :: Grid
+        type(raijuState_T), intent(in) :: State
+
+        integer :: s
+        ! NaN checks
+        if (any(ieee_is_nan(State%eta_avg       ))) call handleRaiPostCheckFailed("NaNs in RAIJU's eta_avg. Writing black box and exiting")
+        do s=1,Model%nSpc
+            if (any(ieee_is_nan(State%Press_avg  (s)%data))) call handleRaiPostCheckFailed("NaNs in RAIJU's Press_avg. Writing black box and exiting")
+            if (any(ieee_is_nan(State%Den_avg    (s)%data))) call handleRaiPostCheckFailed("NaNs in RAIJU's Den_avg. Writing black box and exiting")
+            if (any(ieee_is_nan(State%precipEFlux(s)%data))) call handleRaiPostCheckFailed("NaNs in RAIJU's precipEFlux. Writing black box and exiting")
+            if (any(ieee_is_nan(State%precipNFlux(s)%data))) call handleRaiPostCheckFailed("NaNs in RAIJU's precipNFlux. Writing black box and exiting")
+        enddo
+
+        contains
+
+        subroutine handleRaiPostCheckFailed(msg)
+            character(len=*), intent(in) :: msg
+
+            write(*,*)msg
+            call State%myRaiApp%WriteBlackBox()
+            stop
+        end subroutine handleRaiPostCheckFailed
+    
+    end subroutine raijuPostAdvanceChecks
 
     subroutine initTepidBnd(Model, Grid, eta_tepid, LFullO, LEmptyO)
         type(raijuModel_T), intent(in) :: Model

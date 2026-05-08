@@ -9,6 +9,7 @@ module raijuAdvancer
     use raijuetautils
     use raijuBCs
     use raijuPreAdvancer
+    use raijuPostAdvancer
     use raijulosses
     use raijuRecon
 
@@ -49,6 +50,9 @@ module raijuAdvancer
         call EvalMoments(Grid, State)
         call EvalMoments(Grid, State, doAvgO=.true.)
         call Toc("Moments Eval",.true.)
+
+        ! Do various checks to make sure everything went okay
+        call raijuPostAdvanceChecks(Model, Grid, State)
 
     end subroutine raijuAdvance
 
@@ -305,7 +309,7 @@ module raijuAdvancer
 
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
-                Req = sqrt(State%xyzMincc(i,j,XDIR)**2 + State%xyzMincc(i,j,YDIR)**2)
+                Req = State%radMax_cc(i,j)
                 if (Req < Model%psphEvolRad) then
                     continue  ! Keep points within this radius set to no evol 
                 else

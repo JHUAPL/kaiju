@@ -257,7 +257,6 @@ module raijulosses
             enddo
         enddo
 
-        
 
     end subroutine applyLosses
 
