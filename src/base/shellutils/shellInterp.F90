@@ -386,6 +386,7 @@ module shellInterp
         enddo
 
         if (any(.not. ieee_is_finite(Ws))) then
+            !$OMP CRITICAL
             write(*,*)"ERROR in InterpShellVar_TSC_pnt: We have a bad interpolation weight!"
             write(*,*)"ShellGrid name:",trim(sgSource%name)
             write(*,*)"th, ph: ",th, ph
@@ -393,9 +394,12 @@ module shellInterp
             write(*,*)"Qs:",Qs
             write(*,*)"Ws:",Ws
             write(*,*)"isGs:",isGs
+            !$OMP END CRITICAL
             stop
+            
         endif
         if (any((.not. ieee_is_finite(Qs)) .and. isGs)) then
+            !$OMP CRITICAL
             write(*,*)"ERROR in InterpShellVar_TSC_pnt: We have a bad source value in active stencil!"
             write(*,*)"ShellGrid name:",trim(sgSource%name)
             write(*,*)"th, ph: ",th, ph
@@ -405,6 +409,7 @@ module shellInterp
             write(*,*)"Qs:",Qs
             write(*,*)"Ws:",Ws
             write(*,*)"isGs:",isGs
+            !$OMP END CRITICAL
             stop
         endif
         ! Renormalize only if some stencil weight survived masking.
@@ -416,6 +421,7 @@ module shellInterp
         ! Get final value
         Qinterp = dot_product(Qs,Ws)
         if (.not. ieee_is_finite(Qinterp)) then
+            !$OMP CRITICAL
             write(*,*)"ERROR in InterpShellVar_TSC_pnt: Interpolated value is not finite!"
             write(*,*)"ShellGrid name:",trim(sgSource%name)
             write(*,*)"th, ph: ",th, ph
@@ -425,6 +431,7 @@ module shellInterp
             write(*,*)"Qs:",Qs
             write(*,*)"Ws:",Ws
             write(*,*)"isGs:",isGs
+            !$OMP END CRITICAL
             stop
         endif
         if (present(goodInterpO)) goodInterpO = .true.

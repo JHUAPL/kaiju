@@ -138,7 +138,7 @@ module mgmres
 
 !---------------
     !Preconditioned restarted GMRES
-    subroutine pmgmres_ilu_cr(n,nz_num,ia,ja,A,x,rhs,itr_max,mr,tol_abs,tol_rel)
+    subroutine pmgmres_ilu_cr(n,nz_num,ia,ja,A,x,rhs,itr_max,mr,tol_abs,tol_rel, isGoodSolveO)
         integer, intent(in) :: n,nz_num
         integer, intent(inout) :: ia(n+1),ja(nz_num)
         real(rp), intent(inout) :: A(nz_num)
@@ -146,6 +146,7 @@ module mgmres
         real(rp), intent(in) :: rhs(n)
         integer, intent(in) :: itr_max,mr
         real(rp), intent(in) :: tol_abs,tol_rel
+        logical, optional, intent(inout) :: isGoodSolveO
 
         real(rp) :: av,htmp,mu,rho,rho_tol
         real(rp) :: r(n)
@@ -255,7 +256,11 @@ module mgmres
             
             write(*,*) '---'
 
+            if (present(isGoodSolveO)) isGoodSolveO = .false.
+
         endif
+
+        if (present(isGoodSolveO)) isGoodSolveO = .true.
 
     end subroutine pmgmres_ilu_cr
 
