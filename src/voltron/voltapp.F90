@@ -366,7 +366,7 @@ module voltapp
         type(XML_Input_T), intent(inout) :: xmlInp
         character(len=*), optional, intent(in) :: optFilename
 
-        character(len=strLen) :: RunID, resID
+        character(len=strLen) :: RunID, resID, xmlFile
         type(TimeSeries_T) :: f107
 
         logical :: isRestart
@@ -376,7 +376,10 @@ module voltapp
         isRestart = gApp%Model%isRestart
         RunID = trim(gApp%Model%RunID)
         
-        if(vApp%writeFiles) call InitVoltIO(vApp,gApp)
+        if(vApp%writeFiles) then
+            call xmlInp%GetFileStr(xmlFile)
+            call InitVoltIO(vApp,gApp,xmlFileO=xmlFile)
+        endif
         
     !Remix from Gamera
         !Set mix default grid before initializing
