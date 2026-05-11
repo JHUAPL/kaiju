@@ -247,6 +247,8 @@ module mgmres
         !Check convergence
         isConverged = (rho<=rho_tol) .and. (rho<=tol_abs)
 
+        if (present(isGoodSolveO)) isGoodSolveO = isConverged
+        
         if ( doWarn .and. (.not. isConverged) ) then
             write(*,*) '---'
             write(*,*) 'WARNING: PMGMRES failed to converge'
@@ -256,11 +258,9 @@ module mgmres
             
             write(*,*) '---'
 
-            if (present(isGoodSolveO)) isGoodSolveO = .false.
-
+            
         endif
 
-        if (present(isGoodSolveO)) isGoodSolveO = .true.
 
     end subroutine pmgmres_ilu_cr
 
