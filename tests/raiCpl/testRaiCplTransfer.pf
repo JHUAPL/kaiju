@@ -85,6 +85,7 @@ contains
         call InterpShellVar_ParentToChild(parentSG, tubeShell%bVol, raiCpl%shGr, expCorner)
         @assertTrue(all(abs(raiCpl%bvol%data - expCorner%data) <= testTol), "tubeShell2RaiCpl should map bVol corners exactly")
 
+        call initShellVar(raiCpl%shGr, SHGR_CORNER, expTopo)
         call InterpShellVar_ParentToChild(parentSG, tubeShell%topo, raiCpl%shGr, expTopo)
         @assertTrue(all(raiCpl%topo%data == merge(real(RAIJUCLOSED, rp), real(RAIJUOPEN, rp), abs(expTopo%data - real(TUBE_CLOSED, rp)) < TINY)), "tubeShell2RaiCpl should convert TubeShell topology to RAIJU topology")
 
@@ -113,19 +114,18 @@ contains
 
     @test
     subroutine testParentToChild_srcMaskBlocksOpenSourceInfluence()
-        !! Characterize the optional source-mask hook on ParentToChild interpolation.
-        !! This isolates the different-location/TSC branch by forcing avgP's own
-        !! source mask to all true, then checks that a separate topology mask still
-        !! prevents open-field sentinel values from contaminating child-grid output.
-        !! Note: This is really testing InterpShellVar_ParentToChild, but since raiju
-        !! cares a lot about it we will leave the test here for now.
+        !! srcMaskO should participate in the strict four-corner mask check for
+        !! corner -> CC ParentToChild transfers used on the TubeShell -> RAIJU path.
         type(raijuCoupler_T) :: raiCpl
         type(XML_Input_T) :: xmlInp
         type(TubeShell_T) :: tubeShell
         type(ShellGridVar_T) :: maskedCenter, unmaskedCenter
         logical, allocatable :: topoMask(:,:)
         integer :: subis, subjs
-        integer :: firstClosedI0, iHit, jHit
+        integer :: firstClosedI0
+        integer :: srcI0, srcJ0
+        integer :: badSrcI, badSrcJ
+        integer :: iMasked, jMasked, iClear, jClear
 
         xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
         call initReadyRaiCpl(raiCpl, xmlInp, parentSG, "lfmD_2p0")
@@ -135,27 +135,35 @@ contains
         call fillSyntheticTubeShell(parentSG, tubeShell, firstClosedIO=firstClosedI0)
 
         allocate(topoMask(tubeShell%avgP(0)%isv:tubeShell%avgP(0)%iev, tubeShell%avgP(0)%jsv:tubeShell%avgP(0)%jev))
-        topoMask = abs(tubeShell%topo%data - real(TUBE_CLOSED, rp)) < TINY
+        topoMask = .true.
 
-        ! Force avgP to look valid everywhere so the test exercises srcMaskO rather
-        ! than the variable's built-in mask. Closed cells stay near 1, while open
-        ! cells get a large sentinel that would be obvious if it leaked into TSC.
         tubeShell%avgP(0)%mask = .true.
         tubeShell%avgP(0)%data = 1.0_rp
-        where (.not. topoMask)
-            tubeShell%avgP(0)%data = 1000.0_rp
-        end where
 
         call initShellVar(raiCpl%shGr, SHGR_CC, maskedCenter)
         call initShellVar(raiCpl%shGr, SHGR_CC, unmaskedCenter)
 
+        srcI0 = raiCpl%shGr%is + raiCpl%shGr%bndis - 1 - raiCpl%shGr%Ngn
+        srcJ0 = raiCpl%shGr%js + raiCpl%shGr%bndjs - 1 - raiCpl%shGr%Nge
+        badSrcI = srcI0 + 2
+        badSrcJ = srcJ0 + 2
+        topoMask(badSrcI, badSrcJ) = .false.
+        tubeShell%avgP(0)%data(badSrcI, badSrcJ) = 1000.0_rp
+
+        iMasked = maskedCenter%isv + 1
+        jMasked = maskedCenter%jsv + 1
+        iClear = maskedCenter%isv + 4
+        jClear = maskedCenter%jsv + 4
+
         call InterpShellVar_ParentToChild(parentSG, tubeShell%avgP(0), raiCpl%shGr, maskedCenter, srcMaskO=topoMask)
         call InterpShellVar_ParentToChild(parentSG, tubeShell%avgP(0), raiCpl%shGr, unmaskedCenter)
 
-        call findMaskedInterpDifference(maskedCenter, unmaskedCenter, iHit, jHit)
-        @assertTrue(iHit > 0, "srcMaskO should change at least one child-cell interpolation near the open/closed boundary")
-        @assertLessThanOrEqual(abs(maskedCenter%data(iHit,jHit) - 1.0_rp), 1.0e-10_rp, "srcMaskO should keep open-field sentinel values out of the TSC result")
-        @assertTrue(unmaskedCenter%data(iHit,jHit) > 10.0_rp, "Without srcMaskO, the same interpolation should be contaminated by open-field source values")
+        @assertFalse(maskedCenter%mask(iMasked,jMasked), "srcMaskO should mark mixed-topology corner -> CC cells invalid")
+        @assertLessThanOrEqual(abs(maskedCenter%data(iMasked,jMasked)), testTol, "Masked-out corner -> CC cells should be zeroed")
+        @assertTrue(unmaskedCenter%mask(iMasked,jMasked), "Without srcMaskO, the same child cell should remain valid when avgP itself is unmasked")
+        @assertTrue(unmaskedCenter%data(iMasked,jMasked) > 10.0_rp, "Without srcMaskO, open-field sentinel values should still appear in the raw four-corner average")
+        @assertTrue(maskedCenter%mask(iClear,jClear), "Closed-only corner -> CC cells should remain valid")
+        @assertLessThanOrEqual(abs(maskedCenter%data(iClear,jClear) - 1.0_rp), testTol, "Closed-only corner -> CC cells should retain the closed-cell average")
     end subroutine testParentToChild_srcMaskBlocksOpenSourceInfluence
 
 
@@ -435,26 +443,6 @@ contains
         enddo
         var%mask = .true.
     end subroutine fillCellCenteredFixture
-
-
-    subroutine findMaskedInterpDifference(maskedVar, unmaskedVar, iHit, jHit)
-        type(ShellGridVar_T), intent(in) :: maskedVar, unmaskedVar
-        integer, intent(out) :: iHit, jHit
-
-        integer :: i, j
-
-        iHit = 0
-        jHit = 0
-        do j=maskedVar%jsv,maskedVar%jev
-            do i=maskedVar%isv,maskedVar%iev
-                if (abs(maskedVar%data(i,j) - 1.0_rp) <= 1.0e-10_rp .and. unmaskedVar%data(i,j) > 1.1_rp) then
-                    iHit = i
-                    jHit = j
-                    return
-                endif
-            enddo
-        enddo
-    end subroutine findMaskedInterpDifference
 
 
     subroutine initMomentReadyRaiCpl(raiCpl, xmlInp, profileName)

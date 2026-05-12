@@ -679,29 +679,32 @@ module raijuDomain
                     cycle
                 endif
 
-                ! If still here, we are within activeDomRad and we ran into either an INACTIVE or BUFFER cell
-                ! Keep walking out until either we hit bad topology or active would be placed within activeDomRad
-                iWalk = i
-                do while (iWalk > Grid%shGrid%is .or. radL > Model%activeDomRad .or. radR > Model%activeDomRad &
-                          .or. any(State%topo(iWalk:iWalk+1,j:j+1) .eq. RAIJUINACTIVE))
-                    iWalk = iWalk - 1
-                    radL = State%radMax(iWalk,j)
-                    radR = State%radMax(iWalk,j+1)
-                enddo
-
-                if (iWalk == Grid%shGrid%is) then
-                    ! We didn't find any good values above i,j don't rock the boat even harder
+                ! If still here, we are inside activeDomRad and found the first cell in this j-column
+                ! that was not marked ACTIVE by the stricter domain logic. Push the inactive/buffer
+                ! boundary poleward as far as we safely can, but never let BUFFER or ACTIVE include a
+                ! cell whose corners touch open topology.
+                if (any(State%topo(i:i+1,j:j+1) .eq. RAIJUOPEN)) then
+                    ! This cell itself violates the hard topology rule, so there is nothing to recover here.
                     exit
                 endif
 
-                ! Now iWalk is one cell too far, make it the last usable cell
-                iWalk = iWalk + 1
-                ! Now iWalk is a safe cell topology-wise, we can set active domain as we want from here
-                iBufStart = min(iWalk, Grid%shGrid%ieg)
-                iActStart = min(iBufStart + Grid%nBufferCells, Grid%shGrid%ieg)
+                iWalk = i
+                do while (iWalk > Grid%shGrid%is)
+                    radL = State%radMax(iWalk-1,j)
+                    radR = State%radMax(iWalk-1,j+1)
+
+                    if (radL > Model%activeDomRad .or. radR > Model%activeDomRad) exit
+                    if (any(State%topo(iWalk-1:iWalk,j:j+1) .eq. RAIJUOPEN)) exit
+
+                    iWalk = iWalk - 1
+                enddo
+
+                ! iWalk is now the poleward-most cell we are allowed to keep non-inactive.
+                iBufStart = iWalk
+                iActStart = iBufStart + Grid%nBufferCells
                 active(Grid%shGrid%isg:iBufStart-1, j) = RAIJUINACTIVE
-                if (iActStart > iBufStart) then
-                    active(iBufStart:iActStart-1, j) = RAIJUBUFFER
+                if (min(iActStart-1, Grid%shGrid%ieg) >= iBufStart) then
+                    active(iBufStart:min(iActStart-1, Grid%shGrid%ieg), j) = RAIJUBUFFER
                 endif
                 if (iActStart <= Grid%shGrid%ieg) then
                     active(iActStart:Grid%shGrid%ieg, j) = RAIJUACTIVE

@@ -158,16 +158,15 @@ contains
 
 
     @test
-    subroutine testParentToChild_cornerToCC_matchesLocalReference()
-        !! Test whether InterpShellVar_ParentToChild properly falls back to TSC interp when the variable locations
-        !!  differ between parent and child grids
+    subroutine testParentToChild_cornerToCC_averagesAndMasksStrictly()
+        !! ParentToChild corner -> CC should use a strict four-corner average and mask propagation.
         type(ShellGrid_T) :: childSG
-        type(ShellGridVar_T) :: childVarCC_viaParent
-        type(ShellGridVar_T) :: childVarCC_ref
-        logical, dimension(parentVarCorner%isv:parentVarCorner%iev, parentVarCorner%jsv:parentVarCorner%jev) :: parentRefMask
+        type(ShellGridVar_T) :: childVarCC
         integer :: i, j
         integer :: parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe
-        integer :: parentRefIs, parentRefIe, parentRefJs, parentRefJe
+        integer :: srcI, srcJ
+        real(rp) :: expVal
+        logical :: expMask
 
         call GenChildShellGrid( &
             parentSG, childSG, "shgrChildInterp", &
@@ -175,39 +174,100 @@ contains
             sub_is=sub_is, sub_ie=sub_ie, sub_js=sub_js, sub_je=sub_je, &
             ghostsOnParentGridO=.true.)
 
-        call initShellVar(childSG, SHGR_CC    , childVarCC_viaParent)  ! Child CC-located var coming from ParentToChild call
-        call initShellVar(childSG, SHGR_CC    , childVarCC_ref)        ! Child CC-located var interped from parent-backed local reference
-        ! childVarCC_viaParent is what we're testing to be equivalent to childVarCC_ref
-
-        call InterpShellVar_ParentToChild(parentSG, parentVarCorner, childSG, childVarCC_viaParent)
-
+        call initShellVar(childSG, SHGR_CC, childVarCC)
         call getParentSliceBounds(childSG, SHGR_CORNER, parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe)
 
-        ! TSC uses a 3x3 stencil around the nearest source point, so keep one parent-cell halo
-        ! around the child-support region while preserving the full parent-grid geometry.
-        parentRefIs = max(parentVarCorner%isv, parentSliceIs - 1)
-        parentRefIe = min(parentVarCorner%iev, parentSliceIe + 1)
-        parentRefJs = max(parentVarCorner%jsv, parentSliceJs - 1)
-        parentRefJe = min(parentVarCorner%jev, parentSliceJe + 1)
+        parentVarCorner%mask = .true.
+        parentVarCorner%mask(parentSliceIs+1, parentSliceJs+1) = .false.
+        parentVarCorner%mask(parentSliceIe-1, parentSliceJe-1) = .false.
 
-        parentRefMask = .false.
-        parentRefMask(parentRefIs:parentRefIe, parentRefJs:parentRefJe) = .true.
+        call InterpShellVar_ParentToChild(parentSG, parentVarCorner, childSG, childVarCC)
 
-        call InterpShellVar_TSC_SG(parentSG, parentVarCorner, childSG, childVarCC_ref, srcMaskO=parentRefMask)
+        do j=childVarCC%jsv,childVarCC%jev
+            srcJ = parentSliceJs + (j - childVarCC%jsv)
+            do i=childVarCC%isv,childVarCC%iev
+                srcI = parentSliceIs + (i - childVarCC%isv)
+                expMask = all(parentVarCorner%mask(srcI:srcI+1, srcJ:srcJ+1))
+                if (expMask) then
+                    expVal = 0.25_rp * sum(parentVarCorner%data(srcI:srcI+1, srcJ:srcJ+1))
+                else
+                    expVal = 0.0_rp
+                endif
 
-        do j=childVarCC_viaParent%jsv,childVarCC_viaParent%jev
-            do i=childVarCC_viaParent%isv,childVarCC_viaParent%iev
                 if (i >= childSG%is .and. i <= childSG%ie .and. j >= childSG%js .and. j <= childSG%je) then
                     write(checkMessage,'(a,i0,a,i0,a)') "ParentToChild corner->CC active mismatch at i=", i, ", j=", j, "."
                 else
                     write(checkMessage,'(a,i0,a,i0,a)') "ParentToChild corner->CC ghost mismatch at i=", i, ", j=", j, "."
                 endif
-                @assertLessThanOrEqual(abs(childVarCC_viaParent%data(i,j) - childVarCC_ref%data(i,j)), testTol, trim(checkMessage))
+                @assertTrue(childVarCC%mask(i,j) .eqv. expMask, trim(checkMessage)//" mask mismatch")
+                @assertLessThanOrEqual(abs(childVarCC%data(i,j) - expVal), testTol, trim(checkMessage)//" data mismatch")
             enddo
         enddo
 
         call deallocShellGrid(childSG)
-    end subroutine testParentToChild_cornerToCC_matchesLocalReference
+    end subroutine testParentToChild_cornerToCC_averagesAndMasksStrictly
+
+
+    @test
+    subroutine testParentToChild_cornerToCC_honorsSrcMaskO()
+        type(ShellGrid_T) :: childSG
+        type(ShellGridVar_T) :: childVarCC
+        logical :: srcMaskO(parentVarCorner%isv:parentVarCorner%iev, parentVarCorner%jsv:parentVarCorner%jev)
+        integer :: parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe
+        integer :: iMasked, jMasked, iClear, jClear
+
+        call GenChildShellGrid( &
+            parentSG, childSG, "shgrChildInterpMask", &
+            nGhosts=childGhosts, &
+            sub_is=sub_is, sub_ie=sub_ie, sub_js=sub_js, sub_je=sub_je, &
+            ghostsOnParentGridO=.true.)
+
+        call initShellVar(childSG, SHGR_CC, childVarCC)
+        call getParentSliceBounds(childSG, SHGR_CORNER, parentSliceIs, parentSliceIe, parentSliceJs, parentSliceJe)
+
+        parentVarCorner%mask = .true.
+        srcMaskO = .true.
+        srcMaskO(parentSliceIs+2, parentSliceJs+2) = .false.
+        iMasked = childVarCC%isv + 1
+        jMasked = childVarCC%jsv + 1
+        iClear = childVarCC%isv + 4
+        jClear = childVarCC%jsv + 4
+
+        call InterpShellVar_ParentToChild(parentSG, parentVarCorner, childSG, childVarCC, srcMaskO=srcMaskO)
+
+        @assertFalse(childVarCC%mask(iMasked,jMasked), "srcMaskO should mask the child cell touched by a bad parent corner")
+        @assertLessThanOrEqual(abs(childVarCC%data(iMasked,jMasked)), testTol, "Masked-out corner->CC cells should be zeroed")
+        @assertTrue(childVarCC%mask(iClear,jClear), "srcMaskO should leave unrelated child cells valid")
+
+        call deallocShellGrid(childSG)
+    end subroutine testParentToChild_cornerToCC_honorsSrcMaskO
+
+
+    @test
+    subroutine testParentToChild_mismatchUsesTSCOnlyWithOptIn()
+        type(ShellGrid_T) :: childSG
+        type(ShellGridVar_T) :: childVarCorner_viaParent
+        type(ShellGridVar_T) :: childVarCorner_ref
+
+        call GenChildShellGrid( &
+            parentSG, childSG, "shgrChildTSCOptIn", &
+            nGhosts=childGhosts, &
+            sub_is=sub_is, sub_ie=sub_ie, sub_js=sub_js, sub_je=sub_je, &
+            ghostsOnParentGridO=.true.)
+
+        call initShellVar(childSG, SHGR_CORNER, childVarCorner_viaParent)
+        call initShellVar(childSG, SHGR_CORNER, childVarCorner_ref)
+
+        parentVarCC%mask = .true.
+
+        call InterpShellVar_ParentToChild(parentSG, parentVarCC, childSG, childVarCorner_viaParent, doAllowTSC=.true.)
+        call InterpShellVar_TSC_SG(parentSG, parentVarCC, childSG, childVarCorner_ref)
+
+        @assertTrue(all(abs(childVarCorner_viaParent%data - childVarCorner_ref%data) <= testTol), "doAllowTSC should preserve the old TSC fallback for unsupported loc mismatches")
+        @assertTrue(all(childVarCorner_viaParent%mask .eqv. childVarCorner_ref%mask), "doAllowTSC TSC fallback should preserve masks")
+
+        call deallocShellGrid(childSG)
+    end subroutine testParentToChild_mismatchUsesTSCOnlyWithOptIn
 
 
     @test

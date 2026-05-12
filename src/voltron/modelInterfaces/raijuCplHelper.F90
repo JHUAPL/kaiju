@@ -205,7 +205,7 @@ module raijuCplHelper
 
         call initShellVar(raiCpl%shGr, SHGR_CORNER, tmpTopo)
 
-        where (tubeShell%topo%data == TUBE_CLOSED)
+        where (abs(tubeShell%topo%data - TUBE_CLOSED) < TINY)
             topoSrcMask = .true.
         elsewhere
             topoSrcMask = .false.

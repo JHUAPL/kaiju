@@ -463,17 +463,70 @@ module shellInterp
     end subroutine InterpShellVar_TSC_pnt
 
 
-    subroutine InterpShellVar_ParentToChild(srcGrid, srcVar, destGrid, destVar, srcMaskO)
+    subroutine InterpShellVar_ParentToChild_Corner2CC(srcGrid, srcVar, destGrid, destVar, srcMaskO)
+        type(ShellGrid_T   ), intent(in) :: srcGrid
+        type(ShellGridVar_T), intent(in) :: srcVar
+        type(ShellGrid_T   ), intent(in) :: destGrid
+        type(ShellGridVar_T), intent(inout) :: destVar
+        logical, dimension(srcVar%isv:srcVar%iev, srcVar%jsv:srcVar%jev), optional, intent(in) :: srcMaskO
+
+        integer :: subis, subie, subjs, subje, iExtra, jExtra
+        integer :: i, j, srcI, srcJ
+        logical :: isGood
+
+        if (srcVar%loc /= SHGR_CORNER .or. destVar%loc /= SHGR_CC) then
+            write(*,*) "ERROR in InterpShellVar_ParentToChild_Corner2CC: invalid loc pairing"
+            write(*,*) " Source loc:", srcVar%loc, " Dest loc:", destVar%loc
+            stop
+        endif
+
+        call ijExtra_SGV(srcVar%loc, iExtra, jExtra)
+
+        subis = destGrid%is + destGrid%bndis-1 - destGrid%Ngn
+        subie = destGrid%is + destGrid%bndie-1 + destGrid%Ngs + iExtra
+        subjs = destGrid%js + destGrid%bndjs-1 - destGrid%Nge
+        subje = destGrid%js + destGrid%bndje-1 + destGrid%Ngw + jExtra
+
+        if (subis < srcVar%isv .or. subie > srcVar%iev .or. subjs < srcVar%jsv .or. subje > srcVar%jev) then
+            write(*,*) "ERROR in InterpShellVar_ParentToChild_Corner2CC: source subset out of bounds"
+            write(*,*) " Source grid:", trim(srcGrid%name), " Dest grid:", trim(destGrid%name)
+            stop
+        endif
+
+        destVar%data = 0.0_rp
+        destVar%mask = .false.
+
+        do j=destVar%jsv,destVar%jev
+            srcJ = subjs + (j - destVar%jsv)
+            do i=destVar%isv,destVar%iev
+                srcI = subis + (i - destVar%isv)
+                isGood = all(srcVar%mask(srcI:srcI+1, srcJ:srcJ+1))
+                if (present(srcMaskO)) then
+                    isGood = isGood .and. all(srcMaskO(srcI:srcI+1, srcJ:srcJ+1))
+                endif
+
+                destVar%mask(i,j) = isGood
+                if (isGood) then
+                    destVar%data(i,j) = 0.25_rp * sum(srcVar%data(srcI:srcI+1, srcJ:srcJ+1))
+                else
+                    destVar%data(i,j) = 0.0_rp
+                endif
+            enddo
+        enddo
+    end subroutine InterpShellVar_ParentToChild_Corner2CC
+
+
+    subroutine InterpShellVar_ParentToChild(srcGrid, srcVar, destGrid, destVar, srcMaskO, doAllowTSC)
         type(ShellGrid_T   ), intent(in) :: srcGrid
         type(ShellGridVar_T), intent(in) :: srcVar
         type(ShellGrid_T   ), intent(in) :: destGrid
         type(ShellGridVar_T), intent(inout) :: destVar
         logical, dimension(srcVar%isv:srcVar%iev, srcVar%jsv:srcVar%jev), optional, intent(in) :: srcMaskO
             !! If provided, use this source mask alongside srcVar%mask
+        logical, optional, intent(in) :: doAllowTSC
 
         integer :: subis, subie, subjs, subje, iExtra, jExtra
-        type(ShellGridVar_T) :: src2destVar
-            !! srcVar chopped down to dest grid's domain 
+        logical :: allowTSC
 
         ! Are you actually my parent or do I need to call the police?
         if (trim(destGrid%parentName) == def_noParentName .or. trim(srcGrid%name) .ne. trim(destGrid%parentName)) then
@@ -481,6 +534,9 @@ module shellInterp
             write(*,*) " Src: ", trim(srcGrid%name), ", Dest: ",trim(destGrid%parentName)
             stop
         endif
+
+        allowTSC = .false.
+        if (present(doAllowTSC)) allowTSC = doAllowTSC
 
         destVar%data = 0.0_rp
 
@@ -500,8 +556,16 @@ module shellInterp
             else
                 destVar%mask(:,:) = srcVar%mask(subis:subie, subjs:subje)
             endif
-        else  ! Need to interpolate
+        else if (srcVar%loc == SHGR_CORNER .and. destVar%loc == SHGR_CC) then
+            call InterpShellVar_ParentToChild_Corner2CC(srcGrid, srcVar, destGrid, destVar, srcMaskO=srcMaskO)
+        else if (allowTSC) then
             call InterpShellVar_TSC_SG(srcGrid, srcVar, destGrid, destVar, srcMaskO=srcMaskO)
+            ! Note: We are not touching destVar%mask here! Its gonna be whatever it came in as. Do with that what you will
+        else
+            write(*,*) "ERROR in InterpShellVar_ParentToChild: unsupported loc mismatch without TSC opt-in"
+            write(*,*) " Source grid:", trim(srcGrid%name), " var loc:", srcVar%loc
+            write(*,*) " Dest grid:", trim(destGrid%name), " var loc:", destVar%loc
+            stop
         endif
 
     end subroutine InterpShellVar_ParentToChild

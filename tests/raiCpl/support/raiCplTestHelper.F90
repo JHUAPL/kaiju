@@ -4,7 +4,7 @@ module raiCplTestHelper
 
     use shellGrid
     use xml_input
-    use planethelper, only : DipoleShift
+    use planethelper, only : DipoleShift, DipColat2L
     use volttypes, only : raijuCoupler_T, imagOptions_T, IMAG_nMHD_R_NEAREARTH, voltApp_T
     use voltCplTypes, only : TubeShell_T, MAXTUBEFLUIDS, TUBE_CLOSED, TUBE_OPEN
     use raijutypes, only : raijuApp_T
@@ -256,14 +256,13 @@ contains
 
         integer :: i, j, n, s
         integer :: firstClosedI
-        real(rp) :: phase, frontShift
+        real(rp) :: phase, frontShift, lMaxRad
 
         call init_TubeShell(parentSG, tubeShell)
 
         do n=1,NDIM
             call fillSyntheticCornerVar(tubeShell%xyz0(n), 10.0_rp*real(n, rp))
             call fillSyntheticCornerVar(tubeShell%X_bmin(n), 100.0_rp*real(n, rp))
-            call fillSyntheticCornerVar(tubeShell%X_maxRad(n), 200.0_rp*real(n, rp))
             call fillSyntheticCornerVar(tubeShell%Jxyz_iono(n), 300.0_rp*real(n, rp))
             call fillSyntheticCornerVar(tubeShell%Bxyz_iono(n), 400.0_rp*real(n, rp))
         enddo
@@ -298,6 +297,18 @@ contains
                 tubeShell%wMAG%data(i,j) = 0.20_rp + 0.001_rp*real(i - tubeShell%wMAG%isv, rp) + 0.002_rp*real(j - tubeShell%wMAG%jsv, rp)
                 tubeShell%TioTe0%data(i,j) = 2.0_rp + 0.01_rp*real(i - tubeShell%TioTe0%isv, rp) + 0.005_rp*real(j - tubeShell%TioTe0%jsv, rp)
                 tubeShell%topo%data(i,j) = real(TUBE_CLOSED, rp)
+            enddo
+        enddo
+
+        ! `forceActiveWithinRadius` uses the magnitude of X_maxRad after it has been
+        ! copied into State%radMax, so give this synthetic fixture a physically
+        ! meaningful dipole-like radius instead of an arbitrary affine pattern.
+        do j=tubeShell%X_maxRad(XDIR)%jsv,tubeShell%X_maxRad(XDIR)%jev
+            do i=tubeShell%X_maxRad(XDIR)%isv,tubeShell%X_maxRad(XDIR)%iev
+                lMaxRad = DipColat2L(parentSG%thRp(i))
+                tubeShell%X_maxRad(XDIR)%data(i,j) = lMaxRad*cos(parentSG%ph(j))
+                tubeShell%X_maxRad(YDIR)%data(i,j) = lMaxRad*sin(parentSG%ph(j))
+                tubeShell%X_maxRad(ZDIR)%data(i,j) = 0.0_rp
             enddo
         enddo
 

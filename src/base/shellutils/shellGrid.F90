@@ -651,4 +651,22 @@ module shellGrid
 
     end subroutine deallocShellGrid
 
+
+    subroutine deallocShellGridVar(sgVar)
+        type(ShellGridVar_T), intent(inout) :: sgVar
+
+        sgVar%loc = -1
+        sgVar%Ni  = 0
+        sgVar%Nj  = 0
+        sgVar%isv = 0
+        sgVar%iev = 0
+        sgVar%jsv = 0
+        sgVar%jev = 0
+
+        if (allocated(sgVar%data)) deallocate(sgVar%data)
+        if (allocated(sgVar%mask)) deallocate(sgVar%mask)
+
+    end subroutine deallocShellGridVar
+
+
 end module shellGrid
