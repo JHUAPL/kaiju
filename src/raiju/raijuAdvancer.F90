@@ -254,6 +254,8 @@ module raijuAdvancer
                                                       - Qflux(i  ,j+1,RAI_PH)*Grid%lenFace(i  ,j+1,RAI_PH) )
                 endif
 
+                !! TODO: Something better later
+                State%eta(i,j,k) = max(State%eta(i,j,k),0.0_rp)
                 !if (State%eta(i,j,k) < -1.0*TINY) then
                 !    write(*,*)"RAIJU ERROR: eta below zero!"
                 !    write(*,*)"i,j,k=",i,j,k
@@ -287,7 +289,7 @@ module raijuAdvancer
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
                 dQ = (State%eta(i,j,k) - State%eta_last(i,j,k))/odt
-                State%eta_half(i,j,k) = State%eta(i,j,k) + 0.5_rp*dt*dQ
+                State%eta_half(i,j,k) = max(State%eta(i,j,k) + 0.5_rp*dt*dQ,0.0_rp)
             enddo
         enddo
 
