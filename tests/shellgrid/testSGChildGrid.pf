@@ -260,11 +260,11 @@ contains
 
         parentVarCC%mask = .true.
 
-        call InterpShellVar_ParentToChild(parentSG, parentVarCC, childSG, childVarCorner_viaParent, doAllowTSC=.true.)
+        call InterpShellVar_ParentToChild(parentSG, parentVarCC, childSG, childVarCorner_viaParent, doAllowTSCO=.true.)
         call InterpShellVar_TSC_SG(parentSG, parentVarCC, childSG, childVarCorner_ref)
 
-        @assertTrue(all(abs(childVarCorner_viaParent%data - childVarCorner_ref%data) <= testTol), "doAllowTSC should preserve the old TSC fallback for unsupported loc mismatches")
-        @assertTrue(all(childVarCorner_viaParent%mask .eqv. childVarCorner_ref%mask), "doAllowTSC TSC fallback should preserve masks")
+        @assertTrue(all(abs(childVarCorner_viaParent%data - childVarCorner_ref%data) <= testTol), "doAllowTSCO should preserve the old TSC fallback for unsupported loc mismatches")
+        @assertTrue(all(childVarCorner_viaParent%mask .eqv. childVarCorner_ref%mask), "doAllowTSCO TSC fallback should preserve masks")
 
         call deallocShellGrid(childSG)
     end subroutine testParentToChild_mismatchUsesTSCOnlyWithOptIn

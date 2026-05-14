@@ -516,14 +516,14 @@ module shellInterp
     end subroutine InterpShellVar_ParentToChild_Corner2CC
 
 
-    subroutine InterpShellVar_ParentToChild(srcGrid, srcVar, destGrid, destVar, srcMaskO, doAllowTSC)
+    subroutine InterpShellVar_ParentToChild(srcGrid, srcVar, destGrid, destVar, srcMaskO, doAllowTSCO)
         type(ShellGrid_T   ), intent(in) :: srcGrid
         type(ShellGridVar_T), intent(in) :: srcVar
         type(ShellGrid_T   ), intent(in) :: destGrid
         type(ShellGridVar_T), intent(inout) :: destVar
         logical, dimension(srcVar%isv:srcVar%iev, srcVar%jsv:srcVar%jev), optional, intent(in) :: srcMaskO
             !! If provided, use this source mask alongside srcVar%mask
-        logical, optional, intent(in) :: doAllowTSC
+        logical, optional, intent(in) :: doAllowTSCO
 
         integer :: subis, subie, subjs, subje, iExtra, jExtra
         logical :: allowTSC
@@ -536,7 +536,7 @@ module shellInterp
         endif
 
         allowTSC = .false.
-        if (present(doAllowTSC)) allowTSC = doAllowTSC
+        if (present(doAllowTSCO)) allowTSC = doAllowTSCO
 
         destVar%data = 0.0_rp
 
