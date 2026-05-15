@@ -1,0 +1,155 @@
+module testVMpiNv4
+  use testHelperMpi
+  use voltapp_mpi
+  use gamCouple_mpi_G2V
+  use uservoltic
+
+  implicit none
+
+  type(gamCouplerMpi_gam_T), allocatable :: gamCplMpi
+  type(voltAppMpi_T), allocatable :: voltAppMpi
+
+contains
+
+  @before
+  subroutine setup(this)
+      class (MpiTestMethod), intent(inout) :: this
+      character(len=strLen) :: caseFile
+
+      integer :: ierror
+      type(MPI_Comm) :: voltComm
+      type(XML_Input_T) :: xmlInp
+
+      call setMpiReal()
+
+      write(caseFile,'(A,I0,A)') 'cmiD_nv4_', this%getNumProcesses()-1, '.xml'
+
+      if(this%getProcessRank() < (this%getNumProcesses()-1)) then
+          allocate(gamCplMpi)
+
+          ! make gamera-only mpi communicator
+          call MPI_Comm_Split(getMpiF08Communicator(this), gamId, this%getProcessRank(), gamCplMpi%gOptionsMpi%gamComm, ierror)
+
+          gamCplMpi%gOptionsCplMpiG%couplingPoolComm = getMpiF08Communicator(this)
+          gamCplMpi%gOptions%userInitFunc => initUser
+          gamCplMpi%gOptionsMpi%doIO = .false.
+          xmlInp = New_XML_Input(trim(caseFile),'Kaiju',.true.)
+          call gamCplMpi%InitModel(xmlInp)
+      else
+          allocate(voltAppMpi)
+
+          ! make gamera-only mpi communicator
+          call MPI_Comm_Split(getMpiF08Communicator(this), voltId, this%getProcessRank(), voltComm, ierror)
+
+          voltAppMpi%vOptions%gamUserInitFunc => initUser
+          allocate(voltAppMpi%vOptionsMpi%couplingPoolComm)
+          voltAppMpi%vOptionsMpi%couplingPoolComm = getMpiF08Communicator(this)
+          call initVoltron_mpi(voltAppMpi, trim(caseFile))
+      endif
+
+  end subroutine setup
+
+  @after
+  subroutine teardown(this)
+      class (MpiTestMethod), intent(inout) :: this
+
+      if(allocated(voltAppMpi)) then
+          call endVoltronWaits(voltAppMpi)
+          deallocate(voltAppMpi)
+      endif
+      if(allocated(gamCplMpi)) deallocate(gamCplMpi)
+
+  end subroutine teardown
+
+  @test(npes=[2,5,9])
+  subroutine testVolt2MhdShallowCopyNv4(this)
+      class (MpiTestMethod), intent(inout) :: this
+
+      integer :: i,j,k,l
+      real(rp) :: checkVal
+      character(len=strLen) :: checkMessage
+      real(rp) :: iVal, jVal, kVal, lVal
+
+      ! coefficients chosen to allow easy interpretation of final values
+      iVal = 1
+      jVal = 20
+      kVal = 400
+      lVal = 8000
+
+      if(allocated(gamCplMpi)) then
+          @assertEqual(4, gamCplMpi%Model%nvInExyz, 'Gamera did not read nvInExyz=4 from XML')
+
+          if(gamCplMpi%Grid%hasLowerBC(IDIR)) then
+              SELECT type(iiBC=>gamCplMpi%Grid%externalBCs(INI)%p)
+                  TYPE IS (IonInnerBC_T)
+
+                      ! clear all cells
+                      iiBC%inEijk(:,:,:,:) = 0
+                      iiBC%inExyz(:,:,:,:) = 0
+
+                      ! receive the data from voltron
+                      call recvShallowCplDataMpi(gamCplMpi)
+
+                      ! check inExyz values, including the 4th channel
+                      do i=1,PsiSh
+                          do j=gamCplMpi%Grid%jsg,gamCplMpi%Grid%jeg
+                              do k=gamCplMpi%Grid%ksg,gamCplMpi%Grid%keg
+                                  do l=1,gamCplMpi%Model%nvInExyz
+                                      checkVal = lVal*l + &
+                                          kVal*(k+gamCplMpi%Grid%ijkShift(KDIR)) + &
+                                          jVal*(j+gamCplMpi%Grid%ijkShift(JDIR)) + &
+                                          iVal*(i+gamCplMpi%Grid%ijkShift(IDIR))
+                                      write (checkMessage,'(A,I0,A,I0,A,I0,A,I0,A)') 'gamera inExyz wrong at (',i,',',j,',',k,',',l,')'
+                                      @assertEqual(checkVal, iiBC%inExyz(i,j,k,l), trim(checkMessage))
+                                  enddo
+                              enddo
+                          enddo
+                      enddo
+                  CLASS DEFAULT
+                      @assertEqual(0,1,'No Remix BC on Gamera')
+              END SELECT
+          else
+              ! everyone has to call to receive the data from voltron
+              call recvShallowCplDataMpi(gamCplMpi)
+          endif
+      else
+          @assertEqual(4, voltAppMpi%gApp%Model%nvInExyz, 'Voltron-side Gamera model did not read nvInExyz=4 from XML')
+
+          SELECT type(iiBC=>voltAppMpi%gApp%Grid%externalBCs(INI)%p)
+              TYPE IS (IonInnerBC_T)
+                  ! clear all cells
+                  iiBC%inExyz(:,:,:,:) = 0
+                  iiBC%inEijk(:,:,:,:) = 0
+
+                  ! set inExyz, including the 4th channel
+                  do i=1,PsiSh
+                      do j=voltAppMpi%gApp%Grid%jsg,voltAppMpi%gApp%Grid%jeg
+                          do k=voltAppMpi%gApp%Grid%ksg,voltAppMpi%gApp%Grid%keg
+                              do l=1,voltAppMpi%gApp%Model%nvInExyz
+                                  iiBC%inExyz(i,j,k,l) = lVal*l + &
+                                      iVal*i + &
+                                      jVal*j + &
+                                      kVal*k
+                              enddo
+                          enddo
+                      enddo
+                  enddo
+
+              CLASS DEFAULT
+                  @assertEqual(0,1,'No Remix BC on Voltron')
+          END SELECT
+
+          SELECT type(cpl=>voltAppMpi%gApp)
+              TYPE IS (gamCouplerMpi_volt_T)
+                  ! send the data to gamera
+                  call sendShallowCplDataMpi(cpl)
+
+              CLASS DEFAULT
+                  @assertTrue(.false., "Voltron Allocated non-mpi Gamera coupler for MPI Voltron Coupling Test. Failure")
+          ENDSELECT
+
+      endif
+
+  end subroutine testVolt2MhdShallowCopyNv4
+
+end module testVMpiNv4

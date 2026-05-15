@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<!-- Gamera Magnetosphere -->
+<Kaiju>
+  <voltron>
+    <time tFin="677.115987461"/>
+    <spinup doSpin="F"/>
+    <coupling dtCouple="5.0" doDeep="F" doAsyncCoupling="F"/>
+  </voltron>
+  <Gamera>
+    <iPdir N="1" bcPeriodic="F"/>
+    <jPdir N="4" bcPeriodic="F"/>
+    <kPdir N="1" bcPeriodic="T"/>
+    <sim runid="msphere" doH5g="T" H5Grid="lfmD.h5" icType="user" pdmb="4.0" rmeth="7UP" pFloor="1e-06" dFloor="0.0001"/>
+    <restart dtRes="14.1065830721" doRes="F" resFile="msphere.Res.XXXXX.h5"/>
+    <output dtOut="0.235109717868" tsOut="100" timer="F"/>
+    <physics doMHD="T" doBoris="T" Ca="10.0"/>
+    <prob Rho0="0.1" P0="0.001" rCut="16.0" lCut="8.0"/>
+    <ring gid="lfm" doRing="T" Nr="3" Nc1="8" Nc2="16" Nc3="32"/>
+    <wind tsfile="bcwind.h5"/>
+    <coupling blockHalo="T"/>
+    <iono nvInExyz="4"/>
+  </Gamera>
+<!-- Remix -->
+  <REMIX>
+    <grid Np="360" Nt="45" LowLatBoundary="45.0"/>
+    <conductance const_sigma="T" ped0="10.0"/>
+  </REMIX>
+</Kaiju>
