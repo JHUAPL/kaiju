@@ -1,6 +1,7 @@
 module raijuAdvancer
     use clocks
     use planethelper
+    use earthhelper, only : GallagherXY
     use kai2geo
 
     use raijudefs
@@ -220,6 +221,10 @@ module raijuAdvancer
                             Grid%shGrid%jsg:Grid%shGrid%jeg+1, 2) :: Qflux
         integer :: i,j
 
+        ! Low-lat theta ghosts feed eta_half and face reconstruction at the
+        ! equatorward active edge, so impose their BC before flux calculation.
+        call applyLowLatEtaBC(Grid, State, k)
+
         ! Calculate eta at half-step
         call calcEtaHalf(Grid, State, k, dt, odt)
         ! Save eta to eta_last
@@ -273,9 +278,53 @@ module raijuAdvancer
             enddo
         enddo
 
-        call wrapJcc(Grid%shGrid, State%eta(:,:,k))
+        ! Re-apply after updating active cells, then let wrapJcc fill the
+        ! periodic phi ghosts using these corrected low-lat rows. eta_last
+        ! gets wrapped too because eta_half uses eta-eta_last in ghost columns.
+        call applyLowLatEtaBC(Grid, State, k)
+        call wrapJcc(Grid%shGrid, State%eta     (:,:,k))
+        call wrapJcc(Grid%shGrid, State%eta_last(:,:,k))
 
     end subroutine stepLambda
+
+
+    subroutine applyLowLatEtaBC(Grid, State, k)
+        type(raijuGrid_T) , intent(in) :: Grid
+        type(raijuState_T), intent(inout) :: State
+        integer, intent(in) :: k
+
+        integer :: i, j
+        real(rp) :: nowKp, den, etaBnd, xeq, yeq
+
+        associate(sh=>Grid%shGrid, spc=>Grid%spc(Grid%k2spc(k)))
+
+        if (sh%ie+1 > sh%ieg) return
+
+        if (spc%flav == F_PSPH) then
+            ! Plasmasphere ghosts represent real lower-L shells, so reset each
+            ! ghost row from Gallagher at its own mapped equatorial location.
+            nowKp = State%KpTS%evalAt(State%t)
+            do j=sh%js, sh%je
+                do i=sh%ie+1, sh%ieg
+                    xeq = State%xyzMincc(i,j,XDIR)
+                    yeq = State%xyzMincc(i,j,YDIR)
+                    den = GallagherXY(xeq, yeq, nowKp)
+                    etaBnd = den*State%bvol_cc(i,j)*sclEta
+                    State%eta     (i,j,k) = etaBnd
+                    State%eta_last(i,j,k) = etaBnd
+                enddo
+            enddo
+        else
+            ! Hot/species channels use a zero-gradient low-lat eta boundary.
+            do j=sh%js, sh%je
+                State%eta     (sh%ie+1:sh%ieg,j,k) = State%eta     (sh%ie,j,k)
+                State%eta_last(sh%ie+1:sh%ieg,j,k) = State%eta_last(sh%ie,j,k)
+            enddo
+        endif
+
+        end associate
+
+    end subroutine applyLowLatEtaBC
 
 
     subroutine fixFluxes(Model, Grid, eta, Qflux, dt, isGoodEvol)
