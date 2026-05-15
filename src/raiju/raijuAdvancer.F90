@@ -357,8 +357,8 @@ module raijuAdvancer
 
         ! Cell pass: bound each cell's outgoing conserved-content transport.
         ! Here "conserved content" means the quantity that the update actually
-        ! conserves: eta*areaCC*BrCC in the usual RCM form, or eta*areaCC in
-        ! the doHack_rcmEtaPush branch.  The limiter is deliberately pessimistic:
+        ! conserves: eta*areaCC*BrCC in the RAIJU form, or eta*areaCC in
+        ! the RCM-like branch.  The limiter is deliberately pessimistic:
         ! it does not spend incoming flux before it arrives.  That keeps the
         ! rule local and easy to audit, at the price of adding diffusion when a
         ! cell is trying very hard to empty itself.  The numerics take a sip of
@@ -380,7 +380,7 @@ module raijuAdvancer
                     botConFlux   = Qflux(i  ,j  ,RAI_PH)*Grid%lenFace(i  ,j  ,RAI_PH)/Grid%BrFace(i  , j  , RAI_PH)
                     topConFlux   = Qflux(i  ,j+1,RAI_PH)*Grid%lenFace(i  ,j+1,RAI_PH)/Grid%BrFace(i  , j+1, RAI_PH)
                 else
-                    ! Standard RCM content: eta is cell-centered, but the
+                    ! Standard RAIJU content: eta is cell-centered, but the
                     ! finite-volume balance is for eta*area*Br.  Face transports
                     ! already carry BrFace from calcFluxes, so multiplying by
                     ! lenFace gives the signed content rate through each face.
