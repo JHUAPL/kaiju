@@ -228,6 +228,15 @@ module voltapp
                 write(*,*) 'Quick Squish Stride must be a power of 2'
                 stop
             endif
+            call xmlInp%Set_Val(vApp%imagSrcNQuad, "imag/nSrcQuad", vApp%imagSrcNQuad)
+            if (vApp%imagSrcNQuad < 0) then
+                write(*,*) 'voltron/imag/nSrcQuad must be >= 0'
+                stop
+            endif
+            if (vApp%imagSrcNQuad > 5) then
+                write(*,*) 'voltron/imag/nSrcQuad must be <= 5'
+                stop
+            endif
             call xmlInp%Set_Val(vApp%chmp2mhd%epsSquish,"ebsquish/epsSquish",0.05)
 
             !Verify that Gamera has location to hold source info
