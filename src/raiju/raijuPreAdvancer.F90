@@ -61,7 +61,7 @@ module raijuPreAdvancer
         do k=1,Grid%Nk
             call calcVelocity_cc(Model, Grid, State, k, State%cVel(:,:,k,:))  ! Get velocity at cell interfaces
             ! Calc sub-time step. Each channel will do this on its own, but this way we can output the step sizes everyone is using
-            call reconVelocityLRs(Model, Grid, State, k, State%iVelL(:,:,k,:), State%iVelR(:,:,k,:))
+            call reconVelocity(Model, Grid, State, k, State%iVel(:,:,k,:))
             State%dtk(k) = activeDt_LR(Model, Grid, State, k)
         enddo
         call Toc("Calc cell-centered velocities")
@@ -647,38 +647,25 @@ module raijuPreAdvancer
     end subroutine calcVelocity_cc
 
 
-    subroutine reconVelocityLRs(Model, Grid, State, k, iVelL, iVelR)
+    subroutine reconVelocity(Model, Grid, State, k, iVel)
         type(raijuModel_T), intent(in) :: Model
         type(raijuGrid_T ), intent(in) :: Grid
         type(raijuState_T), intent(in) :: State
         integer, intent(in) :: k
         real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg+1,&
-                            Grid%shGrid%jsg:Grid%shGrid%jeg+1, 2), intent(inout) :: iVelL, iVelR
+                            Grid%shGrid%jsg:Grid%shGrid%jeg+1, 2), intent(inout) :: iVel
 
         logical, dimension(Grid%shGrid%isg:Grid%shGrid%ieg,&
                            Grid%shGrid%jsg:Grid%shGrid%jeg) :: isGCC
-        real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg+1,&
-                            Grid%shGrid%jsg:Grid%shGrid%jeg+1,2) :: tmpVelL, tmpVelR
         real(rp) :: vRecon
         integer :: i,j
         
-        iVelL = 0.0
-        iVelR = 0.0
+        iVel = 0.0
         isGCC = .false.
         ! The good mask here indicates if a cell can be used in reconstruction, which for us includes ACTIVE and BUFFER zones
         where (State%active .ne. RAIJUINACTIVE)
             isGCC = .true.
         end where
-
-        ! ReconFaces is gonna take one cc value and reconstruct at cell faces
-        ! But phi velocity at theta edge is meaningless for us
-        ! So we make two temporary arrays, and then just pack the meaningful components into iVelL and iVelR at the end
-        !call ReconFaces(Model, Grid, isGCC, State%cVel(:,:,k,RAI_TH), tmpVelL, tmpVelR, doOMPO=.false.)
-        !iVelL(:,:,RAI_TH) = tmpVelL(:,:,RAI_TH)
-        !iVelR(:,:,RAI_TH) = tmpVelR(:,:,RAI_TH)
-        !call ReconFaces(Model, Grid, isGCC, State%cVel(:,:,k,RAI_PH), tmpVelL, tmpVelR, doOMPO=.false.)
-        !iVelL(:,:,RAI_PH) = tmpVelL(:,:,RAI_PH)
-        !iVelR(:,:,RAI_PH) = tmpVelR(:,:,RAI_PH)
 
                 ! Trying out even order reconstruction, no extra limiting since we already did that to the gradients
         associate(sh=>Grid%shGrid)
@@ -688,27 +675,23 @@ module raijuPreAdvancer
                 ! Theta dir first
                 if (.not. isGCC(i,j) .or. .not. isGCC(i-1,j)) then
                     ! We are on a face bordering an inactive cell, no flux allowed here
-                    iVelL(i,j,RAI_TH) = 0.0_rp
-                    iVelR(i,j,RAI_TH) = 0.0_rp
+                    iVel(i,j,RAI_TH) = 0.0_rp
                 else            
                     vRecon = reconVel_pnt(State%cVel(i-4:i+3,j,k,RAI_TH)*Grid%areaCC(i-4:i+3,j), & 
                                       isGCC(i-4:i+3,j), Grid%areaFace(i,j,RAI_TH))
 
-                    iVelL(i,j,RAI_TH) = vRecon
-                    iVelR(i,j,RAI_TH) = vRecon
+                    iVel(i,j,RAI_TH) = vRecon
                 endif
 
                 ! Phi dir
                 if (.not. isGCC(i,j) .or. .not. isGCC(i,j-1)) then
                     ! We are on a face bordering an inactive cell, no flux allowed here
-                    iVelL(i,j,RAI_PH) = 0.0_rp
-                    iVelR(i,j,RAI_PH) = 0.0_rp
+                    iVel(i,j,RAI_PH) = 0.0_rp
                 else
                     ! Only looping over non-ghost cell faces, since ghosts are not allowed to evolve
                     vRecon = reconVel_pnt(State%cVel(i,j-4:j+3,k,RAI_PH)*Grid%areaCC(i,j-4:j+3), &
                                       isGCC(i,j-4:j+3), Grid%areaFace(i,j,RAI_PH))
-                    iVelL(i,j,RAI_PH) = vRecon
-                    iVelR(i,j,RAI_PH) = vRecon
+                    iVel(i,j,RAI_PH) = vRecon
                 endif
             enddo
         enddo
@@ -736,7 +719,7 @@ module raijuPreAdvancer
             endif
         end function reconVel_pnt
 
-    end subroutine reconVelocityLRs
+    end subroutine reconVelocity
 
 !------
 ! time handling
@@ -785,7 +768,7 @@ module raijuPreAdvancer
                     continue
                 else
                     ! We are good lets calculate a dt for this face
-                    velij_th = max(abs(State%iVelL(i,j,k,RAI_TH)), abs(State%iVelR(i,j,k,RAI_TH)), TINY)  ! [m/s]
+                    velij_th = max(abs(State%iVel(i,j,k,RAI_TH)), TINY)  ! [m/s]
                     !dtArr(i,j,RAI_TH) = ( Grid%delTh(i) * Model%planet%ri_m ) / velij  ! [s]
                 endif
                 
@@ -796,7 +779,7 @@ module raijuPreAdvancer
                 else if (State%active(i,j-1) .eq. RAIJUINACTIVE  .or. State%active(i,j) .eq. RAIJUINACTIVE ) then 
                     continue
                 else
-                    velij_ph = max(abs(State%iVelL(i,j,k,RAI_PH)), abs(State%iVelR(i,j,k,RAI_PH)), TINY)
+                    velij_ph = max(abs(State%iVel(i,j,k,RAI_PH)), TINY)
                     !dtArr(i,j,RAI_PH) = ( Grid%delPh(j) * Model%planet%ri_m ) / velij  ! [s]
                 endif
 

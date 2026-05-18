@@ -213,7 +213,6 @@ module raijutypes
             !! Max reconstruction order we will use when calculating etas at interfaces
         real(rp) :: PDMB
             !! 0 < PDMB < 1 used in PDM limiter. 1 = very diffusive
-        logical :: doUseVelLRs
 
         ! https://media0.giphy.com/media/XfDPdSRhYFUhIU7EPw/giphy.gif
         logical :: isSA
@@ -432,10 +431,6 @@ module raijutypes
             !! Cell-centered, calculated using Green-Gauss method
         real(rp), dimension(:,:,:,:), allocatable :: iVel
             !! (Ngi+1, Ngj+1, Nk, 2) [m/s] Edge-centered normal velocities
-        real(rp), dimension(:,:,:,:), allocatable :: iVelL
-            !! (Ngi+1, Ngj+1, Nk, 2) [m/s] Left edge-centered normal velocity reconstructed from cell-centered velocities
-        real(rp), dimension(:,:,:,:), allocatable :: iVelR
-            !! (Ngi+1, Ngj+1, Nk, 2) [m/s] Right edge-centered normal velocity reconstructed from cell-centered velocities
         real(rp), dimension(:,:,:,:), allocatable :: cVel
             !! (Ngi, Ngj, Nk, 2) [m/s] Cell-centered velocities
 
@@ -762,8 +757,6 @@ module raijutypes
     end subroutine raiAppOverride_setVal
 
 end module raijutypes
-
-
 
 
 

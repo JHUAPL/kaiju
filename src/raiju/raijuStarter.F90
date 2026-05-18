@@ -181,7 +181,6 @@ module raijustarter
 
         !---Solver ---!
         call iXML%Set_Val(Model%doSmoothGrads,'sim/doSmoothGrads',def_doSmoothGrads)
-        call iXML%Set_Val(Model%doUseVelLRs,'sim/useVelLRs',def_doUseVelLRs)
         call iXML%Set_Val(Model%maxItersPerSec,'sim/maxIter',def_maxItersPerSec)
         call iXML%Set_Val(Model%maxOrder,'sim/maxOrder',7)
         if (Model%maxOrder > maxOrderSupported) then
@@ -427,10 +426,6 @@ module raijustarter
             call fillArray(State%gradVM_cc, 0.0_rp)
             allocate( State%iVel (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk, 2) )
             call fillArray(State%iVel, 0.0_rp)
-            allocate( State%iVelL(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk, 2) )
-            call fillArray(State%iVelL, 0.0_rp)
-            allocate( State%iVelR(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk, 2) )
-            call fillArray(State%iVelR, 0.0_rp)
             allocate( State%cVel (sh%isg:sh%ieg  , sh%jsg:sh%jeg  , Grid%Nk, 2) )
             call fillArray(State%cVel, 0.0_rp)
             
