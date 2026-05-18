@@ -279,12 +279,8 @@ module raijuAdvancer
             enddo
         enddo
 
-        ! Re-apply after updating active cells, then let wrapJcc fill the
-        ! periodic phi ghosts using these corrected low-lat rows. eta_last
-        ! gets wrapped too because eta_half uses eta-eta_last in ghost columns.
+        ! Re-apply after updating active cells.
         call applyLowLatEtaBC(Grid, State, k)
-        call wrapJcc(Grid%shGrid, State%eta     (:,:,k))
-        call wrapJcc(Grid%shGrid, State%eta_last(:,:,k))
 
     end subroutine stepLambda
 
@@ -322,6 +318,11 @@ module raijuAdvancer
                 State%eta_last(sh%ie+1:sh%ieg,j,k) = State%eta_last(sh%ie,j,k)
             enddo
         endif
+
+        ! Keep periodic phi ghosts consistent before eta_half or face
+        ! reconstruction sees the low-lat boundary values.
+        call wrapJcc(sh, State%eta     (:,:,k))
+        call wrapJcc(sh, State%eta_last(:,:,k))
 
         end associate
 
@@ -458,6 +459,17 @@ module raijuAdvancer
                     endif
                 endif
             enddo
+        enddo
+
+        ! The periodic phi interface appears as both j=js and j=je+1 in the
+        ! update stencil. Keep the duplicate face identical using the copy that
+        ! was limited by the donor cell in the pass above.
+        do i=Grid%shGrid%is,Grid%shGrid%ie
+            if (Qflux(i,Grid%shGrid%je+1,RAI_PH) > 0.0_rp) then
+                Qflux(i,Grid%shGrid%js,RAI_PH) = Qflux(i,Grid%shGrid%je+1,RAI_PH)
+            else if (Qflux(i,Grid%shGrid%js,RAI_PH) < 0.0_rp) then
+                Qflux(i,Grid%shGrid%je+1,RAI_PH) = Qflux(i,Grid%shGrid%js,RAI_PH)
+            endif
         enddo
 
     end subroutine fixFluxes
