@@ -485,7 +485,7 @@ module raijuDomain
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
                 if (ocbDist(i,j) > 0) then  !! OCBdist will be zero in inactive zone, we want to avoid editing those cells
                     ! Simple circle limit
-                    if ( any(State%radMax_cc(i:i+1,j:j+1) > Model%maxTail_active) .or. any(State%radMax_cc(i:i+1,j:j+1) > Model%maxSun_active)) then
+                    if ( any(State%radMax(i:i+1,j:j+1) > Model%maxTail_active) .or. any(State%radMax(i:i+1,j:j+1) > Model%maxSun_active)) then
                         isBuffer(i,j) = .true.
                     endif
                 endif
