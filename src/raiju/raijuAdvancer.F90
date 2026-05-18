@@ -180,6 +180,7 @@ module raijuAdvancer
                 if (n/State%dt > Model%maxItersPerSec) then
                     write(*,*)"ERROR: Too many advance steps. Dying"
                     write(*,*)" k, dt, nSteps= ", k, dt, n
+                    call State%myRaiApp%WriteBlackBox()
                     stop
                 endif
             enddo
