@@ -180,7 +180,6 @@ module raijustarter
         Model%activeDomRad   = abs(Model%activeDomRad)
 
         !---Solver ---!
-        call iXML%Set_Val(Model%doSmoothGrads,'sim/doSmoothGrads',def_doSmoothGrads)
         call iXML%Set_Val(Model%maxItersPerSec,'sim/maxIter',def_maxItersPerSec)
         call iXML%Set_Val(Model%maxOrder,'sim/maxOrder',7)
         if (Model%maxOrder > maxOrderSupported) then
@@ -417,13 +416,12 @@ module raijustarter
             ! I shells shat should be evolved for each k
             allocate( State%activeShells (sh%isg:sh%ieg, Grid%Nk) )
             State%activeShells = .false.
+            ! Effective potential pieces
+            allocate( State%pot_eb (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1) )
+            call fillArray(State%pot_eb, 0.0_rp)
+            allocate( State%pot_ftv(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1) )
+            call fillArray(State%pot_ftv, 0.0_rp)
             ! Interface and cell velocities
-            allocate( State%gradPotE_cc    (sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
-            call fillArray(State%gradPotE_cc, 0.0_rp)
-            allocate( State%gradPotCorot_cc(sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
-            call fillArray(State%gradPotCorot_cc, 0.0_rp)
-            allocate( State%gradVM_cc      (sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
-            call fillArray(State%gradVM_cc, 0.0_rp)
             allocate( State%iVel (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk, 2) )
             call fillArray(State%iVel, 0.0_rp)
             allocate( State%cVel (sh%isg:sh%ieg  , sh%jsg:sh%jeg  , Grid%Nk, 2) )

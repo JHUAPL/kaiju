@@ -227,8 +227,6 @@ module raijutypes
             !! For debug
         logical :: writeGhosts
             !! For debug
-        logical :: doSmoothGrads
-            !! Whether or not we smooth variables (bvol and electric potential) before taking gradients
         logical :: doClockConsoleOut
             !! If we are driving, output clock info
         logical :: doOutput_debug
@@ -426,9 +424,10 @@ module raijutypes
 
         logical, dimension(:,:), allocatable :: activeShells
             !! (Ngi, Nk) i shells that should be evolved for a given lambda
-        real(rp), dimension(:,:,:), allocatable :: gradPotE_cc, gradPotCorot_cc, gradVM_cc
-            !! (Ngi, Ngj,2) [V/m] Th/phi gradient of the ionospheric potential, corotation potential, and flux tube volume raised to -2/3
-            !! Cell-centered, calculated using Green-Gauss method
+        real(rp), dimension(:,:), allocatable :: pot_eb
+            !! (Ngi+1, Ngj+1) [V] Smoothed corner electric potential, including corotation
+        real(rp), dimension(:,:), allocatable :: pot_ftv
+            !! (Ngi+1, Ngj+1) [FTV units^(-2/3)] Smoothed corner flux-tube-volume potential piece
         real(rp), dimension(:,:,:,:), allocatable :: iVel
             !! (Ngi+1, Ngj+1, Nk, 2) [m/s] Edge-centered normal velocities
         real(rp), dimension(:,:,:,:), allocatable :: cVel
@@ -757,8 +756,6 @@ module raijutypes
     end subroutine raiAppOverride_setVal
 
 end module raijutypes
-
-
 
 
 
