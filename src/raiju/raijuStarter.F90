@@ -244,10 +244,11 @@ module raijustarter
         call iXML%Set_Val(Model%ewmType , "losses/ewmType","SS")
 
         !--- Output ---!
-        call iXML%Set_Val(Model%isLoud           , "output/loudConsole",.false.)
-        call iXML%Set_Val(Model%writeGhosts      , "output/writeGhosts",.false.)
-        call iXML%Set_Val(Model%doOutput_3DLoss  , "output/doLossExtras" ,.false.)  ! Several (Ni,Nj,Nk) arrays
-        call iXML%Set_Val(Model%doOutput_debug   , "output/doDebug"    ,.false.)
+        call iXML%Set_Val(Model%isLoud             , "output/loudConsole" ,.false.)
+        call iXML%Set_Val(Model%writeGhosts        , "output/writeGhosts" ,.false.)
+        call iXML%Set_Val(Model%doOutput_3DLoss    , "output/do3DLosses"  ,.false.)  ! Several (Ni,Nj,Nk) arrays
+        call iXML%Set_Val(Model%doOutput_velocities, "output/doVelocities",.false.)  ! Several (Ni,Nj,Nk,2) arrays
+        call iXML%Set_Val(Model%doOutput_debug     , "output/doDebug"     ,.false.)
 
         ! Model Hax?
         call iXML%Set_Val(Model%doHack_rcmEtaPush, "hax/rcmEtaPush",.false.)

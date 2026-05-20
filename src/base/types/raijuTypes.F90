@@ -233,6 +233,8 @@ module raijutypes
             !! Dump lots of otherwise unnecessary stuff
         logical :: doOutput_3DLoss
             !! Dump extra 3D loss variables
+        logical :: doOutput_velocities
+            !! Dump extra 4D velocities
         logical :: doOwnCorot
             !! If true, we calculate corortation potential ourselves and include it in our velocity calculation
             !! If false, we assume its already included in whatever ionospheric potential we're using

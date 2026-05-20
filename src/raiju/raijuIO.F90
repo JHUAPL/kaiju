@@ -364,12 +364,17 @@ module raijuIO
             call AddOutVar(IOVars, "dPressure_dt" , outDeltaPressure, uStr="nPa/s")
             deallocate(outDeltaPressure)
 
-            if (Model%doOutput_3DLoss) then
+            if (Model%doOutput_3DLoss .or. Model%doOutput_debug) then
                 call AddOutVar(IOVars, "dEta_dt" , State%dEta_dt(is:ie,js:je,:), uStr="eta_units/s")
                 call AddOutVar(IOVars, "CCHeatFlux_Nk" , State%CCHeatFlux (is:ie,js:je,:), uStr="eV/cm^2/s")
                 call AddOutSGV(IOVars, "precipNFlux_Nk", State%precipNFlux, outBndsO=outBnds2D, uStr="#/cm^2/s" , dStr="precipNFlux from RAIJU flavors", doWriteMaskO=.false.)
                 call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux, outBndsO=outBnds2D, uStr="erg/cm^2/s" , dStr="precipEFlux from RAIJU flavors", doWriteMaskO=.false.)
             endif
+        endif
+
+        if (Model%doOutput_velocities .or. Model%doOutput_debug) then
+            call AddOutVar(IOVars, "iVel", State%iVel(is:ie+1,js:je+1,:,:), uStr="m/s")
+            call AddOutVar(IOVars, "cVel", State%cVel(is:ie  ,js:je  ,:,:), uStr="m/s")
         endif
         
         
@@ -388,8 +393,6 @@ module raijuIO
             call AddOutSGV(IOVars,"Density_inst" , State%Den  , outBndsO=outBnds2D, uStr="#/cc", dStr="Instantaneous density from RAIJU flavors" , doWriteMaskO=.false.)
 
             call AddOutVar(IOVars, "eta_half"     , State%eta_half     (is:ie  ,js:je  ,:)  , uStr="#/cm^3 * Rx/T")
-            call AddOutVar(IOVars, "iVel"         , State%iVel         (is:ie+1,js:je+1,:,:), uStr="m/s")
-            call AddOutVar(IOVars, "cVel"         , State%cVel         (is:ie  ,js:je  ,:,:), uStr="m/s")
             call AddOutVar(IOVars, "etaFaceReconL", State%etaFaceReconL(is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
             call AddOutVar(IOVars, "etaFaceReconR", State%etaFaceReconR(is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
             call AddOutVar(IOVars, "etaFacePDML"  , State%etaFacePDML  (is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
