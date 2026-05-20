@@ -768,7 +768,8 @@ module raijuIO
         call AddInVar(IOVars,"OCBDist"    )
         call AddInVar(IOVars,"activeShells")
 
-        call AddInVar(IOVars,"precipLossRates_Nk")
+        call AddInVar(IOVars,"lossRate")
+        call AddInVar(IOVars,"lossRatePrecip")
 
         call AddInVar(IOVars, "dtk"    )
         call AddInVar(IOVars, "nStepk" )
@@ -816,7 +817,8 @@ module raijuIO
         call IOArray3DFill(IOVars, "eta_last", State%eta_last(:,:,:))
         call IOArray3DFill(IOVars, "eta_avg" , State%eta_avg (:,:,:))
 
-        call IOArray3DFill(IOVars, "precipLossRates_Nk", State%lossRates(:,:,:))
+        call IOArray3DFill(IOVars, "lossRate", State%lossRates(:,:,:))
+        call IOArray3DFill(IOVars, "lossRatePrecip", State%lossRatesPrecip(:,:,:))
         
         call IOArray1DFill(IOVars, "dtk", State%dtk(:))
 

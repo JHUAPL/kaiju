@@ -380,19 +380,19 @@ submodule (volttypes) raijuCplTypesSub
                     enddo
 
                     ! Mock up cold electrons balancing hot protons and see if it produces meaningful flux
-                    !K: Removing this code for now, should be rewritten to use the MHD D,P => precip routines
-                    ! call InterpShellVar_TSC_pnt(sh, State%Den_avg(idx_proton)    , th, ph, d_ion)
-                    ! call InterpShellVar_TSC_pnt(sh, State%Press_avg(idx_proton)  , th, ph, p_ion)
-                    ! pie_frac = 0.05  ! Fraction of ion pressure contained by these neutralizing electrons
-                    ! pe_kT = DP2kT(d_ion, p_ion*pie_frac)  ! [keV]
-                    ! pe_nflux = imP(RAI_ENFLX)*d_ion/d_hot  ! Scale number flux to same loss processes except there were d_ion density instead of d_electron density
-                    ! pe_eflux = (pe_kT*kev2erg)*pe_nflux  ! [erg/cm^2/s]
-                    ! if (pe_eflux > imP(RAI_EFLUX)) then  ! Use in place of normal flux only if energy flux for these are greater than hot electron channel fluxes
-                    !     imP(RAI_EFLUX) = pe_eflux
-                    !     imP(RAI_ENFLX) = pe_nflux
-                    !     imP(RAI_EDEN ) = d_ion*1.0e6 ! [#/m^3]
-                    !     imP(RAI_EPRE ) = p_ion*pie_frac*1.0e-9  ! [Pa]
-                    ! endif
+                    !!! !K: Removing this code for now, should be rewritten to use the MHD D,P => precip routines
+                    call InterpShellVar_TSC_pnt(sh, State%Den_avg(idx_proton)    , th, ph, d_ion)
+                    call InterpShellVar_TSC_pnt(sh, State%Press_avg(idx_proton)  , th, ph, p_ion)
+                    pie_frac = 0.05  ! Fraction of ion pressure contained by these neutralizing electrons
+                    pe_kT = DP2kT(d_ion, p_ion*pie_frac)  ! [keV]
+                    pe_nflux = imP(RAI_ENFLX)*d_ion/d_hot  ! Scale number flux to same loss processes except there were d_ion density instead of d_electron density
+                    pe_eflux = (pe_kT*kev2erg)*pe_nflux  ! [erg/cm^2/s]
+                    if (pe_eflux > imP(RAI_EFLUX)) then  ! Use in place of normal flux only if energy flux for these are greater than hot electron channel fluxes
+                        imP(RAI_EFLUX) = pe_eflux
+                        imP(RAI_ENFLX) = pe_nflux
+                        imP(RAI_EDEN ) = d_ion*1.0e6 ! [#/m^3]
+                        imP(RAI_EPRE ) = p_ion*pie_frac*1.0e-9  ! [Pa]
+                    endif
 
                 endif !spcList(s)%spcType == X
             enddo
