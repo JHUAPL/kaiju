@@ -433,7 +433,7 @@ module init
             call xmlInp%Set_Val(Model%nvSrc,'source/nvSrc',NVARVOLTSRC)
         endif
     !Ionosphere coupling terms
-        call xmlInp%Set_Val(Model%nvInExyz,'iono/nvInExyz',Model%nvInExyz)
+        call xmlInp%Set_Val(Model%nvInExyz,'iono/nvInExyz',NVARIONO0)
 
     !Get RunID
         call xmlInp%Set_Val(Model%RunID,'sim/runid',"Sim")

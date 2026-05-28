@@ -1,4 +1,4 @@
-module testVMpiNv4
+module testVMpi_Nv4
   use testHelperMpi
   use voltapp_mpi
   use gamCouple_mpi_G2V
@@ -152,4 +152,4 @@ contains
 
   end subroutine testVolt2MhdShallowCopyNv4
 
-end module testVMpiNv4
+end module testVMpi_Nv4
