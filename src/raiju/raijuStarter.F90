@@ -215,6 +215,7 @@ module raijustarter
         endif
         call iXML%Set_Val(Model%doGeoCorot, "prob/doGeoCorot",.false.)
 
+
         ! Lambda channel settings
         call iXML%Set_Val(Model%doDynamicLambdaRanges, "lambdas/dynamicRanges",.false.)
 
@@ -242,6 +243,7 @@ module raijustarter
         !call iXML%Set_Val(Model%doFLC   , "losses/doFLC",.false.)
         call iXML%Set_Val(Model%doEWM   , "losses/doEWM",.true.)
         call iXML%Set_Val(Model%ewmType , "losses/ewmType","SS")
+        call iXML%Set_Val(Model%doExtraElePrecipFromProtons, "losses/doExtraElePrecip",.false.)
 
         !--- Output ---!
         call iXML%Set_Val(Model%isLoud             , "output/loudConsole" ,.false.)
