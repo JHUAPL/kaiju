@@ -38,6 +38,8 @@ module gamCoupleHelper
         associate(Gr => App%Grid)
 
         if (.not. allocated(inEijk)) allocate(inEijk(PsiSh+1,Gr%jsg:Gr%jeg+1,Gr%ksg:Gr%keg+1,1:NDIM))
+        ! During testing, inExyz can change size between tests
+        if (allocated(inExyz) .and. size(inExyz,4) /= App%Model%nvInExyz) deallocate(inExyz)
         if (.not. allocated(inExyz)) allocate(inExyz(PsiSh  ,Gr%jsg:Gr%jeg  ,Gr%ksg:Gr%keg  ,1:App%Model%nvInExyz))
         if (.not. allocated(psi))    allocate(psi(PsiSh,Gr%js:Gr%je,Gr%ks:Gr%ke)) !Cell-centered potential
         if (.not. allocated(Veb))    allocate(Veb(PsiSh,Gr%js:Gr%je,Gr%ks:Gr%ke,1:NDIM))
