@@ -25,11 +25,9 @@ module dktypes
 
   type dkVariables_T
     real (rp), dimension(:,:),allocatable :: Pot, FAC, SigmaP, SigmaH, SigmaPgcm, SigmaHgcm
-    real (rp), dimension(:,:),allocatable :: Sound_Speed, Density, Avg_Eng, Num_Flux, Neutral_Wind, Efield
-    real (rp), dimension(:,:),allocatable :: Im_Eavg, Im_Eflux, Im_Iavg, Im_Iflux
-    real (rp), dimension(:,:),allocatable :: Z_Eavg, Z_Nflux, CrPot, TPot
-    real (rp), dimension(:,:),allocatable :: Im_Gtype, Aur_Type, Im_Beta, Im_Eden, Im_Epre
-    real (rp), dimension(:,:),allocatable :: Im_Enflx, Im_Inflx, DeltaE, Im_Npsp, Im_Thcon, Im_Phcon
+    real (rp), dimension(:,:),allocatable :: Sound_Speed, Density, Avg_Eng, Num_Flux, Aur_Type
+    real (rp), dimension(:,:),allocatable :: Im_Eflux, Im_Gtype, Im_Beta, Im_Eden, Im_Epre
+    real (rp), dimension(:,:),allocatable :: Im_Enflx, DeltaE, Im_Npsp, Z_Eavg, Z_Nflux
 
     integer :: hemisphere=NORTH
     real(rp) :: tilt=0.

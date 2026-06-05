@@ -4,7 +4,6 @@ module mixmain
   use mixtypes
   use mixparams
   use mixgeom
-  use dkaurora
   use mixconductance
   use mixstate
   use mixsolver

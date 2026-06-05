@@ -6,7 +6,7 @@ module dkinit
     use dkdefs
     use dktypes
     use dkconductance
-    use dkaurora
+    use dkaurora2
     use auroralhelper
     use math
     use kronos
@@ -27,6 +27,9 @@ module dkinit
       do h=1,size(I)
         dkApp%grid(h) = I(h)%G
       end do
+
+      dkApp%params%R = I(1)%P%R
+      dkApp%params%RinMHD = I(1)%P%RinMHD
 
     end subroutine initDKmesh
 
@@ -128,7 +131,7 @@ module dkinit
       ! =========== CONDUCTANCE MODEL PARAMETERS =================== !
       call xmlInp%Set_Val(params%alpha,"precipitation/alpha",1.0332467_rp)
       call xmlInp%Set_Val(params%beta,"precipitation/beta",0.4362323_rp)
-      call xmlInp%Set_Val(params%R,"precipitation/R",0.083567956_rp)
+
       call xmlInp%Set_Val(params%doAuroralSmooth,"precipitation/doAuroralSmooth",.false.)        
       call xmlInp%Set_Val(params%F107,"conductance/F107",120._rp)
       call xmlInp%Set_Val(params%pedmin,"conductance/pedmin",2.0_rp)
@@ -147,7 +150,6 @@ module dkinit
       call xmlInp%Set_Val(params%doGCM, "coupling/doGCM",.false.)
 
       params%beta_inp = params%beta
-      params%RinMHD = 0.0
 
       ! if this is on, params%F107 read from xml file above will be overwritten
       ! and F107 will be set from the SW file (i.e., from OMNI data)
@@ -215,30 +217,23 @@ module dkinit
       if (.not. allocated(vars%Density))     allocate(vars%Density(Np,Nt))
       if (.not. allocated(vars%Avg_Eng))     allocate(vars%Avg_Eng(Np,Nt))
       if (.not. allocated(vars%Num_Flux))    allocate(vars%Num_Flux(Np,Nt))
-      if (.not. allocated(vars%Neutral_Wind)) allocate(vars%Neutral_Wind(Np,Nt))
-      if (.not. allocated(vars%Efield))      allocate(vars%Efield(Np,Nt))
-      if (.not. allocated(vars%Im_Eavg))     allocate(vars%Im_Eavg(Np,Nt))
       if (.not. allocated(vars%Im_Eflux))    allocate(vars%Im_Eflux(Np,Nt))
-      if (.not. allocated(vars%Im_Iavg))     allocate(vars%Im_Iavg(Np,Nt))
-      if (.not. allocated(vars%Im_Iflux))    allocate(vars%Im_Iflux(Np,Nt))
       if (.not. allocated(vars%Z_Eavg))      allocate(vars%Z_Eavg(Np,Nt))
       if (.not. allocated(vars%Z_Nflux))     allocate(vars%Z_Nflux(Np,Nt))
-      if (.not. allocated(vars%CrPot))       allocate(vars%CrPot(Np,Nt))
-      if (.not. allocated(vars%TPot))        allocate(vars%TPot(Np,Nt))
       if (.not. allocated(vars%Im_Gtype))    allocate(vars%Im_Gtype(Np,Nt))
       if (.not. allocated(vars%Aur_Type))    allocate(vars%Aur_Type(Np,Nt))
       if (.not. allocated(vars%Im_Beta))     allocate(vars%Im_Beta(Np,Nt))
       if (.not. allocated(vars%Im_Eden))     allocate(vars%Im_Eden(Np,Nt))
       if (.not. allocated(vars%Im_Epre))     allocate(vars%Im_Epre(Np,Nt)) 
       if (.not. allocated(vars%Im_Enflx))    allocate(vars%Im_Enflx(Np,Nt))
-      if (.not. allocated(vars%Im_Inflx))    allocate(vars%Im_Inflx(Np,Nt))
       if (.not. allocated(vars%DeltaE))      allocate(vars%DeltaE(Np,Nt))
       if (.not. allocated(vars%Im_Npsp))     allocate(vars%Im_Npsp(Np,Nt))
-      if (.not. allocated(vars%Im_Thcon))    allocate(vars%Im_Thcon(Np,Nt))
-      if (.not. allocated(vars%Im_Phcon))    allocate(vars%Im_Phcon(Np,Nt))
 
       vars%SigmaP = 0.0_rp
       vars%SigmaH = 0.0_rp
+
+      vars%SigmaPgcm = 0.0_rp
+      vars%SigmaHgcm = 0.0_rp
 
     end subroutine initDKvars
 

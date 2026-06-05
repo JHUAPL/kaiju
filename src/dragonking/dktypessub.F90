@@ -1,5 +1,4 @@
 submodule (dktypes) dktypessub
-    use dkaurora
     ! use dkmain
     use xml_input
     
