@@ -6,7 +6,7 @@ module dkinit
     use dkdefs
     use dktypes
     use dkconductance
-    use dkaurora2
+    use dkaurora
     use auroralhelper
     use math
     use kronos
