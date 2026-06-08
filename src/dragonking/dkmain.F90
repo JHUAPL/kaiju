@@ -93,11 +93,8 @@ module dkmain
 
 
 !---------- Compute precipitation and conductance/conductivity
-    subroutine DKcompute(dkApp,gcm)
+    subroutine DKcompute(dkApp)
         type(dkApp_T),intent(inout) :: dkApp
-        ! type(mixIon_T),dimension(:),intent(inout) :: I
-        ! type(mixIO_T), intent(in) :: mixIOobj  
-        type(gcm_T),optional,intent(inout) :: gcm
 
         ! logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
         logical :: doModel

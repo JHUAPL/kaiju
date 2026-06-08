@@ -1,6 +1,7 @@
 ! Collection of data and objects for the voltron middle man
 
 module voltapp
+    use dktypes
     use mixtypes
     use mixdefs
     use mixmain
@@ -398,7 +399,8 @@ module voltapp
         call vApp%remixApp%InitModel(xmlInp)
 
         call initDKmesh(vapp%dkApp,vApp%remixApp%ion)
-        call initDK(vApp%dkApp, xmlInp)
+        ! call initDK(vApp%dkApp, xmlInp)
+        call vApp%dkApp%InitModel(xmlInp)
 
         if(isRestart) then
             call vApp%remixApp%ReadRestart(resId=RunID,nRes=vApp%IO%nRes)
@@ -530,7 +532,8 @@ module voltapp
 
         if (vApp%doGCM) call DKdogcm(vApp%dkApp,vApp%gcm)
 
-        call DKcompute(vApp%dkApp)
+        ! call DKcompute(vApp%dkApp)
+        call vApp%dkApp%AdvanceModel(0.0_rp)
 
     end subroutine runDK
 
