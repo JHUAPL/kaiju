@@ -368,11 +368,15 @@ module shellInterp
             enddo
         enddo
 
-        ! Renormalize
-        Ws = Ws/sum(Ws)
-
-        ! Get final value
-        Qinterp = dot_product(Qs,Ws)
+        ! Renormalize and get final value. Guard a fully-masked stencil:
+        ! sum(Ws)=0 would give a 0/0 NaN, so flag it as a bad interp instead.
+        if (sum(Ws) > 0.0_rp) then
+            Ws = Ws/sum(Ws)
+            Qinterp = dot_product(Qs,Ws)
+        else
+            Qinterp = 0.0_rp
+            if (present(goodInterpO)) goodInterpO = .false.
+        endif
 
         ! Have some internal functions
         contains

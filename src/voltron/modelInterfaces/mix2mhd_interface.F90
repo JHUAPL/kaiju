@@ -13,8 +13,6 @@ module mix2mhd_interface
 
     contains
 
-    ! CouplePotentialToMhd has been removed — its logic is now in remixCpl_fromIono
-
     subroutine init_mix2MhdCoupler(gameraApp, remixApp)
         class(gamCoupler_T), intent(inout) :: gameraApp
         class(mixApp_T), intent(inout) :: remixApp

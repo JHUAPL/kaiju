@@ -8,6 +8,9 @@ module voltapp
     use chmpdefs
     use starter
     use mhd2mix_interface
+    use gam2shell_interface
+    use shell2gam_interface
+    use shell2mix_interface
     use mhd2chmp_interface
     use chmp2mhd_interface
     use mix2mhd_interface
@@ -400,64 +403,12 @@ module voltapp
         ! Allocate and init ionosphere coupler (REMIX or future models)
         call InitIonosphere(vApp, xmlInp)
 
-        ! REMIX-specific post-init steps (access via select type)
-        select type(ionoApp => vApp%ionoApp)
-        type is (remixCoupler_T)
+        ! Gamera MHD -> voltron ShellGrid (model-agnostic; shared by all iono couplers).
+        call init_gam2shell(vApp%gam2shell, gApp, vApp%shGrid)
 
-            if(isRestart) then
-                call ionoApp%ReadRestart(resId=RunID, nRes=vApp%IO%nRes)
-            endif
-
-            if(vApp%writeFiles) then
-                call ionoApp%InitIO(xmlInp)
-            endif
-
-            ionoApp%mixApp%ion%rad_iono_m   = vApp%planet%ri_m
-            ionoApp%mixApp%ion%rad_planet_m = vApp%planet%rp_m
-
-            !Ensure remix and voltron restart numbers match
-            if (isRestart .and. vApp%IO%nRes /= ionoApp%mixApp%ion(1)%P%nRes) then
-                write(*,*) "Voltron and Remix disagree on restart number, you should sort that out."
-                write(*,*) "Error code: A house divided cannot stand"
-                write(*,*) "   Voltron nRes = ", vApp%IO%nRes
-                write(*,*) "   Remix   nRes = ", ionoApp%mixApp%ion(1)%P%nRes
-                stop
-            endif
-
-            if (ionoApp%mixApp%ion(NORTH)%P%doSWF107 .neqv. ionoApp%mixApp%ion(SOUTH)%P%doSWF107) then
-                write(*,*) 'Something is wrong. doSWf107 is set differently for the two hemispheres.'
-                write(*,*) 'Exiting ...'
-                stop
-            endif
-
-            ! read f107 from the SW file and overwrite what's been read from .xml above (in init_mix)
-            ! note, only checking for NORTH, because both hemispheres read the same xml file
-            if (ionoApp%mixApp%ion(NORTH)%P%doSWF107) then
-                !Set F10.7 from time series (using max)
-                f107%wID = vApp%tilt%wID
-                call f107%initTS("f10.7",doLoudO=.false.)
-                maxF107 = f107%getMax()
-
-                call updateF107(ionoApp%mixApp%ion, maxF107)
-
-                if (vApp%isLoud) write(*,*) 'Using F10.7 = ', maxF107
-            endif
-
-            if (vApp%isLoud) write(*,*) 'Using MJD0  = ', gApp%Model%MJD0
-
-            ! initialize remix to gamera structures (needs gApp — stays here for Step 1)
-            call init_mix2MhdCoupler(vApp%gApp, ionoApp%mixApp)
-            ! initialize additional coupled gamera data
-            call vApp%gApp%InitMhdCoupler(vApp)
-            if(isRestart) then
-                call xmlInp%Set_Val(resID,"/Kaiju/gamera/restart/resID","msphere")
-                call xmlInp%Set_Val(nRes,"/Kaiju/gamera/restart/nRes" ,-1)
-                call vApp%gApp%ReadRestart(resID, nRes)
-            endif
-
-            call init_mhd2Mix(vApp%mhd2mix, gApp, ionoApp%mixApp)
-
-        end select
+        ! Per-model coupler init behind the ionoCoupler contract (REMIX/SMITE-specific:
+        ! restart/IO/F10.7 + the gApp-dependent map builds). No select type here.
+        call vApp%ionoApp%InitCouplers(vApp, xmlInp)
         !vApp%mix2mhd%mixOutput = 0.0
         
     !CHIMP (TRC) from Gamera
@@ -487,15 +438,30 @@ module voltapp
 
 !----------
 !Deep coupling stuff (time coming from vApp%time, so in seconds)
+    !Gamera MHD -> voltron ShellGrid (model-agnostic; shared by all iono couplers).
+    subroutine gameraToShell(vApp)
+        class(voltApp_T), intent(inout) :: vApp
+        call convertGameraToShell(vApp%gam2shell, vApp%gApp)
+        call mapGameraToShell(vApp%gam2shell, vApp%shGrid)
+    end subroutine gameraToShell
+
+    !voltron ShellGrid potential -> Gamera inner-boundary BC (model-agnostic).
+    subroutine shellToGamera(vApp)
+        class(voltApp_T), intent(inout) :: vApp
+        call convertVolttoGamera(vApp)
+    end subroutine shellToGamera
+
     subroutine DeepUpdate(vApp, gApp)
         class(gamApp_T) , intent(inout) :: gApp
         class(voltApp_T), intent(inout) :: vApp
 
         ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
         call Tic("ReMIX", .true.)
-        call vApp%ionoApp%toIono(vApp)
+        call gameraToShell(vApp)              ! Gamera -> shell (model-agnostic)
+        call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
         call vApp%ionoApp%AdvanceModel(0.0_rp)
-        call vApp%ionoApp%fromIono(vApp)
+        call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
+        call shellToGamera(vApp)             ! shell -> Gamera BC (model-agnostic)
         call Toc("ReMIX", .true.)
 
         ! only do imag after spinup with deep enabled

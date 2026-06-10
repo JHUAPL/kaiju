@@ -60,8 +60,6 @@ module voltappHelper
         
     end subroutine initVoltState
 
-    ! updateVoltPotential has been removed — its logic is now in remixCpl_fromIono
-
     subroutine calcCorotPotential(planet, sh, pCorot,doGeoCorotO)
         ! Calculate corotation potential to store on voltron ShellGrid
         type(planet_T), intent(in) :: planet
@@ -95,7 +93,7 @@ module voltappHelper
             endif
         endif
 
-        ! IfdoGeoCorotO was not provided, or it was false, we default to corotation on aligned dipole and rotational axis
+        ! Default: corotation for an aligned dipole + rotation axis
         do j=sh%jsg,sh%jeg+1
             pCorot%data(:,j) = -planet%psiCorot*(planet%rp_m/planet%ri_m)*sin(sh%th)**2  ! [kV]
         enddo

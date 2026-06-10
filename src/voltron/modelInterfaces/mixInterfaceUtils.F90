@@ -84,7 +84,8 @@ module mixinterfaceutils
       integer :: iLat
       ! South grid stuff
       real(rp), dimension(:), allocatable :: thS, phS
-      type(ShellGrid_T) :: mixS
+      type(ShellGrid_T), save :: mixS          ! built once; the REMIX south grid is fixed
+      logical,           save :: mixS_init = .false.
       type(ShellGridVar_T) :: mixSGV, tmpN, tmpS
 
       ! Init a ShellGridVar w.r.t. remix's ShellGrid to map its variables onto
@@ -114,11 +115,16 @@ module mixinterfaceutils
 
       associate(rmHemi=>mixApp%ion(SOUTH), shGr=>mixApp%ion(SOUTH)%shGr)       
          ! Set up a proper ShellGrid for Southern hemisphere in SM coordinates
-         allocate(thS(shGr%Nt+1))
-         allocate(phS(shGr%Np+1))
-         thS = PI - shGr%th(shGr%ie+1:shGr%is:-1)  ! Flip direction so we go from eq to pole in memory
-         phS = shGr%ph(shGr%js:shGr%je+1)  ! Positions are same values, but handedness is flipped. Handle on data mashing
-         call GenShellGrid(mixS, thS,phS,"REMIX_SOUTH",nGhosts=(/0,0,0,0/),radO=shGr%radius)
+         ! Build the SM-frame south grid once (the REMIX south grid is fixed).
+         if (.not. mixS_init) then
+            allocate(thS(shGr%Nt+1))
+            allocate(phS(shGr%Np+1))
+            thS = PI - shGr%th(shGr%ie+1:shGr%is:-1)  ! Flip direction so we go from eq to pole in memory
+            phS = shGr%ph(shGr%js:shGr%je+1)  ! Positions are same values, but handedness is flipped. Handle on data mashing
+            call GenShellGrid(mixS, thS,phS,"REMIX_SOUTH",nGhosts=(/0,0,0,0/),radO=shGr%radius)
+            deallocate(thS, phS)
+            mixS_init = .true.
+         endif
          call initShellVar(mixS, SHGR_CORNER, mixSGV)  ! blow up old mixSGV and use new southern grid (even thouth they should be the same)
          mixSGV%mask = .true.
          ! Now map Southern hemi mix var onto a SM shellgridvar

@@ -380,7 +380,6 @@ module voltapp_mpi
 
     subroutine startDeep(vApp)
         type(voltAppMpi_T), intent(inout) :: vApp
-        ! [DEBUG] convertGameraToRemix and MJDRecalc were called here moved down
         ! GCM coupling (REMIX-specific)
         if (vApp%doGCM .and. vApp%time >=0 .and. vApp%gcmCplRank /= -1) then
             call Tic("GCM2MIX")
@@ -412,9 +411,11 @@ module voltapp_mpi
 
         ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
         call Tic("ReMIX", .true.)
-        call vApp%ionoApp%toIono(vApp)
+        call gameraToShell(vApp)              ! Gamera -> shell (model-agnostic)
+        call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
         call vApp%ionoApp%AdvanceModel(0.0_rp)
-        call vApp%ionoApp%fromIono(vApp)
+        call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
+        call shellToGamera(vApp)             ! shell -> Gamera BC (model-agnostic)
         call Toc("ReMIX", .true.)
 
         ! only do imag after spinup

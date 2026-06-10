@@ -1,7 +1,5 @@
-! Submodule implementing remixCoupler_T procedures.
-! Mirrors raijuCplTypesSub.F90 in structure.
-! All computation is identical to the pre-refactor code — only the
-! data path changes: vApp%remixApp -> App%mixApp.
+!remixCoupler_T procedures (mirrors raijuCplTypesSub.F90 structure).
+!Data path: vApp%remixApp -> App%mixApp.
 
 submodule (volttypes) remixCplTypesSub
 
@@ -11,19 +9,18 @@ submodule (volttypes) remixCplTypesSub
     use mix2mhd_interface
     use imag2mix_interface
     use mixinterfaceutils
+    use shell2mix_interface,  only: mapShellToMix, init_shell2mix
+    use mix2shell_interface,  only: mapMixToShell
     use voltappHelper
-    use voltapp, only: getConductance
+    use voltapp,   only: getConductance
     use kai2geo
+    use mixmain,   only: updateF107   ! updateF107 (not host-associated via volttypes)
 
     implicit none
 
     contains
 
-    ! ----------------------------------------------------------------
-    ! InitModel — REMIX-internal init only.
-    ! The map-building calls (init_mhd2Mix, init_mix2MhdCoupler) that
-    ! need gApp stay in voltapp.F90/initializeFromGamera for Step 1.
-    ! ----------------------------------------------------------------
+    !InitModel — REMIX-internal init only; gApp-dependent map builds stay in voltapp.
     module subroutine remixCplInitModel(App, xml)
         class(remixCoupler_T), intent(inout) :: App
         type(XML_Input_T),     intent(inout) :: xml
@@ -33,20 +30,95 @@ submodule (volttypes) remixCplTypesSub
     end subroutine remixCplInitModel
 
 
-    ! ----------------------------------------------------------------
-    ! toIono — pack Gamera + IMAG data into REMIX.
-    ! Contains the logic previously in runRemix() plus
-    ! convertGameraToRemix() which was called just before it in
-    ! DeepUpdate().
-    ! ----------------------------------------------------------------
+    !InitCouplers — REMIX-specific init behind the ionoCoupler contract: restart/IO,
+    !F10.7, ionosphere radii, and the gApp-dependent map builds (mix2mhd, mhd2mix,
+    !shell2mix). The driver calls this polymorphically (no select type), so a future
+    !smiteCoupler_T supplies its own without touching voltapp. (gam2shell, the
+    !model-agnostic Gamera->shell init, stays in the driver.)
+    module subroutine remixCpl_InitCouplers(App, vApp, xml)
+        class(remixCoupler_T), intent(inout) :: App
+        class(voltApp_T),      intent(inout) :: vApp
+        type(XML_Input_T),     intent(inout) :: xml
+
+        type(TimeSeries_T)    :: f107
+        character(len=strLen) :: RunID, resID
+        logical               :: isRestart
+        real(rp)              :: maxF107
+        integer               :: nRes
+
+        isRestart = vApp%gApp%Model%isRestart
+        RunID     = trim(vApp%gApp%Model%RunID)
+
+        if (isRestart) then
+            call App%ReadRestart(resId=RunID, nRes=vApp%IO%nRes)
+        endif
+
+        if (vApp%writeFiles) then
+            call App%InitIO(xml)
+        endif
+
+        App%mixApp%ion%rad_iono_m   = vApp%planet%ri_m
+        App%mixApp%ion%rad_planet_m = vApp%planet%rp_m
+
+        ! Ensure remix and voltron restart numbers match
+        if (isRestart .and. vApp%IO%nRes /= App%mixApp%ion(1)%P%nRes) then
+            write(*,*) "Voltron and Remix disagree on restart number, you should sort that out."
+            write(*,*) "Error code: A house divided cannot stand"
+            write(*,*) "   Voltron nRes = ", vApp%IO%nRes
+            write(*,*) "   Remix   nRes = ", App%mixApp%ion(1)%P%nRes
+            stop
+        endif
+
+        if (App%mixApp%ion(NORTH)%P%doSWF107 .neqv. App%mixApp%ion(SOUTH)%P%doSWF107) then
+            write(*,*) 'Something is wrong. doSWf107 is set differently for the two hemispheres.'
+            write(*,*) 'Exiting ...'
+            stop
+        endif
+
+        ! read f107 from the SW file and overwrite what's been read from .xml above (in init_mix)
+        ! note, only checking for NORTH, because both hemispheres read the same xml file
+        if (App%mixApp%ion(NORTH)%P%doSWF107) then
+            f107%wID = vApp%tilt%wID
+            call f107%initTS("f10.7", doLoudO=.false.)
+            maxF107 = f107%getMax()
+            call updateF107(App%mixApp%ion, maxF107)
+            if (vApp%isLoud) write(*,*) 'Using F10.7 = ', maxF107
+        endif
+
+        if (vApp%isLoud) write(*,*) 'Using MJD0  = ', vApp%gApp%Model%MJD0
+
+        ! REMIX -> Gamera maps (needs gApp)
+        call init_mix2MhdCoupler(vApp%gApp, App%mixApp)
+        ! initialize additional coupled gamera data
+        call vApp%gApp%InitMhdCoupler(vApp)
+        if (isRestart) then
+            call xml%Set_Val(resID, "/Kaiju/gamera/restart/resID", "msphere")
+            call xml%Set_Val(nRes,  "/Kaiju/gamera/restart/nRes", -1)
+            call vApp%gApp%ReadRestart(resID, nRes)
+        endif
+
+        ! (Direct mhd2mix path retired: its maps were consumed only by the removed
+        !  convertGameraToRemix/mapGameraToRemix, so init_mhd2Mix is no longer needed.)
+
+        ! Coupler staging layer: deep-copy voltron ShellGrid, init staging vars.
+        App%shGr = vApp%shGrid
+        call initShellVar(App%shGr, SHGR_CORNER, App%fac)
+        call initShellVar(App%shGr, SHGR_CORNER, App%density)
+        call initShellVar(App%shGr, SHGR_CORNER, App%soundSpd)
+        call initShellVar(App%shGr, SHGR_CORNER, App%pot_iono)
+
+        ! Coupler ShellGrid -> REMIX's two hemisphere grids.
+        call init_shell2mix(App%shell2mix, App%shGr, App%mixApp)
+
+    end subroutine remixCpl_InitCouplers
+
+
+    !toIono — pack Gamera + IMAG into REMIX (was runRemix + convertGameraToRemix in DeepUpdate).
     module subroutine remixCpl_toIono(App, vApp)
         class(remixCoupler_T), intent(inout) :: App
         class(voltApp_T),      intent(inout) :: vApp
 
         real(rp) :: curTilt
-
-        ! Gamera → mixInput (unit conversions, shell J extraction)
-        call convertGameraToRemix(vApp%mhd2mix, vApp%gApp, App%mixApp)
 
         ! Recalculate MJD for current time
         call MJDRecalc(vApp%MJD)
@@ -56,8 +128,9 @@ submodule (volttypes) remixCplTypesSub
             call CoupleIMagToMix(vApp, App%mixApp)
         endif
 
-        ! Interpolate mixInput onto REMIX grid
-        call mapGameraToRemix(vApp%mhd2mix, App%mixApp)
+        ! voltron ShellGrid -> REMIX hemisphere grids.
+        ! (gam2shell, Gamera -> shell, runs in the driver before this.)
+        call App%packInputs(vApp)
 
         ! Set tilt and time for conductance models
         call vApp%tilt%getValue(vApp%time, curTilt)
@@ -74,39 +147,23 @@ submodule (volttypes) remixCplTypesSub
     end subroutine remixCpl_toIono
 
 
-    ! ----------------------------------------------------------------
-    ! fromIono — map solved REMIX potential back to Voltron + Gamera.
-    ! Contains the logic previously in updateVoltPotential() and
-    ! CouplePotentialToMhd().
-    ! ----------------------------------------------------------------
+    !fromIono — map solved REMIX potential back to Voltron + Gamera.
     module subroutine remixCpl_fromIono(App, vApp)
         class(remixCoupler_T), intent(inout) :: App
         class(voltApp_T),      intent(inout) :: vApp
 
-        type(ShellGridVar_T) :: iono_var
-
-        ! REMIX potential → Voltron ShellGrid
-        call initShellVar(vApp%shGrid, SHGR_CORNER, iono_var)
-        call calcCorotPotential(vApp%planet, vApp%shGrid, vApp%State%potential_corot, &
-                                doGeoCorotO=vApp%doGeoCorot)
-        call mixVarToVoltron(App%mixApp, POT, vApp%shGrid, iono_var)
-        vApp%State%potential_total%data = iono_var%data + vApp%State%potential_corot%data
-        vApp%State%potential_total%mask = .true.
+        ! REMIX hemisphere grids -> voltron ShellGrid.
+        ! (shell2gam, shell -> Gamera inner boundary, runs in the driver after this.)
+        call mapMixToShell(App%mixApp, vApp)
 
         ! Store MJD/time now so I/O calls need no special setup
         App%mixApp%IO%mjd  = vApp%MJD
         App%mixApp%IO%time = vApp%time
 
-        ! Voltron potential → Gamera inner boundary
-        call mapRemixToGamera(vApp%gApp, App%mixApp)
-        call convertRemixToGamera(vApp%gApp, App%mixApp)
-
     end subroutine remixCpl_fromIono
 
 
-    ! ----------------------------------------------------------------
-    ! AdvanceModel — steady-state ionospheric potential solve.
-    ! ----------------------------------------------------------------
+    !AdvanceModel — steady-state ionospheric potential solve.
     module subroutine remixCplAdvanceModel(App, dt)
         class(remixCoupler_T), intent(inout) :: App
         real(rp),              intent(in)    :: dt
@@ -116,9 +173,7 @@ submodule (volttypes) remixCplTypesSub
     end subroutine remixCplAdvanceModel
 
 
-    ! ----------------------------------------------------------------
-    ! Remaining BaseApp_T procedures — delegate to mixApp.
-    ! ----------------------------------------------------------------
+    !Remaining BaseApp_T procedures — delegate to mixApp.
     module subroutine remixCplInitIO(App, xml)
         class(remixCoupler_T), intent(inout) :: App
         type(XML_Input_T),     intent(inout) :: xml
@@ -174,5 +229,26 @@ submodule (volttypes) remixCplTypesSub
         call App%mixApp%Cleanup()
 
     end subroutine remixCplCleanup
+
+
+    !packInputs — voltron ShellGrid -> coupler staging (direct copy) -> REMIX (shell2mix).
+    module subroutine remix_packInputs(App, vApp)
+        class(remixCoupler_T), intent(inout) :: App
+        class(voltApp_T),      intent(inout) :: vApp
+
+        ! voltron ShellGrid -> coupler staging ShellGrid.
+        App%fac%data      = vApp%gam2shell%fac%data
+        App%fac%mask      = vApp%gam2shell%fac%mask
+        App%density%data  = vApp%gam2shell%density%data
+        App%density%mask  = vApp%gam2shell%density%mask
+        App%soundSpd%data = vApp%gam2shell%soundSpd%data
+        App%soundSpd%mask = vApp%gam2shell%soundSpd%mask
+
+        ! coupler staging ShellGrid -> REMIX's two hemisphere grids.
+        call mapShellToMix(App%shell2mix, App, vApp%gam2shell, App%mixApp)
+
+    end subroutine remix_packInputs
+
+
 
 end submodule remixCplTypesSub
