@@ -12,9 +12,10 @@ submodule (volttypes) remixCplTypesSub
     use shell2mix_interface,  only: mapShellToMix, init_shell2mix
     use mix2shell_interface,  only: mapMixToShell
     use voltappHelper
-    use voltapp,   only: getConductance
     use kai2geo
-    use mixmain,   only: updateF107   ! updateF107 (not host-associated via volttypes)
+    use mixmain,   only: updateF107, mix_transform_grid  ! not host-associated via volttypes
+    use dkmain,    only: getMixToDK, getDKToMix, DKdogcm  ! DragonKing conductance/precip flow
+    use dkinit,    only: initDKmesh
 
     implicit none
 
@@ -69,6 +70,10 @@ submodule (volttypes) remixCplTypesSub
             stop
         endif
 
+        ! DragonKing init: build the DK grid from the REMIX ion grids, then init the model.
+        call initDKmesh(App%dkApp, App%mixApp%ion)
+        call App%dkApp%InitModel(xml)
+
         if (App%mixApp%ion(NORTH)%P%doSWF107 .neqv. App%mixApp%ion(SOUTH)%P%doSWF107) then
             write(*,*) 'Something is wrong. doSWf107 is set differently for the two hemispheres.'
             write(*,*) 'Exiting ...'
@@ -82,6 +87,7 @@ submodule (volttypes) remixCplTypesSub
             call f107%initTS("f10.7", doLoudO=.false.)
             maxF107 = f107%getMax()
             call updateF107(App%mixApp%ion, maxF107)
+            App%dkApp%params%f107 = maxF107
             if (vApp%isLoud) write(*,*) 'Using F10.7 = ', maxF107
         endif
 
@@ -137,12 +143,17 @@ submodule (volttypes) remixCplTypesSub
         App%mixApp%IO%tilt = curTilt
         App%mixApp%IO%time = vApp%time
 
-        ! Compute conductances (Pedersen, Hall, parallel)
-        if (vApp%doGCM) then
-            call getConductance(App%mixApp%ion, App%mixApp%IO, vApp%gcm)
-        else
-            call getConductance(App%mixApp%ion, App%mixApp%IO)
-        endif
+        ! DragonKing conductance + precipitation (replaces REMIX-internal getConductance):
+        ! mix St%Vars -> DK -> compute -> write SigmaP/SigmaH/precip back into St%Vars.
+        call getMixToDK(App%mixApp, App%dkApp)
+        App%dkApp%IO%tilt = curTilt
+        App%dkApp%IO%time = vApp%time
+        if (vApp%doGCM) call DKdogcm(App%dkApp, vApp%gcm)
+        call App%dkApp%AdvanceModel(0.0_rp)
+        call getDKToMix(App%mixApp, App%dkApp)
+
+        ! Geographic grid for the REMIX potential solve (non-GCM path).
+        if (.not. vApp%doGCM) call mix_transform_grid(App%mixApp%ion)
 
     end subroutine remixCpl_toIono
 

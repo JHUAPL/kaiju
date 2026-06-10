@@ -5,6 +5,7 @@ module volttypes
     use cmidefs
     use kronos
     use ioclock
+    use dktypes
     use mixtypes
     use ebtypes
     use gcmtypes
@@ -317,6 +318,8 @@ module volttypes
 
         type(mixApp_T) :: mixApp
             !! Embedded REMIX model (was vApp%remixApp)
+        type(dkApp_T) :: dkApp
+            !! DragonKing conductance + precipitation provider for this REMIX coupler
 
         ! --- Staging layer (coupler's own intermediate data) --- !
         type(ShellGrid_T) :: shGr

@@ -1,9 +1,12 @@
 ! Collection of data and objects for the voltron middle man
 
 module voltapp
+    use dktypes
     use mixtypes
     use mixdefs
     use mixmain
+    use dkinit
+    use dkmain
     use ebtypes
     use chmpdefs
     use starter
@@ -407,7 +410,7 @@ module voltapp
         call init_gam2shell(vApp%gam2shell, gApp, vApp%shGrid)
 
         ! Per-model coupler init behind the ionoCoupler contract (REMIX/SMITE-specific:
-        ! restart/IO/F10.7 + the gApp-dependent map builds). No select type here.
+        ! restart/IO/F10.7 + the gApp-dependent map builds, incl. DragonKing). No select type here.
         call vApp%ionoApp%InitCouplers(vApp, xmlInp)
         !vApp%mix2mhd%mixOutput = 0.0
         
@@ -781,54 +784,55 @@ module voltapp
 
     end subroutine genVoltShellGrid
 
-    ! Get conductance/conductivity from GCM/DK/etc for Remix/GPS
-    subroutine getConductance(I,mixIOobj,gcm)
-        type(mixIon_T),dimension(:),intent(inout) :: I
-        type(mixIO_T), intent(in) :: mixIOobj  
-        type(gcm_T),optional,intent(inout) :: gcm
+    ! ! Get conductance/conductivity from GCM/DK/etc for Remix/GPS
+    ! subroutine getConductance(I,mixIOobj,gcm)
+    !     type(mixIon_T),dimension(:),intent(inout) :: I
+    !     type(mixIO_T), intent(in) :: mixIOobj  
+    !     type(gcm_T),optional,intent(inout) :: gcm
 
-        logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
-        integer :: h,NumH
+    !     logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
+    !     integer :: h,NumH
 
-        ! here we should check if Remix or GPS
-        NumH = size(I)
+    !     ! here we should check if Remix or GPS
+    !     NumH = size(I)
 
-        if (present(gcm)) then
-            doModel = .true.
-        else
-            call mix_transform_grid(I)
-            if (mixIOobj%time<=0) then
-                doModel = .false.
-            end if
-        end if
+    !     if (present(gcm)) then
+    !         doModel = .true.
+    !     else
+    !         call mix_transform_grid(I)
+    !         if (mixIOobj%time<=0) then
+    !             doModel = .false.
+    !         end if
+    !     end if
 
-        do h=1,NumH
-            if (I(h)%St%hemisphere.eq.NORTH) then
-                I(h)%St%tilt = mixIOobj%tilt
-            else
-                I(h)%St%tilt = -mixIOobj%tilt
-            end if
+    !     do h=1,NumH
+    !         if (I(h)%St%hemisphere.eq.NORTH) then
+    !             I(h)%St%tilt = mixIOobj%tilt
+    !         else
+    !             I(h)%St%tilt = -mixIOobj%tilt
+    !         end if
 
-            if (doModel) then
-                I(h)%conductance%const_sigma = I(h)%P%const_sigma         
-            else
-                I(h)%conductance%const_sigma = .true.            
-            end if
+    !         if (doModel) then
+    !             I(h)%conductance%const_sigma = I(h)%P%const_sigma         
+    !         else
+    !             I(h)%conductance%const_sigma = .true.            
+    !         end if
 
-            call Tic("MIX-COND")
-            call conductance_euv(I(h)%conductance,I(h)%G,I(h)%St)
-            call dragonking_total(I(h)%aurora,I(h)%G,I(h)%St,I(h)%conductance)
+    !         call Tic("MIX-COND")
+    !         call conductance_euv(I(h)%conductance,I(h)%G,I(h)%St)
+    !         call dragonking_total(I(h)%aurora,I(h)%G,I(h)%St,I(h)%conductance)
 
-            if (present(gcm)) then
-                call conductance_total(I(h)%conductance,I(h)%G,I(h)%St,gcm,h)
-            else
-                call conductance_total(I(h)%conductance,I(h)%G,I(h)%St)
-            end if
-            call Toc("MIX-COND")
-        end do
+    !         if (present(gcm)) then
+    !             call conductance_total(I(h)%conductance,I(h)%G,I(h)%St,gcm,h)
+    !         else
+    !             call conductance_total(I(h)%conductance,I(h)%G,I(h)%St)
+    !         end if
+    !         call Toc("MIX-COND")
+    !     end do
 
-    end subroutine getConductance
+    ! end subroutine getConductance
 
+    !----------
 
 end module voltapp
 

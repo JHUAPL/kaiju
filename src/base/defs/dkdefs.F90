@@ -9,6 +9,18 @@ module dkdefs
   end enum
 
   enum, bind(C)
+     enumerator :: LOMPE=1
+  end enum
+
+  enum, bind(C)
+     enumerator :: NONE=1,ADHOC,CMIT
+  end enum
+
+  enum, bind(C)
+     enumerator :: KAE23=1,ROB87
+  end enum
+
+  enum, bind(C)
      enumerator :: AT_NoPre=0,AT_RMnoE,AT_RMfnE,AT_RMono
   end enum
 
