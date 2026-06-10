@@ -228,6 +228,15 @@ module voltapp
                 write(*,*) 'Quick Squish Stride must be a power of 2'
                 stop
             endif
+            call xmlInp%Set_Val(vApp%imagSrcNQuad, "imag/nSrcQuad", vApp%imagSrcNQuad)
+            if (vApp%imagSrcNQuad < 0) then
+                write(*,*) 'voltron/imag/nSrcQuad must be >= 0'
+                stop
+            endif
+            if (vApp%imagSrcNQuad > 5) then
+                write(*,*) 'voltron/imag/nSrcQuad must be <= 5'
+                stop
+            endif
             call xmlInp%Set_Val(vApp%chmp2mhd%epsSquish,"ebsquish/epsSquish",0.05)
 
             !Verify that Gamera has location to hold source info
@@ -704,7 +713,7 @@ module voltapp
     !Initialize model
         associate(Model=>vApp%ebTrcApp%ebModel,ebState=>vApp%ebTrcApp%ebState,ebGr=>vApp%ebTrcApp%ebState%ebGr,Gr=>gApp%Grid)
         Model%isMAGE = .true. !Let chimp know it's part of mage
-        call inpXML%Set_Val(Model%doJ, 'fields/doJ', .false.)
+        call inpXML%Set_Val(Model%doJ, 'fields/doJ', .true.)  ! Now expected so we have vApp%tubeShell%j11i
         call setChimpUnitsVoltron(Model,vApp%planet,inpXML)
         Model%T0   = 0.0
         Model%tFin = 0.0

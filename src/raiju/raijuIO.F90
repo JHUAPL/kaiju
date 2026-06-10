@@ -10,8 +10,6 @@ module raijuIO
     use shellGrid
     use shellInterp
     use shellGridIO
-    ! Functions/subs we borrow for debug/diagnostic output
-    use raijuPreAdvancer, only : calcEffectivePotential, calcGradVM_cc, calcVelocity_cc
     use raijuDomain, only : calcMapJacNorm
 
     implicit none
@@ -169,12 +167,8 @@ module raijuIO
         integer, dimension(4) :: outBnds2D
         logical :: doGhosts
         real(rp) :: axT, axP
-        real(rp) :: bVol_cc
         real(rp), dimension(:,:), allocatable :: outTmp2D
-        logical , dimension(:,:), allocatable :: tmpGood2D
         real(rp), dimension(:,:,:), allocatable :: outTmp3D
-        real(rp), dimension(:,:,:,:), allocatable :: outTmp4D
-        logical , dimension(:,:,:), allocatable :: tmpGood3D
         real(rp), dimension(:,:,:), allocatable :: outPrecipN, outPrecipE, outDeltaPressure, outCCHeatFlux
         real(rp), dimension(Model%nSpc) :: dpsdst_spc
 
@@ -283,8 +277,16 @@ module raijuIO
         call AddOutSGV(IOVars,"Tbounce",State%Tb, outBndsO=outBnds2D, uStr="[s]", dStr="Bounce timescale along field line (Alfven crossing time)", doWriteMaskO=.false.)
         call AddOutVar(IOVars,"bndLoc"    ,State%bndLoc    (js:je)*1.0_rp    ,dStr="Inactive cell closest to planet")
         call AddOutVar(IOVars,"activeLoc" ,State%activeLoc (js:je)*1.0_rp    ,dStr="Active cell furthest from planet")
-
-        call WriteRaijuPotentialInfo(Model, State, IOVars, is, ie, js, je)
+        if (Model%doOwnCorot) then
+            ! If we are addng our own corotation potential, then its not included in espot
+            call AddOutVar(IOVars,"pot_iono",State%espot(is:ie+1,js:je+1)                                  ,uStr="kV",dStr="(corners) Ionospheric potential")
+        else
+            ! Otherwise, its in espot, so substract it out
+            call AddOutVar(IOVars,"pot_iono",State%espot(is:ie+1,js:je+1)-State%pot_corot(is:ie+1,js:je+1) ,uStr="kV",dStr="(corners) Ionospheric potential")
+        endif
+        call AddOutVar(IOVars,"pot_corot",State%pot_corot(is:ie+1,js:je+1),uStr="kV",dStr="(corners) Corotation potential")
+        call AddOutVar(IOVars,"pot_eb",State%pot_eb(is:ie+1,js:je+1),uStr="V",dStr="(corners) Smoothed electric potential used for RAIJU drift")
+        call AddOutVar(IOVars,"pot_ftv",State%pot_ftv(is:ie+1,js:je+1),dStr="(corners) Smoothed flux-tube-volume potential piece used for RAIJU drift")
 
         ! Idk about you but I did not expect true to equal -1
         allocate(outTmp2D(Grid%shGrid%isg:Grid%shGrid%ieg, Grid%Nk))
@@ -362,20 +364,21 @@ module raijuIO
             call AddOutVar(IOVars, "dPressure_dt" , outDeltaPressure, uStr="nPa/s")
             deallocate(outDeltaPressure)
 
-            if (Model%doOutput_3DLoss) then
+            if (Model%doOutput_3DLoss .or. Model%doOutput_debug) then
                 call AddOutVar(IOVars, "dEta_dt" , State%dEta_dt(is:ie,js:je,:), uStr="eta_units/s")
                 call AddOutVar(IOVars, "CCHeatFlux_Nk" , State%CCHeatFlux (is:ie,js:je,:), uStr="eV/cm^2/s")
                 call AddOutSGV(IOVars, "precipNFlux_Nk", State%precipNFlux, outBndsO=outBnds2D, uStr="#/cm^2/s" , dStr="precipNFlux from RAIJU flavors", doWriteMaskO=.false.)
                 call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux, outBndsO=outBnds2D, uStr="erg/cm^2/s" , dStr="precipEFlux from RAIJU flavors", doWriteMaskO=.false.)
             endif
         endif
+
+        if (Model%doOutput_velocities .or. Model%doOutput_debug) then
+            call AddOutVar(IOVars, "iVel", State%iVel(is:ie+1,js:je+1,:,:), uStr="m/s")
+            call AddOutVar(IOVars, "cVel", State%cVel(is:ie  ,js:je  ,:,:), uStr="m/s")
+        endif
         
         
         ! (Ni, Nj, 2)
-        call AddOutVar(IOVars, "gradPotE_cc"    , State%gradPotE_cc    (is:ie,js:je,:) , uStr="V/m")
-        call AddOutVar(IOVars, "gradPotCorot_cc", State%gradPotCorot_cc(is:ie,js:je,:) , uStr="V/m")
-        call AddOutVar(IOVars, "gradVM_cc"      , State%gradVM_cc      (is:ie,js:je,:) , uStr="V/m/lambda")
-
         if (Model%doOutput_debug) then
             ! New members, being tucked away into debug only
             call AddOutVar(IOVars,"bminX",State%Bmin(is:ie+1,js:je+1,XDIR),uStr="nT")
@@ -390,48 +393,12 @@ module raijuIO
             call AddOutSGV(IOVars,"Density_inst" , State%Den  , outBndsO=outBnds2D, uStr="#/cc", dStr="Instantaneous density from RAIJU flavors" , doWriteMaskO=.false.)
 
             call AddOutVar(IOVars, "eta_half"     , State%eta_half     (is:ie  ,js:je  ,:)  , uStr="#/cm^3 * Rx/T")
-            call AddOutVar(IOVars, "iVel"         , State%iVel         (is:ie+1,js:je+1,:,:), uStr="m/s")
-            call AddOutVar(IOVars, "iVelL"        , State%iVelL        (is:ie+1,js:je+1,:,:), uStr="m/s")
-            call AddOutVar(IOVars, "iVelR"        , State%iVelR        (is:ie+1,js:je+1,:,:), uStr="m/s")
-            call AddOutVar(IOVars, "cVel"         , State%cVel         (is:ie  ,js:je  ,:,:), uStr="m/s")
             call AddOutVar(IOVars, "etaFaceReconL", State%etaFaceReconL(is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
             call AddOutVar(IOVars, "etaFaceReconR", State%etaFaceReconR(is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
             call AddOutVar(IOVars, "etaFacePDML"  , State%etaFacePDML  (is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
             call AddOutVar(IOVars, "etaFacePDMR"  , State%etaFacePDMR  (is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
             call AddOutVar(IOVars, "etaFlux"      , State%etaFlux      (is:ie+1,js:je+1,:,:), uStr="(#/cm^3 * Rx/T) * m^2 / s")
             
-            ! Unsmoothed gradVMcc
-            allocate(tmpGood2D(Grid%shGrid%isg:Grid%shGrid%ieg+1,Grid%shGrid%jsg:Grid%shGrid%jeg+1   ))
-            allocate(outTmp3D (Grid%shGrid%isg:Grid%shGrid%ieg  ,Grid%shGrid%jsg:Grid%shGrid%jeg  ,2))
-            allocate(outTmp4D (Grid%shGrid%isg:Grid%shGrid%ieg  ,Grid%shGrid%jsg:Grid%shGrid%jeg,Grid%Nk ,2))
-            tmpGood2D = .false.
-            where (State%topo .eq. RAIJUCLOSED)
-                tmpGood2D = .true.                
-            end where
-            call calcGradVM_cc(Model%planet%rp_m, Model%planet%ri_m, Model%planet%magMoment, &
-                                Grid, tmpGood2D, State%bvol, outTmp3D, doSmoothO=.false., doLimO=.false.)
-            !$OMP PARALLEL DO default(shared) &
-            !$OMP schedule(dynamic) &
-            !$OMP private(k)
-            do k=1,Grid%Nk
-                call calcVelocity_cc(Model, Grid, State, k, outTmp4D(:,:,k,:), outTmp3D)
-            enddo
-            call AddOutVar(IOVars, "gradVM_cc_nosm", outTmp3D(is:ie,js:je,:)  , uStr="V/m/lambda")
-            call AddOutVar(IOVars, "cVel_nosm"     , outTmp4D(is:ie,js:je,:,:), uStr="m/s")
-            call calcGradVM_cc(Model%planet%rp_m, Model%planet%ri_m, Model%planet%magMoment, &
-                                Grid, tmpGood2D, State%bvol, outTmp3D, doSmoothO=.true., doLimO=.false.)
-            !$OMP PARALLEL DO default(shared) &
-            !$OMP schedule(dynamic) &
-            !$OMP private(k)
-            do k=1,Grid%Nk
-                call calcVelocity_cc(Model, Grid, State, k, outTmp4D(:,:,k,:), outTmp3D)
-            enddo
-            call AddOutVar(IOVars, "gradVM_cc_sm_nolim", outTmp3D(is:ie,js:je,:)  , uStr="V/m/lambda")
-            call AddOutVar(IOVars, "cVel_sm_nolim"     , outTmp4D(is:ie,js:je,:,:), uStr="m/s")
-            deallocate(tmpGood2D)
-            deallocate(outTmp3D)
-            deallocate(outTmp4D)
-
             ! Mapping diagnostic
             allocate(outTmp2D(Grid%shGrid%isg:Grid%shGrid%ieg  ,Grid%shGrid%jsg:Grid%shGrid%jeg))
             call calcMapJacNorm(Grid, State%xyzMin, outTmp2D)
@@ -703,9 +670,6 @@ module raijuIO
         call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux, doWriteMaskO=.true., uStr="erg/cm^2/s")
         call AddOutVar(IOVars, "lossRate"      , State%lossRates      (:,:,:), uStr="1/s")
         call AddOutVar(IOVars, "lossRatePrecip", State%lossRatesPrecip(:,:,:), uStr="1/s")
-        call AddOutVar(IOVars, "gradPotE_cc"    , State%gradPotE_cc     (:,:,:), uStr="V/m")
-        call AddOutVar(IOVars, "gradPotCorot_cc", State%gradPotCorot_cc (:,:,:), uStr="V/m")
-        call AddOutVar(IOVars, "gradVM_cc"      , State%gradVM_cc       (:,:,:), uStr="V/m/lambda")
         ! More solver stuff
         call AddOutVar(IOVars, "dtk"   , State%dtk(:), uStr="s")
         call AddOutVar(IOVars, "nStepk", State%nStepk(:)*1.0_rp, uStr="#", dStr="Number of steps each channel has taken")
@@ -748,7 +712,6 @@ module raijuIO
         integer :: tmpInt
         real(rp), dimension(:)  , allocatable :: tmpReal1D
         real(rp), dimension(:,:), allocatable :: tmpReal2D
-        real(rp), dimension(:,:,:), allocatable :: tmpReal3D
 
         is = Grid%shGrid%isg
         ie = Grid%shGrid%ieg
@@ -808,10 +771,6 @@ module raijuIO
         call AddInVar(IOVars,"lossRate")
         call AddInVar(IOVars,"lossRatePrecip")
 
-        call AddInVar(IOVars, "gradPotE_cc"    )
-        call AddInVar(IOVars, "gradPotCorot_cc")
-        call AddInVar(IOVars, "gradVM_cc"      )
-
         call AddInVar(IOVars, "dtk"    )
         call AddInVar(IOVars, "nStepk" )
         call AddInVar(IOVars, "iVel"   )
@@ -858,12 +817,8 @@ module raijuIO
         call IOArray3DFill(IOVars, "eta_last", State%eta_last(:,:,:))
         call IOArray3DFill(IOVars, "eta_avg" , State%eta_avg (:,:,:))
 
-        call IOArray3DFill(IOVars, "lossRate"      , State%lossRates      (:,:,:))
+        call IOArray3DFill(IOVars, "lossRate", State%lossRates(:,:,:))
         call IOArray3DFill(IOVars, "lossRatePrecip", State%lossRatesPrecip(:,:,:))
-
-        call IOArray3DFill(IOVars, "gradPotE_cc"    , State%gradPotE_cc    (:,:,:))
-        call IOArray3DFill(IOVars, "gradPotCorot_cc", State%gradPotCorot_cc(:,:,:))
-        call IOArray3DFill(IOVars, "gradVM_cc"      , State%gradVM_cc      (:,:,:))
         
         call IOArray1DFill(IOVars, "dtk", State%dtk(:))
 
@@ -979,12 +934,7 @@ module raijuIO
         end where
         call AddOutVar(IOVars,"activeShells",outTmp2D,uStr="[Ni, Nk]")
         deallocate(outTmp2D)
-        call AddOutVar(IOVars, "gradPotE_cc"    , State%gradPotE_cc    (is:ie  ,js:je  ,:  ), uStr="V/m")
-        call AddOutVar(IOVars, "gradPotCorot_cc", State%gradPotCorot_cc(is:ie  ,js:je  ,:  ), uStr="V/m")
-        call AddOutVar(IOVars, "gradVM_cc"      , State%gradVM_cc      (is:ie  ,js:je  ,:  ), uStr="V/m/lambda")
         call AddOutVar(IOVars, "iVel"           , State%iVel           (is:ie+1,js:je+1,:,:), uStr="m/s")
-        call AddOutVar(IOVars, "iVelL"          , State%iVelL          (is:ie+1,js:je+1,:,:), uStr="m/s")
-        call AddOutVar(IOVars, "iVelR"          , State%iVelR          (is:ie+1,js:je+1,:,:), uStr="m/s")
         call AddOutVar(IOVars, "cVel"           , State%cVel           (is:ie  ,js:je  ,:,:), uStr="m/s")
 
         ! Coupling things
@@ -1014,6 +964,8 @@ module raijuIO
         call AddOutVar(IOVars,"domWeights",State%domWeights(is:ie  ,js:je  )       ,                   dStr="Weights used for smoothing moments for questionable cells along boundary")
 
         call WriteRaijuPotentialInfo(Model, State, IOVars, is, ie, js, je)
+        call AddOutVar(IOVars,"pot_eb",State%pot_eb(is:ie+1,js:je+1),uStr="V",dStr="(corners) Smoothed electric potential used for RAIJU drift")
+        call AddOutVar(IOVars,"pot_ftv",State%pot_ftv(is:ie+1,js:je+1),dStr="(corners) Smoothed flux-tube-volume potential piece used for RAIJU drift")
 
         call AddOutVar(IOVars,"bndLoc"     ,State%bndLoc     (      js:je)*1.0_rp    ,dStr="Inactive cell closest to planet")
         call AddOutVar(IOVars,"activeLoc"  ,State%activeLoc  (      js:je)*1.0_rp    ,dStr="Active cell furthest from planet")

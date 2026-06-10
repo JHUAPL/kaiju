@@ -180,8 +180,6 @@ module raijustarter
         Model%activeDomRad   = abs(Model%activeDomRad)
 
         !---Solver ---!
-        call iXML%Set_Val(Model%doSmoothGrads,'sim/doSmoothGrads',def_doSmoothGrads)
-        call iXML%Set_Val(Model%doUseVelLRs,'sim/useVelLRs',def_doUseVelLRs)
         call iXML%Set_Val(Model%maxItersPerSec,'sim/maxIter',def_maxItersPerSec)
         call iXML%Set_Val(Model%maxOrder,'sim/maxOrder',7)
         if (Model%maxOrder > maxOrderSupported) then
@@ -209,13 +207,15 @@ module raijustarter
         call iXML%Set_Val(Model%doActiveShell, "activeShell/doAS",.false.)
         call iXML%Set_Val(Model%worthyFrac, "activeShell/worthyFrac",fracWorthyDef)
 
-        ! Corotation
+        ! Potentials
         if (Model%isSA) then
             call iXML%Set_Val(Model%doOwnCorot, "prob/doCorot",.true.)
         else
             call iXML%Set_Val(Model%doOwnCorot, "prob/doCorot",.false.)
         endif
         call iXML%Set_Val(Model%doGeoCorot, "prob/doGeoCorot",.false.)
+        call iXML%Set_Val(Model%doSmoothPotentials, "prob/doSmoothPotentials",.false.)
+
 
         ! Lambda channel settings
         call iXML%Set_Val(Model%doDynamicLambdaRanges, "lambdas/dynamicRanges",.false.)
@@ -244,12 +244,14 @@ module raijustarter
         !call iXML%Set_Val(Model%doFLC   , "losses/doFLC",.false.)
         call iXML%Set_Val(Model%doEWM   , "losses/doEWM",.true.)
         call iXML%Set_Val(Model%ewmType , "losses/ewmType","SS")
+        call iXML%Set_Val(Model%doExtraElePrecipFromProtons, "losses/doExtraElePrecip",.false.)
 
         !--- Output ---!
-        call iXML%Set_Val(Model%isLoud           , "output/loudConsole",.false.)
-        call iXML%Set_Val(Model%writeGhosts      , "output/writeGhosts",.false.)
-        call iXML%Set_Val(Model%doOutput_3DLoss  , "output/doLossExtras" ,.false.)  ! Several (Ni,Nj,Nk) arrays
-        call iXML%Set_Val(Model%doOutput_debug   , "output/doDebug"    ,.false.)
+        call iXML%Set_Val(Model%isLoud             , "output/loudConsole" ,.false.)
+        call iXML%Set_Val(Model%writeGhosts        , "output/writeGhosts" ,.false.)
+        call iXML%Set_Val(Model%doOutput_3DLoss    , "output/do3DLosses"  ,.false.)  ! Several (Ni,Nj,Nk) arrays
+        call iXML%Set_Val(Model%doOutput_velocities, "output/doVelocities",.false.)  ! Several (Ni,Nj,Nk,2) arrays
+        call iXML%Set_Val(Model%doOutput_debug     , "output/doDebug"     ,.false.)
 
         ! Model Hax?
         call iXML%Set_Val(Model%doHack_rcmEtaPush, "hax/rcmEtaPush",.false.)
@@ -418,19 +420,14 @@ module raijustarter
             ! I shells shat should be evolved for each k
             allocate( State%activeShells (sh%isg:sh%ieg, Grid%Nk) )
             State%activeShells = .false.
+            ! Effective potential pieces
+            allocate( State%pot_eb (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1) )
+            call fillArray(State%pot_eb, 0.0_rp)
+            allocate( State%pot_ftv(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1) )
+            call fillArray(State%pot_ftv, 0.0_rp)
             ! Interface and cell velocities
-            allocate( State%gradPotE_cc    (sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
-            call fillArray(State%gradPotE_cc, 0.0_rp)
-            allocate( State%gradPotCorot_cc(sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
-            call fillArray(State%gradPotCorot_cc, 0.0_rp)
-            allocate( State%gradVM_cc      (sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
-            call fillArray(State%gradVM_cc, 0.0_rp)
             allocate( State%iVel (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk, 2) )
             call fillArray(State%iVel, 0.0_rp)
-            allocate( State%iVelL(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk, 2) )
-            call fillArray(State%iVelL, 0.0_rp)
-            allocate( State%iVelR(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk, 2) )
-            call fillArray(State%iVelR, 0.0_rp)
             allocate( State%cVel (sh%isg:sh%ieg  , sh%jsg:sh%jeg  , Grid%Nk, 2) )
             call fillArray(State%cVel, 0.0_rp)
             

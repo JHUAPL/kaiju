@@ -213,7 +213,6 @@ module raijutypes
             !! Max reconstruction order we will use when calculating etas at interfaces
         real(rp) :: PDMB
             !! 0 < PDMB < 1 used in PDM limiter. 1 = very diffusive
-        logical :: doUseVelLRs
 
         ! https://media0.giphy.com/media/XfDPdSRhYFUhIU7EPw/giphy.gif
         logical :: isSA
@@ -228,14 +227,14 @@ module raijutypes
             !! For debug
         logical :: writeGhosts
             !! For debug
-        logical :: doSmoothGrads
-            !! Whether or not we smooth variables (bvol and electric potential) before taking gradients
         logical :: doClockConsoleOut
             !! If we are driving, output clock info
         logical :: doOutput_debug
             !! Dump lots of otherwise unnecessary stuff
         logical :: doOutput_3DLoss
             !! Dump extra 3D loss variables
+        logical :: doOutput_velocities
+            !! Dump extra 4D velocities
         logical :: doOwnCorot
             !! If true, we calculate corortation potential ourselves and include it in our velocity calculation
             !! If false, we assume its already included in whatever ionospheric potential we're using
@@ -244,6 +243,9 @@ module raijutypes
             !! If false, calc corotation potential assuming dipole and rotational axes are aligned
         logical :: doExcessToPsph
             !! Allow mapping of excess H+ to plasmasphere channel
+        logical :: doExtraElePrecipFromProtons
+        logical :: doSmoothPotentials
+            !! Whether or not to smooth perturnbation potentials (iono ExB and FTV)
 
         ! Plasmasphere settings
         logical :: doPlasmasphere
@@ -427,15 +429,12 @@ module raijutypes
 
         logical, dimension(:,:), allocatable :: activeShells
             !! (Ngi, Nk) i shells that should be evolved for a given lambda
-        real(rp), dimension(:,:,:), allocatable :: gradPotE_cc, gradPotCorot_cc, gradVM_cc
-            !! (Ngi, Ngj,2) [V/m] Th/phi gradient of the ionospheric potential, corotation potential, and flux tube volume raised to -2/3
-            !! Cell-centered, calculated using Green-Gauss method
+        real(rp), dimension(:,:), allocatable :: pot_eb
+            !! (Ngi+1, Ngj+1) [V] Smoothed corner electric potential, including corotation
+        real(rp), dimension(:,:), allocatable :: pot_ftv
+            !! (Ngi+1, Ngj+1) [FTV units^(-2/3)] Smoothed corner flux-tube-volume potential piece
         real(rp), dimension(:,:,:,:), allocatable :: iVel
             !! (Ngi+1, Ngj+1, Nk, 2) [m/s] Edge-centered normal velocities
-        real(rp), dimension(:,:,:,:), allocatable :: iVelL
-            !! (Ngi+1, Ngj+1, Nk, 2) [m/s] Left edge-centered normal velocity reconstructed from cell-centered velocities
-        real(rp), dimension(:,:,:,:), allocatable :: iVelR
-            !! (Ngi+1, Ngj+1, Nk, 2) [m/s] Right edge-centered normal velocity reconstructed from cell-centered velocities
         real(rp), dimension(:,:,:,:), allocatable :: cVel
             !! (Ngi, Ngj, Nk, 2) [m/s] Cell-centered velocities
 
@@ -762,10 +761,6 @@ module raijutypes
     end subroutine raiAppOverride_setVal
 
 end module raijutypes
-
-
-
-
 
 
 

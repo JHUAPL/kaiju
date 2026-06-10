@@ -34,6 +34,12 @@ module mhd2chmp_interface
         
         write(*,*) "MAXTUBESIZE = ", MAXTUBESIZE
         
+        !Make sure we have J set properly since we're gonna use it
+        if (.not. ebTrcApp%ebModel%doJ) then
+            write(*,*) "Must set chimp/fields/doJ = T"
+            stop
+        endif
+
     end subroutine init_mhd2Chmp
 
     subroutine convertGameraToChimp(mhd2chmp,gamApp,ebTrcApp)
@@ -43,14 +49,38 @@ module mhd2chmp_interface
 
         real(rp), dimension(NVAR) :: pW, pCon
         real(rp), dimension(NDIM) :: Bxyz,Vxyz
+        real (rp), dimension(:,:,:,:), allocatable :: dB,Jxyz !Full-sized arrays
+        real(rp) :: jScl
+        
         integer :: i,j,k,n
 
-        associate(Gr=>gamApp%Grid,State=>gamApp%State,ebGr=>ebTrcApp%ebState%ebGr,ebF=>ebTrcApp%ebState%eb1)
+        associate(Model=>gamApp%Model,Gr=>gamApp%Grid,State=>gamApp%State,ebGr=>ebTrcApp%ebState%ebGr,ebF=>ebTrcApp%ebState%eb1)
                 
         if (ebTrcApp%ebModel%nSpc /= gamApp%Model%nSpc) then
             write(*,*) "CHIMP/GAMERA num species mismatch!"
             stop
         endif
+        
+    !Calculate current [A/m2]
+        call allocGridVec(Model,Gr,dB  )
+        call allocGridVec(Model,Gr,Jxyz)
+
+        !Subtract dipole before calculating current
+        !$OMP PARALLEL DO default(shared) collapse(2)
+        do k=Gr%ksg,Gr%keg
+            do j=Gr%jsg,Gr%jeg
+                do i=Gr%isg,Gr%ieg
+                    dB(i,j,k,:) = State%Bxyz(i,j,k,:) - MagsphereDipole(Gr%xyzcc(i,j,k,:),Model%MagM0)
+                    if (Model%doBackground) then
+                        dB(i,j,k,:) = dB(i,j,k,:) + Gr%B0(i,j,k,:)
+                    endif
+                enddo
+            enddo
+        enddo
+
+        !Turn dB => Jxyz and scale to A/m2
+        jScl = (Model%gamOut%jScl)*(1.0e-9) 
+        call bFld2Jxyz(Model,Gr,dB,Jxyz,jSclO=jScl)
 
         !Scrape Gamera MHD data into CHIMP structure
         !NOTE: Chimp and Gamera both have background fields that are not equal
@@ -76,17 +106,28 @@ module mhd2chmp_interface
                     ebF%dB(i,j,k,:) = Bxyz - ebGr%B0cc(i,j,k,:)
                     ebF%E(i,j,k,:)  = -cross(Vxyz,Bxyz)
 
-                    if (.not. ebTrcApp%ebModel%doMHD) cycle
+                    ebF%Jxyz(i,j,k,:) = Jxyz(i,j,k,:)
 
+                    if (.not. ebTrcApp%ebModel%doMHD) cycle
+                    
                     do n=0,gamApp%Model%nSpc
                         !Get conserved state from Gamera, convert to prim, scale and load into Chimp
                         pCon = State%Gas(i,j,k,:,n)
                         call CellC2P(gamApp%Model,pCon,pW)
+                        pW(DEN)      = max(pW(DEN)     ,dFloor+TINY)
+                        pW(PRESSURE) = max(pW(PRESSURE),pFloor+TINY)
 
+                        if (Model%doMultiF .and. (n > 0)) then
+                            if ( inDScl*pW(DEN) < Spcs(n)%dVac ) then
+                                !This is a terrible fluid
+                                pW(DEN)      = 0.0
+                                pW(PRESSURE) = 0.0
+                            endif
+                        endif !MF check
                         ebF%W(i,j,k,DEN      ,n) = inDScl*pW(DEN)
                         ebF%W(i,j,k,PRESSURE ,n) = inPScl*pW(PRESSURE)
                         ebF%W(i,j,k,VELX:VELZ,n) = inVScl*pW(VELX:VELZ)
-
+                                                
                     enddo !species/n
                 enddo !i
             enddo
