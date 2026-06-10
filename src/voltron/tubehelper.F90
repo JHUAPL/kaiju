@@ -9,6 +9,7 @@ module tubehelper
     use shellGridIO
     use msphutils, only : RadIonosphere
     use raijudefs, only : def_tiote
+    use arrayutil
 
     implicit none
 
@@ -514,11 +515,9 @@ module tubehelper
         end where
 
         do k=1,NDIM
-            ! xyz0 is good
             tubeShell%X_bmin(k)%mask(:,:) = topoMask
             tubeShell%X_maxRad(k)%mask(:,:) = topoMask
         enddo
-        ! lat0,lon0,invlat are good
         tubeShell%latc   %mask(:,:) = topoMask
         tubeShell%lonc   %mask(:,:) = topoMask
         tubeShell%bmin   %mask(:,:) = topoMask
@@ -535,8 +534,17 @@ module tubehelper
             tubeShell%stdN(k)%mask(:,:) = topoMask
         enddo
         tubeShell%TioTe0%mask(:,:) = topoMask
-        ! idk about losscone, lossconec
-        ! nTrc is good
+        
+        ! Make sure masks not dependent on topo are fully on
+        do k=1,NDIM
+            call fillArray(tubeShell%xyz0(k)%mask, .true.)
+        enddo
+        call fillArray(tubeShell%lat0%mask, .true.)
+        call fillArray(tubeShell%lon0%mask, .true.)
+        call fillArray(tubeShell%invlat%mask, .true.)
+        call fillArray(tubeShell%losscone%mask, .true.)
+        call fillArray(tubeShell%lossconec%mask, .true.)
+        call fillArray(tubeShell%nTrc%mask, .true.)
     end subroutine tubes2Shell
 
     subroutine writeTubeShell(shGr, tubeShell, outF, gStrO, doGhostsO,doFatO)

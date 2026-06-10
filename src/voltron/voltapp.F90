@@ -713,7 +713,7 @@ module voltapp
     !Initialize model
         associate(Model=>vApp%ebTrcApp%ebModel,ebState=>vApp%ebTrcApp%ebState,ebGr=>vApp%ebTrcApp%ebState%ebGr,Gr=>gApp%Grid)
         Model%isMAGE = .true. !Let chimp know it's part of mage
-        call inpXML%Set_Val(Model%doJ, 'fields/doJ', .false.)
+        call inpXML%Set_Val(Model%doJ, 'fields/doJ', .true.)  ! Now expected so we have vApp%tubeShell%j11i
         call setChimpUnitsVoltron(Model,vApp%planet,inpXML)
         Model%T0   = 0.0
         Model%tFin = 0.0

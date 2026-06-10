@@ -261,8 +261,8 @@ module raijuPreAdvancer
         isFtvCorner = isClosedCorner .and. State%bvol > TINY
 
         ! Smoothing disabled for face-native velocity test runs.
-        !call smoothCornerVar(Grid%shGrid, isClosedCorner, dPotEB)
-        !call smoothCornerVar(Grid%shGrid, isFtvCorner, logFtvRatio)
+        call smoothCornerVar(Grid%shGrid, isClosedCorner, dPotEB)
+        call smoothCornerVar(Grid%shGrid, isFtvCorner, logFtvRatio)
 
     end subroutine smoothCornerPerturbations
 
@@ -285,7 +285,9 @@ module raijuPreAdvancer
 
         call calcCornerBackgrounds(Model, Grid, State, pCorot, ftv0)
         call calcCornerPerturbations(Model, Grid, State, pCorot, ftv0, dPotEB, logFtvRatio)
-        call smoothCornerPerturbations(Grid, State, dPotEB, logFtvRatio)
+        if (Model%doSmoothPotentials) then
+            call smoothCornerPerturbations(Grid, State, dPotEB, logFtvRatio)
+        endif
 
         State%pot_corot = pCorot * 1.0e-3_rp
         State%pot_eb = dPotEB + pCorot
