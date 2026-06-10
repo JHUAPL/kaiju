@@ -545,6 +545,7 @@ module tubehelper
         call fillArray(tubeShell%losscone%mask, .true.)
         call fillArray(tubeShell%lossconec%mask, .true.)
         call fillArray(tubeShell%nTrc%mask, .true.)
+        call fillArray(tubeShell%J11i%mask, .true.)
     end subroutine tubes2Shell
 
     subroutine writeTubeShell(shGr, tubeShell, outF, gStrO, doGhostsO,doFatO)
