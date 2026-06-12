@@ -222,7 +222,7 @@ submodule (volttypes) raijuCplTypesSub
             if (dEle_num > dTot_hot_num) Then
                 idx_hotp = spcIdx(App%raiApp%Grid, F_HOTP)
 
-                dTot_hot_amu = dTot_hot_amu * spcList(idx_hotp)%amu * (dEle_num - dTot_hot_num)  ! Add H+ to balance out charge difference
+                dTot_hot_amu = dTot_hot_amu + spcList(idx_hotp)%amu * (dEle_num - dTot_hot_num)  ! Add H+ to balance out charge difference
                 dTot_hot_num = dEle_num
             endif
 
