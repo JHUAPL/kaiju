@@ -143,5 +143,191 @@ module mixinterfaceutils
 
    end subroutine mixVarToVoltron
 
-end module mixinterfaceutils
 
+   subroutine voltVarToMix(voltGrid, voltVar, mixApp, mixVarID)
+      !! Takes a ShellGridVar on the Voltron ShellGrid and maps it to a mix var for both hemispheres
+      !! May be general to any ShellGrids, but for now this assumes voltGrid stuff like being global
+      type(ShellGrid_T), intent(in) :: voltGrid
+      type(ShellGridVar_T), intent(in) :: voltVar
+      class(mixApp_T  )   , intent(inout) :: mixApp
+      integer             , intent(in)    :: mixvarID
+
+      integer :: i,j
+      real(rp) :: varOut
+      logical :: isTasty
+      real(rp) :: th, ph, lat_con, ph_con
+      integer :: nPnts_sample = 3
+
+      mixApp%ion(NORTH)%St%Vars(:,:,mixVarID) = 0.0_rp
+      mixApp%ion(SOUTH)%St%Vars(:,:,mixVarID) = 0.0_rp
+      
+      associate(GN=>mixApp%ion(NORTH)%G, GS=>mixApp%ion(SOUTH)%G, ion=>mixApp%ion)
+         !$OMP PARALLEL DO default(shared) &
+         !$OMP private(i,j,varOut,isTasty)
+         do j=1,GN%Np
+            do i=1,GN%Nt
+               ! NH mapping
+               varOut = 0.0_rp
+               call superSampleVoltToMix(voltGrid, voltVar, GN, i, j, nPnts_sample, varOut, isTasty)
+               if (isTasty) then
+                  ion(NORTH)%St%Vars(j,i,mixVarID) = varOut
+               endif
+      
+               ! SH mapping
+               varOut = 0.0_rp
+               call superSampleVoltToMix(voltGrid, voltVar, GS, i, j, nPnts_sample, varOut, isTasty, doSouthO=.true.)
+               if (isTasty) then
+                  ion(SOUTH)%St%Vars(j,i,mixVarID) = varOut
+               endif
+            enddo !i
+         enddo !j
+      end associate
+
+   end subroutine voltVarToMix
+
+
+   subroutine superSampleVoltToMix(voltGrid, voltVar, G, i, j, nPnts, varOut, isTasty, doSouthO)
+      type(ShellGrid_T), intent(in) :: voltGrid
+      type(ShellGridVar_T), intent(in) :: voltVar
+      type(mixGrid_T), intent(in) :: G
+      integer, intent(in) :: i, j
+      integer, intent(in) :: nPnts
+      real(rp), intent(inout) :: varOut
+      logical, intent(inout) :: isTasty
+      logical, optional, intent(in) :: doSouthO
+
+      integer :: n, iPnt,jPnt, nGood, jM
+      logical :: doSouth, isTastyPnt
+      real(rp) :: thetaIn, phiIn
+         !! Theta and phi vals we are evaluating (either G%t or thetaConO, and same for phi)
+      real(rp), dimension(2) :: thetaBnds, phiBnds
+      real(rp), dimension(nPnts) :: theta_subdiv, phi_subdiv
+      real(rp) :: varPnt
+
+      varOut = 0.0
+      nGood = 0
+      if (nPnts < 2) then
+         write(*,*)"ERROR in imag2mix_interface.F90:superSampleMomentsPrecip"
+         write(*,*)"nPnts must be at least 2, preferrably higher"
+         stop
+      endif
+
+      if (present(doSouthO)) then
+         doSouth = doSouthO
+      else
+         doSouth = .false.
+      endif
+
+
+      ! Handle North vs South remix grids, mapped to voltron's shellGrid coords
+      if (.not. doSouth) then
+         ! North
+         thetaIn = G%t(j,i)
+         phiIn   = G%p(j,i)
+         if (i == 1) then
+            thetaBnds(1) = thetaIn
+            thetaBnds(2) = thetaIn + 0.5_rp*G%dt(j,i)
+         else if (i == G%Nt) then
+            ! Volt grid extends beyond remix, okay to go out of remix bounds when interping
+            thetaBnds(1) = thetaIn - 0.5_rp*G%dt(j,i-1)
+            thetaBnds(2) = thetaIn + 0.5_rp*G%dt(j,i-1)
+         else
+            thetaBnds(1) = thetaIn - 0.5_rp*G%dt(j,i-1)
+            thetaBnds(2) = thetaIn + 0.5_rp*G%dt(j,i  )
+         endif
+
+         if (j == 1 .or. j == G%Np) then
+            phiBnds(1) = phiIn - 0.5_rp*G%dp(G%Np-1,i)
+            phiBnds(2) = phiIn + 0.5_rp*G%dp(1  ,i)
+         else
+            phiBnds(1) = phiIn - 0.5_rp*G%dp(j-1,i)
+            phiBnds(2) = phiIn + 0.5_rp*G%dp(j  ,i)
+         endif
+      else
+         ! South
+         jM = G%Np + 1 - j
+         thetaIn = PI-G%t(jM,i)
+         phiIn   = G%p(jM,i)
+         if (i == 1) then
+            thetaBnds(1) = thetaIn - 0.5_rp*G%dt(jM,i)
+            thetaBnds(2) = thetaIn 
+         else if (i == G%Nt) then
+            ! Volt grid extends beyond remix, okay to go out of remix bounds when interping
+            thetaBnds(1) = thetaIn - 0.5_rp*G%dt(jM,i-1)
+            thetaBnds(2) = thetaIn + 0.5_rp*G%dt(jM,i-1)
+         else
+            thetaBnds(1) = thetaIn - 0.5_rp*G%dt(jM,i  )
+            thetaBnds(2) = thetaIn + 0.5_rp*G%dt(jM,i-1)
+         endif
+
+         ! Mirror the north-hemisphere longitude bounds through the source-grid index.
+         if (j == 1 .or. j == G%Np) then
+            phiBnds(1) = phiIn - 0.5_rp*G%dp(1,i)
+            phiBnds(2) = phiIn + 0.5_rp*G%dp(G%Np-1,i)
+         else
+            phiBnds(1) = phiIn - 0.5_rp*G%dp(jM-1,i)
+            phiBnds(2) = phiIn + 0.5_rp*G%dp(jM  ,i)
+         endif
+      endif
+
+      call genMixGridSubdivs(thetaBnds, phiBnds, nPnts, theta_subdiv, phi_subdiv)
+
+      ! Now that we have our points we can start getting our values
+      do iPnt=1,nPnts
+         do jPnt=1,nPnts
+            call InterpShellVar_TSC_pnt(voltGrid, voltVar, theta_subdiv(iPnt), phi_subdiv(jPnt), varPnt, goodInterpO=isTastyPnt)
+            if (.not. isTastyPnt) then
+               cycle
+            endif
+            ! Otherwise we got good data
+            nGood = nGood + 1
+            varOut = varOut + varPnt
+         enddo
+      enddo
+      ! Finish average and make final isTasty decision
+      if (nGood > 0) then
+         isTasty = .true.
+
+         ! If dividing by nPnts**2, we are including zero-vals from bad points
+         ! If dividing by nGood, we might be letting just a few points represent a whole cell
+         ! Since we are getting stuff from voltron grid, all points should be well-defined over the remix domain, so there shouldn't be a difference
+         varOut = varOut / nPnts**2         
+      else
+         isTasty = .false.
+      endif
+
+   end subroutine superSampleVoltToMix
+
+
+   subroutine genMixGridSubdivs(thetaBnds, phiBnds, nPnts, theta_subdiv, phi_subdiv)
+      real(rp), dimension(2), intent(in) :: thetaBnds
+         !! Lower/upper bound for thetas to subdivide
+      real(rp), dimension(2), intent(in) :: phiBnds
+         !! Lower/upper bound for phis to subdivide
+      integer, intent(in) :: nPnts
+         !! Number of points to subdivide bounds into
+      real(rp), dimension(nPnts), intent(out) :: theta_subdiv
+      real(rp), dimension(nPnts), intent(out) :: phi_subdiv
+
+
+      integer :: n
+      real(rp) :: dCos, arg
+
+      dCos = cos(thetaBnds(1)) - cos(thetaBnds(2))
+
+      theta_subdiv(1) = thetaBnds(1)
+      call ClampValue(theta_subdiv(1), 0.0_rp, PI)
+      theta_subdiv(nPnts) = thetaBnds(2)
+      do n=2,nPnts-1
+         arg = cos(thetaBnds(1)) - (n-1)*1.0_rp/(nPnts-1)*dCos  ! Don't forget to cast something to real so we don't do integer division
+         theta_subdiv(n) = acos(arg)
+         call ClampValue(theta_subdiv(n), 0.0_rp, PI)
+      enddo
+
+      do n=1,nPnts
+         phi_subdiv(n) = phiBnds(1) + (n-1)*1.0_rp/(nPnts-1)*(phiBnds(2) - phiBnds(1))  ! Don't forget to cast something to real so we don't do integer division
+      enddo
+
+   end subroutine genMixGridSubdivs
+
+end module mixinterfaceutils
