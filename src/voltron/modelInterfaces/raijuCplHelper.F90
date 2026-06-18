@@ -44,15 +44,15 @@ module raijuCplHelper
         call iXML%Set_Val(raiCpl%tsclSm_dMLT, "cpl/tsclSm_dMLT", raiCpl%tsclSm_dMLT)
         call iXML%Set_Val(raiCpl%doWolfLim, "cpl/doWolfLim", raiCpl%doWolfLim)
         
-        call iXML%Set_Val(raiCpl%tsclMHD_option, "cpl/tsclMLT_option"  , "bounce")
+        call iXML%Set_Val(raiCpl%tsclMHD_option, "cpl/tsclMHD_option"  , "bounce")
         if (raiCpl%tsclMHD_option .ne. "bounce" .and. raiCpl%tsclMHD_option .ne. "bounce_wimag" ) then
-            write(*,*)"ERROR in raicpl_init: cpl/tsclMLT_option can only be 'bounce' or 'bounce_wimag'."
+            write(*,*)"ERROR in raicpl_init: cpl/tsclMHD_option can only be 'bounce' or 'bounce_wimag'."
             write(*,*)"Got:",raiCpl%tsclMHD_option
             stop
         endif
-        call iXML%Set_Val(raiCpl%tsclMHD_vaFrac_min, "cpl/tsclMLT_vaFrac_min"  , raiCpl%tsclMHD_vaFrac_min)
-        call iXML%Set_Val(raiCpl%tsclMHD_vaFrac_max, "cpl/tsclMLT_vaFrac_max"  , raiCpl%tsclMHD_vaFrac_max)
-        call iXML%Set_Val(raiCpl%tsclMHD_maxScale  , "cpl/tsclMLT_maxScale"    , raiCpl%tsclMHD_maxScale)
+        call iXML%Set_Val(raiCpl%tsclMHD_vaFrac_min, "cpl/tsclMHD_vaFrac_min"  , raiCpl%tsclMHD_vaFrac_min)
+        call iXML%Set_Val(raiCpl%tsclMHD_vaFrac_max, "cpl/tsclMHD_vaFrac_max"  , raiCpl%tsclMHD_vaFrac_max)
+        call iXML%Set_Val(raiCpl%tsclMHD_maxScale  , "cpl/tsclMHD_maxScale"    , raiCpl%tsclMHD_maxScale)
         if (raiCpl%tsclMHD_vaFrac_max <= raiCpl%tsclMHD_vaFrac_min) then
             write(*,*)"ERROR in raicpl_init: cpl/tsclMLT_vaFrac_max must be greater than cpl/tsclMLT_vaFrac_min."
             write(*,*)"Got min/max:",raiCpl%tsclMHD_vaFrac_min,raiCpl%tsclMHD_vaFrac_max

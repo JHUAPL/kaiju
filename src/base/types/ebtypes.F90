@@ -29,6 +29,8 @@ module ebtypes
         real(rp), dimension(:,:,:,:)  , allocatable :: dB,E !Fields
         real(rp), dimension(:,:,:,:,:), allocatable :: W !Primitive MHD variables
         !W = ebGr%isg:ebGr%ieg,ebGr%jsg:ebGr%jeg,ebGr%ksg:ebGr%keg,NVARMHD,0:Model%nSpc
+        real(rp), dimension(:,:,:,:), allocatable :: src
+            !! Source variables (NVARVOLT0 and NVARIMAG0 vars)
 
         real(rp), dimension(:,:,:,:), allocatable :: Jxyz !Current density, must be [A/m2]
         real(rp), dimension(:), allocatable :: Lpp !Plasmapause location,Lpp(MLT)
@@ -118,33 +120,5 @@ module ebtypes
         
     contains
 
-
-    !Allocates ebField_T given ebGr
-    subroutine allocEB(Model,ebGr,ebF)
-        type(chmpModel_T), intent(inout) :: Model
-        type(ebGrid_T), intent(in)  :: ebGr
-        type(ebField_T), intent(inout) :: ebF
-
-        ebF%time = 0.0
-        if (.not. allocated(ebF%dB)) then
-            allocate(ebF%dB(ebGr%isg:ebGr%ieg,ebGr%jsg:ebGr%jeg,ebGr%ksg:ebGr%keg,NDIM))
-        endif
-
-        if (.not. allocated(ebF%E)) then
-            allocate(ebF%E(ebGr%isg:ebGr%ieg,ebGr%jsg:ebGr%jeg,ebGr%ksg:ebGr%keg,NDIM))
-        endif
-
-        ebF%dB = 0.0
-        ebF%E  = 0.0
-        if (Model%doMHD .and. (.not. allocated(ebF%W))) then
-            allocate(ebF%W(ebGr%isg:ebGr%ieg,ebGr%jsg:ebGr%jeg,ebGr%ksg:ebGr%keg,NVARMHD,0:Model%nSpc))
-            ebF%W = 0.0
-        endif
-        if (Model%doJ .and. (.not. allocated(ebF%Jxyz))) then
-            allocate(ebF%Jxyz(ebGr%isg:ebGr%ieg,ebGr%jsg:ebGr%jeg,ebGr%ksg:ebGr%keg,NDIM))
-            ebF%Jxyz = 0.0
-        endif
-
-    end subroutine allocEB
     
 end module ebtypes

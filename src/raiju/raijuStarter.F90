@@ -207,13 +207,15 @@ module raijustarter
         call iXML%Set_Val(Model%doActiveShell, "activeShell/doAS",.false.)
         call iXML%Set_Val(Model%worthyFrac, "activeShell/worthyFrac",fracWorthyDef)
 
-        ! Corotation
+        ! Potentials
         if (Model%isSA) then
             call iXML%Set_Val(Model%doOwnCorot, "prob/doCorot",.true.)
         else
             call iXML%Set_Val(Model%doOwnCorot, "prob/doCorot",.false.)
         endif
         call iXML%Set_Val(Model%doGeoCorot, "prob/doGeoCorot",.false.)
+        call iXML%Set_Val(Model%doSmoothPotentials, "prob/doSmoothPotentials",.false.)
+
 
         ! Lambda channel settings
         call iXML%Set_Val(Model%doDynamicLambdaRanges, "lambdas/dynamicRanges",.false.)
@@ -242,6 +244,7 @@ module raijustarter
         !call iXML%Set_Val(Model%doFLC   , "losses/doFLC",.false.)
         call iXML%Set_Val(Model%doEWM   , "losses/doEWM",.true.)
         call iXML%Set_Val(Model%ewmType , "losses/ewmType","SS")
+        call iXML%Set_Val(Model%doExtraElePrecipFromProtons, "losses/doExtraElePrecip",.false.)
 
         !--- Output ---!
         call iXML%Set_Val(Model%isLoud             , "output/loudConsole" ,.false.)

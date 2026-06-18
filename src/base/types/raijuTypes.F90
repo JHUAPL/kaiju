@@ -243,6 +243,9 @@ module raijutypes
             !! If false, calc corotation potential assuming dipole and rotational axes are aligned
         logical :: doExcessToPsph
             !! Allow mapping of excess H+ to plasmasphere channel
+        logical :: doExtraElePrecipFromProtons
+        logical :: doSmoothPotentials
+            !! Whether or not to smooth perturnbation potentials (iono ExB and FTV)
 
         ! Plasmasphere settings
         logical :: doPlasmasphere
