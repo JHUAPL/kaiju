@@ -286,6 +286,196 @@ module streamline
 
     end function FLAlfvenX
 
+    !Calculate FAC in the ionosphere from the MHD inner boundary
+    function FLIonFAC(Model,ebGr,ebState,bTrc,Rion,i0) result(J11i)
+        type(chmpModel_T), intent(in) :: Model
+        type(ebGrid_T)   , intent(in) :: ebGr
+        type(ebState_T)  , intent(in) :: ebState
+        type(magLine_T  ), intent(in) :: bTrc
+        real(rp)         , intent(in) :: Rion
+        integer          , intent(in) :: i0
+
+        real(rp) :: J11i
+        real(rp) :: t,J11
+        real(rp), dimension(NDIM) :: B0,bhat,Jxyz,xyzMHD
+
+        J11i = 0.0 !Placeholder
+        if (.not. Model%doJ) return !Nothing to be done
+
+        call DipoleShift2Shell(Model,ebGr,i0,bTrc%x0,xyzMHD)
+        t = ebState%eb1%time
+
+        Jxyz = jInterp(xyzMHD,t,Model,ebState) !Evaluate J @ xyzMHD
+        B0 = Model%B0(xyzMHD)
+        bhat = normVec(B0)
+
+        J11 = dot_product(Jxyz,bhat) !A/m2 J11 @ xyzMHD
+        !Now get scaling factor
+        J11i = Bi2M(xyzMHD,Rion)*J11*(1.0e+6) !Rescale to ionosphere, conserve J/B, and convert to muA/m2
+    end function FLIonFAC
+
+    !Return Bxyz and Jxyz at i0 shell
+    !NOTE: Jxyz includes Bi2m scaling factor already
+    subroutine FLIonBJ(Model,ebGr,ebState,bTrc,Rion,i0,Bxyz,Jxyz)
+        type(chmpModel_T), intent(in) :: Model
+        type(ebGrid_T)   , intent(in) :: ebGr
+        type(ebState_T)  , intent(in) :: ebState
+        type(magLine_T  ), intent(in) :: bTrc
+        real(rp)         , intent(in) :: Rion
+        integer          , intent(in) :: i0
+        real(rp), dimension(NDIM), intent(out) :: Bxyz,Jxyz
+
+        real(rp) :: t,xyzMHD(NDIM)
+        integer :: ijk(NDIM)
+        logical :: isIn
+
+        Bxyz = 0.0
+        Jxyz = 0.0
+        if (.not. Model%doJ) return !Nothing to be done
+
+        call DipoleShift2Shell(Model,ebGr,i0,bTrc%x0,xyzMHD)
+        t = ebState%eb1%time
+        call locate(xyzMHD,ijk,Model,ebGr,isIn)
+        !Evaluate B & J @ xyzMHD
+        Bxyz = fldInterp(xyzMHD,t,Model,ebState,BFLD,isIn,ijk)
+        Jxyz = jInterp(xyzMHD,t,Model,ebState,ijk) 
+
+        Bxyz = Bxyz*oBScl !EB => nT
+        !Rescale to ionosphere, conserve J/B, and convert to muA/m2
+        Jxyz = (1.0e+6)*Bi2M(xyzMHD,Rion)*Jxyz
+
+    end subroutine FLIonBJ
+
+    function Bi2M(xyz,Rion)
+        real(rp), intent(in) :: xyz(NDIM), Rion 
+        real(rp) :: Bi2M
+
+        real(rp) :: R0,Rx,zor2,mZ,pZ
+        R0 = norm2(xyz)
+        Rx = R0/Rion
+        zor2 = (xyz(ZDIR)/R0)**2.0
+        mZ = (1.0 - zor2)/Rx
+        pZ = 1.0 + 3.0*zor2
+        Bi2M = (Rx**3.0)*sqrt( 1.0 + 3.0*(1.0-mZ) )/sqrt(pZ)
+    end function Bi2M
+
+    !Get plasma information from near MHD inner boundary from ionosphere
+    subroutine FLIonDP(Model,ebGr,ebState,bTrc,bD,bP,i0,sOpt) 
+        type(chmpModel_T), intent(in ) :: Model
+        type(ebGrid_T)   , intent(in ) :: ebGr
+        type(ebState_T)  , intent(in ) :: ebState
+        type(magLine_T  ), intent(in ) :: bTrc
+        integer          , intent(in ) :: i0
+        real(rp)         , intent(out) :: bD,bP
+        integer          , intent(in ), optional :: sOpt
+
+        integer :: s0
+        real(rp) :: t
+        real(rp), dimension(NDIM) :: xyzMHD
+        
+        bD = 0.0
+        bP = 0.0
+        if (present(sOpt)) then
+            if (sOpt > Model%nSpc) then
+                !Got nothing for ya
+                return
+            else
+                s0 = sOpt
+            endif
+        else
+            s0 = BLK
+        endif
+
+        call DipoleShift2Shell(Model,ebGr,i0,bTrc%x0,xyzMHD)
+        t = ebState%eb1%time
+        call mhdInterpDP(xyzMHD,t,Model,ebState,bD,bP,s0)
+
+    end subroutine FLIonDP
+
+    !Take point xyz0 and dipole shift to radius of the i0-th shell
+    subroutine DipoleShift2Shell(Model,ebGr,i0,xyz0,xyzMHD)
+        type(chmpModel_T), intent(in)  :: Model
+        type(ebGrid_T)   , intent(in)  :: ebGr
+        integer          , intent(in)  :: i0
+        real(rp)         , intent(in)  :: xyz0(NDIM)
+        real(rp)         , intent(out) :: xyzMHD(NDIM)
+
+        real(rp) :: R0
+        R0 = norm2(ebGr%xyzcc(ebGr%is+i0-1,ebGr%js,ebGr%ks,:))
+        xyzMHD = DipoleShift(xyz0,R0) !Dipole shift to i0 shell radius
+
+        !Check we went far out enough and die hard if we didn't
+        if (inGap(xyzMHD,Model,ebGr)) then
+            write(*,*) "Mind the gap!"
+            stop
+        endif      
+    end subroutine DipoleShift2Shell
+
+    !Averaged density/pressure along a segment of the field line
+    subroutine FL2iBC(Model,ebGr,bTrc,bD,bP,i0,L,sOpt)
+        type(chmpModel_T), intent(in) :: Model
+        type(ebGrid_T)   , intent(in) :: ebGr
+        type(magLine_T  ), intent(in) :: bTrc
+        real(rp), intent(out) :: bD,bP
+        integer , intent(in ) :: i0
+        real(rp), intent(in ) :: L
+        integer , intent(in ), optional :: sOpt 
+
+        integer  :: s0,k,kS,kE,dk
+        real(rp) :: bMag,dl,dvB,dX,eD,eP
+
+        bD = 0.0
+        bP = 0.0
+        if (.not. bTrc%isGood) return
+
+        if (present(sOpt)) then
+            s0 = min(sOpt,Model%nSpc)
+        else
+            s0 = BLK
+        endif
+
+        associate(Np=>bTrc%Np,Nm=>bTrc%Nm)
+
+        !Figure out which direction to go
+        dX  = 0.0
+        dvB = 0.0
+        if (Np > Nm) then
+            !More points in + direction, this is a SH seed
+            kS = 0
+            kE = Np-1
+            dk = +1
+        else
+            !More points in - direction, this is a NH seed
+            kS = 0
+            kE = -Nm+1
+            dk = -1
+        endif
+
+        !Loop over edges
+        do k=kS,kE,dk
+            !Get edge-centered quantities
+            dl = norm2(bTrc%xyz(k+dk,:) - bTrc%xyz(k,:)) !Edge length
+
+            eD   = 0.5*( bTrc%Gas(k+dk,DEN     ,s0) + bTrc%Gas(k,DEN     ,s0) )
+            eP   = 0.5*( bTrc%Gas(k+dk,PRESSURE,s0) + bTrc%Gas(k,PRESSURE,s0) )
+
+            bMag = 0.5* (bTrc%magB(k+dk) + bTrc%magB(k))
+            !Now accumulate into flux-tube integrals if in region of interest
+            if (bTrc%ijk(k,IDIR) >= i0 .and. bTrc%ijk(k+dk,IDIR) >= i0) then
+                bD  = bD  +  eD*dl/bMag
+                bP  = bP  +  eP*dl/bMag
+                dvB = dvB + dl/bMag
+                dX = dX + dl
+            endif
+            if (dX >= L) exit !Break out of loop
+        enddo
+        dvB = max(dvB,TINY)
+        bD  = bD/dvB  
+        bP  = bP/dvB        
+        
+        end associate
+    end subroutine FL2iBC
+
     !Averaged density/pressure (of species sOpt or BLK)
     subroutine FLThermo(Model,ebGr,bTrc,bD,bP,dvB,bBetaO,sOpt)
         type(chmpModel_T), intent(in) :: Model
@@ -337,9 +527,8 @@ module streamline
             ! Always accumulate total flux tube volume
             dvB = dvB + dl/bMag
             ! Only accumulate other quantities if in active domain, so we have more sensible flux tube averages
-            !if (bTrc%ijk(k,XDIR) > ebGr%is+4 .and. bTrc%ijk(k+1,XDIR) > ebGr%is+4) then
-            !if (bTrc%ijk(k,XDIR) > ebGr%is+1 .and. bTrc%ijk(k+1,XDIR) > ebGr%is+1) then
-            if (bTrc%ijk(k,XDIR) >= ebGr%is .and. bTrc%ijk(k+1,XDIR) >= ebGr%is) then
+
+            if (bTrc%ijk(k,IDIR) >= ebGr%is .and. bTrc%ijk(k+1,IDIR) >= ebGr%is) then
                 bD  = bD  +  eD*dl/bMag
                 bP  = bP  +  eP*dl/bMag
                 bPb = bPb + ePb*dl/bMag
@@ -604,6 +793,7 @@ module streamline
         rCurv = getRCurv(B,gcFields%JacB)
         vEB = norm2(vExB)*oVScl
     end subroutine FLCurvRadius
+
 !---------------------------------
 !Projection routines
     !Project to SM EQ (Z=0)
@@ -1080,5 +1270,20 @@ module streamline
 
     end subroutine project
     
+    !Simple routine to print tube information to console
+    subroutine PrintTube(ebModel,ebGr,bTrc)
+        type(chmpModel_T), intent(in) :: ebModel
+        type(ebGrid_T)   , intent(in) :: ebGr
+        type(magLine_T  ), intent(in) :: bTrc
+
+        integer :: k
+        associate(Np=>bTrc%Np,Nm=>bTrc%Nm)
+        write(*,*) "---"
+        write(*,*) "Bad Tube! Nm/Np = ", Nm,Np
+        do k=-Nm,Np
+            write(*,*) "k / xyz = ", k,bTrc%xyz (k,:)
+        enddo
+        end associate
+    end subroutine PrintTube
 
 end module streamline

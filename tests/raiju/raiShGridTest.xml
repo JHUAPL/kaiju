@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<Kaiju>
+  <RAIJU>
+    <grid gType="SHGRID" Ng="4" ThetaL="15.0" ThetaU="45.0"/>
+  </RAIJU>
+</Kaiju>

@@ -316,23 +316,24 @@ module raijuSpeciesHelper
         call ClearIO(IOVars)
         call WriteVars(IOVars, .false., fname, "Species")
 
-        do i=1,Grid%nSpc 
-            associate(spc=>Grid%spc(i))
-
-            write(gStr, '(A,I0)') "Species/",i-1    
-
-            ! Write
+        ! Output detailed lambda grid info
+        do i=1,Grid%nSpc
             call ClearIO(IOVars)
-            call AddOutVar(IOVars, "flav"    ,spc%flav)  ! Attr
-            call AddOutVar(IOVars, "N"       ,spc%N)  ! Attr
-            call AddOutVar(IOVars, "numNuc_p",spc%numNuc_p)  ! Attr
-            call AddOutVar(IOVars, "numNuc_n",spc%numNuc_n)  ! Attr
-            call AddOutVar(IOVars, "q"       ,spc%q)  ! Attr
-            call AddOutVar(IOVars, "fudge"   ,spc%fudge)  ! Attr
-            call AddOutVar(IOVars, "alami"   ,spc%alami)  ! Dataset
-            call WriteVars(IOVars, .false., fname, gStr)
-        
-            end associate
+            ! Attrs
+            call AddOutVar(IOVars,"flav"     ,Grid%spc(i)%flav    )
+            call AddOutVar(IOVars,"N"        ,Grid%spc(i)%N       )
+            call AddOutVar(IOVars,"fudge"    ,Grid%spc(i)%fudge   )
+            call AddOutVar(IOVars,"numNuc_p" ,Grid%spc(i)%numNuc_p)
+            call AddOutVar(IOVars,"numNuc_n" ,Grid%spc(i)%numNuc_n)
+            call AddOutVar(IOVars,"spcType"  ,Grid%spc(i)%spcType )
+            call AddOutVar(IOVars,"q"        ,Grid%spc(i)%q       )
+            call AddOutVar(IOVars,"amu"      ,Grid%spc(i)%amu     )
+            call AddOutVar(IOVars,"kStart"   ,Grid%spc(i)%kStart-1)  ! Change to assume zero-based
+            call AddOutVar(IOVars,"kEnd"     ,Grid%spc(i)%kEnd  -1)  ! Change to assume zero-based
+            ! Datasets
+            call AddOutVar(IOVars,"alami",Grid%spc(i)%alami,uStr="eV * (Rx/nT)^(2/3)")
+            write(gStr,'(I0)') Grid%spc(i)%flav  ! Idk if this is the easiest way to format ints as strings
+            call WriteVars(IOVars,.true.,fname,"Species",gStr)
         enddo
 
     end subroutine writeSpeciesInfo

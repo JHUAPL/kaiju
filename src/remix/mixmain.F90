@@ -96,13 +96,20 @@ module mixmain
     subroutine run_mix(I)
       type(mixIon_T),dimension(:),intent(inout) :: I 
       integer :: h,NumH
+      logical :: isGoodSolve
 
       NumH = size(I)
         
       do h=1,NumH
           call Tic("MIX-SOLVE")
-          call run_solver(I(h)%P,I(h)%G,I(h)%St,I(h)%S)
+          call run_solver(I(h)%P,I(h)%G,I(h)%St,I(h)%S,isGoodSolveO=isGoodSolve)
           call Toc("MIX-SOLVE")
+
+          if (.not. isGoodSolve) then
+            Write(*,*)"Didn't get a good solve, writing state and dying"
+            call writeMIXCRASH(I)
+            stop
+          endif
 
           call Tic("MIX-POT")
           call get_potential(I(h))

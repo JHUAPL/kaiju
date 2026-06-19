@@ -235,6 +235,15 @@ module voltapp
                 write(*,*) 'Quick Squish Stride must be a power of 2'
                 stop
             endif
+            call xmlInp%Set_Val(vApp%imagSrcNQuad, "imag/nSrcQuad", vApp%imagSrcNQuad)
+            if (vApp%imagSrcNQuad < 0) then
+                write(*,*) 'voltron/imag/nSrcQuad must be >= 0'
+                stop
+            endif
+            if (vApp%imagSrcNQuad > 5) then
+                write(*,*) 'voltron/imag/nSrcQuad must be <= 5'
+                stop
+            endif
             call xmlInp%Set_Val(vApp%chmp2mhd%epsSquish,"ebsquish/epsSquish",0.05)
 
             !Verify that Gamera has location to hold source info
@@ -647,6 +656,7 @@ module voltapp
     !Initialize model
         associate(Model=>vApp%ebTrcApp%ebModel,ebState=>vApp%ebTrcApp%ebState,ebGr=>vApp%ebTrcApp%ebState%ebGr,Gr=>gApp%Grid)
         Model%isMAGE = .true. !Let chimp know it's part of mage
+        call inpXML%Set_Val(Model%doJ, 'fields/doJ', .true.)  ! Now expected so we have vApp%tubeShell%j11i
         call setChimpUnitsVoltron(Model,vApp%planet,inpXML)
         Model%T0   = 0.0
         Model%tFin = 0.0
@@ -730,28 +740,28 @@ module voltapp
         ! First determine defaults
         if (gamRes<=64) then
             ! DBL
-            Nt_def = 90
-            Np_def = 180
+            Nt_def = 135
+            Np_def = 360
         else if (gamRes<=128) then
             ! QUAD
-            Nt_def = 180
+            Nt_def = 135
             Np_def = 360
         else if (gamRes<=256) then
             ! OCT
-            Nt_def = 360
-            Np_def = 720
+            Nt_def = 135*2
+            Np_def = 360*2
         else 
             ! HEX or above
             ! Idk good luck
-            Nt_def = 540
-            Np_def = 1440
+            Nt_def = 135*4
+            Np_def = 360*4
         endif
 
 
         call xmlInp%Set_Val(Nt, "grid/Nt", Nt_def)  ! 1 deg res default for uniform grid
         call xmlInp%Set_Val(Np, "grid/Np", Np_def)  ! 1 deg res default
         ! Ghost cells
-        call xmlInp%Set_Val(Ng, "grid/Ng", 4)  ! # of ghosts in every direction
+        call xmlInp%Set_Val(Ng, "grid/Ng", 4)  ! # of ghosts in phi direction (no ghosts in theta cause we're at the poles)
         nGhosts = 0
         nGhosts(EAST) = Ng
         nGhosts(WEST) = Ng
@@ -761,7 +771,7 @@ module voltapp
         allocate(theta_hemi(Nt+1))
         allocate(phi(Np+1))
 
-        call xmlInp%Set_Val(gType, "grid/gType","UNISPH")
+        call xmlInp%Set_Val(gType, "grid/gType","WARPSPH")
         select case(gType)
             case("UNISPH")
                 vApp%gridType = V_GRID_UNIFORM
@@ -835,4 +845,3 @@ module voltapp
     !----------
 
 end module voltapp
-

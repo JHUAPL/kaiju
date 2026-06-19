@@ -138,7 +138,7 @@ module mgmres
 
 !---------------
     !Preconditioned restarted GMRES
-    subroutine pmgmres_ilu_cr(n,nz_num,ia,ja,A,x,rhs,itr_max,mr,tol_abs,tol_rel)
+    subroutine pmgmres_ilu_cr(n,nz_num,ia,ja,A,x,rhs,itr_max,mr,tol_abs,tol_rel, isGoodSolveO)
         integer, intent(in) :: n,nz_num
         integer, intent(inout) :: ia(n+1),ja(nz_num)
         real(rp), intent(inout) :: A(nz_num)
@@ -146,6 +146,7 @@ module mgmres
         real(rp), intent(in) :: rhs(n)
         integer, intent(in) :: itr_max,mr
         real(rp), intent(in) :: tol_abs,tol_rel
+        logical, optional, intent(inout) :: isGoodSolveO
 
         real(rp) :: av,htmp,mu,rho,rho_tol
         real(rp) :: r(n)
@@ -246,6 +247,8 @@ module mgmres
         !Check convergence
         isConverged = (rho<=rho_tol) .and. (rho<=tol_abs)
 
+        if (present(isGoodSolveO)) isGoodSolveO = isConverged
+        
         if ( doWarn .and. (.not. isConverged) ) then
             write(*,*) '---'
             write(*,*) 'WARNING: PMGMRES failed to converge'
@@ -255,7 +258,9 @@ module mgmres
             
             write(*,*) '---'
 
+            
         endif
+
 
     end subroutine pmgmres_ilu_cr
 

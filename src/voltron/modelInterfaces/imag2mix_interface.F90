@@ -153,7 +153,7 @@ module imag2mix_interface
          endif
          phMax = phiIn + 0.5_rp*G%dp(j  ,i)
          do n=1,nPnts
-            phi_subdiv = phMin + (n-1)*1.0_rp/(nPnts-1)*(phMax - phMin)  ! Don't forget to cast something to real so we don't do integer division
+            phi_subdiv(n) = phMin + (n-1)*1.0_rp/(nPnts-1)*(phMax - phMin)  ! Don't forget to cast something to real so we don't do integer division
          enddo
 
          ! Now that we have our points we can start getting our values

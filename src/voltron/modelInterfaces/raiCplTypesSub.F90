@@ -5,6 +5,7 @@ submodule (volttypes) raijuCplTypesSub
     use raijuCplHelper
     use raijuColdStartHelper
     use raijuDomain
+    !use raijuetautils
 
     use shellInterp
     use imaghelper
@@ -23,7 +24,7 @@ submodule (volttypes) raijuCplTypesSub
         type(XML_Input_T), intent(inout) :: Xml
 
         real(rp), dimension(NDIM) :: rxyz
-        real(rp) :: lowLatBnd, thetaU
+        real(rp) :: lowLatBnd, thetaU, L
 
         ! Allocate our contained raiju app
         allocate(raijuApp_T :: App%raiApp)
@@ -31,15 +32,38 @@ submodule (volttypes) raijuCplTypesSub
 
         ! Set option overrides
         !  ThetaU - calculate where the upper theta boundary should be such that the active domain covers all of the gamera ghost cells
-        rxyz(XDIR) = max(App%opt%mhdRin - 0.25, 1.0_rp)
+        rxyz(XDIR) = max(App%opt%mhdRin, 1.0_rp)
         rxyz(YDIR) = 0.0_rp
         rxyz(ZDIR) = 0.0_rp
-        lowLatBnd = InvLatitude(rxyz)*rad2deg
-        thetaU = (90 - lowLatBnd)
-        call App%raiApp%opt%thetaU%set(thetaU)
+
+
+        rxyz = DipoleShift(rxyz, App%opt%voltGrid%radius)  ! Move this point to ionosphere height
+        thetaU = atan2(rxyz(XDIR),rxyz(ZDIR))
+        thetaU = min(thetaU, App%opt%voltGrid%th(App%opt%voltGrid%Nt/2))
+
+        !lowLatBnd = InvLatitude(rxyz)
+        !! Now make sure we are at least 1 voltron corner above 0 deg lat
+        !! Nt cells from 0 to 2*pi. Nt//2 cell is on north side of equator point, and the corner location indexed by Nt//2 will be 1 corner away from lat=0
+        !thetaU = min((PI/2. - lowLatBnd), App%opt%voltGrid%th(App%opt%voltGrid%Nt/2))
+        call App%raiApp%opt%thetaU%set(thetaU*rad2deg)
+        write(*,'(a,f5.2,a,f5.2,a)')"RAIJU trying to make low lat bnd below GAMERA's first active cell at ",App%opt%mhdRin,'[Re], ',(90-thetaU*rad2deg),' deg lat'
         ! Init raiju app itself
         ! Note: we are bypassing raiApp%InitModel because we can't pass the voltron grid as an argument
         call raijuInit(App%raiApp, xml, App%opt%voltGrid)
+
+        ! Check if grid generation succeeded and we have raiju domain covering entirety of gamera active cells
+        L = DipColat2L(App%raiApp%Grid%shGrid%thRp(App%raiApp%Grid%shGrid%ie+1))
+        write(*,*)"RAI vs GAM ghost lowlat:",L,App%opt%mhdRin
+        if (L > App%opt%mhdRin) then
+            write(*,*)"ERROR in raiCplInitModel: lowlat raiju cells didn't end up covering entire gamera active domain"
+            write(*,*)"This should only happen if gamera active maps equatorward of first off-equator voltron lat coordinate, in which case, yikes"
+            write(*,*)"Probably increase voltron theta resolution or move out your mhd Rin a little"
+            write(*,*)"Good luck and goodnight"
+            stop
+        endif
+        
+        ! Overwrite some raiju initialization values
+        call setRaijuILowLat_MHD(App)
         ! Update MJD with whatever voltron handed us
         ! If we are restarting, this will get replaced with whatever's in file later
         App%raiApp%State%mjd = App%opt%mjd0
@@ -67,10 +91,11 @@ submodule (volttypes) raijuCplTypesSub
             call raiCpl2RAIJU(App)
 
             associate(cs=>raiApp%State%coldStarter)
-                if (.not. cs%doneFirstCS .or. (cs%doUpdate .and. vApp%time < cs%tEnd) ) then
+                if (.not. cs%doneFirstCS ) then
                     !! Make sure we run at least once
                     ! Calc voltron dst ourselves since vApp%BSDst is only set on console output
                     call EstDST(vApp%gApp%Model,vApp%gApp%Grid,vApp%gApp%State,BSDst0=BSDst)
+                    !BSDst = QuickDST(vApp%gApp%Model,vApp%gApp%Grid,vApp%gApp%State)
                     raiApp%State%coldStarter%doCS_next_preAdv = .true.
                     raiApp%State%coldStarter%modelDst_next_preAdv = BSDst
                     !call setActiveDomain(raiApp%Model, raiApp%Grid, raiApp%State)
@@ -95,15 +120,16 @@ submodule (volttypes) raijuCplTypesSub
 
         integer :: s  ! Iterators
         integer :: i0, j0  ! i,j cell that provided th,ph are in
-        real(rp) :: active_interp
+        integer :: idx_psph
+        real(rp) :: Req, ReqLowLatBC, thLowLatBC
         real(rp) :: d_cold, t_cold, d_hot, p_hot
         real(rp) :: tScl, rampC
         real(rp) :: wMHD,wRAI,alpha,beta,p_mhd
+        real(rp) :: xeq, yeq
 
-        logical, parameter :: doWolf = .true.
         real(rp), parameter :: wRAI0 = 0.5
 
-        associate(Model=>App%raiApp%Model, State=>App%raiApp%State, sh=>App%raiApp%Grid%shGrid, spcList=>App%raiApp%Grid%spc)
+        associate(State=>App%raiApp%State, sh=>App%raiApp%Grid%shGrid)
 
         ! Default
         imW = 0.0_rp
@@ -115,73 +141,156 @@ submodule (volttypes) raijuCplTypesSub
         p_hot = 0.0_rp
 
         ! Is this a good point?
-        if (th < sh%minTheta .or. th > sh%maxTheta) then
-            return ! Off grid, return default
+        if (th < sh%minTheta) then
+            isEdible = .false.
+            return ! Poleward of entire raiju grid, return bad point
         endif
 
-        ! Active check
-        call getSGCellILoc(sh, th, i0)
+        ! Need j0 now cause we'll use it even if theta is lower lat than raiju grid
         call getSGCellJLoc(sh, ph, j0)
-        if (State%active(i0,j0) .ne. RAIJUACTIVE) then
+        ReqLowLatBC = DipColat2L(sh%thcRp(App%iFirstCellInGamGhost))
+        thLowLatBC  = sh%thc(App%iFirstCellInGamGhost)
+
+        if (th > sh%maxTheta) then
+            ! Below low lat boundary, do low lat boundary stuff
+            isEdible = .true.
+            call setLowLatDefaultMoments()
             return
         endif
 
-        ! Otherwise we are good, gonna return stuff
+        ! Then we are definitely on grid somewhere, get i0 value too
+        call getSGCellILoc(sh, th, i0)
+
+        !Req = norm2(State%xyzMincc(i0,j0,:))
+        Req = DipColat2L(sh%thcRp(i0))
+        if (Req < ReqLowLatBC) then
+            ! On grid but below MHD active boundary, also do low lat stuff
+            isEdible = .true.
+            call setLowLatDefaultMoments()
+            return
+        endif
+
+        ! Active check
+        if (State%active(i0,j0) .ne. RAIJUACTIVE) then
+            ! On grid but no good raiju data, return bad point
+            isEdible = .false.
+            return
+        endif
+
+        ! If still here, we are in valid active domain, do active domain stuff
         isEdible = .true.
-
-        do s=1, Model%nSpc
-            if (spcList(s)%flav == F_PSPH) then
-                call InterpShellVar_TSC_pnt(sh, State%Den_avg(s), th, ph, d_cold)
-                imW(IM_D_COLD) = d_cold  ! [#/cc]
-                t_cold = PsphTemp_Genestreti(d_cold)  ! [keV]
-                imW(IM_P_COLD) = DkT2P(d_cold, t_cold)  ! [nPa]
-            elseif (spcList(s)%spcType == RAIJUHPLUS) then
-                call InterpShellVar_TSC_pnt(sh, State%Den_avg(s)  , th, ph, d_hot)
-                call InterpShellVar_TSC_pnt(sh, State%Press_avg(s), th, ph, p_hot)
-                imW(IM_D_RING) = imW(IM_D_RING) + d_hot  ! [nPa]
-                imW(IM_P_RING) = imW(IM_P_RING) + p_hot  ! [#/cc]
-            elseif (spcList(s)%spcType == RAIJUELE) then
-                ! Don't add number density
-                call InterpShellVar_TSC_pnt(sh, State%Press_avg(s), th, ph, p_hot)
-                imW(IM_P_RING) = imW(IM_P_RING) + p_hot  ! [#/cc]
-            endif
-        enddo
-
-        !Wolf-limit the pressure going back
-        if (doWolf) then
-            !You're sending the wolf? Shit, that's all you had to say
-            call InterpShellVar_TSC_pnt(App%shGr, App%avgBeta  , th, ph, beta )
-            call InterpShellVar_TSC_pnt(App%shGr, App%Pavg(BLK), th, ph, p_mhd) !MHD flux-tube averaged pressure (sum over all fluids)
-            alpha = 1.0 + beta*5.0/6.0
-            wRAI  = 1.0/alpha !Full wolf-limited weight
-            wRAI = max(wRAI,wRAI0) !Don't allow Raiju contribution to drop below wRCM0
-            call ClampValue(wRAI,0.0_rp,1.0_rp)
-            wMHD = 1 - wRAI ! = (alpha-1)/alpha w/o any clamping
-            imW(IM_P_RING) = imW(IM_P_RING)*wRAI + wMHD*p_mhd
-        endif
-
-        !call InterpShellVar_TSC_pnt(sh, State%Tb, th, ph, tScl)
-        !tScl = Model%nBounce*tScl  ! [s]
-        
-        ! 1/(x)^4 for x from 1 to 0.5 goes from 1 to 16. Higher exponents means stronger ramp-up
-        !tScl = 15.0_rp/(App%vaFrac%data(i0,j0))**2  ! [s]
-
-        call InterpShellVar_TSC_pnt(sh, App%tscl_mhdIngest, th, ph, tScl)
-
-        ! Adjust IM_TSCL if we wanna ramp up over time
-        if (t < App%startup_blendTscl) then
-            rampC = RampDown(t, 0.0_rp, App%startup_blendTscl)
-            !tScl = sqrt(tScl*App%startup_blendTscl)*rampC + (1-rampC)*tScl  ! idk
-            tScl = rampC*30.0_rp*tScl + (1-rampC)*tScl  ! No good reason for 30 except for wanting starting tScl to be ~8-10 minutes
-        endif
-        
-        imW(IM_TSCL) = tScl
+        call setActiveDomainMoments()
 
         end associate
+
+        contains
+
+        subroutine setActiveDomainMoments()
+
+            associate(Model=>App%raiApp%Model, State=>App%raiApp%State, sh=>App%raiApp%Grid%shGrid, spcList=>App%raiApp%Grid%spc)
+
+            ! tscl first
+            call InterpShellVar_TSC_pnt(sh, App%tscl_mhdIngest, th, ph, tScl)
+            if (t < App%startup_blendTscl) then
+                rampC = RampDown(t, 0.0_rp, App%startup_blendTscl)
+                tScl = rampC*30.0_rp*tScl + (1-rampC)*tScl  ! No good reason for 30 except for wanting starting tScl to be ~8-10 minutes
+            endif
+            imW(IM_TSCL) = tScl
+        
+            do s=1, Model%nSpc
+                if (spcList(s)%flav == F_PSPH) then
+                    call InterpShellVar_TSC_pnt(sh, State%Den_avg(s), th, ph, d_cold)
+                    imW(IM_D_COLD) = d_cold  ! [#/cc]
+                    t_cold = PsphTemp_Genestreti(d_cold)  ! [keV]
+                    imW(IM_P_COLD) = DkT2P(d_cold, t_cold)  ! [nPa]
+                elseif (spcList(s)%spcType == RAIJUHPLUS) then
+                    call InterpShellVar_TSC_pnt(sh, State%Den_avg(s)  , th, ph, d_hot)
+                    call InterpShellVar_TSC_pnt(sh, State%Press_avg(s), th, ph, p_hot)
+                    imW(IM_D_RING) = imW(IM_D_RING) + d_hot  ! [nPa]
+                    imW(IM_P_RING) = imW(IM_P_RING) + p_hot  ! [#/cc]
+                elseif (spcList(s)%spcType == RAIJUELE) then
+                    ! Don't add number density
+                    call InterpShellVar_TSC_pnt(sh, State%Press_avg(s), th, ph, p_hot)
+                    imW(IM_P_RING) = imW(IM_P_RING) + p_hot  ! [#/cc]
+                endif
+            enddo
+
+            !Wolf-limit the pressure going back
+            if (App%doWolfLim) then
+                !You're sending the wolf? Shit, that's all you had to say
+                call InterpShellVar_TSC_pnt(App%shGr, App%avgBeta  , th, ph, beta )
+                call InterpShellVar_TSC_pnt(App%shGr, App%Pavg(BLK), th, ph, p_mhd) !MHD flux-tube averaged pressure (sum over all fluids)
+                alpha = 1.0 + beta*5.0/6.0
+                if (.not. ieee_is_finite(beta) .or. .not. ieee_is_finite(alpha)) then
+                    write(*,*) "ERROR in getMomentsRAIJU: Wolf-limit beta/alpha is not finite"
+                    write(*,*) "th, ph =", th, ph
+                    write(*,*) "beta, alpha, p_mhd =", beta, alpha, p_mhd
+                    call State%myRaiApp%WriteBlackBox()
+                    write(*,*) "Goodbye"
+                    stop
+                endif
+                alpha = max(alpha, TINY)
+                wRAI  = 1.0/alpha !Full wolf-limited weight
+                if (.not. ieee_is_finite(wRAI)) then
+                    write(*,*) "ERROR in getMomentsRAIJU: Wolf-limit weight is not finite"
+                    write(*,*) "th, ph =", th, ph
+                    write(*,*) "beta, alpha, p_mhd =", beta, alpha, p_mhd
+                    call State%myRaiApp%WriteBlackBox()
+                    write(*,*) "Goodbye"
+                    stop
+                endif
+                wRAI = max(wRAI,wRAI0) !Don't allow Raiju contribution to drop below wRCM0
+                call ClampValue(wRAI,0.0_rp,1.0_rp)
+                wMHD = 1 - wRAI ! = (alpha-1)/alpha w/o any clamping
+                imW(IM_P_RING) = imW(IM_P_RING)*wRAI + wMHD*p_mhd
+            endif
+
+            end associate
+
+        end subroutine setActiveDomainMoments
+
+
+        subroutine setLowLatDefaultMoments()
+
+            associate(State=>App%raiApp%State, sh=>App%raiApp%Grid%shGrid)
+            ! No matter where th/ph actually ends up on this part of raiju's grid, we will give it info from raiju cell closest to gamera's first ghost cell
+            ! Right now, we expect this to be an active raiju cell. So lets check and, if not, complain and die
+            if (State%active(App%iFirstCellInGamGhost,j0) .ne. RAIJUACTIVE) then
+                write(*,*)"ERROR in getMomentsRAIJU's setLowLatDefaultMoments: unexpected non-active domain"
+                write(*,*)"Requested th,ph=",th,ph
+                write(*,*)"iFirstCell,j0=",App%iFirstCellInGamGhost,j0
+                write(*,*)"Active val=",State%active(App%iFirstCellInGamGhost,j0)
+            endif
+
+            call InterpShellVar_TSC_pnt(sh, App%tscl_mhdIngest, thLowLatBC, ph, tScl)
+            if (t < App%startup_blendTscl) then
+                rampC = RampDown(t, 0.0_rp, App%startup_blendTscl)
+                tScl = rampC*30.0_rp*tScl + (1-rampC)*tScl  ! No good reason for 30 except for wanting starting tScl to be ~8-10 minutes
+            endif
+            imW(IM_TSCL) = tScl
+            if (App%raiApp%Model%doPlasmasphere) then
+                idx_psph = spcIdx(App%raiApp%Grid, F_PSPH)
+                call InterpShellVar_TSC_pnt(sh, State%Den_avg(idx_psph), thLowLatBC, ph, d_cold)
+            else
+                call InterpShellVar_TSC_pnt(App%shGr, App%xyzMincc(XDIR), thLowLatBC, ph, xeq)
+                call InterpShellVar_TSC_pnt(App%shGr, App%xyzMincc(YDIR), thLowLatBC, ph, yeq)
+                d_cold = GallagherXY(xeq, yeq)
+            endif
+            
+            imW(IM_D_COLD) = d_cold  ! [#/cc]
+            t_cold = PsphTemp_Genestreti(d_cold)  ! [keV]
+            imW(IM_P_COLD) = DkT2P(d_cold, t_cold)  ! [nPa]
+            imW(IM_D_RING) = 0.0_rp
+            imW(IM_P_RING) = 0.0_rp
+
+            end associate
+        end subroutine setLowLatDefaultMoments
+
     end subroutine getMomentsRAIJU
 
 
     module subroutine getMomentsPrecipRAIJU(App,th,ph,imP,isEdible)
+        !! DragonKing method of getting precipitation moments
         !! Get precipitation quantities from RAIJU, formatted by enum in volttypes.F90 for a given theta,phi location within the RAIJU domain
         class(raijuCoupler_T), intent(inout) :: App
         real(rp), intent(in) :: th
@@ -226,8 +335,10 @@ submodule (volttypes) raijuCplTypesSub
             ! record the grid type info
             ! gtype is a proxy of raiju active, buffer, inactive
             imP(RAI_GTYPE) = (State%active(i0,j0)*1.0_rp+1.0)/2.0  ! "-1=Inactive, 0=Buffer, 1=Active" -> 0, 0.5, and 1.0        
-            imP(RAI_THCON) = State%thcon(i0,j0) ! conjugate co-lat in radians, 0-pi
-            imP(RAI_PHCON) = State%phcon(i0,j0) ! conjugate long in radians, 0-2pi
+            if (State%topo(i0,j0) .eq. RAIJUCLOSED) then
+                imP(RAI_THCON) = State%thcon(i0,j0) ! conjugate co-lat in radians, 0-pi
+                imP(RAI_PHCON) = State%phcon(i0,j0) ! conjugate long in radians, 0-2pi
+            endif
             if (State%active(i0,j0) .eq. RAIJUINACTIVE) then
                 return
             endif
@@ -254,29 +365,36 @@ submodule (volttypes) raijuCplTypesSub
                     imP(RAI_EDEN ) = imP(RAI_EDEN ) + d_hot*1.0e6 ! uStr="#/cc" -> /m^3 , dStr="Density from RAIJU flavors"
                     imP(RAI_EPRE ) = imP(RAI_EPRE ) + p_hot*1.0e-9 ! uStr="nPa" -> Pa , dStr="Pressure from RAIJU flavors"
                     do k=ks,ke
-                        !if(.not. isnan(State%precipNFlux(i0,j0,k))) then
-                        if(.not. isnan(State%precipNFlux(k)%data(i0,j0))) then ! use mask?
-                            call InterpShellVar_TSC_pnt(sh, State%precipNFlux(k), th, ph, dn_flux)
-                            imP(RAI_ENFLX) = imP(RAI_ENFLX) + dn_flux ! uStr="#/cm^2/s"
-                            call InterpShellVar_TSC_pnt(sh, State%precipEFlux(k), th, ph, de_flux)
-                            imP(RAI_EFLUX) = imP(RAI_EFLUX) + de_flux ! uStr="erg/cm^2/s"
+                        call InterpShellVar_TSC_pnt(sh, State%precipNFlux(k), th, ph, dn_flux)
+                        imP(RAI_ENFLX) = imP(RAI_ENFLX) + dn_flux ! uStr="#/cm^2/s"
+                        call InterpShellVar_TSC_pnt(sh, State%precipEFlux(k), th, ph, de_flux)
+                        imP(RAI_EFLUX) = imP(RAI_EFLUX) + de_flux ! uStr="erg/cm^2/s"
+                        if (isnan(imP(RAI_ENFLX)) .or. isnan(imP(RAI_EFLUX))) then
+                            write(*,*) "ERROR in getMomentsPrecipRAIJU: Flux has a NaN"
+                            write(*,*)"i,j,k=",i,j,k
+                            write(*,*)"nflux, eFlux=",imP(RAI_ENFLX),imP(RAI_EFLUX)
+                            call State%myRaiApp%WriteBlackBox()
+                            write(*,*)"Goodbye"
+                            stop
                         endif
                     enddo
 
-                    ! Mock up cold electrons balancing hot protons and see if it produces meaningful flux
-                    !K: Removing this code for now, should be rewritten to use the MHD D,P => precip routines
-                    ! call InterpShellVar_TSC_pnt(sh, State%Den_avg(idx_proton)    , th, ph, d_ion)
-                    ! call InterpShellVar_TSC_pnt(sh, State%Press_avg(idx_proton)  , th, ph, p_ion)
-                    ! pie_frac = 0.05  ! Fraction of ion pressure contained by these neutralizing electrons
-                    ! pe_kT = DP2kT(d_ion, p_ion*pie_frac)  ! [keV]
-                    ! pe_nflux = imP(RAI_ENFLX)*d_ion/d_hot  ! Scale number flux to same loss processes except there were d_ion density instead of d_electron density
-                    ! pe_eflux = (pe_kT*kev2erg)*pe_nflux  ! [erg/cm^2/s]
-                    ! if (pe_eflux > imP(RAI_EFLUX)) then  ! Use in place of normal flux only if energy flux for these are greater than hot electron channel fluxes
-                    !     imP(RAI_EFLUX) = pe_eflux
-                    !     imP(RAI_ENFLX) = pe_nflux
-                    !     imP(RAI_EDEN ) = d_ion*1.0e6 ! [#/m^3]
-                    !     imP(RAI_EPRE ) = p_ion*pie_frac*1.0e-9  ! [Pa]
-                    ! endif
+                    if (Model%doExtraElePrecipFromProtons) then
+                        ! Mock up cold electrons balancing hot protons and see if it produces meaningful flux
+                        !!! !K: Removing this code for now, should be rewritten to use the MHD D,P => precip routines
+                        call InterpShellVar_TSC_pnt(sh, State%Den_avg(idx_proton)    , th, ph, d_ion)
+                        call InterpShellVar_TSC_pnt(sh, State%Press_avg(idx_proton)  , th, ph, p_ion)
+                        pie_frac = 0.2  ! Fraction of ion pressure contained by these neutralizing electrons
+                        pe_kT = DP2kT(d_ion, p_ion*pie_frac)  ! [keV]
+                        pe_nflux = imP(RAI_ENFLX)*d_ion/d_hot  ! Scale number flux to same loss processes except there were d_ion density instead of d_electron density
+                        pe_eflux = (pe_kT*kev2erg)*pe_nflux  ! [erg/cm^2/s]
+                        if (pe_eflux > imP(RAI_EFLUX)) then  ! Use in place of normal flux only if energy flux for these are greater than hot electron channel fluxes
+                            imP(RAI_EFLUX) = pe_eflux
+                            imP(RAI_ENFLX) = pe_nflux
+                            imP(RAI_EDEN ) = d_ion*1.0e6 ! [#/m^3]
+                            imP(RAI_EPRE ) = p_ion*pie_frac*1.0e-9  ! [Pa]
+                        endif
+                    endif
 
                 endif !spcList(s)%spcType == X
             enddo
@@ -336,6 +454,7 @@ submodule (volttypes) raijuCplTypesSub
         integer, intent(in) :: nStep
 
         call App%raiApp%WriteFileOutput(nStep)
+        !call App%raiApp%WriteBlackBox()
 
     end subroutine
 

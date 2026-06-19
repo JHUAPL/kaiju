@@ -1,0 +1,280 @@
+module testRaiCplInit
+
+    use testHelper
+    use kdefs, only : rp, TINY, HUGE, PI, NDIM, XDIR, YDIR, ZDIR, rad2deg
+
+    use shellGrid, only : ShellGrid_T, SHGR_CC, SHGR_CORNER, deallocShellGrid
+    use xml_input
+    use planethelper, only : DipColat2L
+
+    use volttypes, only : raijuCoupler_T, IMAG_nMHD_R_NEAREARTH
+    use raijutypes, only : raijuApp_T
+    use raijustarter, only : raijuInit
+    use raijuDomain, only : setActiveDomain
+    use voltCplTypes, only : TubeShell_T
+    use raijuCplHelper
+
+    use raiCplTestHelper, only : raiCplTestNG, raiCplTestNGb, nRaiCplTestProfiles, raiCplTestProfileNames, &
+        genGlobalVoltParentSG, getRaiCplTestMhdProfile, initRaiCplTestOpt, initReadyRaiCpl, fillSyntheticTubeShell
+
+    implicit none
+
+    character(len=*), parameter :: testXmlName = "raiCplSmoke.xml"
+    real(rp), parameter :: testMjd0 = 60321.25_rp
+    real(rp), parameter :: testTol = 1.0e-12_rp
+    integer, parameter :: nMhdCellsForBndLoss = 3
+
+    type(ShellGrid_T) :: parentSG
+
+contains
+
+    @before
+    subroutine setup()
+        call genGlobalVoltParentSG(parentSG, NtO=135, NpO=28, NgPhiO=4, radO=1.1_rp, nameO="voltParentSG")
+    end subroutine setup
+
+
+    @after
+    subroutine teardown()
+        call deallocShellGrid(parentSG)
+    end subroutine teardown
+
+
+    @test
+    subroutine testRaijuCplInit_allocatesExpectedCouplingState()
+        !! Make sure main grid and couple components are initialized as expected
+        type(raijuCoupler_T) :: raiCpl
+        type(XML_Input_T) :: xmlInp
+        real(rp), dimension(raiCplTestNGb + IMAG_nMHD_R_NEAREARTH) :: mhdRAll
+        real(rp), dimension(raiCplTestNG) :: mhdRinGcc
+        real(rp), dimension(IMAG_nMHD_R_NEAREARTH) :: mhdRNearEarth
+        real(rp) :: mhdRin
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+
+        call getRaiCplTestMhdProfile("lfmD_2p0", mhdRAll, mhdRinGcc, mhdRNearEarth, mhdRin)
+        call initManualCoupler(raiCpl, xmlInp, mhdRin, mhdRNearEarth, mhdRinGcc)
+        call raijuCpl_init(raiCpl, xmlInp)
+
+        ! Child ShellGrid checks
+        @assertTrue(raiCpl%shGr%isChild, "raijuCpl_init should build a child ShellGrid")
+        @assertEqual(trim(parentSG%name), trim(raiCpl%shGr%parentName), "Coupler ShellGrid parentName mismatch")
+        @assertEqual(raiCpl%raiApp%Grid%shGrid%bndis, raiCpl%shGr%bndis, "Coupler ShellGrid theta start mismatch vs raiApp grid")
+        @assertEqual(raiCpl%raiApp%Grid%shGrid%bndie, raiCpl%shGr%bndie, "Coupler ShellGrid theta end mismatch vs raiApp grid")
+        @assertEqual(raiCpl%raiApp%Grid%shGrid%bndjs, raiCpl%shGr%bndjs, "Coupler ShellGrid phi start mismatch vs raiApp grid")
+        @assertEqual(raiCpl%raiApp%Grid%shGrid%bndje, raiCpl%shGr%bndje, "Coupler ShellGrid phi end mismatch vs raiApp grid")
+
+        ! Check a few representative ShellGridVar locs
+        @assertEqual(SHGR_CORNER, raiCpl%pot_total%loc, "pot_total should be corner-located")
+        @assertEqual(SHGR_CORNER, raiCpl%pot_corot%loc, "pot_corot should be corner-located")
+        @assertEqual(SHGR_CC, raiCpl%Tb%loc, "Tb should be cell-centered")
+        @assertEqual(SHGR_CC, raiCpl%tscl_mhdIngest%loc, "tscl_mhdIngest should be cell-centered")
+
+        ! TubeShell will give bulk + individual fluids, so we should expect nFluidIn + 1 size
+        @assertEqual(raiCpl%raiApp%Model%nFluidIn + 1, size(raiCpl%Pavg), "Pavg size mismatch")
+        @assertEqual(raiCpl%raiApp%Model%nFluidIn + 1, size(raiCpl%Davg), "Davg size mismatch")
+        @assertEqual(raiCpl%raiApp%Model%nFluidIn + 1, size(raiCpl%Pstd), "Pstd size mismatch")
+        @assertEqual(raiCpl%raiApp%Model%nFluidIn + 1, size(raiCpl%Dstd), "Dstd size mismatch")
+
+        ! Initial values
+        @assertTrue(all(abs(raiCpl%pot_total%data) <= testTol), "pot_total should initialize to zero")
+        @assertTrue(all(abs(raiCpl%pot_corot%data) <= testTol), "pot_corot should initialize to zero")
+        @assertTrue(all(abs(raiCpl%vaFrac%data - 0.5_rp) <= testTol), "vaFrac should initialize to 0.5")
+        @assertLessThanOrEqual(abs(raiCpl%tLastUpdate + HUGE), testTol, "tLastUpdate should initialize to -HUGE")
+
+        ! XML read
+        @assertLessThanOrEqual(abs(raiCpl%startup_blendTscl - 1234.0_rp), testTol, "startup_blendTscl should be read from XML")
+        @assertLessThanOrEqual(abs(raiCpl%tsclSm_dL - 0.75_rp), testTol, "tsclSm_dL should be read from XML")
+        @assertLessThanOrEqual(abs(raiCpl%tsclSm_dMLT - 0.5_rp), testTol, "tsclSm_dMLT should be read from XML")
+        @assertFalse(raiCpl%doWolfLim, "doWolfLim should be read from XML")
+    end subroutine testRaijuCplInit_allocatesExpectedCouplingState
+
+
+    @test
+    subroutine testSetRaijuILowLat_MHD_setsExpectedIndices()
+        type(XML_Input_T) :: xmlInp
+        real(rp), dimension(raiCplTestNGb + IMAG_nMHD_R_NEAREARTH) :: mhdRAll
+        real(rp), dimension(raiCplTestNG) :: mhdRinGcc
+        real(rp), dimension(IMAG_nMHD_R_NEAREARTH) :: mhdRNearEarth
+        real(rp) :: mhdRin
+        real(rp) :: firstGhostUpperFace, firstGhostLowerFace  ! upper/lower in eq radial direction
+        integer :: expIEvol, expIBndLoss
+        integer :: iProf
+        character(len=256) :: msg
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+
+        do iProf=1,nRaiCplTestProfiles
+            block
+                type(raijuCoupler_T) :: raiCpl
+
+                call getRaiCplTestMhdProfile(raiCplTestProfileNames(iProf), mhdRAll, mhdRinGcc, mhdRNearEarth, mhdRin)
+                call initManualCoupler(raiCpl, xmlInp, mhdRin, mhdRNearEarth, mhdRinGcc)
+                call setRaijuILowLat_MHD(raiCpl, doVerboseO=.false.)
+
+                expIEvol = expectedLowLatIndex(raiCpl%raiApp%Grid%shGrid, raiCpl%opt%mhdRin)
+                expIBndLoss = expectedLowLatIndex(raiCpl%raiApp%Grid%shGrid, raiCpl%opt%mhdR_nearEarth_arr(nMhdCellsForBndLoss))
+                firstGhostUpperFace = DipColat2L(raiCpl%raiApp%Grid%shGrid%thRp(raiCpl%iFirstCellInGamGhost))
+                firstGhostLowerFace = DipColat2L(raiCpl%raiApp%Grid%shGrid%thRp(raiCpl%iFirstCellInGamGhost+1))
+
+                write(msg,'(a,a,a)') "iLowLat_Evol mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(expIEvol, raiCpl%raiApp%Model%iLowLat_Evol, trim(msg))
+                write(msg,'(a,a,a)') "iFirstCellInGamGhost mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(expIEvol, raiCpl%iFirstCellInGamGhost, trim(msg))
+                write(msg,'(a,a,a)') "iLowLat_BndLoss mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(expIBndLoss, raiCpl%raiApp%Model%iLowLat_BndLoss, trim(msg))
+
+                write(msg,'(a,a,a)') "iLowLat_BndLoss ordering failed for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(raiCpl%raiApp%Model%iLowLat_BndLoss <= raiCpl%iFirstCellInGamGhost, trim(msg))
+                write(msg,'(a,a,a)') "iFirstCellInGamGhost ordering failed for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(raiCpl%iFirstCellInGamGhost <= raiCpl%raiApp%Model%iLowLat_Evol, trim(msg))
+                write(msg,'(a,a,a)') "iLowLat_Evol lower bound failed for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(raiCpl%raiApp%Model%iLowLat_Evol >= raiCpl%raiApp%Grid%shGrid%isg, trim(msg))
+                write(msg,'(a,a,a)') "iLowLat_Evol upper bound failed for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(raiCpl%raiApp%Model%iLowLat_Evol <= raiCpl%raiApp%Grid%shGrid%ie+1, trim(msg))
+
+                write(msg,'(a,a,a)') "Upper face of iFirstCellInGamGhost is not outside the Gamera active boundary for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(firstGhostUpperFace >= raiCpl%opt%mhdRin - TINY, trim(msg))
+                write(msg,'(a,a,a)') "Lower face of iFirstCellInGamGhost does not enter Gamera ghosts for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(firstGhostLowerFace < raiCpl%opt%mhdRin + TINY, trim(msg))
+            end block
+        enddo
+    end subroutine testSetRaijuILowLat_MHD_setsExpectedIndices
+
+
+    @test
+    subroutine testIFirstCellInGamGhost_isAnActiveRaijuCell()
+        !! Once we populate a sane closed-domain state and run active-domain setup,
+        !! the MHD low-lat boundary marker should itself land on an active Raiju cell.
+        !! This is the important contract for routines that fall back to
+        !! iFirstCellInGamGhost as a representative low-lat cell.
+        type(XML_Input_T) :: xmlInp
+        integer :: iProf
+        character(len=256) :: msg
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+
+        do iProf=1,nRaiCplTestProfiles
+            block
+                type(raijuCoupler_T) :: raiCpl
+                type(TubeShell_T) :: tubeShell
+
+                call initReadyRaiCpl(raiCpl, xmlInp, parentSG, raiCplTestProfileNames(iProf))
+
+                call fillSyntheticTubeShell(parentSG, tubeShell)
+                call tubeShell2RaiCpl(parentSG, tubeShell, raiCpl)
+                call raiCpl2RAIJU(raiCpl)
+                call setActiveDomain(raiCpl%raiApp%Model, raiCpl%raiApp%Grid, raiCpl%raiApp%State)
+
+                write(msg,'(a,a,a)') "iFirstCellInGamGhost should resolve to an actual Raiju cell for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(raiCpl%iFirstCellInGamGhost <= raiCpl%shGr%ie, trim(msg))
+
+                write(msg,'(a,a,a)') "iFirstCellInGamGhost should be active across physical phi for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(all(raiCpl%raiApp%State%active(raiCpl%iFirstCellInGamGhost, raiCpl%shGr%js:raiCpl%shGr%je) == RAIJUACTIVE), trim(msg))
+            end block
+        enddo
+    end subroutine testIFirstCellInGamGhost_isAnActiveRaijuCell
+
+
+    @test
+    subroutine testRaiCplInitModel_smoke()
+        type(XML_Input_T) :: xmlInp
+        real(rp), dimension(raiCplTestNGb + IMAG_nMHD_R_NEAREARTH) :: mhdRAll
+        real(rp), dimension(raiCplTestNG) :: mhdRinGcc
+        real(rp), dimension(IMAG_nMHD_R_NEAREARTH) :: mhdRNearEarth
+        real(rp) :: mhdRin
+        integer :: expIEvol, expIBndLoss
+        real(rp) :: lowLatL
+        integer :: iProf
+        character(len=256) :: msg
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+
+        do iProf=1,nRaiCplTestProfiles
+            block
+                type(raijuCoupler_T) :: raiCpl
+
+                call getRaiCplTestMhdProfile(raiCplTestProfileNames(iProf), mhdRAll, mhdRinGcc, mhdRNearEarth, mhdRin)
+                call initRaiCplTestOpt(raiCpl, parentSG, mhdRin, mhdRNearEarthO=mhdRNearEarth, mhdRinGccO=mhdRinGcc, mjd0O=testMjd0, swFO="bcwind_2step.h5")
+                call raiCpl%InitModel(xmlInp)
+
+                expIEvol = expectedLowLatIndex(raiCpl%raiApp%Grid%shGrid, raiCpl%opt%mhdRin)
+                expIBndLoss = expectedLowLatIndex(raiCpl%raiApp%Grid%shGrid, raiCpl%opt%mhdR_nearEarth_arr(nMhdCellsForBndLoss))
+                lowLatL = DipColat2L(raiCpl%raiApp%Grid%shGrid%th(raiCpl%raiApp%Grid%shGrid%ie+1))
+
+                write(msg,'(a,a,a)') "raiApp allocation failed for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(allocated(raiCpl%raiApp), trim(msg))
+                write(msg,'(a,a,a)') "raiApp ShellGrid child flag failed for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(raiCpl%raiApp%Grid%shGrid%isChild, trim(msg))
+                write(msg,'(a,a,a)') "raiApp ShellGrid parentName mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(trim(parentSG%name), trim(raiCpl%raiApp%Grid%shGrid%parentName), trim(msg))
+                write(msg,'(a,a,a)') "raiApp MJD mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(testMjd0, raiCpl%raiApp%State%mjd, trim(msg))
+
+                write(msg,'(a,a,a)') "iLowLat_Evol mismatch after InitModel for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(expIEvol, raiCpl%raiApp%Model%iLowLat_Evol, trim(msg))
+                write(msg,'(a,a,a)') "iFirstCellInGamGhost mismatch after InitModel for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(expIEvol, raiCpl%iFirstCellInGamGhost, trim(msg))
+                write(msg,'(a,a,a)') "iLowLat_BndLoss mismatch after InitModel for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(expIBndLoss, raiCpl%raiApp%Model%iLowLat_BndLoss, trim(msg))
+
+                write(msg,'(a,a,a)') "low-lat active boundary coverage failed for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertTrue(lowLatL <= raiCpl%opt%mhdRin + TINY, trim(msg))
+                write(msg,'(a,a,a)') "coupler ShellGrid theta mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(raiCpl%raiApp%Grid%shGrid%Nt, raiCpl%shGr%Nt, trim(msg))
+                write(msg,'(a,a,a)') "coupler ShellGrid phi mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(raiCpl%raiApp%Grid%shGrid%Np, raiCpl%shGr%Np, trim(msg))
+                write(msg,'(a,a,a)') "pot_total allocation mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(SHGR_CORNER, raiCpl%pot_total%loc, trim(msg))
+                write(msg,'(a,a,a)') "Tb allocation mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
+                @assertEqual(SHGR_CC, raiCpl%Tb%loc, trim(msg))
+            end block
+        enddo
+    end subroutine testRaiCplInitModel_smoke
+
+
+    subroutine initManualCoupler(raiCpl, xmlInp, mhdRin, mhdRNearEarth, mhdRinGcc)
+        type(raijuCoupler_T), intent(inout) :: raiCpl
+        type(XML_Input_T), intent(in) :: xmlInp
+        real(rp), intent(in) :: mhdRin
+        real(rp), dimension(IMAG_nMHD_R_NEAREARTH), intent(in) :: mhdRNearEarth
+        real(rp), dimension(raiCplTestNG), intent(in) :: mhdRinGcc
+
+        allocate(raijuApp_T :: raiCpl%raiApp)
+        call initRaiCplTestOpt(raiCpl, parentSG, mhdRin, mhdRNearEarthO=mhdRNearEarth, mhdRinGccO=mhdRinGcc, mjd0O=testMjd0, swFO="bcwind_2step.h5")
+        call applyRuntimeThetaUOverride(raiCpl)
+        call raijuInit(raiCpl%raiApp, xmlInp, parentSG,doVerbXMLO=.false.)
+    end subroutine initManualCoupler
+
+
+    subroutine applyRuntimeThetaUOverride(raiCpl)
+        type(raijuCoupler_T), intent(inout) :: raiCpl
+
+        real(rp), dimension(NDIM) :: rxyz
+        real(rp) :: thetaU
+
+        rxyz(XDIR) = max(raiCpl%opt%mhdRin, 1.0_rp)
+        rxyz(YDIR) = 0.0_rp
+        rxyz(ZDIR) = 0.0_rp
+        rxyz = DipoleShift(rxyz, raiCpl%opt%voltGrid%radius)  ! Move this point to ionosphere height
+        thetaU = atan2(rxyz(XDIR),rxyz(ZDIR))
+        thetaU = min(thetaU, raiCpl%opt%voltGrid%th(raiCpl%opt%voltGrid%Nt/2))
+        call raiCpl%raiApp%opt%thetaU%set(thetaU*rad2deg)
+    end subroutine applyRuntimeThetaUOverride
+
+
+    function expectedLowLatIndex(sh, reqL) result(iReq)
+        type(ShellGrid_T), intent(in) :: sh
+        real(rp), intent(in) :: reqL
+
+        integer :: iReq
+
+        iReq = sh%ie+1
+        do while (iReq > sh%isg)
+            if (DipColat2L(sh%thRp(iReq)) >= reqL) exit
+            iReq = iReq - 1
+        enddo
+    end function expectedLowLatIndex
+
+
+end module testRaiCplInit

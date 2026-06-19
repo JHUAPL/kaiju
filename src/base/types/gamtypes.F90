@@ -104,7 +104,7 @@ module gamtypes
         !Boris correction information
         logical :: doBoris,doHogs
         real(rp) :: cHogH,cHogM !Coefficients for HOGS terms
-        real(rp) :: Ca !Max speed for Boris correction
+        real(rp) :: Ca = 0.0 !Max speed for Boris correction
         
         !Information for static source term
         logical :: doSource = .false.

@@ -5,6 +5,7 @@ module voltappHelper
     use kai2geo
     use mixinterfaceutils
     use tubehelper
+    use arrayutil
     
     implicit none
 

@@ -256,6 +256,7 @@ module dkaurora
       real(rp) :: wMHD,wRCM
       real(rp) :: alpha_loc,beta_loc,gamma_loc
       real(rp) :: dens_loc,csnd_loc,d0_loc
+      logical :: hasMono
 
       if (vars%hemisphere==NORTH) then
          signOfJ = -1
@@ -271,7 +272,7 @@ module dkaurora
       !$OMP private(i,j,D,Cs,Pe,Ne,J2eF0,eV2kT,dE,phi0,kT) &
       !$OMP private(Pe_mhd,Ne_mhd,kT_mhd,phi0_mhd) &
       !$OMP private(Pe_rcm,Ne_rcm,kT_rcm,phi0_rcm) &
-      !$OMP private(wMHD, wRCM) &
+      !$OMP private(wMHD, wRCM, hasMono) &
       !$OMP private(alpha_loc,beta_loc,dens_loc,csnd_loc,d0_loc)
       do j=1,grid%Nt
          do i=1,grid%Np
@@ -322,14 +323,23 @@ module dkaurora
                kT = eTINY
             endif
 
+            hasMono = .false.
+
             aurora%E0  (i,j) = 2.0*kT
             aurora%phi0(i,j) = phi0
+            
             ! Note JF0 may go inf where phi0/Pe_MHD/Ne_MHD is zero.
-            J2eF0 = signOfJ*(vars%FAC(i,j)*1.0D-6)/(eCharge*phi0*1.0D4)
-            ! Linearize the Fridman-Lemaire relation: 
-            ! eV = kB*Te*(RM-1)*ln((RM-1)/(RM-J/e/F0)) when 1<=J/e/F0<=RM.
-            ! eV ~ kB*Te*(J/e/F0-1) when RM>>J/e/F0
-            if (J2eF0>1.0 .and. Ne>Ne_floor) then
+            if (phi0 > TINY) then
+               J2eF0 = signOfJ*(vars%FAC(i,j)*1.0D-6)/(eCharge*phi0*1.0D4)
+               ! Linearize the Fridman-Lemaire relation:
+               ! eV = kB*Te*(RM-1)*ln((RM-1)/(RM-J/e/F0)) when 1<=J/e/F0<=RM.
+               ! eV ~ kB*Te*(J/e/F0-1) when RM>>J/e/F0
+               if (J2eF0>1.0 .and. Ne>Ne_floor) then
+                  hasMono = .true.
+               endif
+            endif
+
+            if (hasMono) then
                dE = kT*(J2eF0-1.0)
                aurora%deltaE(i,j) = dE
                eV2kT = min(dE,maxDrop)/kT + 1.0

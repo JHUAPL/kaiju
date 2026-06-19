@@ -130,7 +130,7 @@ module raijuOut
             maxP_L = sqrt(maxP_Xmin**2 + maxP_Ymin**2)
             maxP_MLT = atan2(maxP_Ymin, maxP_Xmin)/PI*12D0 + 12D0
             if (maxP_MLT > 24) maxP_MLT = maxP_MLT - 24D0
-            write(*,'(a,I0,a,f7.2,a,f7.2,a,f5.2,a,f5.2,a,f7.2)') '        ', &
+            write(*,'(a,I0,a,f7.2,a,f8.2,a,f5.2,a,f5.2,a,f7.2)') '        ', &
                 Grid%spc(s)%flav, ': P =', maxPress,', D =',maxDen,' @ ',maxP_L,' Rp,',maxP_MLT, &
                 " MLT; DPS:",spcEta2DPS(Model, Grid, State%bvol_cc, State%eta_avg, Grid%spc(sIdx), State%active .eq. RAIJUACTIVE)
 

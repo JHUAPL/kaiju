@@ -4,6 +4,7 @@ module raijuDomain
     use raijuTypes
     use raijugrids
     use math
+    use arrayutil
 
     implicit none
 
@@ -41,84 +42,83 @@ module raijuDomain
     end subroutine setActiveDomain
 
 
-    subroutine getInactiveCells_domWeights(Model, Grid, State, isInactive, domWeights)
+    subroutine getInactiveCells_domWeights(Model, Grid, State, isInactive_cc, domWeights_cc)
         type(raijuModel_T), intent(in) :: Model
         type(raijuGrid_T ), intent(in) :: Grid
         type(raijuState_T), intent(in) :: State
-        logical, dimension(Grid%shGrid%isg:Grid%shGrid%ieg,Grid%shGrid%jsg:Grid%shGrid%jeg), intent(inout) :: isInactive
-        real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg,Grid%shGrid%jsg:Grid%shGrid%jeg), intent(inout) :: domWeights
+        logical , dimension(Grid%shGrid%isg:Grid%shGrid%ieg,Grid%shGrid%jsg:Grid%shGrid%jeg), intent(inout) :: isInactive_cc
+        real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg,Grid%shGrid%jsg:Grid%shGrid%jeg), intent(inout) :: domWeights_cc
 
         integer :: i,j
-        !real(rp) :: xyMin
-        real(rp), dimension(2,2) :: rMin22
-        real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg,Grid%shGrid%jsg:Grid%shGrid%jeg) :: vaFrac_cc, bmin_cc
-        real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg,Grid%shGrid%jsg:Grid%shGrid%jeg) :: tmpWeights
-        logical, dimension(Grid%shGrid%isg:Grid%shGrid%ieg,Grid%shGrid%jsg:Grid%shGrid%jeg) :: tmpPass
+        logical , dimension(Grid%shGrid%isg:Grid%shGrid%ieg+1,Grid%shGrid%jsg:Grid%shGrid%jeg+1) :: isInactive_corner
+        real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg+1,Grid%shGrid%jsg:Grid%shGrid%jeg+1) :: domWeights_corner
         integer, dimension(Grid%shGrid%jsg:Grid%shGrid%jeg) :: bndLoc, bndR, bndL
         integer :: n_bndLim, n_contig
         logical, dimension(Grid%shGrid%isg:Grid%shGrid%ieg,Grid%shGrid%jsg:Grid%shGrid%jeg) :: isInactive_tmp
 
-        isInactive = .false.
-        domWeights = 1.0_rp
-        bndLoc     = Grid%shGrid%isg
-        vaFrac_cc  = 0.0_rp
-        bmin_cc    = 0.0_rp
+        isInactive_cc = .false.
+        call fillArray(domWeights_cc, 1.0_rp)
+        bndLoc        = Grid%shGrid%isg
+
+        isInactive_corner = .false.
+        call fillArray(domWeights_corner, 1.0_rp)  ! We default to 1 because we will be multiplying by other weights later
 
         associate(sh=>Grid%shGrid)
 
         ! Start with hard requirement of closed field line
         !$OMP PARALLEL DO default(shared) &
-        !$OMP schedule(dynamic) &
-        !$OMP private(i,j,rMin22)
-        do j=sh%jsg, sh%jeg
-            do i=sh%isg, sh%ieg
-                if (any(State%topo(i:i+1,j:j+1) .eq. RAIJUOPEN)) then
-                    isInactive(i,j) = .true.
-                    domWeights(i,j) = 0.0_rp
+        !$OMP private(i,j)
+        do j=sh%jsg, sh%jeg+1
+            do i=sh%isg, sh%ieg+1
+                if (State%topo(i,j) .eq. RAIJUOPEN) then
+                    isInactive_corner(i,j) = .true.
+                    domWeights_corner(i,j) = 0.0_rp
                     cycle
                 endif
                 
-                bmin_cc(i,j)   = 0.25*(sum(State%Bmin  (i:i+1,j:j+1,ZDIR)))
-                vaFrac_cc(i,j) = 0.25*(sum(State%vaFrac(i:i+1,j:j+1)))
-                
                 ! Also, apply buffer outer boundary constraint
-                !xyMin = sqrt(State%xyzMin(i,j,XDIR)**2 + State%xyzMin(i,j,YDIR)**2)
-                ! Simple circle limit
-                !if ( (xyMin > Model%maxTail_buffer) .or. xyMin > Model%maxSun_buffer) then
-                rMin22 = sqrt(State%xyzMin(i:i+1,j:j+1,XDIR)**2 + State%xyzMin(i:i+1,j:j+1,YDIR)**2)
-                if ( any(rMin22 > Model%maxTail_buffer) .or. any(rMin22 > Model%maxSun_buffer) ) then
-                    isInactive(i,j) = .true.
-                    domWeights(i,j) = 0.0_rp
+                if (State%radMax(i,j) > Model%maxTail_buffer .or. State%radMax(i,j) > Model%maxSun_buffer) then
+                    isInactive_corner(i,j) = .true.
+                    domWeights_corner(i,j) = 0.0_rp
                 endif
             enddo
         enddo
 
-        ! Apply soft/hard limits
-        call evalDomLimits(bmin_cc, Model%lim_bmin_soft    , Model%lim_bmin_hard   , &
-                           .not. isInactive, weights2D=tmpWeights, pass2D=tmpPass)
-        isInactive = isInactive .or. (.not. tmpPass)
-        domWeights = domWeights*tmpWeights
+        call evalDomLimits_corner(State%bmin(:,:,ZDIR), Model%lim_bmin_soft, Model%lim_bmin_hard, &
+                                  isInactive_corner, domWeights_corner)
+        call evalDomLimits_corner(State%vaFrac, Model%lim_vaFrac_soft, Model%lim_vaFrac_hard, &
+                                  isInactive_corner, domWeights_corner)
         
-        call evalDomLimits(vaFrac_cc, Model%lim_vaFrac_soft, Model%lim_vaFrac_hard, &
-                           .not. isInactive, weights2D=tmpWeights, pass2D=tmpPass)
-        isInactive = isInactive .or. (.not. tmpPass)
-        domWeights = domWeights*tmpWeights
-
+        ! We have corner values, compress into cell center values
+        do j=sh%jsg, sh%jeg
+            do i=sh%isg, sh%ieg
+                if ( any(isInactive_corner(i:i+1,j:j+1)) ) then
+                    isInactive_cc(i,j) = .true.
+                    domWeights_cc(i,j) = 0.0_rp
+                else
+                    isInactive_cc(i,j) = .false.
+                    domWeights_cc(i,j) = 0.25*sum(domWeights_corner(i:i+1,j:j+1))
+                endif
+            enddo
+        enddo
 
         ! Now that we applied all criteria, update bndLoc
         do j=sh%jsg, sh%jeg
             do i=sh%isg, sh%ieg
-                if (isInactive(i,j) .and. (i > bndLoc(j))) then
+                if (isInactive_cc(i,j) .and. (i > bndLoc(j))) then
                     bndLoc(j) = i
                 endif
             enddo
         enddo
 
         ! Handle periodic boundary in j direction
-        isInactive(:, sh%jsg:sh%js-1) = isInactive(:, sh%je-sh%Ngw+1:sh%je)
-        isInactive(:, sh%je+1:sh%jeg) = isInactive(:, sh%js:sh%js+sh%Nge-1)
-        bndLoc(sh%jsg:sh%js-1) = bndLoc(sh%je-sh%Ngw+1:sh%je)
-        bndLoc(sh%je+1:sh%jeg) = bndLoc(sh%js:sh%js+sh%Nge-1)
+        !isInactive(:, sh%jsg:sh%js-1) = isInactive(:, sh%je-sh%Ngw+1:sh%je)
+        !isInactive(:, sh%je+1:sh%jeg) = isInactive(:, sh%js:sh%js+sh%Nge-1)
+        call wrapJcc(sh, isInactive_cc)
+        !isInactive(:, sh%jsg:sh%js-1) = isInactive(:, sh%je-sh%Ngw+1:sh%je)
+        !isInactive(:, sh%je+1:sh%jeg) = isInactive(:, sh%js:sh%js+sh%Nge-1)
+        bndLoc(sh%jsg:sh%js-1) = bndLoc(sh%je-sh%Nge+1:sh%je)
+        bndLoc(sh%je+1:sh%jeg) = bndLoc(sh%js:sh%js+sh%Ngw-1)
 
         ! Try to make boundary smooth in ionosphere
         bndL = bndLoc
@@ -134,34 +134,39 @@ module raijuDomain
         do j=sh%je,sh%js, -1
             bndL(j) = max(bndL(j), bndL(j+1)-n_bndLim)
         enddo
-        bndL(sh%isg:sh%is-1) = bndL(sh%is)  ! Extend final left sweep into ghosts
+        bndL(sh%jsg:sh%js-1) = bndL(sh%js)  ! Extend final left sweep into ghosts
         ! Now combine back into bndLoc
         do j=sh%jsg,sh%jeg
             bndLoc(j) = max(bndL(j), bndR(j))
-            isInactive(sh%isg:bndLoc(j), j) = .true.
+            isInactive_cc(sh%isg:bndLoc(j), j) = .true.
         enddo
 
         ! Finally, kick out any stumpy regions
         n_contig=4
-        isInactive_tmp = isInactive
+        isInactive_tmp = isInactive_cc
         do i=sh%isg, sh%ieg-n_contig
             do j=sh%js, sh%je-n_contig
-                if (isInactive(i,j) .and. isInactive(i+n_contig,j)) then
+                if (isInactive_cc(i,j) .and. isInactive_cc(i+n_contig,j)) then
                     isInactive_tmp(i:i+n_contig, j) = .true.
                 endif
-                if (isInactive(i,j) .and. isInactive(i,j+n_contig)) then
+                if (isInactive_cc(i,j) .and. isInactive_cc(i,j+n_contig)) then
                     isInactive_tmp(i,j:j+n_contig) = .true.
                 endif
             enddo
         enddo
-        isInactive = isInactive_tmp
+        isInactive_cc = isInactive_tmp
+
+        call wrapJcc(sh, isInactive_cc)
+        where (isInactive_cc)
+            domWeights_cc = 0.0_rp
+        end where
 
         end associate
 
+
         contains
 
-
-        subroutine evalDomLimits(var, softLim, hardLim, isGood, weights2D, pass2D)
+        subroutine evalDomLimits_cc(var, softLim, hardLim, isGood, weights2D, pass2D)
             real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg,Grid%shGrid%jsg:Grid%shGrid%jeg), intent(in) :: var
             real(rp), intent(in) :: softLim
             real(rp), intent(in) :: hardLim
@@ -193,7 +198,7 @@ module raijuDomain
                 do i=Grid%shGrid%isg, Grid%shGrid%ieg
                     if (abs(weights2D(i,j) - 1.0_rp) < TINY) then
                         pass2D(i,j) = .true.
-                    else if (weights2D(i,j) > TINY .and. notGhost(i,j)) then
+                    else if (weights2D(i,j) > TINY .and. notGhost_corner(i,j)) then
                         ! Give it a second chance based on how good surrounding points are
                         ! (Ghosts don't get second chance, they are full pass or full fail)
                         varSm_pnt = SmoothOperator55(var(i-2:i+2,j-2:j+2), weights2D(i-2:i+2,j-2:j+2) > TINY)
@@ -204,9 +209,66 @@ module raijuDomain
                     endif
                 enddo
             enddo
-        end subroutine evalDomLimits
+        end subroutine evalDomLimits_cc
 
-        function notGhost(i,j)
+
+        subroutine evalDomLimits_corner(var, softLim, hardLim, isInactive, domWeights)
+            real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg+1,Grid%shGrid%jsg:Grid%shGrid%jeg+1), intent(in) :: var
+            real(rp), intent(in) :: softLim
+            real(rp), intent(in) :: hardLim
+            logical , dimension(Grid%shGrid%isg:Grid%shGrid%ieg+1,Grid%shGrid%jsg:Grid%shGrid%jeg+1), intent(inout)  :: isInactive
+            real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg+1,Grid%shGrid%jsg:Grid%shGrid%jeg+1), intent(inout)  :: domWeights
+
+            real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg+1,Grid%shGrid%jsg:Grid%shGrid%jeg+1) :: weights2D
+            logical , dimension(Grid%shGrid%isg:Grid%shGrid%ieg+1,Grid%shGrid%jsg:Grid%shGrid%jeg+1) :: pass2D
+
+            real(rp) :: varSm_pnt
+                !! Smoothed var at point i,j
+            real(rp) wgt_pnt
+                !! Weight after smoothing for point i,j
+
+            do j=Grid%shGrid%jsg, Grid%shGrid%jeg+1
+                do i=Grid%shGrid%isg, Grid%shGrid%ieg+1
+                    if (.not. isInactive(i,j)) then  ! We haven't kicked this point out yet, see if it passes this criteria
+                        weights2D(i,j) = (var(i,j) - hardLim)/(softLim - hardLim)
+                        call ClampValue(weights2D(i,j), 0.0_rp, 1.0_rp)
+                            !! 0 = hard fail, 1 = soft pass, in between = hard pass soft fail
+                            !! Gives the behavior we want for both var < soft < hard and var > soft > hard
+                    endif
+                enddo
+            enddo
+
+            pass2D = .false.
+            do j=Grid%shGrid%jsg, Grid%shGrid%jeg+1
+                do i=Grid%shGrid%isg, Grid%shGrid%ieg+1
+                    ! Now that we have everyone's weights, see if smoothing can save some points
+                    if (abs(weights2D(i,j) - 1.0_rp) < TINY) then
+                        pass2D(i,j) = .true.
+                    else if (weights2D(i,j) > TINY .and. notGhost_corner(i,j)) then
+                        ! Give it a second chance based on how good surrounding points are
+                        ! (Ghosts don't get second chance, they are full pass or full fail)
+                        varSm_pnt = SmoothOperator55(var(i-2:i+2,j-2:j+2), weights2D(i-2:i+2,j-2:j+2) > TINY)
+                        wgt_pnt = (varSm_pnt - hardLim)/(softLim - hardLim)
+                        if (abs(wgt_pnt - 1.0_rp) < TINY) then
+                            pass2D(i,j) = .true.
+                        endif
+                    endif
+
+                    ! Weights and pass are defined, apply them to the overall active and weights arrays provided
+                    if (.not. pass2D(i,j)) then
+                        isInactive(i,j) = .true.
+                    endif
+                    if (.not. isInactive(i,j)) then
+                        domWeights(i,j) = domWeights(i,j) * weights2D(i,j)
+                    endif
+
+                enddo
+            enddo
+
+        end subroutine evalDomLimits_corner
+
+
+        function notGhost_cc(i,j) result(notGhost)
             integer, intent(in) :: i,j
             logical :: notGhost
             if ( (i >= Grid%shGrid%is) .and. (i <= Grid%shGrid%ie) .and. (j >= Grid%shGrid%js) .and. (j <= Grid%shGrid%je)) then
@@ -214,7 +276,18 @@ module raijuDomain
             else
                 notGhost = .false.
             endif
-        end function notGhost
+        end function notGhost_cc
+
+
+        function notGhost_corner(i,j) result(notGhost)
+            integer, intent(in) :: i,j
+            logical :: notGhost
+            if ( (i >= Grid%shGrid%is) .and. (i <= Grid%shGrid%ie+1) .and. (j >= Grid%shGrid%js) .and. (j <= Grid%shGrid%je+1)) then
+                notGhost = .true.
+            else
+                notGhost = .false.
+            endif
+        end function notGhost_corner
 
 
     end subroutine getInactiveCells_domWeights
@@ -399,9 +472,9 @@ module raijuDomain
         ! As a first pass, we will blanket enforce that there must always be nB buffer between any inactive and active cells
         ! We can do more complex stuff later
 
-        call CalcOCBDist(Grid%shGrid, isInactive, Grid%nB, ocbDist)
+        call CalcOCBDist(Grid%shGrid, isInactive, Grid%nBufferCells, ocbDist)
 
-        where (ocbDist > 0 .and. ocbDist .le. Grid%nB)
+        where (ocbDist > 0 .and. ocbDist .le. Grid%nBufferCells)
             isBuffer = .true.
         elsewhere
             isBuffer = .false.
@@ -411,9 +484,8 @@ module raijuDomain
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
                 if (ocbDist(i,j) > 0) then  !! OCBdist will be zero in inactive zone, we want to avoid editing those cells
-                    xyMin = sqrt(State%xyzMin(i,j,XDIR)**2 + State%xyzMin(i,j,YDIR)**2)
                     ! Simple circle limit
-                    if ( (xyMin > Model%maxTail_active) .or. xyMin > Model%maxSun_active) then
+                    if ( any(State%radMax(i:i+1,j:j+1) > Model%maxTail_active) .or. any(State%radMax(i:i+1,j:j+1) > Model%maxSun_active)) then
                         isBuffer(i,j) = .true.
                     endif
                 endif
@@ -468,6 +540,8 @@ module raijuDomain
                 enddo
             enddo
         enddo
+
+        call wrapJcc(sh, ocbDist)
         
     end subroutine CalcOCBDist
 
@@ -496,7 +570,7 @@ module raijuDomain
                 !            - (bMin(i,j+1,dim) + bMin(i,j,dim))) /  Grid%lenFace(i,j,RAI_PH)
                 !    ddTheta = ddtheta + aij**2
                 !enddo
-!
+                !
                 !ddPhi = 0.0
                 !do dim=1,3
                 !    aij = 0.5*(bMin(i+1,j+1,dim) + bMin(i,j+1,dim) \
@@ -583,24 +657,61 @@ module raijuDomain
         type(raijuState_T), intent(in) :: State
         integer, dimension(Grid%shGrid%isg:Grid%shGrid%ieg,Grid%shGrid%jsg:Grid%shGrid%jeg), intent(inout) :: active
 
-        integer :: i,j
-        real(rp) :: rad_next
+        integer :: i,j, iWalk
+        integer :: iBufStart, iActStart
+        real(rp) :: radL, radR
 
+        !$OMP PARALLEL DO default(shared) &
+        !$OMP private(i,j,radL,radR,iWalk,iBufStart,iActStart)
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
-            i = Grid%shGrid%ie
-            rad_next = sqrt(State%xyzMincc(i-1,j,XDIR)**2 + State%xyzMincc(i-1,j,YDIR)**2)
-            do while(rad_next < Model%activeDomRad)
-                i = i - 1
-                rad_next = sqrt(State%xyzMincc(i-1,j,XDIR)**2 + State%xyzMincc(i-1,j,YDIR)**2)
+            do i=Grid%shGrid%ie,Grid%shGrid%is,-1
+
+                radL = State%radMax(i,j)
+                radR = State%radMax(i,j+1)
+                if (radL > Model%activeDomRad .or. radR > Model%activeDomRad) then
+                    ! Out of our jurisdiction, pass on this j
+                    exit
+                endif
+
+                ! Otherwise, inspect
+                if (State%active(i,j) .eq. RAIJUACTIVE) then
+                    ! This i,j is clear
+                    cycle
+                endif
+
+                ! If still here, we are inside activeDomRad and found the first cell in this j-column
+                ! that was not marked ACTIVE by the stricter domain logic. Push the inactive/buffer
+                ! boundary poleward as far as we safely can, but never let BUFFER or ACTIVE include a
+                ! cell whose corners touch open topology.
+                if (any(State%topo(i:i+1,j:j+1) .eq. RAIJUOPEN)) then
+                    ! This cell itself violates the hard topology rule, so there is nothing to recover here.
+                    exit
+                endif
+
+                iWalk = i
+                do while (iWalk > Grid%shGrid%is)
+                    radL = State%radMax(iWalk-1,j)
+                    radR = State%radMax(iWalk-1,j+1)
+
+                    if (radL > Model%activeDomRad .or. radR > Model%activeDomRad) exit
+                    if (any(State%topo(iWalk-1:iWalk,j:j+1) .eq. RAIJUOPEN)) exit
+
+                    iWalk = iWalk - 1
+                enddo
+
+                ! iWalk is now the poleward-most cell we are allowed to keep non-inactive.
+                iBufStart = iWalk
+                iActStart = iBufStart + Grid%nBufferCells
+                active(Grid%shGrid%isg:iBufStart-1, j) = RAIJUINACTIVE
+                if (min(iActStart-1, Grid%shGrid%ieg) >= iBufStart) then
+                    active(iBufStart:min(iActStart-1, Grid%shGrid%ieg), j) = RAIJUBUFFER
+                endif
+                if (iActStart <= Grid%shGrid%ieg) then
+                    active(iActStart:Grid%shGrid%ieg, j) = RAIJUACTIVE
+                endif
+                ! We are done for this j now
+                exit
             enddo
-            ! i is now the last cell in this j within activeDomRad
-            if (State%active(i,j) .ne. RAIJUACTIVE) then
-                ! Something bad happened, active domain is really small
-                ! Throw caution to the wind and make it active anyways, good luck everybody
-                active(i              :Grid%shGrid%ieg ,j) = RAIJUACTIVE
-                active(i-Grid%nB-1    :i-1             ,j) = RAIJUBUFFER
-                active(Grid%shGrid%isg:i-Grid%nB-2     ,j) = RAIJUINACTIVE
-            endif
         enddo
 
     end subroutine forceActiveWithinRadius
