@@ -12,7 +12,7 @@ module shellMixMap
 
     implicit none
     private
-    public :: mix_to_shell_set_map, shell_to_mix_set_map, mix_to_coords_set_map
+    public :: shell_to_mix_set_map, mix_to_coords_set_map
 
     contains
 
@@ -100,70 +100,7 @@ module shellMixMap
     end subroutine shell_interpolant
 
 
-    ! Build bilinear map from mix source G1 onto destination shGr active
-    ! corner points. Line-for-line port of mix_set_map with destination
-    ! coords read from shGr%ph(1D), shGr%th(1D) instead of G2%p/G2%t.
-    !
-    ! Map dimensions: (shGr%Np+1, shGr%Nt+1) — one entry per destination
-    ! shell corner, laid out phi-first to keep mix_map_grids usable.
-    subroutine mix_to_shell_set_map(G1, shGr, Map)
-        type(mixGrid_T),   intent(in)  :: G1
-        type(ShellGrid_T), intent(in)  :: shGr
-        type(Map_T),       intent(out) :: Map
-        real(rp), dimension(4) :: x
-        real(rp) :: p2, t2
-        integer :: i1, j1, i2, j2
-        integer :: Np_dst, Nt_dst
-        integer :: is_, js_
-
-        is_ = shGr%is
-        js_ = shGr%js
-        Np_dst = shGr%Np + 1
-        Nt_dst = shGr%Nt + 1
-
-        if (.not. allocated(Map%M))  allocate(Map%M (Np_dst, Nt_dst, 4))
-        if (.not. allocated(Map%I1)) allocate(Map%I1(Np_dst, Nt_dst))
-        if (.not. allocated(Map%J1)) allocate(Map%J1(Np_dst, Nt_dst))
-
-        do i2 = 1, Nt_dst
-            t2 = shGr%th(is_ + i2 - 1)
-            do j2 = 1, Np_dst
-                p2 = shGr%ph(js_ + j2 - 1)
-
-                call mix_search(G1, p2, t2, j1, i1)
-                Map%I1(j2, i2) = i1
-                Map%J1(j2, i2) = j1
-                x = (/ 1.0_rp, p2, t2, p2*t2 /)
-
-                ! outside source theta range
-                if (i1 == 0 .or. i1 == G1%Nt) then
-                    Map%M(j2, i2, :) = 0.0_rp
-                    cycle
-                endif
-
-                ! non-periodic source phi edge
-                if (.not. G1%isPeriodic .and. (j1 == 0 .or. j1 == G1%Np)) then
-                    Map%M(j2, i2, :) = 0.0_rp
-                    cycle
-                endif
-
-                ! poles
-                if ((i1 == 1) .and. (G1%t(1, 1) < TINY)) then
-                    Map%M(j2, i2, :) = 1.0_rp/3.0_rp * (/ 0.5_rp, 0.5_rp, 1.0_rp, 1.0_rp /)
-                else if ((i1 == G1%Nt - 1) .and. ((PI - G1%t(1, G1%Nt-1)) < TINY)) then
-                    Map%M(j2, i2, :) = 1.0_rp/3.0_rp * (/ 1.0_rp, 1.0_rp, 0.5_rp, 0.5_rp /)
-                else
-                    Map%M(j2, i2, :) = matmul(G1%Interpolant(j1, i1, :, :), x)
-                endif
-            enddo
-        enddo
-
-        Map%M = max(Map%M, 0.0_rp)
-        Map%M = min(Map%M, 1.0_rp)
-    end subroutine mix_to_shell_set_map
-
-
-    ! Like mix_to_shell_set_map but destination coords are supplied as
+    ! Builds a mix-source bilinear map, but destination coords are supplied as
     ! explicit 2D arrays (destP, destT) in mix layout (Np_dst, Nt_dst)
     ! instead of being read from a ShellGrid_T. Used by gam2shell to
     ! drive the interpolation in Gamera's flipped (x-polar) frame: the
