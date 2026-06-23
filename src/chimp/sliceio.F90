@@ -10,10 +10,12 @@ module sliceio
     use plasmaputils
     use parintime
 
+    use volttypes
+
     implicit none
 
     character(len=strLen) :: ebOutF
-    integer, parameter :: MAXEBVS = 60
+    integer, parameter :: MAXEBVS = 80
     !Parameters for output EB grid (2D equatorial)
     !Fixme: Clean up and generalize
     integer  :: Nx1 = 128, Nx2 = 256
@@ -240,7 +242,7 @@ module sliceio
 
         type(IOVAR_T), dimension(MAXEBVS) :: IOVars
         real(rp), dimension(:,:,:,:), allocatable :: Q
-        real(rp), dimension(:,:,:), allocatable :: dB2D,E2D,J2D,Vr
+        real(rp), dimension(:,:,:), allocatable :: dB2D,E2D,J2D,Vr,Src
         real(rp), dimension(:,:), allocatable :: Lb,LbXY,dLpp,rCurv
 
         integer :: i,j,s
@@ -249,6 +251,7 @@ module sliceio
         real(rp), dimension(NVARMHD,0:Model%nSpc) :: Qij
         type(gcFields_T) :: gcFieldsP,gcFieldsM,gcFieldsEq
         real(rp), dimension(NDIM,NDIM) :: jB
+        real(rp), dimension(NVARVOLTSRC) :: SrcijkP,SrcijkM
         character(len=strLen) :: dID,pID,vxID,vyID,vzID,vrID
 
         real(rp) :: oJScl
@@ -264,6 +267,7 @@ module sliceio
         allocate(Lb  (Nx1,Nx2))
         allocate(LbXY(Nx1,Nx2))
         allocate(rCurv(Nx1,Nx2))
+        if(Model%doReadSrc) allocate(Src(Nx1,Nx2,NVARVOLTSRC))
 
 
         if (Model%doTrc) then
@@ -289,7 +293,7 @@ module sliceio
         endif
         !$OMP PARALLEL DO default(shared) collapse(2) &
         !$OMP schedule(dynamic) &
-        !$OMP private(i,j,xp,xm,Bp,Bm,Ep,Em,dB,Qij,gcFieldsP,gcFieldsM,jB,MagB,MagJ,B)
+        !$OMP private(i,j,xp,xm,Bp,Bm,Ep,Em,dB,Qij,gcFieldsP,gcFieldsM,jB,MagB,MagJ,B,SrcijkP,SrcijkM)
         do j=1,Nx2
             do i=1,Nx1
                 !Straddle slice plane
@@ -302,8 +306,14 @@ module sliceio
                     xm = [xxc(i,j),y0-dSlc,yyc(i,j)]
                 endif
 
-                call ebFields(xp,Model%t,Model,ebState,Ep,Bp,gcFields=gcFieldsP)
-                call ebFields(xm,Model%t,Model,ebState,Em,Bm,gcFields=gcFieldsM)
+                if(Model%doReadSrc) then
+                    call ebFields(xp,Model%t,Model,ebState,Ep,Bp,gcFields=gcFieldsP,src=SrcijkP)
+                    call ebFields(xm,Model%t,Model,ebState,Em,Bm,gcFields=gcFieldsM,src=SrcijkM)
+                    Src(i,j,:) = 0.5*(SrcijkP + SrcijkM)
+                else
+                    call ebFields(xp,Model%t,Model,ebState,Ep,Bp,gcFields=gcFieldsP)
+                    call ebFields(xm,Model%t,Model,ebState,Em,Bm,gcFields=gcFieldsM)
+                endif
 
                 jB = 0.5*(gcFieldsP%JacB + gcFieldsM%JacB)
 
@@ -442,6 +452,19 @@ module sliceio
                 call AddOutVar(IOVars,dID  ,       Q(:,:,DEN,s)     ,uStr="#/cc")
                 call AddOutVar(IOVars,pID  ,       Q(:,:,PRESSURE,s),uStr="nPa" )
             enddo
+        endif
+
+        if (Model%doReadSrc) then
+            call AddOutVar(IOVars, "SrcX1"    , Src(:,:,PROJLAT  ))
+            call AddOutVar(IOVars, "SrcX2"    , Src(:,:,PROJLON  ))
+            call AddOutVar(IOVars, "SrcIONEx" , Src(:,:,IONEX    ))
+            call AddOutVar(IOVars, "SrcIONEy" , Src(:,:,IONEY    ))
+            call AddOutVar(IOVars, "SrcIONEz" , Src(:,:,IONEZ    ))
+            call AddOutVar(IOVars, "SrcD_RING", Src(:,:,IM_D_RING))
+            call AddOutVar(IOVars, "SrcP_RING", Src(:,:,IM_P_RING))
+            call AddOutVar(IOVars, "SrcD_COLD", Src(:,:,IM_D_COLD))
+            call AddOutVar(IOVars, "SrcP_COLD", Src(:,:,IM_P_COLD))
+            call AddOutVar(IOVars, "SrcDT"    , Src(:,:,IM_TSCL  ))
         endif
 
         call WriteVars(IOVars,.true.,ebOutF,gStr)

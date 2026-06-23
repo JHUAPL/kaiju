@@ -186,6 +186,14 @@ module volttypes
             !! [hr] phi/MLT-direction smoothing scale for mhd ingestion timescale
         logical :: doWolfLim = .true.
             !! Whether or not to apply beta-based Wolf limiting when passing moments to MHD
+        character(len=strLen) :: tsclMHD_option
+            !! Variable to help us determine which method for calculating MHD ingestion timescale we wanna use
+        real(rp) :: tsclMHD_vaFrac_min = 0.4_rp
+            !! In bounce_wimag option, vaFrac at or below this gets the full maxScale multiplier
+        real(rp) :: tsclMHD_vaFrac_max = 0.9_rp
+            !! In bounce_wimag option, How good does vaFrac need to be for us to scale by 1?
+        real(rp) :: tsclMHD_maxScale = 2.0_rp
+            !! In bounce_wimag option, maximum factor by which low vaFrac can increase Tb-based tscl
 
         ! --- Calculated settings --- !
         integer :: iFirstCellInGamGhost
