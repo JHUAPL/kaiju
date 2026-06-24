@@ -406,7 +406,7 @@ module volttypes
         logical  :: doQkSquish = .false. !Whether or not to do fast squishing
         integer  :: qkSquishStride = 2 ! Stride to use when fast squishing
         logical  :: doGCM = .false.
-        integer  :: imagSrcNQuad = 0
+        integer  :: imagSrcNQuad = 3
             !! Number of IMAG->MHD source quadrature points per projected-cell direction.
             !! 0 preserves the legacy cell-center source sampling.
 

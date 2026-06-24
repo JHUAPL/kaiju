@@ -98,9 +98,6 @@ module shellGridIO
             gStr = "/ShellGrid"
         endif
         
-        ! No name reads yet cause we can't read strings. 
-        ! Also makes it tricky to properly do child grids, so that's not an option right now
-        
 
         call AddInVar(IOVars, "name",vTypeO=IOSTR)
         call AddInVar(IOVars, "radius")
