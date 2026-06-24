@@ -90,7 +90,7 @@ module gamCouple_mpi_V2G
         type(XML_Input_T), intent(inout) :: Xml
 
         integer :: commSize, ierr, numCells, length, ic, numInNeighbors, numOutNeighbors
-        integer :: poolRank, poolSize, splitKey
+        integer :: poolRank, worldSize, splitKey
         type(MPI_Comm) :: voltComm
         integer :: gamNRES
         character( len = MPI_MAX_ERROR_STRING) :: message
@@ -114,8 +114,8 @@ module gamCouple_mpi_V2G
 
         ! Force Voltron to the highest rank in voltComm so downstream rank assumptions hold.
         call MPI_Comm_rank(App%gOptionsCplMpiV%couplingPoolComm, poolRank, ierr)
-        call MPI_Comm_Size(App%gOptionsCplMpiV%couplingPoolComm, poolSize, ierr)
-        splitKey = poolSize + poolRank
+        call MPI_Comm_Size(MPI_COMM_WORLD, worldSize, ierr)
+        splitKey = worldSize + poolRank
         ! split couplingPoolComm into a communicator with only the non-helper voltron rank and Gamera ranks
         call voltronSplitWithApp(App%gOptionsCplMpiV%couplingPoolComm, gamId, splitKey, voltComm)
 
