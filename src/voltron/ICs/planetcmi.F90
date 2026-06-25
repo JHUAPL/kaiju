@@ -2,6 +2,7 @@
 
 module uservoltic
 	use gamtypes
+    use volttypes, only: IONO_EX,IONO_EY,IONO_EZ
 	use gamdebug
 	use cmidefs
 	use gamutils
@@ -202,7 +203,7 @@ module uservoltic
             PsiShells = PsiSh !Coming from cmidefs
 
             !Create holders for coupling electric field
-            allocate(bc%inExyz(1:PsiShells  ,Grid%jsg:Grid%jeg  ,Grid%ksg:Grid%keg  ,1:NDIM))
+            allocate(bc%inExyz(1:PsiShells  ,Grid%jsg:Grid%jeg  ,Grid%ksg:Grid%keg  ,1:Model%nvInExyz))
             allocate(bc%inEijk(1:PsiShells+1,Grid%jsg:Grid%jeg+1,Grid%ksg:Grid%keg+1,1:NDIM))
             bc%inExyz = 0.0
             bc%inEijk = 0.0
@@ -265,7 +266,9 @@ module uservoltic
                         !Get dipole value
                         Bd = VecDipole(Grid%xyzcc(idip,jp,kp,:))
                         !Get remix field
-                        Exyz = bc%inExyz(np,jp,kp,:)
+                        Exyz(IONO_EX) = bc%inExyz(np,jp,kp,IONO_EX)
+                        Exyz(IONO_EY) = bc%inExyz(np,jp,kp,IONO_EY)
+                        Exyz(IONO_EZ) = bc%inExyz(np,jp,kp,IONO_EZ)
 
                         !ExB velocity
                         Veb = cross(Exyz,Bd)/dot_product(Bd,Bd)
@@ -527,4 +530,3 @@ module uservoltic
     end subroutine RampSpin
     
 end module uservoltic
-

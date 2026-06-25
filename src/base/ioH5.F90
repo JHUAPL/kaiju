@@ -68,6 +68,59 @@ contains
         call WriteVars(IOVars,.true.,fIn,doStampCheckO=.false.)
     end subroutine StampIO
 
+    !> Preserve the original XML input deck as a root attribute if missing.
+    subroutine StampXmlInput(fIn,xmlIn)
+        character(len=*), intent(in) :: fIn, xmlIn
+
+        character(len=:), allocatable :: xmlStr
+        integer :: herr
+        integer(HID_T) :: h5fId
+
+        if (ioExist(fIn,"xmlinput")) return
+
+        call ReadFileString(xmlIn,xmlStr)
+
+        call h5open_f(herr)
+        call h5fopen_f(trim(fIn), H5F_ACC_RDWR_F, h5fId, herr)
+        if (herr /= 0) then
+            write(*,*) 'Unable to open HDF5 output file to stamp xmlinput: ', trim(fIn)
+            stop
+        endif
+
+        call writeString2HDF(h5fId,"xmlinput",xmlStr,doTrimO=.false.)
+
+        call h5fclose_f(h5fId,herr)
+        call h5close_f(herr)
+    end subroutine StampXmlInput
+
+    !> Read a file exactly as one string for provenance stamping.
+    subroutine ReadFileString(fIn,fileStr)
+        character(len=*), intent(in) :: fIn
+        character(len=:), allocatable, intent(out) :: fileStr
+
+        integer :: fSize, fid, ios
+
+        call CheckFileOrDie(fIn,"Unable to open input deck for xmlinput HDF5 attribute")
+        inquire(file=trim(fIn),size=fSize)
+        if (fSize <= 0) then
+            allocate(character(len=0) :: fileStr)
+            return
+        endif
+
+        allocate(character(len=fSize) :: fileStr)
+        open(newunit=fid,file=trim(fIn),status='old',action='read',access='stream',form='unformatted',iostat=ios)
+        if (ios /= 0) then
+            write(*,*) 'Unable to open input deck for xmlinput HDF5 attribute: ', trim(fIn)
+            stop
+        endif
+        read(fid,iostat=ios) fileStr
+        close(fid)
+        if (ios /= 0) then
+            write(*,*) 'Unable to read input deck for xmlinput HDF5 attribute: ', trim(fIn)
+            stop
+        endif
+    end subroutine ReadFileString
+
     ! -------------------------------------------   
     ! Various routines to quickly pull scalars from IOVar_T
     !
@@ -1186,25 +1239,44 @@ contains
 
     !> Write a string to HDF group 
     !> as an attribute
-    subroutine writeString2HDF(gId,vId,data)
+    subroutine writeString2HDF(gId,vId,data,doTrimO)
         integer(HID_T), intent(in) :: gId
         character(len=*),intent(in) :: vId
         character(len=*), intent(in) :: data        
+        logical, intent(in), optional :: doTrimO
         integer(HID_T) :: dspcId, atId, strId
         integer(HSIZE_T), dimension(1) :: dims
+        integer(SIZE_T) :: strSize
         integer :: herror
+        logical :: doTrim
 
-        dims(1) = len(trim(data))
+        if (present(doTrimO)) then
+            doTrim = doTrimO
+        else
+            doTrim = .true.
+        endif
+
+        if (doTrim) then
+            strSize = len(trim(data))
+        else
+            strSize = len(data)
+        endif
+        strSize = max(strSize,1_SIZE_T)
+        dims(1) = int(strSize,HSIZE_T)
 
         !Create data space/string type
         call h5screate_f(H5S_SCALAR_F, dspcId, herror)
         call h5tcopy_f(H5T_FORTRAN_S1,strId,herror)
-        call h5tset_size_f(strId,dims(1),herror)
+        call h5tset_size_f(strId,strSize,herror)
     
         !Create attribute and write data
         call h5acreate_f(loc_id=gId, name=vId, type_id=strId, space_id=dspcId, attr_id=atId,hdferr=herror )
     
-        call h5awrite_f(atId, strId, trim(data), dims, herror)
+        if (doTrim) then
+            call h5awrite_f(atId, strId, trim(data), dims, herror)
+        else
+            call h5awrite_f(atId, strId, data, dims, herror)
+        endif
     
         !Close up shop
         call h5aclose_f(atId, herror)
