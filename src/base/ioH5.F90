@@ -467,7 +467,7 @@ contains
                         write(*,*) 'Unable to read attribute "',trim(IOVars(n)%idStr),'" as a hyperslab'
                         stop
                     else
-                        call ReadHDFAtt(IOVars(n),inId,gStr,h5fId)
+                        call ReadHDFAtt(IOVars(n),inId,gStr)
                     endif
                 endif
 
@@ -613,11 +613,10 @@ contains
 
     !FIXME: Add scaling to attributes
     !> Read an HDF attribute from a group
-    subroutine ReadHDFAtt(IOVar,gId,gStr,fId)
+    subroutine ReadHDFAtt(IOVar,gId,gStr)
         type(IOVAR_T), intent(inout) :: IOVar
         integer(HID_T), intent(in) :: gId
         character(len=*) :: gStr
-        integer(HID_T), intent(in) :: fId
 
         integer :: herr
         real(rp) :: X
@@ -635,7 +634,7 @@ contains
         case(IOINT)
             IOVar%data(1) = 1.0*readIntHDF(gId,trim(IOVar%idStr))
         case(IOSTR)
-            IOVar%dStr = readStrHDF(fId,trim(gStr),trim(IOVar%idStr))
+            IOVar%dStr = readStrHDF(gId,trim(gStr),trim(IOVar%idStr))
             !write(*,*) 'Read HDF string not implemented'
             !stop
         case default
@@ -1364,9 +1363,9 @@ contains
             vDef = ""
         endif
 
-        call h5aexists_by_name_f(gID,trim(vId),trim(attrName),aExists,herror)
+        call h5aexists_by_name_f(gID,'.',trim(attrName),aExists,herror)
         if (aExists) then
-            call h5ltget_attribute_string_f(gID,trim(vId),trim(attrName),vOut,herror)
+            call h5ltget_attribute_string_f(gID,'.',trim(attrName),vOut,herror)
         else
             vOut = vDef
         endif

@@ -141,6 +141,8 @@ submodule (volttypes) raijuCplTypesSub
         p_hot = 0.0_rp
         dTot_hot_amu = 0.0_rp  ! mass density in amu/cc
         dTot_hot_num = 0.0_rp  ! number density in #/cc
+        d_hot_num_s  = 0.0_rp  ! per-species hot number density
+        dEle_num = 0.0_rp  ! electron number density
 
         ! Is this a good point?
         if (th < sh%minTheta) then

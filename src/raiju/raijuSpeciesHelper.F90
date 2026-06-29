@@ -123,7 +123,7 @@ module raijuSpeciesHelper
         do i=1,Grid%nSpc 
             associate(spc=>Grid%spc(i))
 
-            write(gStr, '(A,I0)') "Species/",i-1  ! Species indexing in config starts at 0
+            write(gStr, '(A,I0)') "/Species/",i-1  ! Species indexing in config starts at 0
             if(.not. ioExist(configfname, gStr)) then
                 write(*,*) "ERROR in raijuSpeciesHelper.F90:populateSpeciesFromConfig"
                 write(*,'(A,I0,A,I0)') "  Expected ",Grid%nSpc," species but only found ",i-1
@@ -193,6 +193,7 @@ module raijuSpeciesHelper
             write(*,*)" # nuc_p:      ", spc%numNuc_p
             write(*,*)" # nuc_n:      ", spc%numNuc_n
             write(*,*)" q:            ", spc%q
+            write(*,*)" amu:          ", spc%amu
             write(*,*)" spcType:      ", spc%spcType
             write(*,*)" Fudge:        ", spc%fudge
             write(*,*)" kStart:       ", spc%kStart
