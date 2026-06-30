@@ -75,6 +75,7 @@ module gamCouple_mpi_G2V
         type(XML_Input_T), intent(inout) :: Xml
 
         integer :: length, commSize, ierr, numCells, dataCount, numInNeighbors, numOutNeighbors
+        integer :: poolRank, splitKey
         type(MPI_Comm) :: voltComm
         character( len = MPI_MAX_ERROR_STRING) :: message
         logical :: reorder, wasWeighted
@@ -88,9 +89,12 @@ module gamCouple_mpi_G2V
         App%couplingComm = MPI_COMM_NULL
         App%zeroArraytypes(:) = (/ MPI_INTEGER /) ! = (/ MPI_DATATYPE_NULL /)
 
+        ! Keep Gamera ranks ordered before Voltron in voltComm.
+        call MPI_Comm_rank(App%gOptionsCplMpiG%couplingPoolComm, poolRank, ierr)
+        splitKey = poolRank
         ! split voltron helpers off of the communicator
         ! split couplingPoolComm into a communicator with only the non-helper voltron rank
-        call appWaitForVoltronSplit(App%gOptionsCplMpiG%couplingPoolComm, gamId, 0, voltComm)
+        call appWaitForVoltronSplit(App%gOptionsCplMpiG%couplingPoolComm, gamId, splitKey, voltComm)
 
         call Xml%Set_Val(App%doDeep, "/kaiju/voltron/coupling/doDeep", .true.)
 
@@ -503,4 +507,3 @@ module gamCouple_mpi_G2V
     end subroutine
 
 end module
-

@@ -3,6 +3,7 @@
 program voltron_mpix
     use clocks
     use gamCouple_mpi_G2V
+    use coupled_layout_mpi
     use voltapp_mpi
     use couplingHelpers
     use output
@@ -28,6 +29,7 @@ program voltron_mpix
     integer(KIND=MPI_AN_MYADDR) :: tagMax
     logical :: tagSet
     type(XML_Input_T) :: xmlInp
+    type(coupledLayout_T) :: mpiLayout
     real(rp) :: nextDT
     integer :: divideSize,i
     logical :: doResetClocks = .false.
@@ -80,20 +82,27 @@ program voltron_mpix
     write(*,*) 'Reading input deck from ', trim(inpXML)
     xmlInp = New_XML_Input(trim(inpXML),'Kaiju',.true.)
 
-    ! need to know how many voltron helpers there are
-    call getIDeckStr(inpXML)
+    ! are helpers being used
     call ReadXmlImmediate(trim(inpXML),'/Kaiju/Voltron/Helpers/useHelpers',helpersBuf,'F',.false.)
     read(helpersBuf,*) useHelpers
-    call ReadXmlImmediate(trim(inpXML),'/Kaiju/Voltron/Helpers/numHelpers',helpersBuf,'0',.false.)
-    read(helpersBuf,*) numHelpers
-    if(.not. useHelpers) numHelpers = 0
 
-    if(worldRank .gt. (worldSize-1-numHelpers)) then
-        appId = helperId
-    elseif(worldRank .eq. worldSize-1-numHelpers) then
-        appId = voltId
+    call initVoltronCoupledLayout(xmlInp, worldSize, mpiLayout)
+
+    if(mpiLayout%hasCustomLayout) then
+        call getLayoutAppId(mpiLayout, worldRank, appId)
     else
-        appId = gamId
+        ! need to know how many voltron helpers there are
+        call ReadXmlImmediate(trim(inpXML),'/Kaiju/Voltron/Helpers/numHelpers',helpersBuf,'0',.false.)
+        read(helpersBuf,*) numHelpers
+        if(.not. useHelpers) numHelpers = 0
+
+        if(worldRank .gt. (worldSize-1-numHelpers)) then
+            appId = helperId
+        elseif(worldRank .eq. worldSize-1-numHelpers) then
+            appId = voltId
+        else
+            appId = gamId
+        endif
     endif
     ! every app splits into their own comunicator
     call MPI_COMM_SPLIT(MPI_COMM_WORLD, appId, 0, appComm, ierror)
@@ -298,4 +307,3 @@ program voltron_mpix
     
 
 end program voltron_mpix
-
