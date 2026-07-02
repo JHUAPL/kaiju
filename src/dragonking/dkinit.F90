@@ -38,6 +38,10 @@ module dkinit
       call initDKparams(dkApp%params, inpXML)
       call initDKvars(dkApp%aurora, dkApp%conductance, dkApp%vars, dkApp%grid)
 
+      ! Cold-start for the conductance EMA: begin from the const_sigma reference
+      dkApp%vars%SigmaP = dkApp%params%ped0
+      dkApp%vars%SigmaH = 0.0_rp
+
       dkApp%params%R = dkApp%grid%radius
       dkApp%aurora%alpha_RCM = 1.0/(def_tiote+1.0)
       dkApp%aurora%beta_RCM = dkApp%params%beta

@@ -420,6 +420,8 @@ module voltapp
         !DragonKing-on-shell: DK grid from the voltron shell, then model init
         call initDKgrid(vApp%dkApp, vApp%shGrid)
         call vApp%dkApp%InitModel(xmlInp)
+        ! DK IO: cache <RunID>.dk.h5, seed the EMA on restart, write grid to root
+        call vApp%dkApp%InitIO(xmlInp)
         call init_imag2shell(vApp%imag2shell, vApp%shGrid)   ! IMAG precip staging on the shell
 
         ! Per-model coupler init behind the ionoCoupler contract (REMIX/SMITE-specific:

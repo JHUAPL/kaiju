@@ -48,6 +48,7 @@ module dktypes
   type dkIO_T
     ! IO parameters
     real(rp) :: time, mjd, tilt
+    character(len=strLen) :: RunID = ""   ! run tag for native DK restart/output filenames
     real(rp), dimension(:,:), allocatable :: x,y
     real(rp), dimension(:,:,:,:), allocatable :: vars !(Np,Nt,Nvars,Nhemispheres)
   end type dkIO_T

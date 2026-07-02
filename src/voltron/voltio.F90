@@ -206,6 +206,8 @@ module voltio
         if (vApp%writeFiles) then
             ! IO%mjd and IO%time are set in fromIono — no extra setup needed
             call vApp%ionoApp%WriteRestart(vApp%IO%nRes)
+            !Write DragonKing conductance restart (native DK shell-grid state)
+            call vApp%dkApp%WriteRestart(vApp%IO%nRes)
             !Write inner mag restart
             if (vApp%doDeep) then
                 !call vApp%imagApp%doRestart(vApp%IO%nRes,vApp%MJD,vApp%time)
@@ -369,6 +371,9 @@ module voltio
         if(vApp%writeFiles) then
             !Write ionosphere data (REMIX or other iono model)
             call vApp%ionoApp%WriteFileOutput(vApp%IO%nOut)
+
+            !Write DragonKing conductance/precip on the shell grid
+            call vApp%dkApp%WriteFileOutput(vApp%IO%nOut)
 
             !Write inner mag IO if needed
             if (vApp%doDeep) then
