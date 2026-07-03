@@ -40,7 +40,7 @@ module voltapp_mpi
         type(MPI_Comm) :: allVoltComm
         character(len=strLen) :: inpXML
         type(XML_Input_T) :: xmlInp
-        integer :: commSize, ierr, numCells, length, ic, b
+        integer :: commSize, ierr, numCells, length, ic, b, poolRank, splitKey
         integer, allocatable, dimension(:) :: neighborRanks, inData, outData
         integer :: nHelpers, gamNRES, commId
         character( len = MPI_MAX_ERROR_STRING) :: message
@@ -73,7 +73,10 @@ module voltapp_mpi
         vApp%vHelpComm = MPI_COMM_NULL
         vApp%vHelpWin = MPI_WIN_NULL
 
-        call voltronSplitWithApp(vApp%vOptionsMpi%couplingPoolComm, helperId, 0, allVoltComm)
+        ! Force Voltron to rank 0 in allVoltComm so existing helper logic stays valid.
+        call MPI_Comm_rank(vApp%vOptionsMpi%couplingPoolComm, poolRank, ierr)
+        splitKey = 0
+        call voltronSplitWithApp(vApp%vOptionsMpi%couplingPoolComm, helperId, splitKey, allVoltComm)
 
         ! get info about voltron-only mpi communicator
         call MPI_Comm_rank(allVoltComm, vApp%vHelpRank, ierr)
@@ -230,7 +233,7 @@ module voltapp_mpi
         type(MPI_Comm) :: allVoltComm
         character(len=strLen) :: inpXML
         type(XML_Input_T) :: xmlInp
-        integer :: commSize, ierr, numCells, length, ic
+        integer :: commSize, ierr, numCells, length, ic, poolRank, splitKey
         integer :: nHelpers, gamNRES, commId
         character( len = MPI_MAX_ERROR_STRING) :: message
         logical :: reorder, wasWeighted
@@ -253,7 +256,10 @@ module voltapp_mpi
         vApp%vHelpComm = MPI_COMM_NULL
         vApp%vHelpWin = MPI_WIN_NULL
 
-        call appWaitForVoltronSplit(vApp%vOptionsMpi%couplingPoolComm, helperId, 0, allVoltComm)
+        ! Rank helpers after Voltron in allVoltComm (Voltron rank 0, helpers rank 1..N).
+        call MPI_Comm_rank(vApp%vOptionsMpi%couplingPoolComm, poolRank, ierr)
+        splitKey = poolRank + 1
+        call appWaitForVoltronSplit(vApp%vOptionsMpi%couplingPoolComm, helperId, splitKey, allVoltComm)
 
         ! get info about voltron-only mpi communicator
         call MPI_Comm_rank(allVoltComm, vApp%vHelpRank, ierr)
@@ -356,9 +362,10 @@ module voltapp_mpi
 
             if(.not. vApp%doSerialMHD) call vApp%gApp%StartUpdateMhdData(vApp)
 
-            call Tic("DeepUpdate")
+            call Tic("DeepUpdate",.true.)
             call DeepUpdate_mpi(vApp)
-            call Toc("DeepUpdate")
+            call Toc("DeepUpdate",.true.)
+            vApp%ts = vApp%ts + 1
 
             if(vApp%doSerialMHD) call vApp%gApp%StartUpdateMhdData(vApp)
 
@@ -390,6 +397,25 @@ module voltapp_mpi
             call Toc("GCM2MIX")
         end if
 
+        ! tubes are only done after spinup
+        if(vApp%doDeep .and. vApp%time >= 0) then
+            if(vApp%useHelpers) call vhReqStep(vApp)
+
+            !Update i-shell to trace within in case rTrc has changed
+            vApp%iDeep = vApp%gApp%Grid%ie-1
+
+            !Pull in updated fields to CHIMP
+            call Tic("G2C")
+            call convertGameraToChimp(vApp%mhd2chmp,vApp%gApp,vApp%ebTrcApp)
+            call Toc("G2C")
+
+            if(vApp%useHelpers .and. vApp%doTubeHelp) then
+                call Tic("VoltTubes",.true.)
+                call VhReqTubeStart(vApp)
+                call Toc("VoltTubes",.true.)
+            endif
+        endif
+
         ! run remix
         call Tic("ReMIX", .true.)
         call runRemix(vApp)
@@ -404,21 +430,11 @@ module voltapp_mpi
 
         ! only do imag after spinup
         if(vApp%doDeep .and. vApp%time >= 0) then
-            call Tic("DeepUpdate", .true.)
-
-            if(vApp%useHelpers) call vhReqStep(vApp)
-
             ! instead of PreDeep, use Tube Helpers and replicate other calls
-            !Update i-shell to trace within in case rTrc has changed
-            vApp%iDeep = vApp%gApp%Grid%ie-1
 
-            !Pull in updated fields to CHIMP
-            call Tic("G2C")
-            call convertGameraToChimp(vApp%mhd2chmp,vApp%gApp,vApp%ebTrcApp)
-            call Toc("G2C")
             call Tic("VoltTubes",.true.)
             if(vApp%useHelpers .and. vApp%doTubeHelp) then
-                call VhReqTubeStart(vApp)
+                ! Tubes were started earlier
                 call vhReqTubeEnd(vApp)
                 ! Now pack into tubeShell
                 call Tic("Tube2Shell")
@@ -442,7 +458,6 @@ module voltapp_mpi
             call DoImag(vApp)
 
             vApp%deepProcessingInProgress = .true.
-            call Toc("DeepUpdate", .true.)
          elseif(vApp%doDeep) then
             vApp%gApp%Grid%Gas0 = 0
             !Load TM03 into Gas0 for ingestion during spinup
@@ -459,7 +474,6 @@ module voltapp_mpi
 
         ! only do imag after spinup with deep enabled
         if(vApp%doDeep .and. vApp%time >= 0) then
-            call Tic("DeepUpdate", .true.)
 
             do while(SquishBlocksRemain(vApp))
                 call Tic("Squish",.true.)
@@ -477,7 +491,6 @@ module voltapp_mpi
 
             call SquishEnd(vApp)
             call PostDeep(vApp, vApp%gApp)
-            call Toc("DeepUpdate", .true.)
         endif
 
     end subroutine endDeep
@@ -496,11 +509,9 @@ module voltapp_mpi
         if(.not. vApp%deepProcessingInProgress) return
 
         if(SquishBlocksRemain(vApp)) then
-            call Tic("DeepUpdate")
             call Tic("Squish",.true.)
             call DoSquishBlock(vApp)
             call Toc("Squish",.true.)
-            call Toc("DeepUpdate")
         endif
 
         if(.not. SquishBlocksRemain(vApp)) then
@@ -575,4 +586,3 @@ module voltapp_mpi
     end subroutine
 
 end module voltapp_mpi
-

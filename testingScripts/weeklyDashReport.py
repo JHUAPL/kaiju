@@ -121,9 +121,6 @@ REMIX_NORTH_QUICKLOOK_MASTER = os.path.join(
 REMIX_SOUTH_QUICKLOOK_MASTER = os.path.join(
     REFERENCE_RESULTS_DIRECTORY_MASTER, 'remix_s.png'
 )
-RCM_QUICKLOOK_MASTER = os.path.join(
-    REFERENCE_RESULTS_DIRECTORY_MASTER, 'qkrcmpic.png'
-)
 
 # Compute the paths to the quicklook plots for the development branch.
 MAGNETOSPHERE_QUICKLOOK_DEVELOPMENT = os.path.join(
@@ -134,9 +131,6 @@ REMIX_NORTH_QUICKLOOK_DEVELOPMENT = os.path.join(
 )
 REMIX_SOUTH_QUICKLOOK_DEVELOPMENT = os.path.join(
     REFERENCE_RESULTS_DIRECTORY_DEVELOPMENT, 'remix_s.png'
-)
-RCM_QUICKLOOK_DEVELOPMENT = os.path.join(
-    REFERENCE_RESULTS_DIRECTORY_DEVELOPMENT, 'qkrcmpic.png'
 )
 
 
@@ -908,27 +902,6 @@ def main():
 
     # ------------------------------------------------------------------------
 
-    # Make the RCM quick-look plot.
-    if verbose:
-        print(f"Creating RCM quicklook plot for {os.getcwd()}.")
-
-    # Create the plot.
-    cmd = 'rcmpic.py'
-    if debug:
-        print(f"cmd = {cmd}")
-    try:
-        _ = subprocess.run(cmd, shell=True, check=True)
-    except subprocess.CalledProcessError as e:
-        print(
-            'ERROR: Unable to create RCM quicklook plot.\n'
-            f"e.cmd = {e.cmd}\n"
-            f"e.returncode = {e.returncode}\n"
-            f'See log for output.\n',
-            file=sys.stderr
-        )
-
-    # ------------------------------------------------------------------------
-
     # Create merged images for the quicklook plots.
 
     # Merge magnetosphere quicklooks.
@@ -988,25 +961,6 @@ def main():
             file=sys.stderr
         )
 
-    # Merge RCM quicklooks.
-    cmd = (
-        f"convert {RCM_QUICKLOOK_MASTER}"
-        f" {RCM_QUICKLOOK_DEVELOPMENT}"
-        ' qkrcmpic.png -append combined_qkrcmpic.png'
-    )
-    if debug:
-        print(f"cmd = {cmd}")
-    try:
-        cproc = subprocess.run(cmd, shell=True, check=True)
-    except subprocess.CalledProcessError as e:
-        print(
-            'ERROR: Unable to combine RCM quicklook plots.\n'
-            f"e.cmd = {e.cmd}\n"
-            f"e.returncode = {e.returncode}\n"
-            f'See log for output.\n',
-            file=sys.stderr
-        )
-
     # ------------------------------------------------------------------------
 
     # List the files to post and their comments.
@@ -1017,11 +971,9 @@ def main():
         'qkmsphpic.png',
         'remix_n.png',
         'remix_s.png',
-        'qkrcmpic.png',
         'combined_msphpic.png',
         'combined_remix_n.png',
         'combined_remix_s.png',
-        'combined_qkrcmpic.png'
     ]
     comments_to_post = [
         'Real-Time Performance\n\n',
@@ -1030,11 +982,9 @@ def main():
         'Magnetosphere Quicklook Plots\n\n',
         'REMIX (north) Quicklook Plots\n\n',
         'REMIX (south) Quicklook Plots\n\n',
-        'RCM Quicklook Plots\n\n',
         'Magnetosphere Quicklook Comparison Plots\n\n',
         'REMIX (north) Quicklook Comparison Plots\n\n',
         'REMIX (south) Quicklook Comparison Plots\n\n',
-        'RCM Quicklook Comparison Plots\n\n'
     ]
 
     # If loud mode is on, post results to Slack.

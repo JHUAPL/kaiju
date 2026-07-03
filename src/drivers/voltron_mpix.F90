@@ -3,6 +3,7 @@
 program voltron_mpix
     use clocks
     use gamCouple_mpi_G2V
+    use coupled_layout_mpi
     use voltapp_mpi
     use couplingHelpers
     use output
@@ -28,8 +29,10 @@ program voltron_mpix
     integer(KIND=MPI_AN_MYADDR) :: tagMax
     logical :: tagSet
     type(XML_Input_T) :: xmlInp
+    type(coupledLayout_T) :: mpiLayout
     real(rp) :: nextDT
     integer :: divideSize,i
+    logical :: doResetClocks = .false.
 
     ! initialize MPI
     ! This is in case we want to do duplicate communicator from the start
@@ -82,20 +85,27 @@ program voltron_mpix
     write(*,*) 'Reading input deck from ', trim(inpXML)
     xmlInp = New_XML_Input(trim(inpXML),'Kaiju',.true.)
 
-    ! need to know how many voltron helpers there are
-    call getIDeckStr(inpXML)
+    ! are helpers being used
     call ReadXmlImmediate(trim(inpXML),'/Kaiju/Voltron/Helpers/useHelpers',helpersBuf,'F',.false.)
     read(helpersBuf,*) useHelpers
-    call ReadXmlImmediate(trim(inpXML),'/Kaiju/Voltron/Helpers/numHelpers',helpersBuf,'0',.false.)
-    read(helpersBuf,*) numHelpers
-    if(.not. useHelpers) numHelpers = 0
 
-    if(worldRank .gt. (worldSize-1-numHelpers)) then
-        appId = helperId
-    elseif(worldRank .eq. worldSize-1-numHelpers) then
-        appId = voltId
+    call initVoltronCoupledLayout(xmlInp, worldSize, mpiLayout)
+
+    if(mpiLayout%hasCustomLayout) then
+        call getLayoutAppId(mpiLayout, worldRank, appId)
     else
-        appId = gamId
+        ! need to know how many voltron helpers there are
+        call ReadXmlImmediate(trim(inpXML),'/Kaiju/Voltron/Helpers/numHelpers',helpersBuf,'0',.false.)
+        read(helpersBuf,*) numHelpers
+        if(.not. useHelpers) numHelpers = 0
+
+        if(worldRank .gt. (worldSize-1-numHelpers)) then
+            appId = helperId
+        elseif(worldRank .eq. worldSize-1-numHelpers) then
+            appId = voltId
+        else
+            appId = gamId
+        endif
     endif
     ! every app splits into their own comunicator
     call MPI_COMM_SPLIT(world_dup, appId, worldRank, appComm, ierror)
@@ -209,12 +219,12 @@ program voltron_mpix
                 if (vApp%IO%doTimerOut) then
                     call printClocks()
                 endif
-                call cleanClocks()
+                doResetClocks = .true.
             elseif (vApp%IO%doTimer(vApp%time)) then
                 if (vApp%IO%doTimerOut) then
                     call printClocks()
                 endif
-                call cleanClocks()
+                doResetClocks = .true.
             endif
 
             !Data output
@@ -225,6 +235,12 @@ program voltron_mpix
             !Restart output
             if (vApp%IO%doRestart(vApp%time)) then
                 call resOutputV(vApp,vApp%gApp)
+            endif
+            
+            !Reset clocks last so data is available for all output
+            if (doResetClocks) then
+                call cleanClocks()
+                doResetClocks = .false.
             endif
 
             call Toc("IO", .true.)
@@ -260,11 +276,11 @@ program voltron_mpix
 
                 !Timing info
                 if (gApp%Model%IO%doTimerOut) call printClocks()
-                call cleanClocks()
+                doResetClocks = .true.
 
             elseif (gApp%Model%IO%doTimer(gApp%Model%t)) then
                 if (gApp%Model%IO%doTimerOut) call printClocks()
-                call cleanClocks()
+                doResetClocks = .true.
             endif
 
             if (gApp%Model%IO%doOutput(gApp%Model%t)) then
@@ -275,6 +291,11 @@ program voltron_mpix
 
             if (gApp%Model%IO%doRestart(gApp%Model%t)) then
                 call gApp%WriteRestart(gApp%Model%IO%nRes)
+            endif
+
+            if (doResetClocks) then
+                call cleanClocks()
+                doResetClocks = .false.
             endif
 
             call Toc("IO")
@@ -289,4 +310,3 @@ program voltron_mpix
     
 
 end program voltron_mpix
-

@@ -1,72 +1,134 @@
-# User dependent stuff
-cmake/user.cmake
-build*/
+# -----------------------------
+# OS / Editors / IDEs
+# -----------------------------
+.DS_Store
+*.DS_STORE
+Thumbs.db
+.vscode/
+.idea/
 kaiju.sublime-workspace
+# Emacs backup files
+*~
 
-# Related to unit testing
+# -----------------------------
+# User / Local config
+# -----------------------------
+cmake/user.cmake
+.env
+
+# -----------------------------
+# Build / Artifacts
+# -----------------------------
+build*/
+dist/
+target/
+docs/_build/
+docs/build/
+
+# -----------------------------
+# Dependency caches
+# -----------------------------
+node_modules/
+
+# -----------------------------
+# Unit testing (third-party deps)
+# -----------------------------
 external/FARGPARSE-*/
 external/GFTL-*/
 external/GFTL_SHARED-*/
 external/PFUNIT-*/
-# skip F90 files in the tests folder, except in specific subfolders
+
+# -----------------------------
+# Tests (Fortran)
+# skip F90 files in tests except specific helpers
+# -----------------------------
 tests/*/*.F90
 !tests/helperCode/*.F90
 !tests/helperCode_mpi/*.F90
 
-# Pre-compile generated files
+# Any local automated test runs
+test_runs/
+
+# -----------------------------
+# Generated / Precompiled sources
+# -----------------------------
 src/base/git_info.F90
 
-# Compiled Object files
+# -----------------------------
+# Python
+# -----------------------------
+*.py[cod]
+
+# -----------------------------
+# Java
+# -----------------------------
+*.class
+*.jar
+
+# -----------------------------
+# Logs
+# -----------------------------
+*.log
+TEST*.xml
+
+# -----------------------------
+# Fortran / Compilers
+# -----------------------------
+# Object files
 *.slo
 *.lo
 *.o
 *.obj
-*.pyc
 *__genmod.f90
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
+# Modules
 *.mod
 *.smod
 
-# Compiled Static libraries
+# ifort cruft
+*.i90
+
+# Static libraries
 *.lai
 *.la
 *.a
 *.lib
+
+# Dynamic libraries
+*.so
+*.dylib
+*.dll
 
 # Executables
 *.exe
 *.out
 *.app
 *.x
+*.war
 
-# Data files
+# -----------------------------
+# Data / Media (large files)
+# -----------------------------
 *.mp4
 *.h5
 *.xmf
 *.hdf
 *.png
 *.h5part
+*.tiff
+*.avi
+*.flv
+*.mov
+*.wmv
 
-# Mac nonsense
-*.DS_STORE
-
-#Notebook checkpoints
+# -----------------------------
+# Jupyter / Notebooks
+# -----------------------------
 analysis/notebooks/Tutorial/.ipynb_checkpoints
 
-# Visual Studio Code configuration directory
-.vscode/
-
-# Visual Studio Code environment files
-.env
-
-# ifort cruft 
-*.i90
-
-# Emacs backup files
-*~
+# -----------------------------
+# Ignore exeptions
+# -----------------------------
+# Unignore docs/source/building
+!docs/source/building/
+!docs/source/building/**

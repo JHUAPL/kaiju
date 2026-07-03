@@ -38,6 +38,7 @@ module clocks
         !Depth/parent, ie array entry of parent of this clock
         integer :: level=-1,parent=-1
         integer :: iTic=0,iToc=0 !Integer ticks
+        integer :: nCalls=0 !Number of tocs, or finished timer loops since cleaning
         real(rp) :: tElap=0.0 !Elapsed time
     end type Clock_T
 
@@ -49,6 +50,11 @@ module clocks
     !interface for reading clock time
     interface readClock
         module procedure readClock_str, readClock_int
+    end interface
+    
+    !interface for reading number of calls to a clock
+    interface readNCalls
+        module procedure readNCalls_str, readNCalls_int
     end interface
 
     contains
@@ -171,6 +177,8 @@ module clocks
         wclk = real(kClocks(iblk)%iToc-kClocks(iblk)%iTic)/real(clockRate)
 
         kClocks(iblk)%tElap = kClocks(iblk)%tElap + wclk
+        kClocks(iblk)%nCalls = kClocks(iblk)%nCalls + 1
+        
     end subroutine Toc
 
     !Reset clocks
@@ -179,6 +187,7 @@ module clocks
 
         do n=1,nclk
             kClocks(n)%tElap = 0
+            kClocks(n)%nCalls = 0
             ! if the clock is active, reset the tic to right now
             if(kClocks(n)%isOn) call Tic(kClocks(n)%cID, .true.)
         enddo
@@ -222,6 +231,39 @@ module clocks
             endif
         endif
     end function readClock_int
+
+    function readNCalls_str(cID) result(nc)
+        character(len=*), intent(in) :: cID
+
+        integer :: n,iblk
+        integer :: nc
+
+        iblk = 0
+        !Find timer
+        do n=1,nclk
+            if (toUpper(kClocks(n)%cID) == toUpper(cID)) then
+                !Found it, save ID
+                iblk = n
+            endif
+        enddo
+
+        nc = readNCalls_int(iblk)
+
+    end function readNCalls_str
+
+    function readNCalls_int(iblk) result(nc)
+        integer, intent(in) :: iblk
+
+        integer :: tmpToc
+        integer :: nc
+
+        if (iblk == 0) then
+            nc = 0
+        else
+            nc = kClocks(iblk)%nCalls
+        endif
+
+    end function readNCalls_int
 
     !Output clock data
     subroutine printClocks()

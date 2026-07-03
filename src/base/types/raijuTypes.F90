@@ -147,6 +147,11 @@ module raijutypes
 
 
         !--- State ---!
+        logical :: doCS_next_preAdv = .false.
+            !! Signal to run coldstart next time raiju preAdvances
+        real(rp) :: modelDst_next_preAdv = 0.0_rp
+            !! Target Dst [nT] when we run coldstart next
+
         logical :: doneFirstCS = .false.
             !! Have we executed once already?
         real(rp) :: lastEval = -1*HUGE
@@ -188,6 +193,8 @@ module raijutypes
             !! Whether we initialize state from a restart file
         integer :: nResIn = -1
             !! Restart number to use for state init (-1 for symlink)
+        character(len=strLen) :: resId = ""
+            !! Restart filename id (resID.raiju.Res.xxxxx.h5) to read from
         character(len=strLen) :: ResF = ""
             !! Restart filename to read from
         
@@ -221,10 +228,10 @@ module raijutypes
             !! For debug
         logical :: writeGhosts
             !! For debug
+        logical :: doSmoothGrads
+            !! Whether or not we smooth variables (bvol and electric potential) before taking gradients
         logical :: doClockConsoleOut
             !! If we are driving, output clock info
-        logical :: doOutput_potGrads
-            !! Output extra 3D arrays
         logical :: doOutput_debug
             !! Dump lots of otherwise unnecessary stuff
         logical :: doOutput_3DLoss
@@ -413,9 +420,6 @@ module raijutypes
         real(rp), dimension(:,:,:), allocatable :: pEff
             !! (Ngi+1, Ngj+1, Nk) [V] Effective potential (ExB + corot + gradient-curvature)
             !! Not actually used in calculations, but helpful for output
-        real(rp), dimension(:,:,:), allocatable :: gradPotE, gradPotCorot, gradVM
-            !! (Ngi+1, Ngj+1,2) [V/m] Th/phi gradient of the ionospheric potential, corotation potential, and flux tube volume raised to -2/3
-            !! units of gradVM are [FTV^(2/3)/m]. Multiplying by lambda gives units of [V/m]
         real(rp), dimension(:,:,:), allocatable :: gradPotE_cc, gradPotCorot_cc, gradVM_cc
             !! (Ngi, Ngj,2) [V/m] Th/phi gradient of the ionospheric potential, corotation potential, and flux tube volume raised to -2/3
             !! Cell-centered, calculated using Green-Gauss method

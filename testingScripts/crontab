@@ -16,8 +16,7 @@
 # source tree). Job submission reports to Slack only on failure, report run
 # in Slack-on-fail (-s) mode.
 15 00 * * * ssh derecho "/glade/campaign/hao/msphere/automated_kaiju_tests/kaiju-private/testingScripts/run_mage_tests.sh -v -b development 'unitTest.py -sv'" >> /glade/campaign/hao/msphere/automated_kaiju_tests/logs/nightly-tests-2-development.out 2>&1
-# Disable master unit test for now since it hangs.
-# 20 00 * * * ssh derecho "/glade/campaign/hao/msphere/automated_kaiju_tests/kaiju-private/testingScripts/run_mage_tests.sh -v -b master      'unitTest.py -sv'" >> /glade/campaign/hao/msphere/automated_kaiju_tests/logs/nightly-tests-2-master.out      2>&1
+20 00 * * * ssh derecho "/glade/campaign/hao/msphere/automated_kaiju_tests/kaiju-private/testingScripts/run_mage_tests.sh -v -b master      'unitTest.py -sv'" >> /glade/campaign/hao/msphere/automated_kaiju_tests/logs/nightly-tests-2-master.out      2>&1
 
 # Run a weekly dash every Sunday morning for the development branch and
 # compare to reference development run listed in reference_runs.txt.

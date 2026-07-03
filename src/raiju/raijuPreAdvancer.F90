@@ -36,12 +36,18 @@ module raijuPreAdvancer
         call fillArray(State%eta_avg, 0.0_rp)
         ! (losses handled in updateRaiLosses)
 
+        ! Now that topo is set, we can calculate active domain
+        call setActiveDomain(Model, Grid, State)
+
         ! Moments to etas, initial active shell calculation
         call Tic("BCs")
         call applyRaijuBCs(Model, Grid, State, doWholeDomainO=State%isFirstCpl) ! If fullEtaMap=True, mom2eta map is applied to the whole domain
+        if (State%isFirstCpl) then
+            call setRaijuInitPsphere(Model, Grid, State, Model%psphInitKp)
+        endif
         call Toc("BCs")
 
-        ! Handle plasmaasphere refilling for the full step about to happen
+        ! Handle plasmasphere refilling for the full step about to happen
         call plasmasphereRefill(Model,Grid,State)
 
         ! Handle edge cases that may effect the validity of information carried over from last coupling period
@@ -261,7 +267,7 @@ module raijuPreAdvancer
 
         associate(sh=>Grid%shGrid)
         ! Gauss-Green calculation of cell-averaged gradients
-        call potExB(Grid%shGrid, State, pExB, doSmoothO=.true., isGCornerO=isGCorner)  ! [V]
+        call potExB(Grid%shGrid, State, pExB, doSmoothO=Model%doSmoothGrads, isGCornerO=isGCorner)  ! [V]
         call potCorot(Model%planet, Grid%shGrid, pCorot, Model%doGeoCorot)  ! [V]
         call calcGradIJ_cc(Model%planet%rp_m, Grid, isGCorner, pExB  , State%gradPotE_cc    , doLimO=.true. )  ! [V/m]
         call calcGradIJ_cc(Model%planet%rp_m, Grid, isGCorner, pCorot, State%gradPotCorot_cc, doLimO=.false.)  ! [V/m]
@@ -270,7 +276,7 @@ module raijuPreAdvancer
         ! lambda is constant, so just need grad(V^(-2/3) )
         call calcGradVM_cc(Model%planet%rp_m, Model%planet%ri_m, Model%planet%magMoment, &
                             Grid, isGCorner, State%bvol, State%gradVM_cc, &
-                            doSmoothO=.true., doLimO=.true.)
+                            doSmoothO=Model%doSmoothGrads, doLimO=.true.)
         end associate
         
     end subroutine calcPotGrads_cc
@@ -304,7 +310,6 @@ module raijuPreAdvancer
         associate(sh=>Grid%shGrid)
 
         !$OMP PARALLEL DO default(shared) &
-        !$OMP schedule(dynamic) &
         !$OMP private(i,j,qLow,qHigh)
         do j=sh%jsg,sh%jeg
             do i=sh%isg,sh%ieg
@@ -332,7 +337,6 @@ module raijuPreAdvancer
             allocate(gradQtmp(sh%isg:sh%ieg,sh%jsg:sh%jeg, 2))
             gradQtmp = gradQ    
             !$OMP PARALLEL DO default(shared) &
-            !$OMP schedule(dynamic) &
             !$OMP private(i,j)
             do j=sh%jsg+1,sh%jeg-1
                 do i=sh%isg+1,sh%ieg-1
@@ -483,13 +487,19 @@ module raijuPreAdvancer
         gradVM(:,:,RAI_TH) = gradVM(:,:,RAI_TH) + dV0_dth
         
         !$OMP PARALLEL DO default(shared) &
-        !$OMP schedule(dynamic) &
         !$OMP private(i,j,bVolcc)
         do j=sh%jsg,sh%jeg
             do i=sh%isg,sh%ieg
-                bVolcc = toCenter2D(dV(i:i+1,j:j+1)) + DipFTV_colat(Grid%thcRp(i), B0)  ! Will include smoothing of dV if enabled
-                !bVolcc = toCenter2D(V(i:i+1,j:j+1))
-                gradVM(i,j,:) = (-2./3.)*bVolcc**(-5./3.)*gradVM(i,j,:)
+                if(all(isGcorner(i:i+1,j:j+1))) then
+                    !bVolcc = toCenter2D(dV(i:i+1,j:j+1)) + DipFTV_colat(Grid%thcRp(i), B0)  ! Will include smoothing of dV if enabled
+                    bVolcc = toCenter2D(V(i:i+1,j:j+1))
+                    gradVM(i,j,:) = (-2./3.)*bVolcc**(-5./3.)*gradVM(i,j,:)
+                else
+                    ! gradVM should be zero for this point coming out of calcGradIJ_cc, but set to dipole value just in case
+                    gradVM(i,j,RAI_PH) = 0.0
+                    gradVM(i,j,RAI_TH) = 0.0
+                    !gradVM(i,j,RAI_TH) = (-2./3.)*DipFTV_colat(Grid%thcRp(i), B0)**(-5./3.)*dV0_dth(i,j)
+                endif
             enddo
         enddo
 
@@ -564,13 +574,14 @@ module raijuPreAdvancer
         enddo
         ! Now everyone else
         !$OMP PARALLEL DO default(shared) &
-        !$OMP schedule(dynamic) &
         !$OMP private(i,j)
         do j=jsg+1,jeg
             do i=isg+1,ieg
                 Vsm(i,j) = SmoothOperator33(V(i-1:i+1,j-1:j+1), isGc(i-1:i+1,j-1:j+1))
             enddo
         enddo
+
+        call wrapJcorners(sh, Vsm)
 
         ! Write back to provided array
         V = Vsm

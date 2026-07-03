@@ -79,13 +79,11 @@ module imag2mhd_interface
                             !Below inner boundary, do dipole projection
                             isGoodCC(i,j,k) = .true.
                             xyz = Gr%xyzcc(i,j,k,:) !Gamera grid center
-                            call Proj2Rad(xyz,Rion,x1,x2)
-                            Gr%Gas0(i,j,k,PROJLAT) = x1
+                            call NHProj(xyz,x1,x2)
+                            Gr%Gas0(i,j,k,PROJLAT) = x1 !Must project to NH
                             Gr%Gas0(i,j,k,PROJLON) = x2
-
                         else
                             !Get value from xyzsquish
-
                             if ( all(vApp%chmp2mhd%isGood(i:i+1,j:j+1,k:k+1)) ) then
                                 !All values are good, so just do this thing
                                 call SquishCorners(vApp%chmp2mhd%xyzSquish(i:i+1,j:j+1,k:k+1,1),Qs)
@@ -123,7 +121,7 @@ module imag2mhd_interface
                         if (i < Gr%is) then
                             !Use dipole projection
                             xyz = Gr%xyz(i,j,k,:) !Gamera grid corner
-                            call Proj2Rad(xyz,Rion,x1,x2)
+                            call NHProj(xyz,x1,x2)
                             isG = .true.
                         else
                             x1  = vApp%chmp2mhd%xyzSquish(i,j,k,1)
@@ -284,41 +282,43 @@ module imag2mhd_interface
                 real(rp), intent(inout) :: Q(Gr%isg:Gr%ieg,Gr%jsg:Gr%jeg,Gr%ksg:Gr%keg)
 
                 integer :: i,j,k,ip,jp,kp
-                logical :: isActive
 
-                !!$OMP PARALLEL DO default(shared) collapse(2) &
-                !!$OMP private(i,j,k,isActive,ip,jp,kp)
-                ! this causes a race condition copying values between ghost cells
-                ! probably a false positive since some of the cells are just copying
-                ! values onto themselves, but easier to remove for now
+                !$OMP PARALLEL DO default(shared) collapse(2) &
+                !$OMP private(i,j,k,ip,jp,kp)
                 do k=Gr%ksg,Gr%keg
                     do j=Gr%jsg,Gr%jeg
                         do i=Gr%isg,Gr%ieg
-                            isActive = (j >= Gr%js) .and. (j <= Gr%je) .and. &
-                                       (k >= Gr%ks) .and. (k <= Gr%ks)
-                            if(.not. isActive) then
-                                !If still here map this ghost to active and set value based on active
+                            if (.not. isPhysical(Model,Gr,i,j,k)) then
+                                !This is a geometric ghost so we can map it to a physical cell
                                 call lfmIJKcc(Model,Gr,i,j,k,ip,jp,kp)
                                 Q(i,j,k) = Q(ip,jp,kp)
-                            endif
+                            endif !isPhys
                         enddo
                     enddo !j
                 enddo !k
 
             end subroutine FillGhostsCC
 
-            !Project xyz along dipole to R0 and return lat (x1) and lon (x2)
-            subroutine Proj2Rad(xyz,R0,x1,x2)
-                real(rp), intent(in ) :: xyz(NDIM), R0
+            !Checks if cell is "physical" as opposed to "geometric". 
+            !Ie, i ghosts are physical but j/k ghosts are geometric (they point to other physical cells)
+            function isPhysical(Model,Gr,i,j,k)
+                type(Model_T), intent(in) :: Model
+                type(Grid_T) , intent(in) :: Gr
+                integer, intent(in) :: i,j,k
+                logical :: isPhysical       
+
+                isPhysical = (j >= Gr%js) .and. (j <= Gr%je) .and. &
+                             (k >= Gr%ks) .and. (k <= Gr%ke)
+            end function isPhysical
+
+            !Get azimuth and invariant latitude
+            subroutine NHProj(xyz,x1,x2)
+                real(rp), intent(in ) :: xyz(NDIM)
                 real(rp), intent(out) :: x1,x2
-
-                real(rp), dimension(NDIM) :: xyz0
-
-                xyz0 = DipoleShift(xyz,R0)
-                x1 = asin(xyz0(ZDIR)/R0) !Lat
-                x2 = katan2(xyz0(YDIR),xyz0(XDIR)) !katan => [0,2pi] instead of [-pi,pi]
-
-            end subroutine Proj2Rad 
+               
+               x1 = InvLatitude(xyz)
+               x2 = katan2(xyz(YDIR),xyz(XDIR)) !katan => [0,2pi] instead of [-pi,pi]
+            end subroutine NHProj
 
     end subroutine
 

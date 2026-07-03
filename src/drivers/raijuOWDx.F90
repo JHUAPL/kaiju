@@ -68,7 +68,8 @@ program raijuOWDx
     call inpXML%Set_Val(raiCplApp%opt%doColdStart,'/Kaiju/RAIJU/driver/doColdStart',.false.)
     associate(ebGr=>vApp%ebTrcApp%ebState%ebGr, ebState=>vApp%ebTrcApp%ebState)
         raiCplApp%opt%mjd0 = T2MJD(-1.0*ebState%ebTab%times(1)/inTscl, ebState%ebTab%MJDs(1))
-        raicplApp%opt%mhdRin = norm2(ebGr%xyzcc(ebGr%is,ebGr%js,ebGr%ks,:))
+        raicplApp%opt%mhdRin  = norm2(ebGr%xyzcc(ebGr%is ,ebGr%js,ebGr%ks,:))
+        raicplApp%opt%mhdRinG = norm2(ebGr%xyzcc(ebGr%isg,ebGr%js,ebGr%ks,:))
         raiCplApp%opt%voltGrid = vApp%shGrid
     end associate
 

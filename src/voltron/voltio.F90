@@ -11,6 +11,7 @@ module voltio
     use planethelper
     use shellGridIO
     use voltappHelper
+    use gamCoupleHelper, only : getCPCP
 
     use tubehelper, only : writeTubeShellRestart, readTubeShellRestart
     
@@ -113,8 +114,10 @@ module voltio
 
         !Get Dst estimate: DPS, center of earth, MLT avg of equatorial stations
         call EstDST(gApp%Model,gApp%Grid,gApp%State,BSDst0=BSDst0,AvgBSDst=AvgBSDst,BSSMRs=BSSMRs,DPSDst=DPSDst)
-
         vApp%BSDst = AvgBSDst
+
+        !Get CPCP
+        call getCPCP(vApp%gApp%mixOutput,cpcp)
         
         !Get symh from input time series
         symh = vApp%symh%evalAt(vApp%time)
@@ -126,6 +129,7 @@ module voltio
             write (*, '(a,1f8.3,a)')             '      tilt = ' , dpT, ' [deg]'
             write (*, '(a, f8.3,a)')             '    Sym-H  = ' , symh  , ' [nT]'
             write (*, '(a, f8.3,a)')             '    BSDst  ~ ' , AvgBSDst , ' [nT]'
+            write (*, '(a,2f8.3,a)')             '      CPCP = ' , cpcp(NORTH), cpcp(SOUTH), ' [kV, N/S]'
             write (*, '(a,4f8.2,a)')             '           dSMRs  ~ ' , BSSMRs-AvgBSDst, ' [nT, 12/18/00/06]'
             !write (*, '(a,4f8.2,a)')             '   BSSMRs  ~ ' , BSSMRs, ' [nT, 12/18/00/06]'
 
@@ -389,7 +393,7 @@ module voltio
         type(IOVAR_T), dimension(MAXVOLTIOVAR) :: IOVars
         real(rp) :: symh
 
-        integer :: is,ie,js,je
+        integer :: is,ie,js,je,nClkSteps
         real(rp) :: Csijk,Con(NVAR)
         real(rp) :: BSDst0,AvgBSDst,DPSDst,BSSMRs(4)
         integer, dimension(4) :: outSGVBnds_corner
@@ -444,6 +448,16 @@ module voltio
         call AddOutVar(IOVars,"MJD"  ,vApp%MJD)
         call AddOutVar(IOVars,"timestep",vApp%ts)
 
+        !Performance metrics
+        nClkSteps = readNCalls('DeepUpdate')
+        call AddOutVar(IOVars,"_perf_stepTime",readClock(1)/nClkSteps)
+        call AddOutVar(IOVars,"_perf_deepUpdateTime",readClock(1)/nClkSteps)
+        call AddOutVar(IOVars,"_perf_gamTime", readClock('GameraSync')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_squishTime", (readClock('Squish')+readClock('VoltHelpers'))/nClkSteps)
+        call AddOutVar(IOVars,"_perf_imagTime", readClock('InnerMag')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_mixTime", readClock('ReMIX')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_tubesTime", readClock('VoltTubes')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_ioTime", readClock('IO')/nClkSteps)
 
         ! voltState stuff
         call AddOutSGV(IOVars, "Potential_total", vApp%State%potential_total, &
@@ -512,10 +526,11 @@ module voltio
 
 
     !Initialize Voltron-unique IO
-    subroutine InitVoltIO(vApp,gApp,doGhostsO)
+    subroutine InitVoltIO(vApp,gApp,doGhostsO,xmlFileO)
         class(voltApp_T), intent(inout) :: vApp
         type(gamApp_T)  , intent(inout) :: gApp
         logical, intent(in), optional :: doGhostsO
+        character(len=*), intent(in), optional :: xmlFileO
 
         character(len=strLen) :: RunID
         type(IOVAR_T), dimension(MAXVOLTIOVAR) :: IOVars
@@ -623,6 +638,10 @@ module voltio
             call WriteVars(IOVars,.true.,vh5File)
 
             call writeShellGrid(vApp%shGrid, vh5File, "/ShellGrid")
+        endif
+
+        if (present(xmlFileO)) then
+            call StampXmlInput(vh5File,xmlFileO)
         endif
 
     end subroutine InitVoltIO

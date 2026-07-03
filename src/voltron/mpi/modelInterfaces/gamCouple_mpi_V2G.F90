@@ -90,6 +90,7 @@ module gamCouple_mpi_V2G
         type(XML_Input_T), intent(inout) :: Xml
 
         integer :: commSize, ierr, numCells, length, ic, numInNeighbors, numOutNeighbors
+        integer :: poolRank, worldSize, splitKey
         type(MPI_Comm) :: voltComm
         integer :: gamNRES
         character( len = MPI_MAX_ERROR_STRING) :: message
@@ -111,8 +112,12 @@ module gamCouple_mpi_V2G
         call PrepState(App%Model,App%Grid,&
             App%State,App%oState,App%ooState,Xml,App%gOptions%userInitFunc)
 
+        ! Force Voltron to the highest rank in voltComm so downstream rank assumptions hold.
+        call MPI_Comm_rank(App%gOptionsCplMpiV%couplingPoolComm, poolRank, ierr)
+        call MPI_Comm_Size(MPI_COMM_WORLD, worldSize, ierr)
+        splitKey = worldSize + poolRank
         ! split couplingPoolComm into a communicator with only the non-helper voltron rank and Gamera ranks
-        call voltronSplitWithApp(App%gOptionsCplMpiV%couplingPoolComm, gamId, 0, voltComm)
+        call voltronSplitWithApp(App%gOptionsCplMpiV%couplingPoolComm, gamId, splitKey, voltComm)
 
         call Xml%Set_Val(App%doAsyncCoupling,"/kaiju/voltron/coupling/doAsyncCoupling",.true.)
         call Xml%Set_Val(App%doDeep, "/kaiju/voltron/coupling/doDeep", .true.)
@@ -300,7 +305,7 @@ module gamCouple_mpi_V2G
         call mpi_type_hvector(2*Model%nG+NkpT, 1, Grid%Ni*Grid%Nj*dataSize, iPG2jPG2, iPG2jPG2kPG2, ierr)
 
         ! 4th dimension
-        call mpi_type_hvector(NDIM, 1, PsiSh*Grid%Nj*Grid%Nk*dataSize, Exyz3, Exyz4, ierr)
+        call mpi_type_hvector(Model%nvInExyz, 1, PsiSh*Grid%Nj*Grid%Nk*dataSize, Exyz3, Exyz4, ierr)
         call mpi_type_hvector(NDIM, 1, (PsiSh+1)*(Grid%Nj+1)*(Grid%Nk+1)*dataSize, Eijk3, Eijk4, ierr)
         call mpi_type_hvector(NDIM, 1, Grid%Ni*Grid%Nj*Grid%Nk*dataSize, iPjPkP, iPjPkP4Bxyz, ierr)
         call mpi_type_hvector(NVAR, 1, Grid%Ni*Grid%Nj*Grid%Nk*dataSize, iPjPkP, iPjPkP4Gas, ierr)
@@ -413,13 +418,7 @@ module gamCouple_mpi_V2G
     subroutine gamCplMpiVWriteConsoleOutput(App)
         class(gamCouplerMpi_volt_T), intent(inout) :: App
 
-        real(rp) :: cpcp(2) = 0.0
-
-        ! write only my own console info
-        if(App%Model%isLoud) then
-            call getCPCP(App%mixOutput,cpcp)
-             write (*, '(a,2f8.3,a)')             '      CPCP = ' , cpcp(NORTH), cpcp(SOUTH), ' [kV, N/S]'
-        endif
+        ! nothing to write
 
     end subroutine
 
@@ -559,13 +558,13 @@ module gamCouple_mpi_V2G
 
     subroutine sendGameraCplDataMpi(gCplApp, CouplingTargetT)
         class(gamCouplerMpi_volt_T), intent(inout) :: gCplApp
-        real(rp), intent(in) :: CouplingTargetT
+        real(rp), intent(inout) :: CouplingTargetT
 
         call sendShallowCplDataMpi(gCplApp)
         if(gCplApp%doDeep) call sendDeepCplDataMpi(gCplApp)
         call sendCplTimeMpi(gCplApp, CouplingTargetT)
 
-    end subroutine
+    end subroutine sendGameraCplDataMpi
 
     subroutine sendShallowCplDataMpi(gCplApp)
         class(gamCouplerMpi_volt_T), intent(inout) :: gCplApp
@@ -628,14 +627,13 @@ module gamCouple_mpi_V2G
 
     subroutine sendCplTimeMpi(gCplApp, CouplingTargetT)
         class(gamCouplerMpi_volt_T), intent(inout) :: gCplApp
-        real(rp), intent(in) :: CouplingTargetT
+        real(rp), intent(inout) :: CouplingTargetT
 
         integer :: ierr
 
         ! Send Target Time for next coupling
         call mpi_bcast(CouplingTargetT,1,MPI_MYFLOAT, gCplApp%myRank, gCplApp%couplingComm, ierr)
 
-    end subroutine
+    end subroutine sendCplTimeMpi
 
 end module
-

@@ -28,10 +28,11 @@ module raijuOut
     end subroutine raijuOutput
 
 
-    subroutine raijuResOutput(Model, Grid, State)
+    subroutine raijuResOutput(Model, Grid, State, opt)
         type(raijuModel_T), intent(in) :: Model
         type(raijuGrid_T) , intent(in) :: Grid
         type(raijuState_T), intent(inout) :: State
+        type(raijuOptions_T), intent(in) :: opt
 
         character(len=strLen) :: ResF, tStr,lnResF !Name of restart file
         logical :: fExist
@@ -45,7 +46,7 @@ module raijuOut
             write (*, '(a,a,a,a,a)') ANSIGREEN, '<Writing RAIJU HDF5 RESTART @ t = ', trim(tStr), ' >', ANSIRESET
         endif
 
-        call WriteRaijuRes(Model, Grid, State, ResF)
+        call WriteRaijuRes(Model, Grid, State, opt, ResF)
 
         ! Prep for next restart
         State%IO%tRes = State%IO%tRes + State%IO%dtRes
@@ -131,7 +132,7 @@ module raijuOut
             if (maxP_MLT > 24) maxP_MLT = maxP_MLT - 24D0
             write(*,'(a,I0,a,f7.2,a,f7.2,a,f5.2,a,f5.2,a,f7.2)') '        ', &
                 Grid%spc(s)%flav, ': P =', maxPress,', D =',maxDen,' @ ',maxP_L,' Rp,',maxP_MLT, &
-                " MLT; DPS:",spcEta2DPS(Model, Grid, State, Grid%spc(sIdx), State%active .eq. RAIJUACTIVE)
+                " MLT; DPS:",spcEta2DPS(Model, Grid, State%bvol_cc, State%eta_avg, Grid%spc(sIdx), State%active .eq. RAIJUACTIVE)
 
         enddo
         write(*,'(a)',advance="no") ANSIRESET

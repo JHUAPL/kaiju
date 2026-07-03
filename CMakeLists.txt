@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.20.2)
-project(Kaiju Fortran)
+project(Kaiju Fortran C)
+#K: Adding C to project to deal w/ issues w/ most recent HDF (10/13/25)
 
 # add and search for pfunit (fingers crossed)
 list(APPEND CMAKE_PREFIX_PATH "./external")
@@ -10,22 +11,6 @@ endif()
 
 #Set hostname & configuration defaults before going to compilers.cmake
 cmake_host_system_information(RESULT HOST QUERY HOSTNAME)
-
-#Get the current working branch
-execute_process(COMMAND git rev-parse --abbrev-ref HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-	OUTPUT_VARIABLE GIT_BRANCH
-	OUTPUT_STRIP_TRAILING_WHITESPACE)
-execute_process(COMMAND git log -1 --format=%h WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-	OUTPUT_VARIABLE GIT_COMMIT_HASH
-	OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-# Generate git_info.F90 with GITBRANCH value
-set(GIT_INFO_FILE "${CMAKE_SOURCE_DIR}/src/base/git_info.F90")
-file(WRITE ${GIT_INFO_FILE} "module git_info\n")
-file(APPEND ${GIT_INFO_FILE} "    implicit none\n")
-file(APPEND ${GIT_INFO_FILE} "    character(len=*), parameter :: gitB = '${GIT_BRANCH}'\n")
-file(APPEND ${GIT_INFO_FILE} "    character(len=*), parameter :: gitH = '${GIT_COMMIT_HASH}'\n")
-file(APPEND ${GIT_INFO_FILE} "end module git_info\n")
 
 #Set some configuration defaults
 option(ENABLE_OMP "Enable OMP parallelization" ON )
@@ -194,11 +179,11 @@ add_subdirectory(src/raiju)
 add_custom_target(raiju ALL)
 
 # disabling raijuSA.x for now until it is completed
-#message("\tAdding executable raijuSA.x")
+message("\tAdding executable raijuSA.x")
 #add_executable(raijuSA.x src/drivers/raijuSAx.F90 ${RAIJUIC})
-#add_executable(raijuSA.x src/drivers/raijuSAx.F90)
-#target_link_libraries(raijuSA.x baselib raijulib)
-#add_dependencies(raiju raijuSA.x)
+add_executable(raijuSA.x src/drivers/raijuSAx.F90)
+target_link_libraries(raijuSA.x baselib raijulib)
+add_dependencies(raiju raijuSA.x)
 
 message("\tAdding executable raijuOWD.x")
 #add_executable(raijuOWD.x src/drivers/raijuOWDx.F90 ${RAIJUIC})

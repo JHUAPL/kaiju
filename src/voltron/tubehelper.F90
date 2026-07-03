@@ -337,6 +337,11 @@ module tubehelper
 
         bTube%nTrc = 0
 
+        !Zero pot
+        bTube%pot   = 0.0
+        bTube%crpot = 0.0
+        bTube%potc  = 0.0
+
     end subroutine FreshenTube
 
 

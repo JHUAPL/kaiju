@@ -20,31 +20,24 @@ echo 'The currently loaded modules are:'
 module list
 
 echo 'Loading python environment.'
-export CONDARC="{{ condarc }}"
-export CONDA_ENVS_PATH="{{ conda_envs_path }}"
-mage_miniconda3="{{ mage_test_root }}/miniconda3"
-mage_conda="${mage_miniconda3}/bin/conda"
-__conda_setup="$($mage_conda 'shell.bash' 'hook' 2> /dev/null)"
+__conda_setup="$('/glade/u/home/ewinter/miniconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
 if [ $? -eq 0 ]; then
     eval "$__conda_setup"
 else
-    if [ -f "$mage_miniconda3/etc/profile.d/conda.sh" ]; then
-        . "$mage_miniconda3/etc/profile.d/conda.sh"
+    if [ -f "/glade/u/home/ewinter/miniconda3/etc/profile.d/conda.sh" ]; then
+        . "/glade/u/home/ewinter/miniconda3/etc/profile.d/conda.sh"
     else
-        export PATH="$mage_miniconda3/bin:$PATH"
+        export PATH="/glade/u/home/ewinter/miniconda3/bin:$PATH"
     fi
 fi
 unset __conda_setup
+
 conda activate {{ conda_environment }}
 echo "The current conda environment is ${CONDA_PREFIX}."
 
 echo 'Setting up MAGE environment.'
 source {{ kaijuhome }}/scripts/setupEnvironment.sh
 echo "The kaiju software is located at ${KAIJUHOME}."
-
-echo 'Setting up kaipy environment.'
-source {{ kaipy_private_root }}/kaipy/scripts/setupEnvironment.sh
-echo "The kaipy software is located at ${KAIPYHOME}."
 
 echo 'Setting environment variables.'
 export TMPDIR={{ tmpdir }}
@@ -82,10 +75,10 @@ echo 'Generating the solar wind boundary condition file.'
 {{ cda2wind_cmd }}
 echo "The solar wind boundary condition file is `ls bcwind.h5`."
 
-# Generate the RCM configuration file.
-echo 'Generating the RCM configuration file.'
-{{ genRCM_cmd }}
-echo "The RCM configuration file is `ls rcmconfig.h5`."
+# Generate the RAIJU configuration file.
+echo 'Generating the RAIJU configuration file.'
+genRAIJU
+echo "The RAIJU configuration file is `ls raijuconfig.h5`."
 
 # Moved this setting here to avoid error from genLFM.py.
 export OMP_NUM_THREADS=128
@@ -99,7 +92,7 @@ eval $cmd
 
 # Run the comparison. Post results to Slack if any test fails.
 reference_run=`cat /glade/u/home/ewinter/mage_testing/test_runs/derecho_configuration_check_runs.txt`
-cmd="python $KAIJUHOME/testingScripts/compare_mage_runs_numerical.py -sv --run_description='`derecho` configuration check' $reference_run `pwd`/weeklyDashGo.xml >& compare_mage_runs_numerical.out"
+cmd="python $KAIJUHOME/testingScripts/compare_mage_runs_numerical.py -sv --run_description='derecho configuration check' $reference_run `pwd`/weeklyDashGo.xml >& compare_mage_runs_numerical.out"
 echo "Run comparison command is:"
 echo $cmd
 eval $cmd

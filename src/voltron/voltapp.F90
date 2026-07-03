@@ -99,6 +99,8 @@ module voltapp
 
         ! adjust XMl reader root
         call xmlInp%SetRootStr('Kaiju/Voltron')
+        ! Make sure verbosity is still right after others do stuff with the reader
+        call xmlInp%SetVerbose(vApp%isLoud)
 
         !Initialize planet information
         call getPlanetParams(vApp%planet, xmlInp)
@@ -209,7 +211,7 @@ module voltapp
             gApp%Model%t = vApp%time / gApp%Model%Units%gT0
             gApp%State%time = gApp%Model%t
 
-            call genVoltShellGrid(vApp, xmlInp)
+            call genVoltShellGrid(vApp, xmlInp, gApp%Grid%Nkp)
             call initVoltState(vApp)
 
         endif
@@ -334,9 +336,10 @@ module voltapp
             ! update the next predicted coupling interval
             vApp%DeepT = vApp%DeepT + vApp%DeepDT
 
-            call Tic("DeepUpdate")
+            call Tic("DeepUpdate",.true.)
             call DeepUpdate(vApp, vApp%gApp)
-            call Toc("DeepUpdate")
+            call Toc("DeepUpdate",.true.)
+            vApp%ts = vApp%ts + 1
 
             call vApp%gApp%StartUpdateMhdData(vApp)
 
@@ -363,7 +366,7 @@ module voltapp
         type(XML_Input_T), intent(inout) :: xmlInp
         character(len=*), optional, intent(in) :: optFilename
 
-        character(len=strLen) :: RunID, resID
+        character(len=strLen) :: RunID, resID, xmlFile
         type(TimeSeries_T) :: f107
 
         logical :: isRestart
@@ -373,7 +376,10 @@ module voltapp
         isRestart = gApp%Model%isRestart
         RunID = trim(gApp%Model%RunID)
         
-        if(vApp%writeFiles) call InitVoltIO(vApp,gApp)
+        if(vApp%writeFiles) then
+            call xmlInp%GetFileStr(xmlFile)
+            call InitVoltIO(vApp,gApp,xmlFileO=xmlFile)
+        endif
         
     !Remix from Gamera
         !Set mix default grid before initializing
@@ -458,19 +464,8 @@ module voltapp
                 call init_volt2Chmp(vApp,gApp)
             endif
 
-            !Ensure chimp and voltron restart numbers match
-            ! Actually chimp doesn't write restart files right now
-            !if (isRestart .and. vApp%IO%nRes /= ebTrcApp%ebModel%IO%nRes) then
-            !    write(*,*) "Voltron and Chimp disagree on restart number, you should sort that out."
-            !    write(*,*) "Error code: A house divided cannot stand"
-            !    write(*,*) "   Voltron nRes = ", vApp%IO%nRes
-            !    write(*,*) "   Chimp   nRes = ", ebTrcApp%ebModel%IO%nRes
-            !    stop
-            !endif
-
             call init_mhd2Chmp(vApp%mhd2chmp, gApp, vApp%ebTrcApp)
             call init_chmp2Mhd(vApp%chmp2mhd, vApp%ebTrcApp, gApp)
-            call init_raiju_mix(vApp%imagApp,vApp%remixApp)
 
             vApp%iDeep = gApp%Grid%ie-1
             
@@ -485,9 +480,7 @@ module voltapp
 
         ! convert gamera inputs to remix
         call MJDRecalc(vApp%MJD)
-        if (vApp%doDeep) then
-!            call mapIMagToRemix(vApp%imag2mix,vApp%remixApp) ! rcm style
-!            call mapRaijuToRemix(vApp)
+        if ( vApp%doDeep .and. (vApp%time>0) ) then
             call CoupleIMagToMix(vApp)
         endif
         call mapGameraToRemix(vApp%mhd2mix, vApp%remixApp)
@@ -755,11 +748,14 @@ module voltapp
     end subroutine init_volt2Chmp
 
 
-    subroutine genVoltShellGrid(vApp, xmlInp)
+    subroutine genVoltShellGrid(vApp, xmlInp, gamRes)
         class(voltApp_T) , intent(inout) :: vApp
         type(XML_Input_T), intent(in) :: xmlInp
+        integer, intent(in) :: gamRes
 
         character(len=strLen) :: gType
+        integer :: Nt_def, Np_def
+            !! Default number of active cells in theta and phi unless xml says otherwise
         integer :: Nt, Np
             !! Number of active cells in theta and phi
         integer :: Ng
@@ -787,8 +783,30 @@ module voltapp
         ! Note: Nt is for a single hemisphere, we will manually double it in a minute
         ! TODO: This means we will always have even number of total cells, and a cell interfce right on the equator
         !  Can upgrade to allow for odd number later
-        call xmlInp%Set_Val(Nt, "grid/Nt", 180 )  ! 1 deg res default for uniform grid
-        call xmlInp%Set_Val(Np, "grid/Np", 360)  ! 1 deg res default
+
+        ! First determine defaults
+        if (gamRes<=64) then
+            ! DBL
+            Nt_def = 90
+            Np_def = 180
+        else if (gamRes<=128) then
+            ! QUAD
+            Nt_def = 180
+            Np_def = 360
+        else if (gamRes<=256) then
+            ! OCT
+            Nt_def = 360
+            Np_def = 720
+        else 
+            ! HEX or above
+            ! Idk good luck
+            Nt_def = 540
+            Np_def = 1440
+        endif
+
+
+        call xmlInp%Set_Val(Nt, "grid/Nt", Nt_def)  ! 1 deg res default for uniform grid
+        call xmlInp%Set_Val(Np, "grid/Np", Np_def)  ! 1 deg res default
         ! Ghost cells
         call xmlInp%Set_Val(Ng, "grid/Ng", 4)  ! # of ghosts in every direction
         nGhosts = 0

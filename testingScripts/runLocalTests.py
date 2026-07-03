@@ -20,11 +20,11 @@ def create_command_line_parser():
     parser = argparse.ArgumentParser(description="Script to help setup automated tests within a kaiju repo")
     
     parser.add_argument(
-        "-A", required=True,
+        "-A", default="",
         help="Charge code to use when running tests."
     )
     parser.add_argument(
-        "-ce", required=True,
+        "-ce", default="",
         help="Conda environment name to load with conda module"
     )
     parser.add_argument(
@@ -80,23 +80,58 @@ def main():
     
     # Parse the command-line arguments.
     args = parser.parse_args()
+
+    # Adjust test options
+    if args.all:
+        args.unitTests = True
+        args.weeklyDash = True
+        args.compTests = True
+        args.compTestsFull = True
+        args.buildTests = True
+        args.icTests = True
+        args.intelChecks = True
+        args.reproTests = True
+
+    if args.compTestsFull:
+        args.compTests = False
     
+    if not (args.unitTests or args.weeklyDash or args.compTests or args.compTestsFull or
+            args.buildTests or args.icTests or args.intelChecks or args.reproTests):
+        parser.print_help()
+        exit()
+
     # find repo home directory
     called_from = os.path.dirname(os.path.abspath(__file__))
     os.chdir(called_from)
     os.chdir('..')
     homeDir = os.getcwd()
-    
+
     # Check for necessary environment variables
-    if 'KAIJUHOME' not in os.environ:
-        print("The setupEnvironment.sh script must be sourced for the repo this script resides in before calling it.")
+    if len(args.ce) == 0 and 'CONDA_DEFAULT_ENV' not in os.environ:
+        print("A conda environment name was not supplied, and a currently loaded conda environment could not be determined.")
+        print("Please either supply the name of a conda environment with the '-ce <name>' option,")
+        print("    or load an entironment before running this script, and it should be automatically found.")
         exit()
+    elif len(args.ce) == 0:
+        args.ce = os.environ['CONDA_DEFAULT_ENV']
+        print(f"Automatically setting conda environment to {args.ce}")
+    if len(args.A) == 0 and (args.unitTests or args.weeklyDash or
+            args.compTests or args.compTestsFull or args.intelChecks or args.reproTests):
+        print("A charge code with not supplied, but the requested tests require one.")
+        print("Please supply a charge code with the -A # option.")
+        exit()
+    if 'KAIJUHOME' not in os.environ:
+        os.environ['KAIJUHOME'] = homeDir
+        print(f"Running tests out of local git repository: {homeDir}")
     if pathlib.Path(homeDir).resolve() != pathlib.Path(os.environ['KAIJUHOME']).resolve():
         print("The setupEnvironment.sh script must be sourced for the repo this script resides in before calling it.")
         exit()
-    if 'KAIPYHOME' not in os.environ:
-        print("The setupEnvironment.sh script for ANY kaipy repo must be sourced before calling this.")
+    if 'KAIPYHOME' not in os.environ and (args.weeklyDash or args.compTests or args.compTestsFull):
+        print("The 'KAIPYHOME' environment variable was not set, but the requested tests require it.")
+        print("The setupEnvironment.sh script for ANY kaipy repo must be sourced before running these tests.")
         exit()
+    elif 'KAIPYHOME' not in os.environ:
+        os.environ['KAIPYHOME'] = ""
     
     # Set environment variables
     os.environ['MAGE_TEST_ROOT'] = homeDir
@@ -124,22 +159,10 @@ def main():
 
     
     print(f"Running tests on branch {gitBranch}")
-    print(f"Using charge code {args.A} with priority {args.p}")
-    print(f"Running in folder {test_set_dir}")
-    
-    # Adjust test options
-    if args.all:
-        args.unitTests = True
-        args.weeklyDash = True
-        args.compTests = True
-        args.compTestsFull = True
-        args.buildTests = True
-        args.icTests = True
-        args.intelChecks = True
-        args.reproTests = True
-    
-    if args.compTestsFull:
-        args.compTests = False
+    if len(args.A) > 0:
+        print(f"Using charge code {args.A} with priority {args.p}")
+    print(f"Running in folder test_runs/{test_set_dir}")
+    print("")
     
     # Run Tests
     if args.unitTests:

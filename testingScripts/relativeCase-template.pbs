@@ -23,6 +23,7 @@ module load {{ module }}
 module list
 
 echo 'Loading python environment.'
+mage_test_root=$HOME
 if [ -d "${mage_test_root}/miniconda3" ]; then
     echo 'Loading local miniconda3'
     mage_test_root='{{ mage_test_root }}'

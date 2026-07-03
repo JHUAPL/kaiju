@@ -19,11 +19,9 @@ module load {{ module }}
 module list
 
 echo 'Loading python environment.'
+mage_test_root=$HOME
 if [ -d "${mage_test_root}/miniconda3" ]; then
     echo 'Loading local miniconda3'
-    mage_test_root='{{ mage_test_root }}'
-    export CONDARC="${mage_test_root}/.condarc"
-    export CONDA_ENVS_PATH="${mage_test_root}/.conda"
     mage_miniconda3="${mage_test_root}/miniconda3"
     mage_conda="${mage_miniconda3}/bin/conda"
     __conda_setup="$($mage_conda 'shell.bash' 'hook' 2> /dev/null)"
@@ -45,7 +43,6 @@ conda activate {{ conda_environment }}
 
 echo 'Setting up MAGE environment.'
 source {{ kaijuhome }}/scripts/setupEnvironment.sh
-source {{ kaipyhome }}/kaipy/scripts/setupEnvironment.sh
 
 echo 'Setting environment variables.'
 export TMPDIR={{ tmpdir }}

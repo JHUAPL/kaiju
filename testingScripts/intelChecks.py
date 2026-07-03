@@ -305,7 +305,7 @@ def intelChecks(args: dict):
         # Generate bcwind data file.
         if verbose:
             print("Creating bcwind data file.")
-        cmd = "cda2wind.py -t0 2016-08-09T09:00:00 -t1 2016-08-09T11:00:00"
+        cmd = "cda2wind -t0 2016-08-09T09:00:00 -t1 2016-08-09T11:00:00"
         if debug:
             print(f"cmd = {cmd}")
         try:
@@ -315,7 +315,7 @@ def intelChecks(args: dict):
                   f"{module_set_name}.\n"
                   f"e.cmd = {e.cmd}\n"
                   f"e.returncode = {e.returncode}\n"
-                  "See testing log for output from cda2wind.py.\n"
+                  "See testing log for output from cda2wind.\n"
                   "Skipping remaining steps for module set"
                   f"{module_set_name}\n")
             continue
@@ -325,7 +325,7 @@ def intelChecks(args: dict):
         # Generate the LFM grid file.
         if verbose:
             print("Creating LFM grid file.")
-        cmd = "genLFM.py -gid D"
+        cmd = "genLFM -gid D"
         if debug:
             print(f"cmd = {cmd}")
         try:
@@ -335,7 +335,7 @@ def intelChecks(args: dict):
                   f"{module_set_name}.\n"
                   f"e.cmd = {e.cmd}\n"
                   f"e.returncode = {e.returncode}\n"
-                  "See testing log for output from genLFM.py.\n"
+                  "See testing log for output from genLFM.\n"
                   "Skipping remaining steps for module set"
                   f"{module_set_name}\n")
             continue
@@ -345,7 +345,7 @@ def intelChecks(args: dict):
         # Generate the Raiju configuration file.
         if verbose:
             print("Creating Raiju configuration file.")
-        cmd = "genRAIJU.py"
+        cmd = "genRAIJU"
         if debug:
             print(f"cmd = {cmd}")
         try:
@@ -355,7 +355,7 @@ def intelChecks(args: dict):
                   f" for module set {module_set_name}.\n"
                   f"e.cmd = {e.cmd}\n"
                   f"e.returncode = {e.returncode}\n"
-                  "See testing log for output from genRAIJU.py.\n"
+                  "See testing log for output from genRAIJU.\n"
                   "Skipping remaining steps for module set "
                   f"{module_set_name}\n")
             continue
@@ -373,7 +373,6 @@ def intelChecks(args: dict):
         pbs_options["job_priority"] = os.environ["DERECHO_TESTING_PRIORITY"]
         pbs_options["modules"] = module_names
         pbs_options["kaijuhome"] = KAIJUHOME
-        pbs_options["kaipyhome"] = os.environ["KAIPYHOME"]
         pbs_options["tmpdir"] = os.environ["TMPDIR"]
         pbs_options["slack_bot_token"] = os.environ["SLACK_BOT_TOKEN"]
         pbs_options["mage_test_root"] = os.environ["MAGE_TEST_ROOT"]

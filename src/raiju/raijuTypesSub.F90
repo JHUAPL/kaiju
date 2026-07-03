@@ -37,7 +37,7 @@ submodule (raijutypes) raijuTypesSub
         ! synchronize restart output number
         App%State%IO%nRes = nRes
 
-        call raijuResOutput(App%Model, App%Grid, App%State)
+        call raijuResOutput(App%Model, App%Grid, App%State, App%opt)
 
     end subroutine raiWriteRestart
 
@@ -56,11 +56,11 @@ submodule (raijutypes) raijuTypesSub
         App%Model%nResIn = nRes
         call genResInFname(App%Model, App%Model%ResF, runIdO=resId)
         ! Handle grid reading first
-        call GenShellGridFromFile(shRes, RAI_SG_NAME, App%Model%ResF)
-        if(.not. checkResGrid(App%Grid%shGrid, shRes)) then
-            write(*,*)"RAIJU restart error: Grid generated from XML doesn't match that from restart file, that's not allowed"
-            stop
-        endif
+        !call GenShellGridFromFile(shRes, RAI_SG_NAME, App%Model%ResF)
+        !if(.not. checkResGrid(App%Grid%shGrid, shRes)) then
+        !    write(*,*)"RAIJU restart error: Grid generated from XML doesn't match that from restart file, that's not allowed"
+        !    stop
+        !endif
 
         ! Now read State info
         call raijuResInput(App%Model, App%Grid, App%State)

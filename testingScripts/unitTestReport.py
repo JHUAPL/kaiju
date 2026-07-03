@@ -111,8 +111,7 @@ def main():
             print(f"Checking unit test results in {unit_test_directory}.")
 
         # Move to the directory containing the unit test results.
-        path = os.path.join(UNIT_TEST_DIRECTORY, unit_test_directory,
-                            BUILD_BIN_DIR)
+        path = os.path.join(UNIT_TEST_DIRECTORY, unit_test_directory)
         if debug:
             print(f"path = {path}")
         os.chdir(path)
@@ -136,19 +135,27 @@ def main():
         # NOTE: This needs to be reorganized.
 
         # Compute the names of the job log files.
-        job_file_0 = f"genTestData.o{job_ids[0]}"  # 0 OKs
-        job_file_1 = f"runCaseTests.o{job_ids[1]}" # 2 OKs
-        job_file_2 = f"runNonCaseTests1.o{job_ids[2]}"  # 6 OKs
-        job_file_3 = f"runNonCaseTests2.o{job_ids[3]}"  # 1 OK
-        if debug:
-            print(f"job_file_0 = {job_file_0}")
-            print(f"job_file_1 = {job_file_1}")
-            print(f"job_file_2 = {job_file_2}")
-            print(f"job_file_3 = {job_file_3}")
+        # 0 OKs
+        job_file_build = f"../unitTest-build.o{job_ids[0]}"
+        # 0 OKs
+        job_file_genTestData = f"../unitTest-genTestData.o{job_ids[1]}"
+        # 2 OKs
+        job_file_caseTests = f"../unitTest-caseTests.o{job_ids[2]}"
+        # 6 OKs
+        job_file_noncaseTests1 = f"../unitTest-noncaseTests1.o{job_ids[3]}"
+        # 1 OK
+        job_file_noncaseTests2 = f"../unitTest-noncaseTests2.o{job_ids[4]}"
 
         # Combine the results of each test log file.
+        os.chdir("bin")
         bigFile = []
-        job_files = [job_file_0, job_file_1, job_file_2, job_file_3]
+        job_files = [
+            job_file_build,
+            job_file_genTestData,
+            job_file_caseTests,
+            job_file_noncaseTests1,
+            job_file_noncaseTests2,
+        ]
         for job_file in job_files:
             with open(job_file, 'r', encoding='utf-8') as f:
                 bigFile += f.readlines()
@@ -234,12 +241,14 @@ def main():
         )
         if debug:
             print(f"slack_response_summary = {slack_response_summary}")
-    
+
     # Also write a summary file to the root folder of this test
-    with open(os.path.join(MAGE_TEST_SET_ROOT,'testSummary.out'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(
+        MAGE_TEST_SET_ROOT, 'testSummary.out'), 'w', encoding='utf-8'
+    ) as f:
         f.write(test_report_details_string)
         f.write('\n')
-    
+
     # ------------------------------------------------------------------------
 
     if debug:

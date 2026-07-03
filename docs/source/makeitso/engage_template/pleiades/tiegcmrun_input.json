@@ -1,0 +1,96 @@
+{
+    "simulation": {
+        "job_name": "GTR152D",
+        "hpc_system": "pleiades"
+    },
+    "model": {
+        "data": {
+            "modeldir": "/nobackupp27/nrao3/engage_build/tiegcm",
+            "tgcmdata": "/nobackup/nrao3/tiegcm/tiegcm3.0/data",
+            "modelexe": "/nobackupp27/nrao3/GTR156/tiegcm.exe",
+            "coupled_modelexe": "/nobackupp27/nrao3/GTR156/tiegcm.x"
+        },
+        "specification": {
+            "zitop": 7
+        }
+    },
+    "inp": {
+        "LABEL": "tiegcm",
+        "CALENDAR_ADVANCE": 1,
+        "NSTEP_SUB": "10",
+        "solar_flux_level": "low",
+        "SECFLDS": [
+            "TN",
+            "UN",
+            "VN",
+            "NE",
+            "TEC",
+            "POTEN",
+            "Z",
+            "ZG"
+        ],
+        "ELECTRON_HEATING": 6,
+        "POTENTIAL_MODEL": "HEELIS",
+        "GPI_NCFILE": "/nobackup/nrao3/tiegcm/tiegcm3.0/data/gpi_mgii_1979001-2010212.nc",
+        "IMF_NCFILE": null,
+        "KP": null,
+        "POWER": null,
+        "CTPOTEN": null,
+        "BXIMF": null,
+        "BYIMF": null,
+        "BZIMF": null,
+        "SWDEN": null,
+        "SWVEL": null,
+        "F107": null,
+        "F107A": null,
+        "ONEWAY": false,
+        "AMIENH": null,
+        "AMIESH": null,
+        "AURORA": null,
+        "DYNAMO": null,
+        "CALC_HELIUM": null,
+        "EDDY_DIF": null,
+        "JOULEFAC": null,
+        "COLFAC": null,
+        "OPDIFFCAP": "2e9",
+        "OPDIFFRATE": "0.3",
+        "OPDIFFLEV": "7",
+        "OPFLOOR": "3000",
+        "OPRATE": "0.3",
+        "OPLEV": "7",
+        "OPLATWIDTH": "20",
+        "TE_CAP": "8000",
+        "TI_CAP": "8000",
+        "CURRENT_PG": null,
+        "CURRENT_KQ": null,
+        "ET": null,
+        "SAPS": null,
+        "DOECLIPSE": null,
+        "ECLIPSE_LIST": null,
+        "HE_COEFS_NCFILE": "/nobackup/nrao3/tiegcm/tiegcm3.0/data/he_coefs_dres.nc",
+        "BGRDDATA_NCFILE": null,
+        "CTMT_NCFILE": null,
+        "SABER_NCFILE": null,
+        "TIDI_NCFILE": null,
+        "TIDE": null,
+        "TIDE2": null,
+        "MIXFILE": null,
+        "NUDGE_NCPRE": null,
+        "NUDGE_NCPOST": null,
+        "NUDGE_NCFILE": null,
+        "NUDGE_FLDS": null,
+        "NUDGE_LBC": null,
+        "NUDGE_F4D": null,
+        "NUDGE_USE_REFDATE": null,
+        "NUDGE_REFDATE": null,
+        "NUDGE_SPONGE": null,
+        "NUDGE_DELTA": null,
+        "NUDGE_POWER": null,
+        "NUDGE_ALPHA": null,
+        "other_input": [
+            null
+        ]
+    },
+    "job": {
+    }
+}

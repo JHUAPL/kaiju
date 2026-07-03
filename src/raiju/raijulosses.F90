@@ -205,6 +205,7 @@ module raijulosses
         !logical, dimension(Grid%shGrid%isg:Grid%shGrid%ieg, &
         !                   Grid%shGrid%jsg:Grid%shGrid%jeg) :: isGood
         real(rp) :: deleta, eta0, pNFlux, tau
+        logical :: isValid
 
         !where (State%active .eq. RAIJUACTIVE)
         !    isGood = .true.
@@ -212,9 +213,6 @@ module raijulosses
         !    isGood = .false.
         !end where
         
-        ! ! !$OMP PARALLEL DO default(shared) collapse(1) &
-        ! ! !$OMP schedule(dynamic) &
-        ! ! !$OMP private(j,i,eta0, deleta)
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
                 !if (.not. isGood(i,j)) then
@@ -242,8 +240,11 @@ module raijulosses
                 State%precipNFlux(k)%data(i,j) = State%precipNFlux(k)%data(i,j) + dt*pNFlux
                 State%precipEFlux(k)%data(i,j) = State%precipEFlux(k)%data(i,j) + dt*nFlux2EFlux(pNFlux, Grid%alamc(k), State%bVol_cc(i,j))
 
+                isValid = .false.
+                if (Model%doCC) isValid = State%lps(State%lp_cc_idx)%p%isValidSpc(Grid%spc(Grid%k2spc(k)))
+
                 ! Do special stuff for Coulomb collision effects
-                if (Model%doCC .and. State%lps(State%lp_cc_idx)%p%isValidSpc(Grid%spc(Grid%k2spc(k)))) then
+                if (isValid) then
                     ! We can estimate heat transfer to plasmasphere electrons by energy lost from RC species to CC
                     ! So we can follow same prodecure as above, by using just CC tau and dividing later by coupling dt to get average heat flux
                     ! Treating this separately from precipication since its not actually precipitating ions

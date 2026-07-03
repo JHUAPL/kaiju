@@ -12,9 +12,9 @@
 echo "Job $PBS_JOBID started at `date` on `hostname` in directory `pwd`."
 
 echo 'Loading python environment.'
+mage_test_root=$HOME
 if [ -d "${mage_test_root}/miniconda3" ]; then
     echo 'Loading local miniconda3'
-    mage_test_root='{{ mage_test_root }}'
     export CONDARC="${mage_test_root}/.condarc"
     export CONDA_ENVS_PATH="${mage_test_root}/.conda"
     mage_miniconda3="${mage_test_root}/miniconda3"
@@ -54,7 +54,7 @@ echo 'The active environment variables are:'
 printenv
 
 # Process the data and generate the output video
-python $KAIPYHOME/kaipy/scripts/quicklook/gamerrVid.py -d1 {{ case1F }} -id1 {{ case1id }} -d2 {{ case2F }} -id2 {{ case2id }} -o {{ frameFolder }}/{{ caseName }} -ts {{ ts }} -te {{ te }} -dt {{ dt }} -Nth 9 >& {{ caseName }}.out
+gamerrVid -d1 {{ case1F }} -id1 {{ case1id }} -d2 {{ case2F }} -id2 {{ case2id }} -o {{ frameFolder }}/{{ caseName }} -ts {{ ts }} -te {{ te }} -dt {{ dt }} -Nth 9 >& {{ caseName }}.out
 
 # copy output video to test root folder
 cp {{ frameFolder }}/{{ caseName }}.mp4 $MAGE_TEST_SET_ROOT/.

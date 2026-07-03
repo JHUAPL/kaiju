@@ -1,0 +1,111 @@
+{
+    "simulation": {
+    },
+    "model": {
+        "data": {
+            "modeldir": "/glade/u/home/nikhilr/kaiju_engage/tiegcm",
+            "tgcmdata": "/glade/campaign/hao/itmodel/tiegcm3.0/new_data",
+            "modelexe": "/glade/derecho/scratch/nikhilr/GTR57/tiegcm.exe",
+            "coupled_modelexe": "/glade/derecho/scratch/nikhilr/GTR57/tiegcm.x"
+        },
+        "specification": {
+            "zitop": 7
+        }
+    },
+    "inp": {
+        "LABEL": "tiegcm",
+        "CALENDAR_ADVANCE": 1,
+        "NSTEP_SUB": "10",
+        "solar_flux_level": "low",
+        "SECFLDS": [
+            "TN",
+            "UN",
+            "VN",
+            "NE",
+            "TEC",
+            "POTEN",
+            "Z",
+            "ZG"
+        ],
+        "ELECTRON_HEATING": 6,
+        "POTENTIAL_MODEL": "HEELIS",
+        "GPI_NCFILE": "/glade/campaign/hao/itmodel/tiegcm3.0/new_data/boundary_files/GPI/gpi_1960001-2025120.nc",
+        "IMF_NCFILE": null,
+        "KP": null,
+        "POWER": null,
+        "CTPOTEN": null,
+        "BXIMF": null,
+        "BYIMF": null,
+        "BZIMF": null,
+        "SWDEN": null,
+        "SWVEL": null,
+        "F107": null,
+        "F107A": null,
+        "ONEWAY": false,
+        "AMIENH": null,
+        "AMIESH": null,
+        "AURORA": null,
+        "DYNAMO": null,
+        "CALC_HELIUM": null,
+        "EDDY_DIF": null,
+        "JOULEFAC": null,
+        "COLFAC": null,
+        "OPDIFFCAP": "2e9",
+        "OPDIFFRATE": "0.3",
+        "OPDIFFLEV": "7",
+        "OPFLOOR": "3000",
+        "OPRATE": "0.3",
+        "OPLEV": "7",
+        "OPLATWIDTH": "20",
+        "TE_CAP": "8000",
+        "TI_CAP": "8000",
+        "CURRENT_PG": null,
+        "CURRENT_KQ": null,
+        "ET": null,
+        "SAPS": null,
+        "DOECLIPSE": null,
+        "ECLIPSE_LIST": null,
+        "HE_COEFS_NCFILE": "/glade/campaign/hao/itmodel/tiegcm3.0/new_data/boundary_files/other/he_coefs_dres.nc",
+        "BGRDDATA_NCFILE": null,
+        "CTMT_NCFILE": null,
+        "SABER_NCFILE": null,
+        "TIDI_NCFILE": null,
+        "TIDE": null,
+        "TIDE2": null,
+        "MIXFILE": null,
+        "NUDGE_NCPRE": null,
+        "NUDGE_NCPOST": null,
+        "NUDGE_NCFILE": null,
+        "NUDGE_FLDS": null,
+        "NUDGE_LBC": null,
+        "NUDGE_F4D": null,
+        "NUDGE_USE_REFDATE": null,
+        "NUDGE_REFDATE": null,
+        "NUDGE_SPONGE": null,
+        "NUDGE_DELTA": null,
+        "NUDGE_POWER": null,
+        "NUDGE_ALPHA": null,
+        "other_input": [
+            null
+        ]
+    },
+    "job": {
+        "modules": [
+            "ncarenv/23.09",
+            "cmake/3.26.3",
+            "craype/2.7.31",
+            "intel-classic/2023.2.1",
+            "cray-mpich/8.1.27",
+            "ncarcompilers/1.0.0",
+            "mkl/2023.2.0",
+            "hdf5-mpi/1.12.2",
+            "netcdf-mpi/4.9.2",
+            "esmf/8.6.0",
+            "conda"
+        ],
+        "other_job": [
+            null
+        ]
+    }
+
+}

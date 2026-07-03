@@ -9,6 +9,8 @@ module testVoltGridGen
     implicit none
 
     character(len=strLen) :: xmlName = 'voltGridTests.xml'
+    integer, parameter :: gamRes = 64
+        !! genVoltShellGrid expects a gamera resolution to determine defaults for its own
 
     contains
 
@@ -36,7 +38,7 @@ module testVoltGridGen
         call xmlInp%Set_Val(Nt, "grid/Nt", -1) ! -1 so things blow up if xml isn't set properly
         call xmlInp%Set_Val(Np, "grid/Np", -1) ! -1 so things blow up if xml isn't set properly
 
-        call genVoltShellGrid(vApp, xmlInp)
+        call genVoltShellGrid(vApp, xmlInp, gamRes)
 
         @assertEqual(vApp%shGrid%Nt, 2*Nt, "Wrong amount of theta cells")
         @assertEqual(vApp%shGrid%Np, Np  , "Wrong amount of phi cells")
@@ -62,7 +64,7 @@ module testVoltGridGen
         call xmlInp%Set_Val(Nt, "grid/Nt", -1) ! -1 so things blow up if xml isn't set properly
         call xmlInp%Set_Val(Np, "grid/Np", -1) ! -1 so things blow up if xml isn't set properly
 
-        call genVoltShellGrid(vApp, xmlInp)
+        call genVoltShellGrid(vApp, xmlInp, gamRes)
 
         @assertEqual(2*Nt, vApp%shGrid%Nt, "Wrong amount of theta cells")
         @assertEqual(  Np, vApp%shGrid%Np, "Wrong amount of phi cells")

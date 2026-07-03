@@ -107,7 +107,7 @@ module volthelpers_mpi
     ! chimp data update functions
 
     subroutine sendChimpStateData(ebState, vHelpComm)
-        type(ebState_T), intent(in) :: ebState
+        type(ebState_T), intent(inout) :: ebState
         type(MPI_Comm), intent(in) :: vHelpComm
 
         integer :: ierr, length
@@ -160,42 +160,45 @@ module volthelpers_mpi
             print *,message(1:length)
             call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
         end if
+    
         !  eb2
-        sendCount = size(ebState%eb2%dB)
-        mpiCounts(:) = sendCount
-        call mpi_neighbor_alltoallv(ebState%eb2%dB, mpiCounts, mpiDispls, MPI_MYFLOAT, &
-            ebState%eb2%dB, mpiZeroes, mpiDispls, MPI_MYFLOAT, vHelpComm, ierr)
-        if(ierr /= MPI_Success) then
-            call MPI_Error_string( ierr, message, length, ierr)
-            print *,message(1:length)
-            call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
-        end if
-        sendCount = size(ebState%eb2%E)
-        mpiCounts(:) = sendCount
-        call mpi_neighbor_alltoallv(ebState%eb2%E, mpiCounts, mpiDispls, MPI_MYFLOAT, &
-            ebState%eb2%E, mpiZeroes, mpiDispls, MPI_MYFLOAT, vHelpComm, ierr)
-        if(ierr /= MPI_Success) then
-            call MPI_Error_string( ierr, message, length, ierr)
-            print *,message(1:length)
-            call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
-        end if
-        sendCount = size(ebState%eb2%W)
-        mpiCounts(:) = sendCount
-        call mpi_neighbor_alltoallv(ebState%eb2%W, mpiCounts, mpiDispls, MPI_MYFLOAT, &
-            ebState%eb2%W, mpiZeroes, mpiDispls, MPI_MYFLOAT, vHelpComm, ierr)
-        if(ierr /= MPI_Success) then
-            call MPI_Error_string( ierr, message, length, ierr)
-            print *,message(1:length)
-            call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
-        end if
-        call mpi_bcast(ebState%eb2%time, 1, MPI_MYFLOAT, 0, vHelpComm, ierr)
-        if(ierr /= MPI_Success) then
-            call MPI_Error_string( ierr, message, length, ierr)
-            print *,message(1:length)
-            call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
+        if(.not. ebState%doStatic) then
+            sendCount = size(ebState%eb2%dB)
+            mpiCounts(:) = sendCount
+            call mpi_neighbor_alltoallv(ebState%eb2%dB, mpiCounts, mpiDispls, MPI_MYFLOAT, &
+                ebState%eb2%dB, mpiZeroes, mpiDispls, MPI_MYFLOAT, vHelpComm, ierr)
+            if(ierr /= MPI_Success) then
+                call MPI_Error_string( ierr, message, length, ierr)
+                print *,message(1:length)
+                call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
+            sendCount = size(ebState%eb2%E)
+            mpiCounts(:) = sendCount
+            call mpi_neighbor_alltoallv(ebState%eb2%E, mpiCounts, mpiDispls, MPI_MYFLOAT, &
+                ebState%eb2%E, mpiZeroes, mpiDispls, MPI_MYFLOAT, vHelpComm, ierr)
+            if(ierr /= MPI_Success) then
+                call MPI_Error_string( ierr, message, length, ierr)
+                print *,message(1:length)
+                call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
+            sendCount = size(ebState%eb2%W)
+            mpiCounts(:) = sendCount
+            call mpi_neighbor_alltoallv(ebState%eb2%W, mpiCounts, mpiDispls, MPI_MYFLOAT, &
+                ebState%eb2%W, mpiZeroes, mpiDispls, MPI_MYFLOAT, vHelpComm, ierr)
+            if(ierr /= MPI_Success) then
+                call MPI_Error_string( ierr, message, length, ierr)
+                print *,message(1:length)
+                call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
+            call mpi_bcast(ebState%eb2%time, 1, MPI_MYFLOAT, 0, vHelpComm, ierr)
+            if(ierr /= MPI_Success) then
+                call MPI_Error_string( ierr, message, length, ierr)
+                print *,message(1:length)
+                call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
         end if
 
-    end subroutine
+    end subroutine sendChimpStateData
 
     subroutine recvChimpStateData(ebState, vHelpComm)
         type(ebState_T), intent(inout) :: ebState
@@ -237,42 +240,45 @@ module volthelpers_mpi
             print *,message(1:length)
             call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
         end if
-        !  eb2
-        sendCount = size(ebState%eb2%dB)
-        call mpi_neighbor_alltoallv(ebState%eb2%dB, (/0/), (/0/), MPI_MYFLOAT, &
-            ebState%eb2%dB, (/sendCount/), (/0/), MPI_MYFLOAT, vHelpComm, ierr)
-        if(ierr /= MPI_Success) then
-            call MPI_Error_string( ierr, message, length, ierr)
-            print *,message(1:length)
-            call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
-        end if
-        sendCount = size(ebState%eb2%E)
-        call mpi_neighbor_alltoallv(ebState%eb2%E, (/0/), (/0/), MPI_MYFLOAT, &
-            ebState%eb2%E, (/sendCount/), (/0/), MPI_MYFLOAT, vHelpComm, ierr)
-        if(ierr /= MPI_Success) then
-            call MPI_Error_string( ierr, message, length, ierr)
-            print *,message(1:length)
-            call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
-        end if
-        sendCount = size(ebState%eb2%W)
-        call mpi_neighbor_alltoallv(ebState%eb2%W, (/0/), (/0/), MPI_MYFLOAT, &
-            ebState%eb2%W, (/sendCount/), (/0/), MPI_MYFLOAT, vHelpComm, ierr)
-        if(ierr /= MPI_Success) then
-            call MPI_Error_string( ierr, message, length, ierr)
-            print *,message(1:length)
-            call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
-        end if
-        call mpi_bcast(ebState%eb2%time, 1, MPI_MYFLOAT, 0, vHelpComm, ierr)
-        if(ierr /= MPI_Success) then
-            call MPI_Error_string( ierr, message, length, ierr)
-            print *,message(1:length)
-            call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
-        end if
 
+        !  eb2
+        if(.not. ebState%doStatic) then
+            sendCount = size(ebState%eb2%dB)
+            call mpi_neighbor_alltoallv(ebState%eb2%dB, (/0/), (/0/), MPI_MYFLOAT, &
+                ebState%eb2%dB, (/sendCount/), (/0/), MPI_MYFLOAT, vHelpComm, ierr)
+            if(ierr /= MPI_Success) then
+                call MPI_Error_string( ierr, message, length, ierr)
+                print *,message(1:length)
+                call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
+            sendCount = size(ebState%eb2%E)
+            call mpi_neighbor_alltoallv(ebState%eb2%E, (/0/), (/0/), MPI_MYFLOAT, &
+                ebState%eb2%E, (/sendCount/), (/0/), MPI_MYFLOAT, vHelpComm, ierr)
+            if(ierr /= MPI_Success) then
+                call MPI_Error_string( ierr, message, length, ierr)
+                print *,message(1:length)
+                call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
+            sendCount = size(ebState%eb2%W)
+            call mpi_neighbor_alltoallv(ebState%eb2%W, (/0/), (/0/), MPI_MYFLOAT, &
+                ebState%eb2%W, (/sendCount/), (/0/), MPI_MYFLOAT, vHelpComm, ierr)
+            if(ierr /= MPI_Success) then
+                call MPI_Error_string( ierr, message, length, ierr)
+                print *,message(1:length)
+                call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
+            call mpi_bcast(ebState%eb2%time, 1, MPI_MYFLOAT, 0, vHelpComm, ierr)
+            if(ierr /= MPI_Success) then
+                call MPI_Error_string( ierr, message, length, ierr)
+                print *,message(1:length)
+                call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
+        end if
+    
     end subroutine
 
     subroutine sendChimpUpdate(vApp)
-        type(voltAppMpi_T), intent(in) :: vApp
+        type(voltAppMpi_T), intent(inout) :: vApp
 
         integer :: ierr, length
         character( len = MPI_MAX_ERROR_STRING) :: message
@@ -317,7 +323,7 @@ module volthelpers_mpi
             call mpi_Abort(MPI_COMM_WORLD, 1, ierr)
         end if
 
-    end subroutine
+    end subroutine sendChimpUpdate
 
     subroutine recvChimpUpdate(vApp)
         type(voltAppMpi_T), intent(inout) :: vApp
@@ -374,14 +380,15 @@ module volthelpers_mpi
         type(voltAppMpi_T), intent(in) :: vApp
         integer, intent(in) :: rType
 
-        integer :: ierr
+        integer :: ierr,wtf
         type(MPI_Request) :: helpReq
 
+        wtf = rType
         ! async to match waiting helper nodes
-        call mpi_Ibcast(rType, 1, MPI_INTEGER, 0, vApp%vHelpComm, helpReq, ierr)
+        call mpi_Ibcast(wtf, 1, MPI_INTEGER, 0, vApp%vHelpComm, helpReq, ierr)
         call mpi_wait(helpReq, MPI_STATUS_IGNORE, ierr)
 
-    end subroutine
+    end subroutine vhRequestType
 
     subroutine vhReqStep(vApp)
         type(voltAppMpi_T), intent(inout) :: vApp

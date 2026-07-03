@@ -28,6 +28,7 @@ import json
 import os
 import sys
 import subprocess
+import math
 
 # Import 3rd-party modules.
 import netCDF4
@@ -162,7 +163,7 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
     options["pbs"]["tie_mpiprocs"] = tiegcm_options["job"]["resource"]["mpiprocs"]
     options["pbs"]["tie_mpiranks"] = tiegcm_options["job"]["nprocs"]
     options["pbs"]["tie_exe"] = tiegcm_options["model"]["data"]["coupled_modelexe"] 
-    if tiegcm_options["simulation"]["hpc_system"] == "pleiades":
+    if tiegcm_options["simulation"]["hpc_system"] == "aitken":
         options["pbs"]["model"] = tiegcm_options["job"]["resource"]["model"]    
     
     # GR PBS parameters
@@ -180,7 +181,7 @@ def create_pbs_scripts(gr_options: dict, makeitso_options:dict,makeitso_pbs_scri
     if tiegcm_options["simulation"]["hpc_system"] == "derecho":
         options["pbs"]["mpiexec_command"] = "mpiexec"
         options["pbs"]["mpiexec_option"] = "-n"
-    elif tiegcm_options["simulation"]["hpc_system"] == "pleiades":
+    elif tiegcm_options["simulation"]["hpc_system"] == "aitken":
         options["pbs"]["mpiexec_command"] = "mpiexec_mpt"
         options["pbs"]["mpiexec_option"] = "-np"
         options["pbs"]["tie_scripts"] = "correctOMPenvironment.sh $NODEFILE_1 omplace"
@@ -220,7 +221,9 @@ echo "Running tiegcm and voltron at the same time"
     
     # Create a PBS script for each segment.
     pbs_scripts = []
+    print(f'Creating {options["pbs"]["num_segments"]} PBS scripts')
     for job in range(1,int(options["pbs"]["num_segments"])+1):
+
         opt = copy.deepcopy(options)  # Need a copy of options
         runid = opt["simulation"]["job_name"]
         segment_id = f"{runid}-{job:02d}"
@@ -356,7 +359,7 @@ def prompt_user_for_run_options(args):
     for on in ["use_segments"]:
         od[on]["default"] = "Y"
         o[on] = makeitso.get_run_option(on, od[on], mode)
-    if o["use_segments"] == "Y":
+    if o["use_segments"].upper() == "Y":
         for on in ["segment_duration"]:
             o[on] = makeitso.get_run_option(on, od[on], mode)
     else:
@@ -364,7 +367,7 @@ def prompt_user_for_run_options(args):
 
     # Compute the number of segments based on the simulation duration and
     # segment duration, add 1 if there is a remainder.
-    if o["use_segments"] == "Y":
+    if o["use_segments"].upper() == "Y":
         num_segments = simulation_duration/float(o["segment_duration"])
         if num_segments > int(num_segments):
             num_segments += 1
@@ -401,7 +404,7 @@ def prompt_user_for_run_options(args):
         od["num_helpers"]["default"][gamera_grid_type]
     )
     od["modules"] = oed["modules"]
-    if hpc_platform == "pleiades":
+    if hpc_platform == "aitken":
         od["moduledir"] = oed["moduledir"]
         od["local_modules"] = oed["local_modules"]
     for on in od:
@@ -494,7 +497,7 @@ def main():
             od["num_helpers"]["default"][gamera_grid_type]
         )
         od["modules"] = oed["modules"]
-        if hpc_platform == "pleiades":
+        if hpc_platform == "aitken":
             od["moduledir"] = oed["moduledir"]
             od["local_modules"] = oed["local_modules"]
         for on in od:
@@ -564,7 +567,8 @@ def main():
 
         segment_duration = float(engage_options["simulation"]["segment_duration"])
         makeitso_options["voltron"]["time"]["tFin"] = int((t1-t0).total_seconds())
-        makeitso_options["pbs"]["num_segments"] = str(int((t1-t0).total_seconds()/segment_duration))
+        num_segments = math.ceil((t1-t0).total_seconds()/segment_duration)
+        makeitso_options["pbs"]["num_segments"] = str(num_segments)
         select2 = 1 + int(makeitso_options["pbs"]["num_helpers"])
         makeitso_options["pbs"]["select2"] = str(select2)
 
@@ -625,6 +629,8 @@ def main():
     with open('makeitso_parameters.json', 'w') as f:
         json.dump(makeitso_options, f, indent=JSON_INDENT)
     
+    # Update engage options with makeitso options
+    engage_options["pbs"]["num_segments"] = makeitso_options["pbs"]["num_segments"]
 
     # Run the TIEGCMrun
     coupled_options = copy.deepcopy(engage_options)
@@ -652,7 +658,9 @@ def main():
 
     # Create the PBS job scripts.
     pbs_scripts, submit_all_jobs_script = create_pbs_scripts(engage_options,makeitso_options, makeitso_pbs_scripts, tiegcm_options, tiegcm_inp_scripts, tiegcm_pbs_scripts)
-    print(f"pbs_scripts = {pbs_scripts}")
+    print(f"GR_pbs_scripts = {makeitso_pbs_scripts}")
+    print(f"Tiegcm_pbs_scripts = {tiegcm_pbs_scripts}")
+    print(f"GTR_pbs_scripts = {pbs_scripts}")
     print(f"submit_all_jobs_script = {submit_all_jobs_script}")
     
 

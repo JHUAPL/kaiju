@@ -258,7 +258,7 @@ module gioH5
         type(State_T), intent(in) :: State
         character(len=*), intent(in) :: gStr
 
-        integer :: i,j,k,s
+        integer :: i,j,k,s,nClkSteps
         character(len=strLen) :: dID,VxID,VyID,VzID,PID
         integer iMin,iMax,jMin,jMax,kMin,kMax
 
@@ -539,6 +539,18 @@ module gioH5
         call AddOutVar(IOVars,"kzcsTOT",Model%kzcsTOT,uStr="kZCs",dStr="Total kZCs"   )
 
         !---------------------
+        !Performance metrics
+
+        nClkSteps = readNCalls('Advance')
+        call AddOutVar(IOVars,"_perf_stepTime",readClock(1)/nClkSteps)
+        call AddOutVar(IOVars,"_perf_mathTime", readClock('Gamera')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_bcTime", readClock('BCs')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_haloTime", readClock('Halos')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_voltTime", readClock('VoltSync')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_ioTime", readClock('IO')/nClkSteps)
+        call AddOutVar(IOVars,"_perf_advanceTime", readClock('Advance')/nClkSteps)
+
+        !----------------------
 
         !Call user routine if defined
         if (associated(Model%HackIO)) then

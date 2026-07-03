@@ -137,8 +137,8 @@ module raijustarter
             else
                 tmpStr = "/Kaiju/Gamera/restart/resId"
             endif
-            call iXML%Set_Val(tmpResId, trim(tmpStr), Model%RunID)
-            call genResInFname(Model, Model%ResF, runIdO=tmpResId)  ! Determine filename to read from
+            call iXML%Set_Val(Model%resId, trim(tmpStr), Model%RunID)
+            call genResInFname(Model, Model%ResF, runIdO=Model%resId)  ! Determine filename to read from
         endif
         
         !--- Plasmasphere ---!
@@ -175,6 +175,7 @@ module raijustarter
         Model%activeDomRad   = abs(Model%activeDomRad)
 
         !---Solver ---!
+        call iXML%Set_Val(Model%doSmoothGrads,'sim/doSmoothGrads',def_doSmoothGrads)
         call iXML%Set_Val(Model%doUseVelLRs,'sim/useVelLRs',def_doUseVelLRs)
         call iXML%Set_Val(Model%maxItersPerSec,'sim/maxIter',def_maxItersPerSec)
         call iXML%Set_Val(Model%maxOrder,'sim/maxOrder',7)
@@ -244,7 +245,6 @@ module raijustarter
         !--- Output ---!
         call iXML%Set_Val(Model%isLoud           , "output/loudConsole",.false.)
         call iXML%Set_Val(Model%writeGhosts      , "output/writeGhosts",.false.)
-        call iXML%Set_Val(Model%doOutput_potGrads, "output/doFat"      ,.false.)
         call iXML%Set_Val(Model%doOutput_3DLoss  , "output/doLossExtras" ,.false.)  ! Several (Ni,Nj,Nk) arrays
         call iXML%Set_Val(Model%doOutput_debug   , "output/doDebug"    ,.false.)
 
@@ -316,10 +316,20 @@ module raijustarter
 
         ! Set grid params
         call iXML%Set_Val(Grid%nB, "grid/Nbnd", 4      )  ! Number of cells between open boundary and active domain
-        call iXML%Set_Val(tmpStr, "grid/gType","UNISPH")
+
+        ! If we are restarting, use shellGrid from file
+        if (Model%isRestart) then
+            tmpStr = "RESTART"
+        else
+            ! Otherwise, ask user how we should be making our grid
+            call iXML%Set_Val(tmpStr, "grid/gType","UNISPH")
+        endif
 
         ! Fill out Grid object depending on chosen method
         select case(tmpStr)
+            case("RESTART")
+                Grid%gType = RAI_G_SHGRID ! Idk, not important right now
+                call GenShellGridFromFile(Grid%shGrid, RAI_SG_NAME, Model%ResF)
             case("UNISPH")
                 Grid%gType = RAI_G_UNISPH
                 ! Generate our own grid from scratch
@@ -339,7 +349,7 @@ module raijustarter
                     write(*,*) "RAIJU expecting a ShellGrid_T but didn't receive one. Dying."
                 endif
             case DEFAULT
-                write(*,*) "RAIJU Received invalid grid definition: ",Grid%gType
+                write(*,*) "RAIJU Received invalid grid definition: ",tmpStr
                 write(*,*) " Dying."
                 stop
         end select
@@ -405,15 +415,6 @@ module raijustarter
             ! Effective potential (used for output only)
             allocate( State%pEff(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk) )
             call fillArray(State%pEff, 0.0_rp)
-            ! Gradient of ionspheric potential
-            allocate( State%gradPotE     (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, 2) )
-            call fillArray(State%gradPotE, 0.0_rp)
-            ! Gradient of corotation potential
-            allocate( State%gradPotCorot (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, 2) )
-            call fillArray(State%gradPotCorot, 0.0_rp)
-            ! Gradient of (flux tube volume ^ -2/3)
-            allocate( State%gradVM      (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, 2) )
-            call fillArray(State%gradVM, 0.0_rp)
             ! Interface and cell velocities
             allocate( State%gradPotE_cc    (sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
             call fillArray(State%gradPotE_cc, 0.0_rp)
@@ -552,6 +553,8 @@ module raijustarter
         State%activeShells = .true.
         ! Similarly, set vaFrac to safe value in case stand-alone never writes to it
         State%vaFrac = 1.0
+
+        State%isFirstCpl = .true.
 
         ! Init State sub-modules
         if (Model%isSA) then

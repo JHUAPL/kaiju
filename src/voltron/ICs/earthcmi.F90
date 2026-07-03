@@ -2,6 +2,7 @@
 
 module uservoltic
     use gamtypes
+    use volttypes, only: NVARVOLTSRC,IONO_EX,IONO_EY,IONO_EZ
     use gamdebug
     use cmidefs
     use gamutils
@@ -83,7 +84,7 @@ module uservoltic
         call inpXML%Set_Val(Rho0 ,"prob/Rho0",0.2_rp)
         call inpXML%Set_Val(P0   ,"prob/P0"  ,0.001_rp)
         call inpXML%Set_Val(doPP0,"prob/doPP0",.false.)
-        call inpXML%Set_Val(writeBCData,"prob/writeBC",.false.)
+        call inpXML%Set_Val(writeBCData,"prob/writeBC",.true.)
 
         !Set magnetosphere parameters
         call setMagsphere(Model,inpXML)
@@ -356,7 +357,7 @@ module uservoltic
             PsiShells = PsiSh !Coming from cmidefs
 
             !Create holders for coupling electric field
-            allocate(bc%inExyz(1:PsiShells  ,Grid%jsg:Grid%jeg  ,Grid%ksg:Grid%keg  ,1:NDIM))
+            allocate(bc%inExyz(1:PsiShells  ,Grid%jsg:Grid%jeg  ,Grid%ksg:Grid%keg  ,1:Model%nvInExyz))
             allocate(bc%inEijk(1:PsiShells+1,Grid%jsg:Grid%jeg+1,Grid%ksg:Grid%keg+1,1:NDIM))
             bc%inExyz = 0.0
             bc%inEijk = 0.0
@@ -420,7 +421,9 @@ module uservoltic
                         !Get dipole value (TODO: Switch to IGRF)
                         Bd = VecDipole(Grid%xyzcc(idip,jp,kp,:))
                         !Get remix field
-                        Exyz = bc%inExyz(np,jp,kp,:)
+                        Exyz(IONO_EX) = bc%inExyz(np,jp,kp,IONO_EX)
+                        Exyz(IONO_EY) = bc%inExyz(np,jp,kp,IONO_EY)
+                        Exyz(IONO_EZ) = bc%inExyz(np,jp,kp,IONO_EZ)
 
                         !ExB velocity
                         Veb = cross(Exyz,Bd)/dot_product(Bd,Bd)
@@ -558,7 +561,9 @@ module uservoltic
                 !Get EB info
                     xcc = Grid%xyzcc(i,j,k,:)
                     Bd = VecDipole(xcc)
-                    Exyz = bc%inExyz(PsiShells,j,k,:)
+                    Exyz(IONO_EX) = bc%inExyz(PsiShells,j,k,IONO_EX)
+                    Exyz(IONO_EY) = bc%inExyz(PsiShells,j,k,IONO_EY)
+                    Exyz(IONO_EZ) = bc%inExyz(PsiShells,j,k,IONO_EZ)
                     rHat = normVec(xcc)
 
                     !Get ExB velocity w/o radial component

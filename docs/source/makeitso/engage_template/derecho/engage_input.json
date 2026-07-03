@@ -1,0 +1,28 @@
+{
+    "simulation": {
+        "job_name": "geospace",
+        "start_date": "2016-08-09T09:00:00",
+        "stop_date": "2016-08-09T11:00:00",
+        "use_segments": "Y",
+        "segment_duration": "3600",
+        "gamera_grid_type": "D",
+        "hpc_system": "derecho"
+    },
+    "pbs": {
+        "account_name": "P28100045",
+        "run_directory": ".",
+        "kaiju_install_directory": "/glade/u/home/nikhilr/kaiju_engage/kaiju-private",
+        "kaiju_build_directory": "/glade/u/home/nikhilr/kaiju_engage/kaiju-private/build_mpi",
+        "queue": "main",
+        "job_priority": "premium",
+        "walltime": "03:00:00"
+    },
+    "coupling": {
+        "gr_warm_up_time": 14400,
+        "gcm_spin_up_time": 604800,
+        "root_directory": "/glade/derecho/scratch/nikhilr/GTR34",
+        "conda_env": "/glade/work/nikhilr/conda-envs/kaiju",
+        "tfin_delta": "T",
+        "doGCM": "T"
+    }
+}

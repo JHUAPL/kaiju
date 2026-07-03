@@ -65,22 +65,19 @@ module chmpfields
         allocate(By(Nip,Njp,Nkp))
         allocate(Bz(Nip,Njp,Nkp))
 
+        allocate(Vx(Nip,Njp,Nkp,0:Model%nSpc))
+        allocate(Vy(Nip,Njp,Nkp,0:Model%nSpc))
+        allocate(Vz(Nip,Njp,Nkp,0:Model%nSpc))
+
         if (Model%doMHD) then
             allocate(D (Nip,Njp,Nkp,0:Model%nSpc))
             allocate(P (Nip,Njp,Nkp,0:Model%nSpc))
-            allocate(Vx(Nip,Njp,Nkp,0:Model%nSpc))
-            allocate(Vy(Nip,Njp,Nkp,0:Model%nSpc))
-            allocate(Vz(Nip,Njp,Nkp,0:Model%nSpc))
-        else
-            allocate(Vx(Nip,Njp,Nkp,0))
-            allocate(Vy(Nip,Njp,Nkp,0))
-            allocate(Vz(Nip,Njp,Nkp,0))
         endif
+
         if (Model%doJ) then
             allocate(Jx(Nip,Njp,Nkp))
             allocate(Jy(Nip,Njp,Nkp))
             allocate(Jz(Nip,Njp,Nkp))
-
         endif
 
         !------------

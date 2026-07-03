@@ -1,0 +1,27 @@
+{
+    "simulation": {
+        "job_name": "geospace",
+        "start_date": "2016-08-09T09:00:00",
+        "stop_date": "2016-08-09T11:00:00",
+        "use_segments": "Y",
+        "segment_duration": "3600",
+        "gamera_grid_type": "D",
+        "hpc_system": "pleiades"
+    },
+    "pbs": {
+        "account_name": "nrao3",
+        "run_directory": ".",
+        "kaiju_install_directory": "/nobackupp27/nrao3/engage_build/kaiju-private",
+        "kaiju_build_directory": "/nobackupp27/nrao3/engage_build/kaiju-private/build_mpi",
+        "group_list": "None",
+        "queue": "normal",
+        "walltime": "03:00:00"
+    },
+    "coupling": {
+        "gr_warm_up_time": 14400,
+        "gcm_spin_up_time": 604800,
+        "root_directory": "/nobackupp27/nrao3/GTR152",
+        "tfin_delta": "T",
+        "doGCM": "T"
+    }
+}

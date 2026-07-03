@@ -16,6 +16,8 @@ module chopio
     integer, parameter :: MAXEBVS = 50
     
     integer  :: Nx1 = 64, Nx2 = 64, Nx3 = 64
+    real(rp) :: originOff = 0.0 !Default origin offset
+    real(rp) :: lookDir = 0.0   !Default CONE grid tilt
 
     real(rp) :: xyzMax = 10.0 !Default bound
     real(rp), dimension(:,:,:), allocatable :: xxi,yyi,zzi,xxc,yyc,zzc
@@ -37,6 +39,10 @@ module chopio
         integer :: iS,iE
         real(rp) :: xcc(NDIM)
         logical :: doLogR
+        real(rp) :: xOff,yOff,zOff  !Cartesian offsets for CONE grid origin
+        real(rp) :: theta_pitch,phi_yaw !Theta and phi for y and z rotations in 3D space
+        real(rp) :: xxi_temp,yyi_temp,zzi_temp  !Temp variables for 3D rotations
+        real(rp) :: xxi_tilt,yyi_tilt,zzi_tilt,xxi_pan,yyi_pan,zzi_pan  !More temp variables for 3D rotations
 
     !Check for time parallelism
         call InitParInTime(Model,inpXML,"eb3",eb3DOutF)
@@ -60,6 +66,15 @@ module chopio
         call inpXML%Set_Val(Nx1,'chop/Nx1',Nx1)
         call inpXML%Set_Val(Nx2,'chop/Nx2',Nx2)
         call inpXML%Set_Val(Nx3,'chop/Nx3',Nx3)
+
+        !Get origin offset for CONE chopping. Default to originOff (zero)
+        call inpXML%Set_Val(xOff,'chop/xOff',originOff)
+        call inpXML%Set_Val(yOff,'chop/yOff',originOff)
+        call inpXML%Set_Val(zOff,'chop/zOff',originOff)
+
+        !Get pitch and yaw angles for CONE chopping. Default to lookDir (zero)
+        call inpXML%Set_Val(theta_pitch,'chop/lookPol',lookDir)
+        call inpXML%Set_Val(phi_yaw,'chop/lookAzi',lookDir)
 
         !for LFM grid, take all i-shells within x1Max, in the Sun direction
         select case(trim(toUpper(idStr)))
@@ -120,11 +135,12 @@ module chopio
             endif
             dx2 = (x2Max-x2Min)*deg2rad/Nx2
             dx3 = (x3Max-x3Min)*deg2rad/Nx3
-            !$OMP PARALLEL DO
+            !$OMP PARALLEL DO default(shared) &
+            !$OMP private(i,j,k,x1,x2,x3)
             do k=1, Nx3+1
                 do j=1,Nx2+1    
                     do i=1,Nx1+1
-                        !x1 = Rin + (i-1)*dx1
+                        !x1 = Rin(i,j,k) + (i-1)*dx1
                         if (doLogR) then
                             x1 = 10**( log10(x1Min) + (i-1)*dx1 )
                         else
@@ -136,6 +152,57 @@ module chopio
                         xxi(i,j,k) = x1*cos(x3)*sin(x2)
                         yyi(i,j,k) = x1*sin(x3)*sin(x2)
                         zzi(i,j,k) = x1*cos(x2)
+
+                    enddo
+                enddo
+            enddo
+        !---------
+        ! Conical/Solid angle (based on RTP)
+        case("CONE")
+            !Check for log spacing in r
+            call inpXML%Set_Val(doLogR,'chop/doLogR',.false.)
+            if (doLogR) then
+                dx1 = ( log10(x1Max)-log10(x1Min) )/Nx1
+            else
+                dx1 = (x1Max - x1Min)/Nx1
+            endif
+            dx2 = (x2Max-x2Min)*deg2rad/Nx2
+            dx3 = (x3Max-x3Min)*deg2rad/Nx3
+            !$OMP PARALLEL DO default(shared) &
+            !$OMP private(i,j,k,x1,x2,x3,xxi_temp,yyi_temp,zzi_temp,xxi_tilt,yyi_tilt,zzi_tilt,xxi_pan,yyi_pan,zzi_pan)
+            do k=1,Nx3+1
+                do j=1,Nx2+1    
+                    do i=1,Nx1+1
+                        !x1 = Rin(i,j,k) + (i-1)*dx1
+                        if (doLogR) then
+                            x1 = 10**( log10(x1Min) + (i-1)*dx1 )
+                        else
+                            x1 = x1Min + (i-1)*dx1
+                        endif
+                        x2 = x2Min*deg2rad + (j-1)*dx2 !Theta
+                        x3 = x3Min*deg2rad + (k-1)*dx3 !Phi
+                        
+                        ! pre-rotation variables
+                        xxi_temp = x1*cos(x3)*sin(x2)
+                        yyi_temp = x1*sin(x3)*sin(x2)
+                        zzi_temp = x1*cos(x2)
+
+                        ! first tilt (polar) then pan (azimuthal) (pitch then yaw)
+                        ! perform rotation about y axis (theta, polar angle)
+                        xxi_tilt = (cos(theta_pitch*deg2rad)*xxi_temp) + (0) + (sin(theta_pitch*deg2rad)*zzi_temp)
+                        yyi_tilt = (0) + (yyi_temp) + (0)
+                        zzi_tilt = (-sin(theta_pitch*deg2rad)*xxi_temp) + (0) + (cos(theta_pitch*deg2rad)*zzi_temp)
+
+                        ! perform rotation about z axis (phi, azimuthal angle)
+                        ! apply to the tilted xxi/yyi/zzi
+                        xxi_pan = (cos(phi_yaw*deg2rad)*xxi_tilt) + (-sin(phi_yaw*deg2rad)*yyi_tilt) + (0)
+                        yyi_pan = (sin(phi_yaw*deg2rad)*xxi_tilt) + (cos(phi_yaw*deg2rad)*yyi_tilt) + (0)
+                        zzi_pan = (0) + (0) + (zzi_tilt)
+                        
+                        ! post-rotation, add cartesian offsets
+                        xxi(i,j,k) = xxi_pan + xOff
+                        yyi(i,j,k) = yyi_pan + yOff
+                        zzi(i,j,k) = zzi_pan + zOff
 
                     enddo
                 enddo
