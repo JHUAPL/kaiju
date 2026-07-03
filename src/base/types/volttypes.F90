@@ -89,33 +89,6 @@ module volttypes
         real(rp) :: dtAvg,wAvg
     end type mhd2mix_T
 
-    ! Packs the Gamera innermost J-shell onto the voltron ShellGrid (one
-    ! global grid, no hemisphere split). REMIX hemisphere handling lives later.
-    type gam2shell_T
-        ! mhdBuf(JpSh, js:je, ks:ke, mhd2mix_varn), v in {MHDJ,MHDD,MHDC}
-        real(rp), dimension(:,:,:,:), allocatable :: mhdBuf
-        ! Gamera J-shell currents and background B (same shape as mhd2Mix_T versions)
-        real(rp), dimension(:,:,:,:), allocatable :: gJ, gBAvg
-        ! One bilinear map per shell, full Gamera J-shell -> voltron ShellGrid
-        type(Map_T), allocatable, dimension(:) :: JMaps
-        ! Output on voltron ShellGrid (SHGR_CORNER)
-        type(ShellGridVar_T) :: fac       !! [uA/m^2] field-aligned current
-        type(ShellGridVar_T) :: density   !! [g/cm^3] mass density
-        type(ShellGridVar_T) :: soundSpd  !! [cm/s]   sound speed
-        ! Gamera MHD inner-boundary radius (Rion units), used to build the REMIX-grid mask
-        real(rp) :: mhd_Rin = 0.0_rp
-        ! Per-variable, per-hemisphere floor (minval over mhdBuf), applied
-        ! equatorward of the MHD inner boundary. Indexed (var=MHDJ..MHDC, hemi=N/S).
-        real(rp), dimension(:,:), allocatable :: floorVal
-    end type gam2shell_T
-
-    ! Maps the voltron ShellGrid onto the REMIX hemisphere grids. SOUTH map's
-    ! dest points are pre-shifted (PI-theta, 2*PI-phi) so both hemispheres
-    ! sample the same voltron shell at apply time.
-    type shell2mix_T
-        type(Map_T), dimension(2) :: maps   !! indexed by NORTH/SOUTH enum
-    end type shell2mix_T
-
     ! data for chimp -> gamera conversion
     type chmp2Mhd_T
         !Ni,Nj,Nk,2 array
@@ -337,19 +310,9 @@ module volttypes
         type(dkApp_T) :: dkApp
             !! DragonKing conductance + precipitation provider for this REMIX coupler
 
-        ! --- Staging layer (coupler's own intermediate data) --- !
-        type(ShellGrid_T) :: shGr
-            !! Coupler staging ShellGrid (deep-copy of voltron ShellGrid for now)
-        type(ShellGridVar_T) :: fac
-            !! [uA/m^2] field-aligned current (staged from gam2shell)
-        type(ShellGridVar_T) :: density
-            !! [g/cm^3] mass density
-        type(ShellGridVar_T) :: soundSpd
-            !! [cm/s]  sound speed
-        type(ShellGridVar_T) :: pot_iono
-            !! [kV]    solved ionospheric potential on coupler ShellGrid
-        type(shell2mix_T) :: shell2mix
-            !! Maps the ShellGrid onto the REMIX hemisphere grids
+        real(rp) :: mhd_Rin = 0.0_rp
+            !! [Rion units] mean MHD inner-boundary radius for the equatorward forward-feed
+            !! mask; built once in InitCouplers from gApp%Grid (replaces gam2shell%mhd_Rin)
 
         contains
 
@@ -473,8 +436,6 @@ module volttypes
         class(ionoCoupler_T), allocatable :: ionoApp
             !! Ionosphere coupler (e.g. remixCoupler_T, smiteCoupler_T)
         type(mhd2Mix_T) :: mhd2mix
-        type(gam2shell_T) :: gam2shell
-            !! Packs Gamera data onto the voltron ShellGrid
 
         type(ebTrcApp_T)  :: ebTrcApp
         type(mhd2Chmp_T)  :: mhd2chmp

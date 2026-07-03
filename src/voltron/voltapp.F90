@@ -10,10 +10,11 @@ module voltapp
     use ebtypes
     use chmpdefs
     use starter
+    use cmidefs,   only: JpSt, JpSh        ! inner J-shell indices for remix mhd_Rin
+    use metric,    only: cellCenter        ! Gamera cell-center xyz for remix mhd_Rin
+    use msphutils, only: RadIonosphere     ! ionosphere radius (Rp) for remix mhd_Rin
     use mhd2mix_interface
-    use gam2shell_interface
     use shell2gam_interface
-    use shell2mix_interface
     use mhd2chmp_interface
     use chmp2mhd_interface
     use mix2mhd_interface
@@ -415,12 +416,30 @@ module voltapp
         ! Allocate and init ionosphere coupler (REMIX or future models)
         call InitIonosphere(vApp, xmlInp)
 
-        ! Gamera MHD -> voltron ShellGrid (model-agnostic; shared by all iono couplers).
-        call init_gam2shell(vApp%gam2shell, gApp, vApp%shGrid)
-
         ! Per-model coupler init behind the ionoCoupler contract (REMIX/SMITE-specific:
         ! restart/IO/F10.7 + the gApp-dependent map builds, incl. DragonKing). No select type here.
         call vApp%ionoApp%InitCouplers(vApp, xmlInp)
+
+        ! Mean MHD inner-boundary radius (Rion units) for the remixCoupler equatorward mask.
+        ! Computed here from the local (filled) gApp%Grid; replicates the retired gam2shell value.
+        select type (ic => vApp%ionoApp)
+        type is (remixCoupler_T)
+            block
+                integer  :: jj, kk, iG, ncnt
+                real(rp) :: xc, yc, zc, Rion, acc
+                Rion = RadIonosphere()
+                iG   = JpSt + JpSh - 1
+                acc  = 0.0_rp; ncnt = 0
+                do kk = gApp%Grid%ks, gApp%Grid%ke
+                    do jj = gApp%Grid%js, gApp%Grid%je
+                        call cellCenter(gApp%Grid, iG, jj, kk, xc, yc, zc)
+                        acc  = acc + norm2([xc, yc, zc]) / Rion
+                        ncnt = ncnt + 1
+                    enddo
+                enddo
+                if (ncnt > 0) ic%mhd_Rin = acc / real(ncnt, rp)
+            end block
+        end select
         !vApp%mix2mhd%mixOutput = 0.0
         
     !CHIMP (TRC) from Gamera
@@ -450,13 +469,6 @@ module voltapp
 
 !----------
 !Deep coupling stuff (time coming from vApp%time, so in seconds)
-    !Gamera MHD -> voltron ShellGrid (model-agnostic; shared by all iono couplers).
-    subroutine gameraToShell(vApp)
-        class(voltApp_T), intent(inout) :: vApp
-        call convertGameraToShell(vApp%gam2shell, vApp%gApp)
-        call mapGameraToShell(vApp%gam2shell, vApp%shGrid)
-    end subroutine gameraToShell
-
     !voltron ShellGrid potential -> Gamera inner-boundary BC (model-agnostic).
     subroutine shellToGamera(vApp)
         class(voltApp_T), intent(inout) :: vApp
@@ -468,8 +480,9 @@ module voltapp
         class(voltApp_T), intent(inout) :: vApp
 
         ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
+        ! NOTE serial DeepUpdate: tubeShell must be populated before toIono (same as startDeep);
+        ! the rvs tube path supplies the forward feed (no gam2shell).
         call Tic("ReMIX", .true.)
-        call gameraToShell(vApp)              ! Gamera -> shell (model-agnostic)
         call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
         call vApp%ionoApp%AdvanceModel(0.0_rp)
         call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)

@@ -411,7 +411,19 @@ module voltapp_mpi
 
         ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
         call Tic("ReMIX", .true.)
-        call gameraToShell(vApp)              ! Gamera -> shell (model-agnostic)
+        ! Finalize tube tracing into tubeShell BEFORE toIono (packInputs reads J11i/bcN/bcP).
+        if(vApp%doDeep .and. vApp%time >= 0) then
+            call Tic("VoltTubes",.true.)
+            if(vApp%useHelpers .and. vApp%doTubeHelp) then
+                call vhReqTubeEnd(vApp)
+                call Tic("Tube2Shell")
+                call tubes2Shell(vApp%shGrid, vApp%State%ijTubes, vApp%State%tubeShell)
+                call Toc("Tube2Shell")
+            else
+                call genVoltTubes(vApp)
+            endif
+            call Toc("VoltTubes",.true.)
+        endif
         call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
         call vApp%ionoApp%AdvanceModel(0.0_rp)
         call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
@@ -421,19 +433,7 @@ module voltapp_mpi
         ! only do imag after spinup
         if(vApp%doDeep .and. vApp%time >= 0) then
             ! instead of PreDeep, use Tube Helpers and replicate other calls
-
-            call Tic("VoltTubes",.true.)
-            if(vApp%useHelpers .and. vApp%doTubeHelp) then
-                ! Tubes were started earlier
-                call vhReqTubeEnd(vApp)
-                ! Now pack into tubeShell
-                call Tic("Tube2Shell")
-                call tubes2Shell(vApp%shGrid, vApp%State%ijTubes, vApp%State%tubeShell)
-                call Toc("Tube2Shell")
-            else
-                call genVoltTubes(vApp)
-            endif
-            call Toc("VoltTubes",.true.)
+            ! (tube finalization moved ahead of toIono so packInputs sees fresh tubeShell)
 
             call SquishStart(vApp)
 

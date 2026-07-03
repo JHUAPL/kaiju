@@ -9,13 +9,15 @@ submodule (volttypes) remixCplTypesSub
     use mix2mhd_interface
     use imag2mix_interface
     use mixinterfaceutils
-    use shell2mix_interface,  only: mapShellToMix, init_shell2mix
     use mix2shell_interface,  only: mapMixToShell
     use voltappHelper
     use kai2geo
     use mixmain,   only: updateF107, mix_transform_grid  ! not host-associated via volttypes
     use dkmain,    only: getMixToDK, getDKToMix, DKdogcm  ! DragonKing conductance/precip flow
     use dkinit,    only: initDKmesh
+    use planethelper, only: DP2Cs                          ! (D,P) -> sound speed for tubeShell forward feed
+    use kdefs,        only: Mp_cgs, TINY                    ! #/cc -> mass density conversion
+    use gdefs,        only: BLK                             ! bulk fluid index for tubeShell bcN/bcP
 
     implicit none
 
@@ -106,15 +108,8 @@ submodule (volttypes) remixCplTypesSub
         ! (Direct mhd2mix path retired: its maps were consumed only by the removed
         !  convertGameraToRemix/mapGameraToRemix, so init_mhd2Mix is no longer needed.)
 
-        ! Coupler staging layer: deep-copy voltron ShellGrid, init staging vars.
-        App%shGr = vApp%shGrid
-        call initShellVar(App%shGr, SHGR_CORNER, App%fac)
-        call initShellVar(App%shGr, SHGR_CORNER, App%density)
-        call initShellVar(App%shGr, SHGR_CORNER, App%soundSpd)
-        call initShellVar(App%shGr, SHGR_CORNER, App%pot_iono)
-
-        ! Coupler ShellGrid -> REMIX's two hemisphere grids.
-        call init_shell2mix(App%shell2mix, App%shGr, App%mixApp)
+        ! NOTE: App%mhd_Rin (the equatorward-mask radius) is computed lazily on the first deep
+        ! packInputs call — vApp%gApp%Grid is not yet populated here, but is during coupling.
 
     end subroutine remixCpl_InitCouplers
 
@@ -242,21 +237,83 @@ submodule (volttypes) remixCplTypesSub
     end subroutine remixCplCleanup
 
 
-    !packInputs — voltron ShellGrid -> coupler staging (direct copy) -> REMIX (shell2mix).
+    !packInputs — voltron ShellGrid -> REMIX. Forward feed from rvs tubeShell (J11i/bcN/bcP).
+    !Single path: tubeShell is empty during spinup (DK is const_sigma then, so D/Cs are
+    !ignored and FAC=0 is benign) and populated post-spinup. Inner-boundary floor/mask is
+    !self-contained (App%mhd_Rin from init, per-hemi floors from the rvs-derived shell vars).
     module subroutine remix_packInputs(App, vApp)
         class(remixCoupler_T), intent(inout) :: App
         class(voltApp_T),      intent(inout) :: vApp
 
-        ! voltron ShellGrid -> coupler staging ShellGrid.
-        App%fac%data      = vApp%gam2shell%fac%data
-        App%fac%mask      = vApp%gam2shell%fac%mask
-        App%density%data  = vApp%gam2shell%density%data
-        App%density%mask  = vApp%gam2shell%density%mask
-        App%soundSpd%data = vApp%gam2shell%soundSpd%data
-        App%soundSpd%mask = vApp%gam2shell%soundSpd%mask
+        type(ShellGridVar_T)                 :: facV, denV, csV
+        logical, dimension(:,:), allocatable :: mask
+        real(rp) :: floorD(2), floorCs(2)
+        logical  :: doDeepFeed
+        integer  :: i, j, h, Nth, is_, ie_, js_, je_
 
-        ! coupler staging ShellGrid -> REMIX's two hemisphere grids.
-        call mapShellToMix(App%shell2mix, App, vApp%gam2shell, App%mixApp)
+        doDeepFeed = (vApp%doDeep .and. vApp%time >= 0)
+
+        ! Build forward-feed ShellGridVars from rvs tubeShell (empty=0 during spinup).
+        call initShellVar(vApp%shGrid, SHGR_CORNER, facV)
+        call initShellVar(vApp%shGrid, SHGR_CORNER, denV)
+        call initShellVar(vApp%shGrid, SHGR_CORNER, csV)
+
+        facV%data = vApp%State%tubeShell%J11i%data                  ! uA/m^2 (J11i is FAC already)
+        denV%data = vApp%State%tubeShell%bcN(BLK)%data * Mp_cgs      ! #/cc -> mass density g/cm^3
+        do j = lbound(csV%data,2), ubound(csV%data,2)
+            do i = lbound(csV%data,1), ubound(csV%data,1)
+                csV%data(i,j) = DP2Cs(vApp%State%tubeShell%bcN(BLK)%data(i,j), &
+                                      vApp%State%tubeShell%bcP(BLK)%data(i,j)) * 1.0e5_rp  ! km/s -> cm/s
+            enddo
+        enddo
+        ! J11i (FAC) is genuinely valid everywhere (0 on an open tube is physical).
+        ! bcN/bcP are 0 on open/non-closed tubes (no plasma sample, NOT zero density);
+        ! mask those so voltVarToMix's TSC renormalizes onto the valid (closed) corners
+        ! instead of averaging no-data zeros into the outermost closed REMIX row.
+        facV%mask = .true.
+        denV%mask = (denV%data > 0._rp)
+        csV%mask  = (vApp%State%tubeShell%bcN(BLK)%data > 0._rp) .and. &
+                    (vApp%State%tubeShell%bcP(BLK)%data > 0._rp)
+
+        ! voltron shell -> REMIX's two hemisphere grids (TSC + supersample).
+        call voltVarToMix(vApp%shGrid, facV, App%mixApp, FAC)
+        call voltVarToMix(vApp%shGrid, denV, App%mixApp, DENSITY)
+        call voltVarToMix(vApp%shGrid, csV,  App%mixApp, SOUND_SPEED)
+
+        ! Self-contained per-hemisphere floor from the rvs-derived shell vars over the
+        ! VALID (non-dipole) corners; replaces vApp%gam2shell%floorVal (deep only).
+        is_ = vApp%shGrid%is; ie_ = vApp%shGrid%ie
+        js_ = vApp%shGrid%js; je_ = vApp%shGrid%je
+        floorD = 0.0_rp; floorCs = 0.0_rp
+        if (doDeepFeed) then
+            do h = NORTH, SOUTH
+                floorD(h)  = 1.0e30_rp
+                floorCs(h) = 1.0e30_rp
+                do j = js_, je_+1
+                    do i = is_, ie_+1
+                        if (sqrt(App%mhd_Rin)*sin(vApp%shGrid%th(i)) > 1._rp) cycle  ! dipole region
+                        if ((h == NORTH) .neqv. (cos(vApp%shGrid%th(i)) > 0._rp)) cycle ! wrong hemi
+                        if (denV%data(i,j) <= 0._rp) cycle  ! skip empty (open-tube / polar-cap) corners
+                        floorD(h)  = min(floorD(h),  denV%data(i,j))
+                        floorCs(h) = min(floorCs(h), csV%data(i,j))
+                    enddo
+                enddo
+                if (floorD(h)  >= 1.0e30_rp) floorD(h)  = 0.0_rp
+                if (floorCs(h) >= 1.0e30_rp) floorCs(h) = 0.0_rp
+            enddo
+        endif
+
+        ! Equatorward of the MHD inner boundary: FAC->0, D/Cs->per-hemi floor.
+        do h = NORTH, SOUTH
+            Nth = App%mixApp%ion(h)%G%Nt
+            allocate(mask(App%mixApp%ion(h)%G%Np, App%mixApp%ion(h)%G%Nt))
+            mask = (sqrt(App%mhd_Rin) * sin(App%mixApp%ion(h)%G%t) > 1._rp - TINY)
+            where (mask) App%mixApp%ion(h)%St%Vars(:,:,FAC)         = 0._rp
+            where (mask) App%mixApp%ion(h)%St%Vars(:,:,DENSITY)     = floorD(h)
+            where (mask) App%mixApp%ion(h)%St%Vars(:,:,SOUND_SPEED) = floorCs(h)
+            App%mixApp%ion(h)%St%Vars(:, Nth-1:Nth, FAC) = 0._rp
+            deallocate(mask)
+        enddo
 
     end subroutine remix_packInputs
 
