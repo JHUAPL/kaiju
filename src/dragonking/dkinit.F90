@@ -1,8 +1,5 @@
 module dkinit
     use kdefs
-    use mixtypes
-    use mixdefs
-   !  use mixmain
     use dkdefs
     use dktypes
     use dkconductance
@@ -12,58 +9,91 @@ module dkinit
     use kronos
     use xml_input
     use raijudefs, ONLY : def_tiote
+    use earthhelper, only: GallagherRP
     
     implicit none
 
     contains
 
-    subroutine initDKmesh(dkApp, I)
-      type(dkApp_T), intent(inout) :: dkApp
-      type(mixIon_T),dimension(:),intent(in) :: I  
-      integer :: h
+   !  subroutine initDKmesh(dkApp, I)
+   !    type(dkApp_T), intent(inout) :: dkApp
+   !    type(mixIon_T),dimension(:),intent(in) :: I  
+   !    integer :: h
 
-      if (.not. allocated(dkApp%grid)) allocate(dkApp%grid(size(I)))
+   !    if (.not. allocated(dkApp%grid)) allocate(dkApp%grid(size(I)))
       
-      do h=1,size(I)
-        dkApp%grid(h) = I(h)%G
-      end do
+   !    do h=1,size(I)
+   !      dkApp%grid(h) = I(h)%G
+   !    end do
 
-      dkApp%params%R = I(1)%P%R
-      dkApp%params%RinMHD = I(1)%P%RinMHD
+   !    dkApp%params%R = I(1)%P%R
+   !    dkApp%params%RinMHD = I(1)%P%RinMHD
 
-    end subroutine initDKmesh
+   !  end subroutine initDKmesh
 
     subroutine initDK(dkApp, inpXML)
       type(dkApp_T), intent(inout) :: dkApp
       type(XML_Input_T), intent(in) :: inpXML
-      integer :: h,numH
-      character(len=strLen) :: tmpStr
-      type(XML_Input_T) :: xmlInp
-
-      numH = size(dkApp%grid)
-
-      if (.not.allocated(dkApp%aurora))      allocate(dkApp%aurora(numH))
-      if (.not.allocated(dkApp%conductance)) allocate(dkApp%conductance(numH))
-      if (.not.allocated(dkApp%vars))        allocate(dkApp%vars(numH))
       
-      ! Initialize parameters
       call initDKparams(dkApp%params, inpXML)
-      
-      ! Initialize variables
-      do h=1,numH
-         if (h .eq. NORTH) then
-          dkApp%vars(h)%hemisphere = NORTH
-        else if (h .eq. SOUTH) then
-          dkApp%vars(h)%hemisphere = SOUTH
-        end if
+      call initDKvars(dkApp%aurora, dkApp%conductance, dkApp%vars, dkApp%grid)
 
-        call initDKvars(dkApp%aurora(h), dkApp%conductance(h), dkApp%vars(h), dkApp%grid(h))
-
-        dkApp%aurora(h)%alpha_RCM = 1.0/(def_tiote+1.0)
-        dkApp%aurora(h)%beta_RCM = dkApp%params%beta
-        dkApp%aurora(h)%gtype_RCM = 0.0
-      end do      
+      dkApp%params%R = dkApp%grid%radius
+      dkApp%aurora%alpha_RCM = 1.0/(def_tiote+1.0)
+      dkApp%aurora%beta_RCM = dkApp%params%beta
+      dkApp%aurora%gtype_RCM = 0.0
+         
     end subroutine initDK
+
+   subroutine initDKgrid(dkApp, shGrid)
+      type(dkApp_T), intent(inout) :: dkApp
+      type(ShellGrid_T), intent(in) :: shGrid
+      integer :: Np, Nt, j, is, ie, js, je
+      real(rp), dimension(:), allocatable :: tmp
+
+      ! DK runs on the active grid only: ghost cells are dropped
+      dkApp%grid%ShellGrid_T = shGrid
+
+      is = shGrid%is; ie = shGrid%ie
+      js = shGrid%js; je = shGrid%je
+      Nt = ie - is + 1   ! active theta cells
+      Np = je - js + 1   ! active phi cells
+
+      ! DK grid ghost-free
+      tmp = dkApp%grid%phc(js:je);   call move_alloc(tmp, dkApp%grid%phc)
+      tmp = dkApp%grid%ph (js:je+1); call move_alloc(tmp, dkApp%grid%ph)
+      tmp = dkApp%grid%thc(is:ie);   call move_alloc(tmp, dkApp%grid%thc)
+      tmp = dkApp%grid%th (is:ie+1); call move_alloc(tmp, dkApp%grid%th)
+
+      dkApp%grid%Nt = Nt;   dkApp%grid%Np  = Np
+      dkApp%grid%is = 1;    dkApp%grid%ie  = Nt
+      dkApp%grid%js = 1;    dkApp%grid%je  = Np
+      dkApp%grid%isg = 1;   dkApp%grid%ieg = Nt
+      dkApp%grid%jsg = 1;   dkApp%grid%jeg = Np
+      dkApp%grid%Ngn = 0;   dkApp%grid%Ngs = 0
+      dkApp%grid%Ngw = 0;   dkApp%grid%Nge = 0
+
+      allocate(dkApp%grid%x (Np,Nt), dkApp%grid%y (Np,Nt), dkApp%grid%r (Np,Nt), &
+             dkApp%grid%D0(Np,Nt), dkApp%grid%dt(Np,Nt), dkApp%grid%dp(Np,Nt))
+
+      ! SM coordinates: x = sin(th)*cos(ph), y = sin(th)*sin(ph)
+      dkApp%grid%x  = spread(sin(dkApp%grid%thc), 1, Np) * spread(cos(dkApp%grid%phc), 2, Nt)
+      dkApp%grid%y  = spread(sin(dkApp%grid%thc), 1, Np) * spread(sin(dkApp%grid%phc), 2, Nt)
+
+      ! FEDDER ramp coordinate: sin(th), symmetric about equator, phi-independent
+      dkApp%grid%r  = spread(sin(dkApp%grid%thc), 1, Np)
+
+      ! Gallagher background density: function of radius and colatitude, phi-independent
+      do j=1,Nt
+         dkApp%grid%D0(:,j) = GallagherRP(dkApp%grid%radius, dkApp%grid%thc(j))
+      end do
+      ! dkApp%grid%D0 = spread([(GallagherRP(dkApp%grid%radius, dkApp%grid%thc(j)), j=1,Nt)], 1, Np)
+
+      ! Cell spacings for CalcMagE: differences of corner arrays
+      dkApp%grid%dt = spread(dkApp%grid%th(2:Nt+1) - dkApp%grid%th(1:Nt), 1, Np)
+      dkApp%grid%dp = spread(dkApp%grid%ph(2:Np+1) - dkApp%grid%ph(1:Np), 2, Nt)
+
+    end subroutine initDKgrid
 
 
     subroutine initDKparams(params, inpXML)
@@ -181,7 +211,7 @@ module dkinit
       type(dkAurora_T) , intent(inout) :: aurora
       type(dkConductance_T) , intent(inout) :: conductance
       type(dkVariables_T) , intent(inout) :: vars
-      type(mixGrid_T) , intent(in) :: grid
+      type(dkGrid_T) , intent(in) :: grid
       integer :: Np, Nt
 
       Np = grid%Np

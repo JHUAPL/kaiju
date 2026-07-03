@@ -159,7 +159,8 @@ module volttypes
         ! Routines to help get stuff out of IMAG
         procedure(getMomentsIMAG_T), deferred :: getMoments
         procedure(getMomentsPrecipIMAG_T), deferred :: getMomentsPrecip
-        
+        procedure(toShell_T), deferred :: toShell   ! IMAG precip -> voltron shell (imag2shell)
+
         !procedure :: InitModel           => baseInitImag
         !procedure :: InitIO              => baseInitIOImag
         !procedure :: WriteRestart        => baseWriteRestartImag
@@ -257,7 +258,8 @@ module volttypes
         procedure :: toIMAG => volt2RAIJU
         procedure :: getMoments => getMomentsRAIJU
         procedure :: getMomentsPrecip => getMomentsPrecipRAIJU
-        
+        procedure :: toShell => imagToShellRAIJU
+
         procedure :: InitModel           => raiCplInitModel
         procedure :: InitIO              => raiCplInitIO
         procedure :: WriteRestart        => raiCplWriteRestart
@@ -306,13 +308,11 @@ module volttypes
     type, extends(ionoCoupler_T) :: remixCoupler_T
 
         type(mixApp_T) :: mixApp
-            !! Embedded REMIX model (was vApp%remixApp)
-        type(dkApp_T) :: dkApp
-            !! DragonKing conductance + precipitation provider for this REMIX coupler
+            !! Embedded REMIX model
 
         real(rp) :: mhd_Rin = 0.0_rp
-            !! [Rion units] mean MHD inner-boundary radius for the equatorward forward-feed
-            !! mask; built once in InitCouplers from gApp%Grid (replaces gam2shell%mhd_Rin)
+            !! [Rion units] mean MHD inner-boundary radius for the equatorward
+            !! forward-feed mask; set once in initializeFromGamera
 
         contains
 
@@ -410,6 +410,14 @@ module volttypes
             !! [nT] Radial component of the magnetic field at grid's ionosphere location
 
     end type voltState_t
+    ! IMAG precipitation moments staged on the voltron shell (filled by imagApp%toShell,
+    ! consumed by shellDK)
+    type imag2shell_T
+        type(ShellGridVar_T) :: Im_Eflux, Im_Enflx
+        type(ShellGridVar_T) :: Im_Eden,  Im_Epre, Im_Npsp
+        type(ShellGridVar_T) :: Im_Gtype
+    end type imag2shell_T
+
     type :: voltApp_T
 
         !Planet information
@@ -446,6 +454,11 @@ module volttypes
 
         !class(innerMagBase_T), allocatable :: imagApp
         class(imagCoupler_T), allocatable :: imagApp
+
+        ! DragonKing-on-shell (model-agnostic, full-sphere)
+        type(dkApp_T)        :: dkApp
+        type(imag2shell_T)   :: imag2shell   !! IMAG precip staged on the voltron shell
+        type(ShellGridVar_T) :: pot_iono     !! solved iono potential on shell CORNER grid (DK doET)
 
         !Deep coupling information
         real(rp) :: DeepT ! Time of next deep coupling
@@ -534,6 +547,16 @@ module volttypes
             real(rp), intent(out) :: imP(nVars_imag2mix)
             logical, intent(out) :: isEdible
         end subroutine getMomentsPrecipIMAG_T
+
+        subroutine toShell_T(App, i2s, shGrid, latConj, lonConj)
+            import imagCoupler_T
+            import imag2shell_T
+            import ShellGrid_T, ShellGridVar_T
+            class(imagCoupler_T), intent(inout) :: App
+            type(imag2shell_T),   intent(inout) :: i2s
+            type(ShellGrid_T),    intent(in)    :: shGrid
+            type(ShellGridVar_T), intent(in)    :: latConj, lonConj
+        end subroutine toShell_T
     end interface
 
 
@@ -681,6 +704,13 @@ module volttypes
             real(rp), intent(out) :: imP(nVars_imag2mix)
             logical, intent(out) :: isEdible
         end subroutine getMomentsPrecipRAIJU
+
+        module subroutine imagToShellRAIJU(App, i2s, shGrid, latConj, lonConj)
+            class(raijuCoupler_T), intent(inout) :: App
+            type(imag2shell_T),    intent(inout) :: i2s
+            type(ShellGrid_T),     intent(in)    :: shGrid
+            type(ShellGridVar_T),  intent(in)    :: latConj, lonConj
+        end subroutine imagToShellRAIJU
 
         module subroutine raiCplInitModel(App, xml)
             class(raijuCoupler_T), intent(inout) :: App

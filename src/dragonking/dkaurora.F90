@@ -1,7 +1,5 @@
 module dkaurora
   use kdefs
-  use mixdefs
-  use mixtypes
   use dkdefs
   use dktypes
 !  use planethelper
@@ -17,7 +15,7 @@ module dkaurora
 
   !Replacing some hard-coded inline values (bad) w/ module private values (slightly less bad)
   real(rp), parameter, private :: maxDrop = 20.0 !Hard-coded max potential drop [kV]
-  real(rp), parameter, private :: eTINY = mixeTINY ! Floor of average energy [keV]
+
   real(rp), parameter, private :: Ne_floor = 0.03e6 ! minimum Ne in [/m^3] when evaluating the linearized FL relation.
   real(rp), parameter, private :: Ne_psp = 10.0e6 ! Ne threshold for the plasmasphere in [/m^3].
   real(rp), parameter, private :: GuABNF = 1.e7 ! Gussenhoven+[1983] Auroral Boundary Number Flux in [#/cm^s/s].
@@ -29,7 +27,7 @@ module dkaurora
       ! The main subroutine in module dragonking.
       ! It derives auroral precipitation.
       type(dkAurora_T), intent(inout) :: aurora
-      type(mixGrid_T), intent(in) :: grid
+      type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
       type(dkConductance_T), intent(inout) :: conductance
       type(dkParameters_T), intent(in) :: params
@@ -56,7 +54,7 @@ module dkaurora
     subroutine dragonking_fedder95(aurora,grid,vars,conductance,params)
       ! Derive electron precipitation energy flux and avg energy using Fedder95 formula.
       type(dkAurora_T), intent(inout) :: aurora
-      type(mixGrid_T), intent(in) :: grid
+      type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
       type(dkConductance_T), intent(inout) :: conductance
       type(dkParameters_T), intent(in) :: params
@@ -68,14 +66,6 @@ module dkaurora
       real(rp) :: D,Cs,Pe,Ne,dE,phi0,E0,aRes,dEc
       integer :: i,j
 
-      if (vars%hemisphere==NORTH) then
-         signOfJ = -1  
-      elseif (vars%hemisphere==SOUTH) then
-         signOfJ = 1
-      else
-         stop 'Wrong hemisphere label. Stopping...'
-      endif
-
       ! fills in rampFactor
       if (params%doRamp) then
          call dragonking_ramp(aurora,grid,rPolarBound,rEquatBound,rLowLimit)
@@ -84,9 +74,12 @@ module dkaurora
       endif
       
       !$OMP PARALLEL DO default(shared) &
-      !$OMP private(i,j,D,Cs,dE,phi0,E0,aRes,dEc)
+      !$OMP private(i,j,D,Cs,dE,phi0,E0,aRes,dEc,signOfJ)
       do j=1,grid%Nt
          do i=1,grid%Np
+
+            signOfJ = -sign(1.0_rp, cos(grid%thc(j)))
+
             if (params%doChill) then
                ! MHD density replaced with gallagher where it's lower      
                ! and temperature changed correspondingly
@@ -113,8 +106,6 @@ module dkaurora
 
             ! Density floor to limit characteristic energy.  See Wiltberger et al. 2009 for details.
             D = min(D,rhoFactor*conductance%euvSigmaP(i,j))
-            ! Original form for ref: 
-            ! (heFrac*Mp_cgs)**1.5D0/eCharge*1.D-4*sqrt(erg2kev)*params%R*aRes*signOfJ*(vars%FAC(i,j)*1.D-6)*sqrt(E0)/D
             dE = (heFrac*Mp_cgs)**1.5D0/eCharge*1.D-4*sqrt(erg2kev)*params%R*aRes*signOfJ*(vars%FAC(i,j)*1.D-6)*sqrt(E0)/D
             aurora%deltaE(i,j) = dE
             dEc = min(dE,maxDrop)
@@ -147,7 +138,7 @@ module dkaurora
       ! Derive mono-diffuse electron precipitation where mono is based on linearized FL relation,
       ! and diffuse is a combination of MHD and RCM precipitation.
       type(dkAurora_T), intent(inout) :: aurora
-      type(mixGrid_T), intent(in) :: grid
+      type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
       type(dkParameters_T), intent(in) :: params
 
@@ -244,7 +235,7 @@ module dkaurora
     subroutine dragonking_linmono(aurora,grid,vars,params)
       ! Linearized Fridman-Lemaire relation for mono.
       type(dkAurora_T), intent(inout) :: aurora
-      type(mixGrid_T), intent(in) :: grid
+      type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
       type(dkParameters_T), intent(in) :: params
       
@@ -256,15 +247,7 @@ module dkaurora
       real(rp) :: wMHD,wRCM
       real(rp) :: alpha_loc,beta_loc,gamma_loc
       real(rp) :: dens_loc,csnd_loc,d0_loc
-      logical :: hasMono
-
-      if (vars%hemisphere==NORTH) then
-         signOfJ = -1
-      elseif (vars%hemisphere==SOUTH) then
-         signOfJ = 1
-      else
-         stop 'Wrong hemisphere label. Stopping...'
-      endif
+      logical  :: hasMono
 
       gamma_loc = params%gamma
 
@@ -272,7 +255,7 @@ module dkaurora
       !$OMP private(i,j,D,Cs,Pe,Ne,J2eF0,eV2kT,dE,phi0,kT) &
       !$OMP private(Pe_mhd,Ne_mhd,kT_mhd,phi0_mhd) &
       !$OMP private(Pe_rcm,Ne_rcm,kT_rcm,phi0_rcm) &
-      !$OMP private(wMHD, wRCM, hasMono) &
+      !$OMP private(wMHD, wRCM, hasMono, signOfJ) &
       !$OMP private(alpha_loc,beta_loc,dens_loc,csnd_loc,d0_loc)
       do j=1,grid%Nt
          do i=1,grid%Np
@@ -283,6 +266,8 @@ module dkaurora
             dens_loc  = vars%Density(i,j)
             csnd_loc  = vars%Sound_Speed(i,j)
             d0_loc    = grid%D0(i,j)
+
+            signOfJ = -sign(1.0_rp, cos(grid%thc(j)))
 
             if (params%doChill) then
                ! MHD density replaced with gallagher where it's lower
@@ -323,22 +308,17 @@ module dkaurora
                kT = eTINY
             endif
 
-            hasMono = .false.
-
             aurora%E0  (i,j) = 2.0*kT
+            hasMono = .false.
             aurora%phi0(i,j) = phi0
-            
-            ! Note JF0 may go inf where phi0/Pe_MHD/Ne_MHD is zero.
+            ! phi0 = 0 in the polar cap; guard the divide
             if (phi0 > TINY) then
                J2eF0 = signOfJ*(vars%FAC(i,j)*1.0D-6)/(eCharge*phi0*1.0D4)
                ! Linearize the Fridman-Lemaire relation:
                ! eV = kB*Te*(RM-1)*ln((RM-1)/(RM-J/e/F0)) when 1<=J/e/F0<=RM.
                ! eV ~ kB*Te*(J/e/F0-1) when RM>>J/e/F0
-               if (J2eF0>1.0 .and. Ne>Ne_floor) then
-                  hasMono = .true.
-               endif
+               if (J2eF0>1.0 .and. Ne>Ne_floor) hasMono = .true.
             endif
-
             if (hasMono) then
                dE = kT*(J2eF0-1.0)
                aurora%deltaE(i,j) = dE
@@ -370,7 +350,7 @@ module dkaurora
       ! Kc is the ratio between modified enflux and unmodified enflux.
       ! No longer use the conductance modification factor in Khazanov et al. [2018SW001837] (eq 7).
       type(dkAurora_T), intent(in) :: aurora
-      type(mixGrid_T), intent(in) :: grid
+      type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
       type(dkParameters_T), intent(in) :: params
       real(rp) :: eavg,nflx,eavgMR,nflxMR
@@ -413,7 +393,7 @@ module dkaurora
 
     subroutine dragonking_auroralsmooth(vars,grid,aurora)
       type(dkVariables_T), intent(inout) :: vars
-      type(mixGrid_T), intent(in) :: grid
+      type(dkGrid_T), intent(in) :: grid
       type(dkAurora_T), intent(inout) :: aurora
       integer :: i, j
       logical :: smthDEPonly = .false.
@@ -474,7 +454,7 @@ module dkaurora
 
     subroutine dragonking_ramp(aurora,grid,rPolarBound,rEquatBound,rLowLimit)
       type(dkAurora_T), intent(inout) :: aurora
-      type(mixGrid_T), intent(in) :: grid
+      type(dkGrid_T), intent(in) :: grid
       real(rp), intent(in) :: rPolarBound,rEquatBound,rLowLimit
       
       where (grid%r <= rPolarBound)
@@ -490,7 +470,7 @@ module dkaurora
       ! Use RCM precipitation and source population to derive the loss cone rate beta.
       ! Assume beta is one in the polar cap and smooth across RCM boundary.
       type(dkAurora_T), intent(inout) :: aurora
-      type(mixGrid_T), intent(in) :: grid
+      type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
       type(dkParameters_T), intent(in) :: params
 
@@ -579,7 +559,7 @@ module dkaurora
     subroutine dragonking_smooth(grid,Q,isAnchor)
       ! Do smoothing window on ReMIX grid quantity
       ! Skip anchor points
-      type(mixGrid_T), intent(in) :: grid
+      type(dkGrid_T), intent(in) :: grid
       real(rp), intent(inout) :: Q(grid%Np,grid%Nt)
       logical, intent(in) :: isAnchor(grid%Np,grid%Nt)
       real(rp) :: temp(grid%Np,grid%Nt)
@@ -629,18 +609,16 @@ module dkaurora
 
     !Enforce pole condition that all values at the same point are equal
     subroutine FixPole(grid,Q)
-      type(mixGrid_T), intent(in)    :: grid
-      real(rp)       , intent(inout) :: Q(grid%Np,grid%Nt)
+      type(dkGrid_T), intent(in)    :: grid
+      real(rp)      , intent(inout) :: Q(grid%Np,grid%Nt)
 
-      real(rp) :: Qavg
-
-      Qavg = sum(Q(:,2))/grid%Np
-      Q(:,1) = Qavg
+      Q(:,1)         = sum(Q(:,2))/grid%Np         ! north pole
+      Q(:,grid%Nt)   = sum(Q(:,grid%Nt-1))/grid%Np ! south pole
     end subroutine FixPole
 
     subroutine dragonking_margin(grid,array,arraymar)
       ! Conductance boundary processing.
-      type(mixGrid_T), intent(in) :: grid      
+      type(dkGrid_T), intent(in) :: grid      
       real(rp),dimension(grid%Np,grid%Nt), intent(in) :: array
       real(rp),dimension(grid%Np+4,grid%Nt+4), intent(out) :: arraymar
       arraymar(3:grid%Np+2,3:grid%Nt+2) = array

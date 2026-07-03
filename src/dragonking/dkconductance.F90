@@ -1,7 +1,6 @@
 module dkconductance
   use dkdefs
   use dktypes
-  use mixtypes
   use planethelper
   use gcmtypes
 !   use gcminterp
@@ -14,42 +13,11 @@ module dkconductance
 
   contains
 
-   !  subroutine conductance_init(conductance,params,grid)
-   !    ! Initialize conductance variables. Called in mixmain.F90/subroutine init_mix.
-   !    type(dkConductance_T), intent(inout)   :: conductance
-   !    type(dkParameters_T) , intent(in)      :: params
-   !    type(mixGrid_T)      , intent(in)      :: grid
-
-   !    ! define these module-wide variables so we don't have to pass the Params object to all the conductance functions
-   !    ! this is similar to how it was done in MIX
-   !    conductance%euv_model_type    = params%euv_model_type
-   !    conductance%et_model_type     = params%et_model_type
-   !    conductance%sigma_model_type  = params%sigma_model_type
-   !    conductance%F107              = params%F107
-   !    conductance%pedmin            = params%pedmin
-   !    conductance%hallmin           = params%hallmin
-   !    conductance%sigma_ratio       = params%sigma_ratio
-   !    conductance%ped0              = params%ped0
-   !    conductance%const_sigma       = params%const_sigma
-   !    conductance%doStarlight       = params%doStarlight
-   !    conductance%apply_cap         = params%apply_cap
-   !    conductance%doEMA             = params%doEMA
-   !    conductance%doET              = params%doET
-
-   !    if (.not. allocated(conductance%zenith)) allocate(conductance%zenith(grid%Np,grid%Nt))
-   !    if (.not. allocated(conductance%coszen)) allocate(conductance%coszen(grid%Np,grid%Nt))
-   !    if (.not. allocated(conductance%euvSigmaP)) allocate(conductance%euvSigmaP(grid%Np,grid%Nt))
-   !    if (.not. allocated(conductance%euvSigmaH)) allocate(conductance%euvSigmaH(grid%Np,grid%Nt))
-   !    if (.not. allocated(conductance%deltaSigmaP)) allocate(conductance%deltaSigmaP(grid%Np,grid%Nt))
-   !    if (.not. allocated(conductance%deltaSigmaH)) allocate(conductance%deltaSigmaH(grid%Np,grid%Nt))
-
-   !  end subroutine conductance_init
-
     subroutine conductance_total(conductance,grid,vars,params)
       ! The main subroutine in module mixconductance.
       ! It derives auroral precipitation and conductance caused by both solar EUV and aurora.
       type(dkConductance_T), intent(inout) :: conductance
-      type(mixGrid_T), intent(in) :: grid
+      type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
       type(dkParameters_T), intent(in) :: params
 
@@ -145,11 +113,16 @@ module dkconductance
     subroutine conductance_euv(conductance,grid,vars,params)
       ! Derive solar EUV conductance: euvSigmaP, euvSigmaH.
       type(dkConductance_T), intent(inout) :: conductance
-      type(mixGrid_T), intent(in)         :: grid
+      type(dkGrid_T), intent(in)         :: grid
       type(dkVariables_T), intent(inout) :: vars
       type(dkParameters_T), intent(in)   :: params
 
-      conductance%coszen = grid%x*cos(vars%tilt)+sqrt(1.-grid%x**2-grid%y**2)*sin(vars%tilt) ! as it should be
+      integer :: j_euv
+      ! cos(zenith) = x*cos(tilt) + z*sin(tilt); z must be SIGNED cos(theta) on the full sphere
+      do j_euv = 1, grid%Nt
+        conductance%coszen(:,j_euv) = grid%x(:,j_euv)*cos(vars%tilt) + &
+            cos(grid%thc(j_euv))*sin(vars%tilt)
+      end do
       conductance%zenith = acos(conductance%coszen)
 
       select case ( params%euv_model_type )
@@ -182,7 +155,7 @@ module dkconductance
     subroutine conductance_aurora(conductance,grid,vars,params)
       ! Use Robinson formula to get Pedersen and Hall conductance from electron precipitation.
       type(dkConductance_T), intent(inout) :: conductance
-      type(mixGrid_T), intent(in) :: grid
+      type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
       type(dkParameters_T), intent(in) :: params
 

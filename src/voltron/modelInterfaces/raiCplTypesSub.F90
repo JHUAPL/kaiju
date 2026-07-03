@@ -485,5 +485,57 @@ submodule (volttypes) raijuCplTypesSub
         call App%raiApp%Cleanup()
 
     end subroutine
-    
+
+
+    ! IMAG (RAIJU) precipitation moments -> voltron shell (imag2shell), for DK-on-shell.
+    ! NH: RAIJU/voltron grids coincide. SH: sample the NH conjugate point via the tubeShell
+    ! lat/lon-conjugate maps (open field lines, lat_conj<=0, left at zero).
+    module subroutine imagToShellRAIJU(App, i2s, shGrid, latConj, lonConj)
+        class(raijuCoupler_T), intent(inout) :: App
+        type(imag2shell_T),    intent(inout) :: i2s
+        type(ShellGrid_T),     intent(in)    :: shGrid
+        type(ShellGridVar_T),  intent(in)    :: latConj, lonConj
+
+        integer  :: it, ip
+        real(rp) :: th, ph
+        real(rp) :: lat_conj, ph_conj
+        real(rp) :: imP(nVars_imag2mix)
+        logical  :: isTasty
+
+        i2s%Im_Eflux%data = 0.0_rp
+        i2s%Im_Enflx%data = 0.0_rp
+        i2s%Im_Gtype%data = 0.0_rp
+        i2s%Im_Eden%data  = 0.0_rp
+        i2s%Im_Epre%data  = 0.0_rp
+        i2s%Im_Npsp%data  = 0.0_rp
+
+        do it = shGrid%is, shGrid%ie
+            th = shGrid%thc(it)
+            do ip = shGrid%js, shGrid%je
+                ph = shGrid%phc(ip)
+                imP = 0.0_rp
+                if (th <= PI/2.0_rp) then
+                    ! NH: RAIJU and voltron grids coincide, no supersampling needed
+                    call App%getMomentsPrecip(th, ph, imP, isTasty)
+                else
+                    ! SH: find the NH conjugate point via tubeShell mapping
+                    call InterpShellVar_TSC_pnt(shGrid, latConj, th, ph, lat_conj)
+                    if (lat_conj > 0.0_rp) then  ! lat_conj=0 => open field line
+                        call InterpShellVar_TSC_pnt(shGrid, lonConj, th, ph, ph_conj)
+                        call App%getMomentsPrecip(PI/2.0_rp - lat_conj, ph_conj, imP, isTasty)
+                    endif
+                endif
+                i2s%Im_Gtype%data(it,ip) = imP(RAI_GTYPE)
+                if (isTasty) then
+                    i2s%Im_Enflx%data(it,ip) = imP(RAI_ENFLX)
+                    i2s%Im_Eflux%data(it,ip) = imP(RAI_EFLUX)
+                    i2s%Im_Eden%data(it,ip)  = imP(RAI_EDEN)
+                    i2s%Im_Epre%data(it,ip)  = imP(RAI_EPRE)
+                    i2s%Im_Npsp%data(it,ip)  = imP(RAI_NPSP)
+                endif
+            enddo
+        enddo
+
+    end subroutine imagToShellRAIJU
+
 end submodule raijuCplTypesSub

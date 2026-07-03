@@ -13,8 +13,9 @@ submodule (volttypes) remixCplTypesSub
     use voltappHelper
     use kai2geo
     use mixmain,   only: updateF107, mix_transform_grid  ! not host-associated via volttypes
-    use dkmain,    only: getMixToDK, getDKToMix, DKdogcm  ! DragonKing conductance/precip flow
-    use dkinit,    only: initDKmesh
+    use shellutils,   only: wrapJ_SGV                      ! periodic phi ghost fill for the DK->mix map
+    ! DK is now computed on the shell (shellDK in voltapp); the coupler only MAPS the
+    ! full-sphere DK conductance to REMIX via mapDKToMix -> voltVarToMix (no dkmain/dkinit here).
     use planethelper, only: DP2Cs                          ! (D,P) -> sound speed for tubeShell forward feed
     use kdefs,        only: Mp_cgs, TINY                    ! #/cc -> mass density conversion
     use gdefs,        only: BLK                             ! bulk fluid index for tubeShell bcN/bcP
@@ -34,10 +35,7 @@ submodule (volttypes) remixCplTypesSub
 
 
     !InitCouplers — REMIX-specific init behind the ionoCoupler contract: restart/IO,
-    !F10.7, ionosphere radii, and the gApp-dependent map builds (mix2mhd, mhd2mix,
-    !shell2mix). The driver calls this polymorphically (no select type), so a future
-    !smiteCoupler_T supplies its own without touching voltapp. (gam2shell, the
-    !model-agnostic Gamera->shell init, stays in the driver.)
+    !F10.7, ionosphere radii. Called polymorphically (no select type).
     module subroutine remixCpl_InitCouplers(App, vApp, xml)
         class(remixCoupler_T), intent(inout) :: App
         class(voltApp_T),      intent(inout) :: vApp
@@ -72,10 +70,6 @@ submodule (volttypes) remixCplTypesSub
             stop
         endif
 
-        ! DragonKing init: build the DK grid from the REMIX ion grids, then init the model.
-        call initDKmesh(App%dkApp, App%mixApp%ion)
-        call App%dkApp%InitModel(xml)
-
         if (App%mixApp%ion(NORTH)%P%doSWF107 .neqv. App%mixApp%ion(SOUTH)%P%doSWF107) then
             write(*,*) 'Something is wrong. doSWf107 is set differently for the two hemispheres.'
             write(*,*) 'Exiting ...'
@@ -89,7 +83,7 @@ submodule (volttypes) remixCplTypesSub
             call f107%initTS("f10.7", doLoudO=.false.)
             maxF107 = f107%getMax()
             call updateF107(App%mixApp%ion, maxF107)
-            App%dkApp%params%f107 = maxF107
+            vApp%dkApp%params%f107 = maxF107
             if (vApp%isLoud) write(*,*) 'Using F10.7 = ', maxF107
         endif
 
@@ -105,16 +99,12 @@ submodule (volttypes) remixCplTypesSub
             call vApp%gApp%ReadRestart(resID, nRes)
         endif
 
-        ! (Direct mhd2mix path retired: its maps were consumed only by the removed
-        !  convertGameraToRemix/mapGameraToRemix, so init_mhd2Mix is no longer needed.)
-
-        ! NOTE: App%mhd_Rin (the equatorward-mask radius) is computed lazily on the first deep
-        ! packInputs call — vApp%gApp%Grid is not yet populated here, but is during coupling.
+        ! App%mhd_Rin (equatorward-mask radius) is set in initializeFromGamera after this returns.
 
     end subroutine remixCpl_InitCouplers
 
 
-    !toIono — pack Gamera + IMAG into REMIX (was runRemix + convertGameraToRemix in DeepUpdate).
+    !toIono: pack Gamera + IMAG into REMIX
     module subroutine remixCpl_toIono(App, vApp)
         class(remixCoupler_T), intent(inout) :: App
         class(voltApp_T),      intent(inout) :: vApp
@@ -129,8 +119,7 @@ submodule (volttypes) remixCplTypesSub
             call CoupleIMagToMix(vApp, App%mixApp)
         endif
 
-        ! voltron ShellGrid -> REMIX hemisphere grids.
-        ! (gam2shell, Gamera -> shell, runs in the driver before this.)
+        ! voltron ShellGrid -> REMIX hemisphere grids
         call App%packInputs(vApp)
 
         ! Set tilt and time for conductance models
@@ -138,14 +127,8 @@ submodule (volttypes) remixCplTypesSub
         App%mixApp%IO%tilt = curTilt
         App%mixApp%IO%time = vApp%time
 
-        ! DragonKing conductance + precipitation (replaces REMIX-internal getConductance):
-        ! mix St%Vars -> DK -> compute -> write SigmaP/SigmaH/precip back into St%Vars.
-        call getMixToDK(App%mixApp, App%dkApp)
-        App%dkApp%IO%tilt = curTilt
-        App%dkApp%IO%time = vApp%time
-        if (vApp%doGCM) call DKdogcm(App%dkApp, vApp%gcm)
-        call App%dkApp%AdvanceModel(0.0_rp)
-        call getDKToMix(App%mixApp, App%dkApp)
+        ! DK conductance/precip (computed on the shell by shellDK) -> both REMIX hemispheres
+        call mapDKToMix(vApp%shGrid, vApp%dkApp%vars, App%mixApp)
 
         ! Geographic grid for the REMIX potential solve (non-GCM path).
         if (.not. vApp%doGCM) call mix_transform_grid(App%mixApp%ion)
@@ -237,10 +220,9 @@ submodule (volttypes) remixCplTypesSub
     end subroutine remixCplCleanup
 
 
-    !packInputs — voltron ShellGrid -> REMIX. Forward feed from rvs tubeShell (J11i/bcN/bcP).
-    !Single path: tubeShell is empty during spinup (DK is const_sigma then, so D/Cs are
-    !ignored and FAC=0 is benign) and populated post-spinup. Inner-boundary floor/mask is
-    !self-contained (App%mhd_Rin from init, per-hemi floors from the rvs-derived shell vars).
+    !packInputs — voltron ShellGrid -> REMIX. Forward feed from tubeShell (J11i/bcN/bcP).
+    !tubeShell is empty during spinup (const_sigma then, so zeros are benign) and populated
+    !post-spinup. Equatorward floor/mask is self-contained (App%mhd_Rin + per-hemi floors).
     module subroutine remix_packInputs(App, vApp)
         class(remixCoupler_T), intent(inout) :: App
         class(voltApp_T),      intent(inout) :: vApp
@@ -266,10 +248,8 @@ submodule (volttypes) remixCplTypesSub
                                       vApp%State%tubeShell%bcP(BLK)%data(i,j)) * 1.0e5_rp  ! km/s -> cm/s
             enddo
         enddo
-        ! J11i (FAC) is genuinely valid everywhere (0 on an open tube is physical).
-        ! bcN/bcP are 0 on open/non-closed tubes (no plasma sample, NOT zero density);
-        ! mask those so voltVarToMix's TSC renormalizes onto the valid (closed) corners
-        ! instead of averaging no-data zeros into the outermost closed REMIX row.
+        ! bcN/bcP = 0 marks no-sample (dipole-region) tubes, not vacuum: mask them so TSC
+        ! renormalizes onto valid corners. FAC 0 is physical -> no mask.
         facV%mask = .true.
         denV%mask = (denV%data > 0._rp)
         csV%mask  = (vApp%State%tubeShell%bcN(BLK)%data > 0._rp) .and. &
@@ -280,8 +260,7 @@ submodule (volttypes) remixCplTypesSub
         call voltVarToMix(vApp%shGrid, denV, App%mixApp, DENSITY)
         call voltVarToMix(vApp%shGrid, csV,  App%mixApp, SOUND_SPEED)
 
-        ! Self-contained per-hemisphere floor from the rvs-derived shell vars over the
-        ! VALID (non-dipole) corners; replaces vApp%gam2shell%floorVal (deep only).
+        ! Per-hemisphere floor over valid (non-dipole) corners (deep feed only)
         is_ = vApp%shGrid%is; ie_ = vApp%shGrid%ie
         js_ = vApp%shGrid%js; je_ = vApp%shGrid%je
         floorD = 0.0_rp; floorCs = 0.0_rp
@@ -316,6 +295,44 @@ submodule (volttypes) remixCplTypesSub
         enddo
 
     end subroutine remix_packInputs
+
+
+    ! DK conductance/precip (computed on the shell by shellDK) -> both REMIX hemispheres.
+    ! DK outputs are cell-centered (Np,Nt) (phi,theta) arrays; pack into a SHGR_CC
+    ! ShellGridVar (theta,phi) and TSC-supersample onto REMIX.
+    subroutine mapDKToMix(voltGrid, dkVars, mixApp)
+        type(ShellGrid_T),   intent(in)    :: voltGrid
+        type(dkVariables_T), intent(in)    :: dkVars
+        class(mixApp_T),     intent(inout) :: mixApp
+        type(ShellGridVar_T) :: sgv
+        integer :: is_, ie_, js_, je_
+
+        is_ = voltGrid%is; ie_ = voltGrid%ie
+        js_ = voltGrid%js; je_ = voltGrid%je
+
+        call mapOneDK(dkVars%SigmaP,   SIGMAP)
+        call mapOneDK(dkVars%SigmaH,   SIGMAH)
+        call mapOneDK(dkVars%Avg_Eng,  AVG_ENG)
+        call mapOneDK(dkVars%Num_Flux, NUM_FLUX)
+
+    contains
+
+        subroutine mapOneDK(dkField, mixID)
+            real(rp), dimension(:,:), intent(in) :: dkField   ! (Np,Nt) active, (phi,theta)
+            integer,                  intent(in) :: mixID
+            integer :: i, j
+            call initShellVar(voltGrid, SHGR_CC, sgv)
+            do i = is_, ie_          ! theta (active; voltron grid has no theta ghosts)
+                do j = js_, je_      ! phi (active)
+                    sgv%data(i,j) = dkField(j - js_ + 1, i - is_ + 1)
+                enddo
+            enddo
+            call wrapJ_SGV(voltGrid, sgv)   ! periodic phi ghost fill (replaces padDKPhiPeriodic)
+            sgv%mask = .true.               ! DK conductance/precip valid over the closed active region
+            call voltVarToMix(voltGrid, sgv, mixApp, mixID)
+        end subroutine mapOneDK
+
+    end subroutine mapDKToMix
 
 
 

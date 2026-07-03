@@ -10,6 +10,7 @@ module voltapp_mpi
     use, intrinsic :: ieee_arithmetic, only: IEEE_VALUE, IEEE_SIGNALING_NAN, IEEE_QUIET_NAN
     use volthelpers_mpi
     use voltapp
+    use dkcplhelper, only : shellDK    ! volt -> DK coupling hop (modelInterfaces)
     use gcm_mpi
     use loadBalance
     
@@ -424,6 +425,10 @@ module voltapp_mpi
             endif
             call Toc("VoltTubes",.true.)
         endif
+        if (vApp%doDeep .and. (vApp%time > 0)) &
+            call vApp%imagApp%toShell(vApp%imag2shell, vApp%shGrid, &
+                                      vApp%State%tubeShell%latc, vApp%State%tubeShell%lonc)
+        call shellDK(vApp)                    ! DK conductance on the shell (before toIono maps it)
         call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
         call vApp%ionoApp%AdvanceModel(0.0_rp)
         call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
@@ -433,7 +438,6 @@ module voltapp_mpi
         ! only do imag after spinup
         if(vApp%doDeep .and. vApp%time >= 0) then
             ! instead of PreDeep, use Tube Helpers and replicate other calls
-            ! (tube finalization moved ahead of toIono so packInputs sees fresh tubeShell)
 
             call SquishStart(vApp)
 

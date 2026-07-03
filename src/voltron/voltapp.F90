@@ -35,7 +35,8 @@ module voltapp
     use voltappHelper
     use voltCplHelper
     use apex, only : init_apex
-    
+    use dkcplhelper, only : shellDK, init_imag2shell   ! volt -> DK coupling hop
+
     implicit none
 
     contains
@@ -416,12 +417,16 @@ module voltapp
         ! Allocate and init ionosphere coupler (REMIX or future models)
         call InitIonosphere(vApp, xmlInp)
 
+        !DragonKing-on-shell: DK grid from the voltron shell, then model init
+        call initDKgrid(vApp%dkApp, vApp%shGrid)
+        call vApp%dkApp%InitModel(xmlInp)
+        call init_imag2shell(vApp%imag2shell, vApp%shGrid)   ! IMAG precip staging on the shell
+
         ! Per-model coupler init behind the ionoCoupler contract (REMIX/SMITE-specific:
-        ! restart/IO/F10.7 + the gApp-dependent map builds, incl. DragonKing). No select type here.
+        ! restart/IO/F10.7 + the gApp-dependent map builds). No select type here.
         call vApp%ionoApp%InitCouplers(vApp, xmlInp)
 
-        ! Mean MHD inner-boundary radius (Rion units) for the remixCoupler equatorward mask.
-        ! Computed here from the local (filled) gApp%Grid; replicates the retired gam2shell value.
+        ! Mean MHD inner-boundary radius (Rion units) for the remixCoupler equatorward mask
         select type (ic => vApp%ionoApp)
         type is (remixCoupler_T)
             block
@@ -480,9 +485,12 @@ module voltapp
         class(voltApp_T), intent(inout) :: vApp
 
         ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
-        ! NOTE serial DeepUpdate: tubeShell must be populated before toIono (same as startDeep);
-        ! the rvs tube path supplies the forward feed (no gam2shell).
+        ! NOTE: tubeShell must be populated before toIono (same ordering as startDeep)
         call Tic("ReMIX", .true.)
+        if (vApp%doDeep .and. (vApp%time > 0)) &
+            call vApp%imagApp%toShell(vApp%imag2shell, vApp%shGrid, &
+                                      vApp%State%tubeShell%latc, vApp%State%tubeShell%lonc)
+        call shellDK(vApp)                    ! DK conductance on the shell (before toIono maps it)
         call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
         call vApp%ionoApp%AdvanceModel(0.0_rp)
         call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
@@ -512,6 +520,8 @@ module voltapp
         endif
 
     end subroutine DeepUpdate
+
+
 
     subroutine PreDeep(vApp, gApp)
         class(gamApp_T) , intent(inout) :: gApp

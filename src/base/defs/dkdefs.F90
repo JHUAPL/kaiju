@@ -24,6 +24,6 @@ module dkdefs
      enumerator :: AT_NoPre=0,AT_RMnoE,AT_RMfnE,AT_RMono
   end enum
 
-!  real(rp), parameter :: mixeTINY = 1.D-8 ! Floor of average energy [keV]
+  real(rp), parameter :: eTINY = 1.D-8 ! Floor of average energy [keV]
 
 end module dkdefs

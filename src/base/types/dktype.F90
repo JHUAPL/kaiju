@@ -1,8 +1,6 @@
 module dktypes
   use kdefs
-  use mixdefs
   use shellGrid
-  use mixtypes
   use dkdefs
   use basetypes
 
@@ -29,12 +27,10 @@ module dktypes
     real (rp), dimension(:,:),allocatable :: Im_Eflux, Im_Gtype, Im_Beta, Im_Eden, Im_Epre
     real (rp), dimension(:,:),allocatable :: Im_Enflx, DeltaE, Im_Npsp, Z_Eavg, Z_Nflux
 
-    integer :: hemisphere=NORTH
     real(rp) :: tilt=0.
 
     ! type(ShellGridVar_T)   :: pot_shGr
   end type dkVariables_T
-
   
   ! used to store an entire instance of MIX (e.g., one per hemisphere)
   type dkParameters_T
@@ -56,14 +52,23 @@ module dktypes
     real(rp), dimension(:,:,:,:), allocatable :: vars !(Np,Nt,Nvars,Nhemispheres)
   end type dkIO_T
 
+  type, extends(ShellGrid_T) :: dkGrid_T
+  ! grid elements needed for DK calculations
+    real(rp), dimension(:,:), allocatable :: x, y    ! SM coordinates: sin(th)*cos(ph), sin(th)*sin(ph)
+    real(rp), dimension(:,:), allocatable :: r       ! sin(thc) — colatitude mapping for FEDDER ramp
+    real(rp), dimension(:,:), allocatable :: D0      ! Gallagher background density (earthhelper.F90)
+    real(rp), dimension(:,:), allocatable :: dt, dp  ! cell spacings for CalcMagE (auroralhelper.F90)
+    ! Np, Nt inherited from ShellGrid_T — do not redeclare
+  end type dkGrid_T
+
 
   type, extends(BaseApp_T) :: dkApp_T
-    type(mixGrid_T), dimension(:), allocatable        :: grid
-    type(dkAurora_T), dimension(:), allocatable       :: aurora
-    type(dkConductance_T), dimension(:), allocatable  :: conductance
-    type(dkVariables_T), dimension(:), allocatable    :: vars
-    type(dkParameters_T)                              :: params
-    type(dkIO_T)                                      :: IO
+    type(dkGrid_T)          :: grid
+    type(dkAurora_T)        :: aurora
+    type(dkConductance_T)   :: conductance
+    type(dkVariables_T)     :: vars
+    type(dkParameters_T)    :: params
+    type(dkIO_T)            :: IO
     
     contains
 
