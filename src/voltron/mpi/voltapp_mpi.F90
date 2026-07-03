@@ -585,4 +585,74 @@ module voltapp_mpi
 
     end subroutine
 
+    
+    subroutine init_coupling_comms(vApp, splittingComm)
+        type(voltAppMpi_T), intent(inout) :: vApp
+        type(MPI_Comm), intent(inout) :: splittingComm
+        integer :: ierror, length, i
+        character(len=MPI_MAX_ERROR_STRING) :: message
+
+        call voltronSplitWithApp(splittingComm, mageId, 0, vApp%mageCplComm)
+        call MPI_Comm_Rank(vApp%mageCplComm, vApp%voltCplRank, ierror)
+        call MPI_Comm_Size(vApp%mageCplComm, vApp%CplSize, ierror)
+        
+        if(vApp%mageCplComm /= MPI_COMM_NULL) then
+            print *,'VOLTRON has created an mageCplComm with ', vApp%CplSize-1, ' other app(s)'
+            print *,'VOLTRON using mageCplComm tag ', mageId
+            write(*,*) "VOLTRON CPLCOMM: ",vApp%mageCplComm,vApp%voltCplRank
+
+           ! Tell everyone who I am
+            if (.not.allocated(vApp%IAm)) allocate(vApp%IAm(vApp%CplSize))
+            vApp%IAm(vApp%voltCplRank+1) = voltId
+            do i=1,vApp%CplSize
+                call MPI_Bcast(vApp%IAm(i),1,MPI_INTEGER,i-1,vApp%mageCplComm,ierror)
+            enddo
+
+            ! === TIEGCM ===
+            call getCplRanks(vApp%IAm, vApp%cplSize, tgcmId, vApp%gcmCplRank, vApp%gcmNumRanks, vApp%gcmRankList)
+            if (vApp%gcmNumRanks .ne. 0) then
+                write(*,*) "V coupling to ", vApp%gcmNumRanks," ranks of T"
+                vApp%doGCM = .true.
+            endif
+
+            ! === WACCM-X ===
+            ! Check for waccm-x coupling only if we're not coupling tiegcm
+            if (vApp%gcmNumRanks == 0) then
+                call getCplRanks(vApp%IAm, vApp%cplSize, wcmxId, vApp%gcmCplRank, vApp%gcmNumRanks, vApp%gcmRankList)
+                if (vApp%gcmNumRanks .ne. 0) then
+                    write(*,*) "V coupling to ", vApp%gcmNumRanks," ranks of W"
+                    vApp%doGCM = .true.
+                    vApp%gcm%isWACCMX = .true.
+                    vApp%gcm%nWACCMX = vApp%gcmNumRanks
+                endif
+            endif
+            
+            ! === HIDRA-N ===
+            call getCplRanks(vApp%IAm, vApp%cplSize, hidraNId, vApp%hidraNCplRank, vApp%hidraNNumRanks, vApp%hidraNRankList)
+            if (vApp%hidraNNumRanks .ne. 0) then
+                write(*,*) "V coupling to ", vApp%hidraNNumRanks," ranks of H-N"
+            endif
+            
+            ! === HIDRA-S ===
+            call getCplRanks(vApp%IAm, vApp%cplSize, hidraSId, vApp%hidraSCplRank, vApp%hidraSNumRanks, vApp%hidraSRankList)
+            if (vApp%hidraSNumRanks .ne. 0) then
+                write(*,*) "V coupling to ", vApp%hidraSNumRanks," ranks of H-S"
+            endif
+        endif
+        if(vApp%CplSize == 1 ) then
+            write(*,*) "VOLTRON: We're not coupling to anything"
+            call mpi_comm_free(vApp%mageCplComm, ierror)
+            if(ierror /= MPI_Success) then
+                call MPI_Error_string( ierror, message, length, ierror)
+                print *,message(1:length)
+                call mpi_Abort(MPI_COMM_WORLD, 1, ierror)
+            end if
+            vApp%mageCplComm = MPI_COMM_NULL
+        endif
+        if (vApp%CplSize == 1 .and. vApp%doGCM) then
+            write(*,*) "VOLTRON: Coupling to GCM Failed."
+            call mpi_Abort(MPI_COMM_WORLD, 1, ierror)
+        endif
+    end subroutine init_coupling_comms
+
 end module voltapp_mpi

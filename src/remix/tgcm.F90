@@ -123,7 +123,7 @@ module gcminterp
       
       integer :: g
 
-      call Tic("Processing")
+      call Tic("Processing",.true.)
       ! Split global GCM array into two hemispheres
       ! then shift the array so that longitude starts at 0
       do g=1,2
@@ -138,7 +138,7 @@ module gcminterp
           end if
         end select
       end do
-      call Toc("Processing")
+      call Toc("Processing",.true.)
 
     end subroutine process_gcmimport
 

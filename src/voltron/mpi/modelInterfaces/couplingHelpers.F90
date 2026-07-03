@@ -59,5 +59,32 @@ module couplingHelpers
 
     end subroutine
 
+    subroutine getCplRanks(IAm, cplSize, appId, cplRank, nRanks, rankList)
+        integer, dimension(:), intent(inout) :: IAm
+        integer, intent(in) :: cplSize, appId
+        integer, dimension(:), allocatable, intent(out) :: rankList
+        integer, intent(out) :: nRanks, cplRank
+        integer :: i, tempList(cplSize)  ! Temporary storage for ranks
+        nRanks = 0
+        do i=1, CplSize
+            if (IAm(i) == appId*100 .or. IAm(i) == appId) then
+                nRanks = nRanks + 1
+                tempList(nRanks) = i-1
+                IAm(i) = appId
+            elseif (iAM(i) == appId*100 + 1) then
+                ! is master rank
+                nRanks = nRanks + 1
+                tempList(nRanks) = i-1
+                cplRank = i-1
+                IAm(i) = appId
+            endif
+        enddo
+        if (nRanks > 0) then
+            allocate(rankList(nRanks))
+            rankList = tempList(1:nRanks)
+        endif
+        if (nRanks == 1) cplRank = rankList(1)
+    end subroutine getCplRanks
+
 end module
 

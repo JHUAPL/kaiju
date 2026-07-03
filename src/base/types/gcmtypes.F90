@@ -37,7 +37,7 @@ module gcmtypes
 
   type gcm_T
       type(gcm_grid_T) :: GEO,APEX
-      logical :: isRestart, isWACCMX
+      logical :: isRestart, isWACCMX = .false.
       integer :: gcmId, nWACCMX
       real(rp) :: altmax = 140. !used for apex, setting it randomly for now, km
       real(rp) :: ionalt
