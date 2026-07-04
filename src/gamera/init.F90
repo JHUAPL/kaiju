@@ -432,6 +432,14 @@ module init
         if (Model%doSource) then
             call xmlInp%Set_Val(Model%nvSrc,'source/nvSrc',NVARVOLTSRC)
         endif
+    !Ionosphere coupling terms
+        call xmlInp%Set_Val(Model%nvInExyz,'iono/nvInExyz',NVARIONO0)
+        if (Model%nvInExyz < NVARIONO0) then
+            write(*,*) 'gamera/iono/nvInExyz was set to ', Model%nvInExyz
+            write(*,*) 'but it cannot be smller than ', NVARIONO0
+            write(*,*) 'exitting...'
+            stop
+        endif
 
     !Get RunID
         call xmlInp%Set_Val(Model%RunID,'sim/runid',"Sim")

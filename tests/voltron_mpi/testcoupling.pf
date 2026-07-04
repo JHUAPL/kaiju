@@ -303,5 +303,29 @@ contains
 
   end subroutine testQuickSquishStorm
 
+  @test(npes=[9])
+  subroutine testSwapModelLayout(this)
+      class (MpiTestMethod), intent(inout) :: this
+
+      character(len=strLen) :: caseFile
+      write(caseFile,'(A,I0,A)') 'cmiD_deep_', this%getNumProcesses()-1, '_res0_swapLayout.xml'
+      call initializeWithCaseXml(this, caseFile)
+
+      if(allocated(gamCplMpi)) then
+          @assertTrue(this%getProcessRank() > 0, trim("Gamera ranks should be 1-8"))
+          ! run case for 10 seconds past restart
+          call runApplication(11.0_rp)
+      else
+          write (*,'(a,I0)') 'Testing Quick Squish Storm ',this%getNumProcesses()
+
+          @assertEqual(this%getProcessRank(), 0, trim("Voltrank rank should be 0"))
+
+          ! run case for 10 seconds past restart
+          call runApplication(11.0_rp)
+
+      endif
+
+  end subroutine testQuickSquishStorm
+
 end module testCoupling
 

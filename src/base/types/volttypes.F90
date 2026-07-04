@@ -49,6 +49,12 @@ module volttypes
 
     integer, parameter :: NVARVOLTSRC = NVARVOLT0 + NVARIMAG0
 
+    ! Data channels for inExyz electric field array
+    enum, bind(C)
+        enumerator :: IONO_EX=1,IONO_EY,IONO_EZ
+    endenum
+    integer, parameter :: NVARIONO0 = 3
+
     enum, bind(C)
         enumerator :: V_GRID_UNIFORM=1, V_GRID_SHAFEE
     endenum

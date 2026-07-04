@@ -2,6 +2,7 @@
 
 module usergamic
     use gamtypes
+    use volttypes, only: IONO_EX,IONO_EY,IONO_EZ
     use gamutils
     use xml_input
     use bcs
@@ -298,7 +299,7 @@ module usergamic
         type(Model_T), intent(in) :: Model
         type(Grid_T), intent(inout) :: Gr
         real(rp), intent(inout) :: inEijk(1:PsiSh+1,Gr%jsg:Gr%jeg+1,Gr%ksg:Gr%keg+1,1:NDIM)
-        real(rp), intent(inout) :: inExyz(1:PsiSh  ,Gr%jsg:Gr%jeg,Gr%ksg:Gr%keg,1:NDIM)
+        real(rp), intent(inout) :: inExyz(1:PsiSh  ,Gr%jsg:Gr%jeg,Gr%ksg:Gr%keg,1:Model%nvInExyz)
 
         integer :: i,j,k,iG
         real(rp), dimension(NDIM) :: x0,xE,ehat,Exyz
@@ -341,7 +342,10 @@ module usergamic
                 do j=Gr%jsg,Gr%jeg
                     iG = i+PsiSt-1 !Global i index into grid arrays
                     x0 = Gr%xyzcc(iG,j,k,:)
-                    inExyz(iG,j,k,:) = CorotationE(x0,Model%t)
+                    Exyz = CorotationE(x0,Model%t)
+                    inExyz(iG,j,k,IONO_EX) = Exyz(IONO_EX)
+                    inExyz(iG,j,k,IONO_EY) = Exyz(IONO_EY)
+                    inExyz(iG,j,k,IONO_EZ) = Exyz(IONO_EZ)
                 enddo
             enddo
         enddo
@@ -383,7 +387,7 @@ module usergamic
         if (Model%Ri == 1) then
 
             !Create holders for coupling electric field
-            allocate(bc%inExyz(1:PsiSh  ,Grid%jsg:Grid%jeg  ,Grid%ksg:Grid%keg  ,1:NDIM))
+            allocate(bc%inExyz(1:PsiSh  ,Grid%jsg:Grid%jeg  ,Grid%ksg:Grid%keg  ,1:Model%nvInExyz))
             allocate(bc%inEijk(1:PsiSh+1,Grid%jsg:Grid%jeg+1,Grid%ksg:Grid%keg+1,1:NDIM))
             bc%inExyz = 0.0
             bc%inEijk = 0.0
@@ -441,7 +445,9 @@ module usergamic
 
                     !Get velocity from i-reflected active cell
                     Vmir = State%Gas(ip,jp,kp,MOMX:MOMZ,BLK)/max(State%Gas(ip,jp,kp,DEN,BLK),dFloor)
-                    Exyz = bc%inExyz(np,jp,kp,:)
+                    Exyz(IONO_EX) = bc%inExyz(np,jp,kp,IONO_EX)
+                    Exyz(IONO_EY) = bc%inExyz(np,jp,kp,IONO_EY)
+                    Exyz(IONO_EZ) = bc%inExyz(np,jp,kp,IONO_EZ)
                     call cellCenter(Grid,ig,j ,k ,xc,yc,zc)
                     call TiltDipole(xc,yc,zc,Model%t,Bd(XDIR),Bd(YDIR),Bd(ZDIR))
                     dB = State%Bxyz(ip,jp,kp,:)

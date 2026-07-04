@@ -40,7 +40,7 @@ module voltapp_mpi
         type(MPI_Comm) :: allVoltComm
         character(len=strLen) :: inpXML
         type(XML_Input_T) :: xmlInp
-        integer :: commSize, ierr, numCells, length, ic, b
+        integer :: commSize, ierr, numCells, length, ic, b, poolRank, splitKey
         integer, allocatable, dimension(:) :: neighborRanks, inData, outData
         integer :: nHelpers, gamNRES, commId
         character( len = MPI_MAX_ERROR_STRING) :: message
@@ -73,7 +73,10 @@ module voltapp_mpi
         vApp%vHelpComm = MPI_COMM_NULL
         vApp%vHelpWin = MPI_WIN_NULL
 
-        call voltronSplitWithApp(vApp%vOptionsMpi%couplingPoolComm, helperId, 0, allVoltComm)
+        ! Force Voltron to rank 0 in allVoltComm so existing helper logic stays valid.
+        call MPI_Comm_rank(vApp%vOptionsMpi%couplingPoolComm, poolRank, ierr)
+        splitKey = 0
+        call voltronSplitWithApp(vApp%vOptionsMpi%couplingPoolComm, helperId, splitKey, allVoltComm)
 
         ! get info about voltron-only mpi communicator
         call MPI_Comm_rank(allVoltComm, vApp%vHelpRank, ierr)
@@ -230,7 +233,7 @@ module voltapp_mpi
         type(MPI_Comm) :: allVoltComm
         character(len=strLen) :: inpXML
         type(XML_Input_T) :: xmlInp
-        integer :: commSize, ierr, numCells, length, ic
+        integer :: commSize, ierr, numCells, length, ic, poolRank, splitKey
         integer :: nHelpers, gamNRES, commId
         character( len = MPI_MAX_ERROR_STRING) :: message
         logical :: reorder, wasWeighted
@@ -253,7 +256,10 @@ module voltapp_mpi
         vApp%vHelpComm = MPI_COMM_NULL
         vApp%vHelpWin = MPI_WIN_NULL
 
-        call appWaitForVoltronSplit(vApp%vOptionsMpi%couplingPoolComm, helperId, 0, allVoltComm)
+        ! Rank helpers after Voltron in allVoltComm (Voltron rank 0, helpers rank 1..N).
+        call MPI_Comm_rank(vApp%vOptionsMpi%couplingPoolComm, poolRank, ierr)
+        splitKey = poolRank + 1
+        call appWaitForVoltronSplit(vApp%vOptionsMpi%couplingPoolComm, helperId, splitKey, allVoltComm)
 
         ! get info about voltron-only mpi communicator
         call MPI_Comm_rank(allVoltComm, vApp%vHelpRank, ierr)
@@ -580,4 +586,3 @@ module voltapp_mpi
     end subroutine
 
 end module voltapp_mpi
-

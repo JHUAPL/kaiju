@@ -534,10 +534,11 @@ module voltio
 
 
     !Initialize Voltron-unique IO
-    subroutine InitVoltIO(vApp,gApp,doGhostsO)
+    subroutine InitVoltIO(vApp,gApp,doGhostsO,xmlFileO)
         class(voltApp_T), intent(inout) :: vApp
         type(gamApp_T)  , intent(inout) :: gApp
         logical, intent(in), optional :: doGhostsO
+        character(len=*), intent(in), optional :: xmlFileO
 
         character(len=strLen) :: RunID
         type(IOVAR_T), dimension(MAXVOLTIOVAR) :: IOVars
@@ -645,6 +646,10 @@ module voltio
             call WriteVars(IOVars,.true.,vh5File)
 
             call writeShellGrid(vApp%shGrid, vh5File, "/ShellGrid")
+        endif
+
+        if (present(xmlFileO)) then
+            call StampXmlInput(vh5File,xmlFileO)
         endif
 
     end subroutine InitVoltIO
