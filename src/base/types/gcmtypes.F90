@@ -1,5 +1,6 @@
 module gcmtypes
-  use mixtypes
+  use shellGrid
+
   
   implicit none
   
@@ -19,20 +20,19 @@ module gcmtypes
   end type var_T
 
   type gcm_grid_T
-      type(Map_T), allocatable, dimension(:) :: r2tMaps, t2rMaps
-      type(mixGrid_T), allocatable, dimension(:) :: SM,MyGrid
+      type(ShellGrid_T) :: grid
+      type(ShellGridVar_T), allocatable, dimension(:) :: gcmInput,gcmOutput
       real(rp),dimension(:),allocatable :: inlat, inlon
-      real(rp),dimension(:,:,:),allocatable :: glon,gclat
-      type(var_T), allocatable, dimension(:,:) :: gcmInput,gcmOutput
+      real(rp),dimension(:),allocatable :: glon,gclat
       type(var_T), allocatable, dimension(:,:) :: mixInput,mixOutput
       integer :: nlat,nlon,nlev,nhlat,lonshift
-      integer, dimension(:), allocatable :: outlist,inlist
+      character(len=32), dimension(:), allocatable :: outlist,inlist
       integer, dimension(:), allocatable :: t2N, t2S
       real(rp), dimension(:,:,:), allocatable :: invar2d, outvar2d
       integer :: mix2gcm_nvar
       !real(rp), dimension(:), allocatable :: lev,lon,clat,lat
       integer :: gcm2mix_nvar
-      character (len=strLen) :: Coord
+
   end type gcm_grid_T
 
   type gcm_T

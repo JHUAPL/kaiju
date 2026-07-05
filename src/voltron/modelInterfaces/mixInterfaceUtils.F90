@@ -4,6 +4,7 @@ module mixinterfaceutils
     use mixdefs
     use volttypes
     use shellInterp
+   use mixshellmap, only: mapGlobalShellVarToMix
 
     implicit none
 
@@ -155,43 +156,13 @@ module mixinterfaceutils
    ! `git log -S "subroutine voltVarToMix"` or blame the backport branch. Only local
    ! change: nGood (not nPnts**2) in superSampleVoltToMix.
    subroutine voltVarToMix(voltGrid, voltVar, mixApp, mixVarID)
-      !! Takes a ShellGridVar on the Voltron ShellGrid and maps it to a mix var for both hemispheres
-      !! May be general to any ShellGrids, but for now this assumes voltGrid stuff like being global
+      !! Backward-compatible wrapper around the shared global-shell to MIX mapper.
       type(ShellGrid_T), intent(in) :: voltGrid
       type(ShellGridVar_T), intent(in) :: voltVar
       class(mixApp_T  )   , intent(inout) :: mixApp
       integer             , intent(in)    :: mixvarID
 
-      integer :: i,j
-      real(rp) :: varOut
-      logical :: isTasty
-      real(rp) :: th, ph, lat_con, ph_con
-      integer :: nPnts_sample = 3
-
-      mixApp%ion(NORTH)%St%Vars(:,:,mixVarID) = 0.0_rp
-      mixApp%ion(SOUTH)%St%Vars(:,:,mixVarID) = 0.0_rp
-      
-      associate(GN=>mixApp%ion(NORTH)%G, GS=>mixApp%ion(SOUTH)%G, ion=>mixApp%ion)
-         !$OMP PARALLEL DO default(shared) &
-         !$OMP private(i,j,varOut,isTasty)
-         do j=1,GN%Np
-            do i=1,GN%Nt
-               ! NH mapping
-               varOut = 0.0_rp
-               call superSampleVoltToMix(voltGrid, voltVar, GN, i, j, nPnts_sample, varOut, isTasty)
-               if (isTasty) then
-                  ion(NORTH)%St%Vars(j,i,mixVarID) = varOut
-               endif
-      
-               ! SH mapping
-               varOut = 0.0_rp
-               call superSampleVoltToMix(voltGrid, voltVar, GS, i, j, nPnts_sample, varOut, isTasty, doSouthO=.true.)
-               if (isTasty) then
-                  ion(SOUTH)%St%Vars(j,i,mixVarID) = varOut
-               endif
-            enddo !i
-         enddo !j
-      end associate
+      call mapGlobalShellVarToMix(voltGrid, voltVar, mixApp%ion, mixVarID)
 
    end subroutine voltVarToMix
 

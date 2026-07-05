@@ -20,23 +20,6 @@ module mixdefs
      enumerator :: MHDPSI=1
   end enum
 
-!   enum, bind(C)
-!      enumerator :: LOMPE=1
-!   end enum
-
-!   enum, bind(C)
-!      enumerator :: NONE=1,ADHOC,CMIT
-!   end enum
-
-!   enum, bind(C)
-!      enumerator :: KAE23=1,ROB87
-!   end enum
-
-  ! enumerator for transform variables
-  enum, bind(C)
-    enumerator :: iSMtoGEO,iGEOtoSM,iSMtoGSM,iGSMtoSM,iGEOtoGSM,iGSMtoGEO,iAPEXtoSM,iSMtoAPEX
-  end enum
-
   real(rp), parameter :: mixeTINY = 1.D-8 ! Floor of average energy [keV]
 
 end module mixdefs

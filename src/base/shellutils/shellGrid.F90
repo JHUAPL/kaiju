@@ -89,6 +89,9 @@ module shellGrid
         logical :: isPhiUniform 
             !! Define this to speed up search for interpolation
 
+        character(len=strLen) :: coord = "SM"
+            !! Coordinate system of the input theta/phi arrays used to generate this grid
+
         !> Subgrid information
         !> ShellGrids that are subgrids of other shellGrids store info about their parent grid
         logical :: isChild = .false.
@@ -105,7 +108,7 @@ module shellGrid
     !> Create a shell grid data structure
     !> Takes Theta and Phi 1D arrays (uniform or not)
     !> Decides if isPeriodic and isPhiUniform based on the Phi array passed in
-    subroutine GenShellGrid(shGr,Theta,Phi,name,nGhosts,radO,TPIncludesGhostsO)
+    subroutine GenShellGrid(shGr,Theta,Phi,name,nGhosts,radO,TPIncludesGhostsO,coord)
         type(ShellGrid_T), intent(inout) :: shGr
         real(rp), dimension(:), intent(in) :: Theta, Phi
         character(len=*) :: name
@@ -116,6 +119,8 @@ module shellGrid
             !! Radius in planetary radii from planet center this grid lives at
             !! WARNING: Will default to Earth's ionospheric altitude if not provided! That should rarely be the case
         logical, optional, intent(in) :: TPIncludesGhostsO
+        character(len=*), optional, intent(in) :: coord
+            !! Coordinate system of input Theta/Phi arrays
         
         integer :: i,j
         integer :: phiLo, phiHi
@@ -136,6 +141,13 @@ module shellGrid
             addGhosts = .not. TPIncludesGhostsO
         else
             addGhosts = .true.
+        endif
+
+        ! Default to SM if coord not provided
+        if (present(coord)) then
+            shGr%coord = coord
+        else
+            shGr%coord = "SM"
         endif
 
         ! do some checks first

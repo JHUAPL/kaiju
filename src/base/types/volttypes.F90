@@ -339,6 +339,33 @@ module volttypes
 
     end type remixCoupler_T
 
+    ! =========================================================
+    ! gcmCoupler_T — GCM coupler (TIEGCM / WACCM-X)
+    ! Extends ionoCoupler_T so it participates in the standard
+    ! Voltron iono cycle and can live in vApp%ionoApp.
+    ! Independent of REMIX internals.
+    ! =========================================================
+    type, extends(ionoCoupler_T) :: gcmCoupler_T
+
+        contains
+
+        procedure :: toIono       => gcmCpl_toIono
+        procedure :: fromIono     => gcmCpl_fromIono
+        procedure :: packInputs   => gcmCpl_packInputs
+        procedure :: InitCouplers => gcmCpl_InitCouplers
+
+        procedure :: InitModel           => gcmCplInitModel
+        procedure :: InitIO              => gcmCplInitIO
+        procedure :: WriteRestart        => gcmCplWriteRestart
+        procedure :: ReadRestart         => gcmCplReadRestart
+        procedure :: WriteConsoleOutput  => gcmCplWriteConsoleOutput
+        procedure :: WriteFileOutput     => gcmCplWriteFileOutput
+        procedure :: WriteSlimFileOutput => gcmCplWriteSlimFileOutput
+        procedure :: AdvanceModel        => gcmCplAdvanceModel
+        procedure :: Cleanup             => gcmCplCleanup
+
+    end type gcmCoupler_T
+
     type, extends(gamApp_T) :: gamCoupler_T
 
         ! data for coupling remix to gamera
@@ -830,6 +857,75 @@ module volttypes
 
         module subroutine remixCplCleanup(App)
             class(remixCoupler_T), intent(inout) :: App
+        end subroutine
+
+    end interface
+
+    ! gcmCoupler_T
+    interface
+        module subroutine gcmCpl_toIono(App, vApp)
+            class(gcmCoupler_T), intent(inout) :: App
+            class(voltApp_T),    intent(inout) :: vApp
+        end subroutine
+
+        module subroutine gcmCpl_fromIono(App, vApp)
+            class(gcmCoupler_T), intent(inout) :: App
+            class(voltApp_T),    intent(inout) :: vApp
+        end subroutine
+
+        module subroutine gcmCpl_packInputs(App, vApp)
+            class(gcmCoupler_T), intent(inout) :: App
+            class(voltApp_T),    intent(inout) :: vApp
+        end subroutine
+
+        module subroutine gcmCpl_InitCouplers(App, vApp, xml)
+            class(gcmCoupler_T), intent(inout) :: App
+            class(voltApp_T),    intent(inout) :: vApp
+            type(XML_Input_T),   intent(inout) :: xml
+        end subroutine
+
+        module subroutine gcmCplInitModel(App, xml)
+            class(gcmCoupler_T), intent(inout) :: App
+            type(XML_Input_T),   intent(inout) :: xml
+        end subroutine
+
+        module subroutine gcmCplInitIO(App, xml)
+            class(gcmCoupler_T), intent(inout) :: App
+            type(XML_Input_T),   intent(inout) :: xml
+        end subroutine
+
+        module subroutine gcmCplWriteRestart(App, nRes)
+            class(gcmCoupler_T), intent(inout) :: App
+            integer,             intent(in)    :: nRes
+        end subroutine
+
+        module subroutine gcmCplReadRestart(App, resId, nRes)
+            class(gcmCoupler_T), intent(inout) :: App
+            character(len=*),    intent(in)    :: resId
+            integer,             intent(in)    :: nRes
+        end subroutine
+
+        module subroutine gcmCplWriteConsoleOutput(App)
+            class(gcmCoupler_T), intent(inout) :: App
+        end subroutine
+
+        module subroutine gcmCplWriteFileOutput(App, nStep)
+            class(gcmCoupler_T), intent(inout) :: App
+            integer,             intent(in)    :: nStep
+        end subroutine
+
+        module subroutine gcmCplWriteSlimFileOutput(App, nStep)
+            class(gcmCoupler_T), intent(inout) :: App
+            integer,             intent(in)    :: nStep
+        end subroutine
+
+        module subroutine gcmCplAdvanceModel(App, dt)
+            class(gcmCoupler_T), intent(inout) :: App
+            real(rp),            intent(in)    :: dt
+        end subroutine
+
+        module subroutine gcmCplCleanup(App)
+            class(gcmCoupler_T), intent(inout) :: App
         end subroutine
 
     end interface

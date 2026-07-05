@@ -118,22 +118,4 @@ module mixmain
 
     end subroutine run_mix
 
-    subroutine mix_transform_grid(I)
-      type(mixIon_T),dimension(:),intent(inout) :: I
-      integer :: h,NumH
-
-      NumH = size(I)
-
-      do h=1,NumH
-        if (I(h)%St%hemisphere .eq. NORTH) then
-            call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=1)
-            call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=1)
-        else
-            call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=-1)
-            call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=-1)
-        endif
-      end do
-
-    end subroutine mix_transform_grid 
-
 end module mixmain

@@ -12,7 +12,7 @@ submodule (volttypes) remixCplTypesSub
     use mix2shell_interface,  only: mapMixToShell
     use voltappHelper
     use kai2geo
-    use mixmain,   only: updateF107, mix_transform_grid  ! not host-associated via volttypes
+    use mixmain,   only: updateF107  ! not host-associated via volttypes
     use shellutils,   only: wrapJ_SGV                      ! periodic phi ghost fill for the DK->mix map
     ! DK is now computed on the shell (shellDK in voltapp); the coupler only MAPS the
     ! full-sphere DK conductance to REMIX via mapDKToMix -> voltVarToMix (no dkmain/dkinit here).
@@ -130,8 +130,9 @@ submodule (volttypes) remixCplTypesSub
         ! DK conductance/precip (computed on the shell by shellDK) -> both REMIX hemispheres
         call mapDKToMix(vApp%shGrid, vApp%dkApp%vars, App%mixApp)
 
-        ! Geographic grid for the REMIX potential solve (non-GCM path).
-        if (.not. vApp%doGCM) call mix_transform_grid(App%mixApp%ion)
+        ! REMIX will live exclusively on SM now.
+        !! Geographic grid for the REMIX potential solve (non-GCM path).
+        !if (.not. vApp%doGCM) call mix_transform_grid(App%mixApp%ion)
 
     end subroutine remixCpl_toIono
 

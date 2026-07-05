@@ -14,14 +14,13 @@ module gcm_mpi
 
 contains
 
-    subroutine init_gcm_mpi(gcm,ion,isRestart)
+    subroutine init_gcm_mpi(gcm,isRestart)
       type(gcm_T),intent(inout) :: gcm
-      type(mixIon_T),dimension(:),intent(inout) :: ion
       logical, intent(in) :: isRestart
 
       write(*,*) "start init_gcm"
 
-      call init_gcm_grid(gcm,ion)
+      call init_gcm_grid(gcm)
 
       write(*,*) "done init_gcm_grid"
 
@@ -29,20 +28,20 @@ contains
       if (.not. allocated(gcm%APEX%outlist)) allocate(gcm%APEX%outlist(gcm%APEX%mix2gcm_nvar))
       
       if (gcm%isWACCMX) then
-        gcm%APEX%outlist(1) = POT
-        gcm%APEX%outlist(2) = AVG_ENG
-        gcm%APEX%outlist(3) = NUM_FLUX
+        gcm%APEX%outlist(1) = "POT"
+        gcm%APEX%outlist(2) = "AVG_ENG"
+        gcm%APEX%outlist(3) = "NUM_FLUX"
       else ! is TIEGCM
-        gcm%APEX%outlist(1) = POT
-        gcm%APEX%outlist(2) = NUM_FLUX
-        gcm%GEO%outlist(1) = AVG_ENG
-        gcm%GEO%outlist(2) = NUM_FLUX
+        gcm%APEX%outlist(1) = "POT"
+        gcm%APEX%outlist(2) = "NUM_FLUX"
+        gcm%GEO%outlist(1) = "AVG_ENG"
+        gcm%GEO%outlist(2) = "NUM_FLUX"
       endif
 
       if ( .not. allocated(gcm%GEO%inlist)) allocate(gcm%GEO%inlist(gcm%GEO%gcm2mix_nvar))
       if ( .not. allocated(gcm%APEX%inlist)) allocate(gcm%APEX%inlist(gcm%APEX%gcm2mix_nvar))
-      gcm%APEX%inlist(1) = SIGMAP
-      gcm%APEX%inlist(2) = SIGMAH
+      gcm%APEX%inlist(1) = "SIGMAP"
+      gcm%APEX%inlist(2) = "SIGMAH"
 
       gcm%isRestart = isRestart
 
@@ -94,9 +93,7 @@ contains
         integer, intent(in) :: gcmCplRank,gcmId
         integer, intent(inout) :: icolor
 
-        integer :: nlon,nlat,Nh,ierr
-
-        Nh = GCMhemispheres
+        integer :: nlon,nlat,ierr
 
         icolor = icolor + 1
         call mpi_recv(gcm%nlat, 1, MPI_INTEGER, gcmCplRank, (gcmId+voltId)*100+icolor, gcmCplComm, MPI_STATUS_IGNORE,ierr)
@@ -116,12 +113,11 @@ contains
         icolor = icolor + 1
         call mpi_recv(gcm%inlon, gcm%nlon, MPI_DOUBLE_PRECISION, gcmCplRank, (gcmId+voltId)*100+icolor, gcmCplComm, MPI_STATUS_IGNORE,ierr)
         write(*,*) "MIXCPL GOT LON: ",gcm%inlon
-        write(*,*) "MIXCPL GOT GRID INFO: ",gcm%nlat,gcm% nlon
+        write(*,*) "MIXCPL GOT GRID INFO: ",gcm%nlat,gcm%nlon
 
     end subroutine init_gcm_mpi_import
 
-    subroutine coupleGCM2MIX(gcm,ion,mjd,time,gcmCplComm,gcmRank,myRank)
-        type(mixIon_T),dimension(:),intent(inout) :: ion
+    subroutine coupleGCM2MIX(gcm,mjd,time,gcmCplComm,gcmRank,myRank)
         type(gcm_T), intent(inout) :: gcm
         real(rp), intent(in) :: time, mjd
         type(MPI_Comm), optional :: gcmCplComm
@@ -136,7 +132,7 @@ contains
         !Must MIX export first.  TIEGCM will also import first.
         call Tic("Export")
         if (present(gcmCplComm)) then
-            call exportgcm(ion,gcm,mjd,time,gcmCplComm,gcmRank,myRank)
+            call exportgcm(gcm,mjd,time,gcmCplComm,gcmRank,myRank)
         else
             write(*,*) "Are we trying to Export to Couple GCM?"
         endif
@@ -149,7 +145,7 @@ contains
         else
             write(*,*) "Are we trying to Import to Couple GCM?"
         endif
-        call process_gcmimport(gcm,ion)
+        call process_gcmimport(gcm)
         call Toc("Import")
 
         if (gcm%isRestart) gcm%isRestart=.false.
@@ -212,9 +208,8 @@ contains
         end if
     end subroutine import_gcm_per_grid
 
-    subroutine exportgcmmpi(ion,gcm,mjd,time,gcmCplComm,gcmCplRank,myCplRank)
+    subroutine exportgcmmpi(gcm,mjd,time,gcmCplComm,gcmCplRank,myCplRank)
         type(gcm_T), intent(inout) :: gcm
-        type(mixIon_T), dimension(:),intent(inout) :: ion
         real(rp), intent(in) :: time, mjd
         type(MPI_Comm) :: gcmCplComm
         integer, intent(in) :: gcmCplRank,myCplRank
@@ -231,11 +226,11 @@ contains
             select case (g)
             case (1)
               if (gcm%GEO%mix2gcm_nvar > 0 .or. gcm%GEO%gcm2mix_nvar > 0) then
-                call transform_gcm_export(gcm%GEO,ion,g)
+                call transform_gcm_export(gcm%GEO,g)
               endif
             case(2)
               if (gcm%APEX%mix2gcm_nvar > 0 .or. gcm%APEX%gcm2mix_nvar > 0) then
-                call transform_gcm_export(gcm%APEX,ion,g)
+                call transform_gcm_export(gcm%APEX,g)
               endif
             end select
 
