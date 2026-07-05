@@ -113,4 +113,33 @@ submodule (raijutypes) raijuTypesSub
 
     end subroutine raiCleanup
 
+
+    module subroutine raiWriteBlackBox(App, dieAfterWrite)
+        class(raijuApp_T), intent(inout) :: App
+        logical, optional, intent(in) :: dieAfterWrite
+
+        logical :: doDieAfterWrite
+        logical :: shouldStop
+
+        doDieAfterWrite = .true.
+        if (present(dieAfterWrite)) doDieAfterWrite = dieAfterWrite
+
+        shouldStop = .false.
+
+        !$OMP CRITICAL(raiju_blackbox_write)
+        if (.not. App%blackBoxHasBeenCalled) then
+            App%blackBoxHasBeenCalled = .true.
+            call WriteRaijuBlackBox(App)
+            if (doDieAfterWrite) then
+                shouldStop = .true.
+            else
+                App%blackBoxHasBeenCalled = .false.
+            endif
+        endif
+        !$OMP END CRITICAL(raiju_blackbox_write)
+
+        if (shouldStop) stop
+
+    end subroutine raiWriteBlackBox
+
 end submodule raijuTypesSub

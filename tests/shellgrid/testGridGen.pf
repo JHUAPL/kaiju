@@ -1,12 +1,15 @@
 module testGridGen
     use testHelper
-    use kdefs, only : TINY
+    use kdefs, only : TINY, rp, PI
 
     use shellGrid
 
     implicit none
 
     integer :: Npnt = 50
+    integer, parameter :: preghostNt = 12
+    integer, parameter :: preghostNp = 24
+    integer, dimension(4), parameter :: preghostGhosts = (/2,2,2,2/)
 
     contains
 
@@ -64,12 +67,89 @@ module testGridGen
             @assertLessThanOrEqual(mid - sh%thc(i), OKerr, checkMessage)
         enddo
 
-	    write (checkMessage,'(A,E9.2)') "Phc grid error > ",OKerr
+        write (checkMessage,'(A,E9.2)') "Phc grid error > ",OKerr
         do j=1,Npnt-1
-            mid = (phis(i+1) + phis(i)) / 2.0
-            @assertLessThanOrEqual(mid - sh%phc(i), OKerr, checkMessage)
+            mid = (phis(j+1) + phis(j)) / 2.0
+            @assertLessThanOrEqual(mid - sh%phc(j), OKerr, checkMessage)
         enddo
 
     end subroutine testGenShellGrid
+
+
+    @test
+    subroutine testGenShellGrid_preghostedInput()
+        !! Makes sure that when we set TPIncludesGhostsO=T, GenShellGrid properly includes them
+        type(ShellGrid_T) :: baseSG
+        type(ShellGrid_T) :: preghostedSG
+        real(rp), dimension(preghostNt+1) :: theta
+        real(rp), dimension(preghostNp+1) :: phi
+        real(rp) :: dth, dph
+        integer :: i, j
+
+        dth = (58.0_rp - 10.0_rp) * (PI / 180.0_rp) / preghostNt
+        dph = 2.0_rp * PI / preghostNp
+
+        do i=1,preghostNt+1
+            theta(i) = 10.0_rp * (PI / 180.0_rp) + (i-1)*dth
+        enddo
+
+        do j=1,preghostNp+1
+            phi(j) = (j-1)*dph
+        enddo
+
+        call GenShellGrid(baseSG, theta, phi, "shgrParent", nGhosts=preghostGhosts, radO=1.1_rp)
+
+        call GenShellGrid( &
+            preghostedSG, &
+            baseSG%th(baseSG%isg:baseSG%ieg+1), &
+            baseSG%ph(baseSG%jsg:baseSG%jeg+1), &
+            "shgrParentPre", &
+            nGhosts=preghostGhosts, &
+            radO=baseSG%radius, &
+            TPIncludesGhostsO=.true.)
+
+        @assertEqual(baseSG%Nt,  preghostedSG%Nt , "Preghosted grid: Nt mismatch")
+        @assertEqual(baseSG%Np,  preghostedSG%Np , "Preghosted grid: Np mismatch")
+        @assertEqual(baseSG%is,  preghostedSG%is , "Preghosted grid: is mismatch")
+        @assertEqual(baseSG%ie,  preghostedSG%ie , "Preghosted grid: ie mismatch")
+        @assertEqual(baseSG%js,  preghostedSG%js , "Preghosted grid: js mismatch")
+        @assertEqual(baseSG%je,  preghostedSG%je , "Preghosted grid: je mismatch")
+        @assertEqual(baseSG%isg, preghostedSG%isg, "Preghosted grid: isg mismatch")
+        @assertEqual(baseSG%ieg, preghostedSG%ieg, "Preghosted grid: ieg mismatch")
+        @assertEqual(baseSG%jsg, preghostedSG%jsg, "Preghosted grid: jsg mismatch")
+        @assertEqual(baseSG%jeg, preghostedSG%jeg, "Preghosted grid: jeg mismatch")
+        @assertEqual(baseSG%Ngn, preghostedSG%Ngn, "Preghosted grid: Ngn mismatch")
+        @assertEqual(baseSG%Ngs, preghostedSG%Ngs, "Preghosted grid: Ngs mismatch")
+        @assertEqual(baseSG%Nge, preghostedSG%Nge, "Preghosted grid: Nge mismatch")
+        @assertEqual(baseSG%Ngw, preghostedSG%Ngw, "Preghosted grid: Ngw mismatch")
+        @assertEqual(baseSG%radius, preghostedSG%radius, "Preghosted grid: radius mismatch")
+        @assertTrue(baseSG%isPeriodic .eqv. preghostedSG%isPeriodic, "Preghosted grid: periodic flag mismatch")
+        @assertTrue(baseSG%isPhiUniform .eqv. preghostedSG%isPhiUniform, "Preghosted grid: isPhiUniform mismatch")
+
+        do i=baseSG%isg,baseSG%ieg+1
+            @assertLessThanOrEqual(abs(baseSG%th(i) - preghostedSG%th(i)), TINY, "Preghosted grid: th mismatch")
+        enddo
+
+        do j=baseSG%jsg,baseSG%jeg+1
+            @assertLessThanOrEqual(abs(baseSG%ph(j) - preghostedSG%ph(j)), TINY, "Preghosted grid: ph mismatch")
+        enddo
+
+        do i=baseSG%isg,baseSG%ieg
+            @assertLessThanOrEqual(abs(baseSG%thc(i) - preghostedSG%thc(i)), TINY, "Preghosted grid: thc mismatch")
+        enddo
+
+        do j=baseSG%jsg,baseSG%jeg
+            @assertLessThanOrEqual(abs(baseSG%phc(j) - preghostedSG%phc(j)), TINY, "Preghosted grid: phc mismatch")
+        enddo
+
+        do j=baseSG%jsg,baseSG%jeg
+            do i=baseSG%isg,baseSG%ieg
+                @assertLessThanOrEqual(abs(baseSG%areaCC(i,j) - preghostedSG%areaCC(i,j)), TINY, "Preghosted grid: areaCC mismatch")
+            enddo
+        enddo
+
+        call deallocShellGrid(baseSG)
+        call deallocShellGrid(preghostedSG)
+    end subroutine testGenShellGrid_preghostedInput
 
 end module testGridGen

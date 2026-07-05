@@ -1,0 +1,566 @@
+module testRaiCplTransfer
+
+    use testHelper
+    use kdefs, only : rp, TINY, HUGE, NDIM, XDIR, YDIR, ZDIR, PI
+
+    use shellGrid, only : ShellGrid_T, ShellGridVar_T, SHGR_CC, SHGR_CORNER, deallocShellGrid, initShellVar
+    use shellInterp, only : InterpShellVar_ParentToChild, InterpShellVar_TSC_pnt
+    use shellUtils, only : toCenter2D
+    use xml_input, only : XML_Input_T, New_XML_Input
+    use planethelper, only : DipColat2L, DkT2P
+
+    use volttypes, only : raijuCoupler_T, voltApp_T, IMAG_nMHD_R_NEAREARTH, IM_D_RING, IM_P_RING, IM_D_COLD, IM_P_COLD, IM_TSCL
+    use raijudefs, only : RAIJUCLOSED, RAIJUOPEN, RAIJUACTIVE, RAIJUINACTIVE, F_PSPH, RAIJUHPLUS, RAIJUELE, def_tiote
+    use voltCplTypes, only : TubeShell_T, TUBE_CLOSED
+    use raijuSpeciesHelper, only : spcIdx
+    use raijuDomain, only : setActiveDomain
+    use imaghelper, only : PsphTemp_Genestreti
+
+    use raijuCplHelper, only : tubeShell2RaiCpl, raiCpl2RAIJU, packRaijuCoupler_RT, raiCpl_calcTsclMHD
+    use raiCplTestHelper
+
+    implicit none
+
+    character(len=*), parameter :: testXmlName = "raiCplSmoke.xml"
+    real(rp), parameter :: testTol = 1.0e-12_rp
+
+    type(ShellGrid_T) :: parentSG
+
+contains
+
+    @before
+    subroutine setup()
+        call genGlobalVoltParentSG(parentSG, NtO=135, NpO=28, NgPhiO=4, radO=1.1_rp, nameO="voltParentSG")
+    end subroutine setup
+
+
+    @after
+    subroutine teardown()
+        call deallocShellGrid(parentSG)
+    end subroutine teardown
+
+
+    @test
+    subroutine testTubeShell2RaiCpl_mapsTransferFields()
+        !! Characterize the direct Voltron TubeShell -> raijuCoupler transfer.
+        !! This checks that parent-to-child corner mapping, center reconstruction,
+        !! and topology conversion/masking all follow the current implementation.
+        type(raijuCoupler_T) :: raiCpl
+        type(XML_Input_T) :: xmlInp
+        type(TubeShell_T) :: tubeShell
+        type(ShellGridVar_T) :: expCorner, expCenter, expTopo
+        integer :: subis, subjs
+        integer :: firstClosedI0, iSample, jSample
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+        call initReadyRaiCpl(raiCpl, xmlInp, parentSG, "lfmD_2p0")
+
+        ! `tubeShell2RaiCpl` expects parent-grid data that overlaps the child grid's
+        ! subset of that parent. `childSubsetStarts` converts the child grid bounds
+        ! back into the corresponding starting i/j indices on the parent grid.
+        call childSubsetStarts(raiCpl%shGr, subis, subjs)
+
+        ! Build a synthetic phi-dependent open/closed front similar to a real
+        ! raiju topology plot: open poleward (smaller theta / smaller i), closed
+        ! equatorward, and with a wavering boundary as phi changes.
+        ! `firstClosedI0` is the baseline parent-grid corner where closed field
+        ! begins before the periodic phi-dependent waviness is applied.
+        ! We step several i cells equatorward to make sure the ocb is well within the child grid domain
+        firstClosedI0 = subis + 6
+        call fillSyntheticTubeShell(parentSG, tubeShell, firstClosedIO=firstClosedI0)
+        
+        ! This is what we're actually testing
+        call tubeShell2RaiCpl(parentSG, tubeShell, raiCpl)
+
+        call initShellVar(raiCpl%shGr, SHGR_CORNER, expCorner)
+        call InterpShellVar_ParentToChild(parentSG, tubeShell%X_bmin(XDIR), raiCpl%shGr, expCorner)
+        @assertTrue(all(abs(raiCpl%xyzMin(XDIR)%data - expCorner%data) <= testTol), "tubeShell2RaiCpl should map X_bmin corners into xyzMin")
+
+        call InterpShellVar_ParentToChild(parentSG, tubeShell%latc, raiCpl%shGr, expCorner)
+        @assertTrue(all(abs(raiCpl%thcon%data - (PI/2.0_rp - expCorner%data)) <= testTol), "tubeShell2RaiCpl should convert latc to conjugate colatitude")
+
+        call InterpShellVar_ParentToChild(parentSG, tubeShell%lonc, raiCpl%shGr, expCorner)
+        @assertTrue(all(abs(raiCpl%phcon%data - expCorner%data) <= testTol), "tubeShell2RaiCpl should map lonc to phcon")
+
+        call InterpShellVar_ParentToChild(parentSG, tubeShell%bVol, raiCpl%shGr, expCorner)
+        @assertTrue(all(abs(raiCpl%bvol%data - expCorner%data) <= testTol), "tubeShell2RaiCpl should map bVol corners exactly")
+
+        call initShellVar(raiCpl%shGr, SHGR_CORNER, expTopo)
+        call InterpShellVar_ParentToChild(parentSG, tubeShell%topo, raiCpl%shGr, expTopo)
+        @assertTrue(all(raiCpl%topo%data == merge(real(RAIJUCLOSED, rp), real(RAIJUOPEN, rp), abs(expTopo%data - real(TUBE_CLOSED, rp)) < TINY)), "tubeShell2RaiCpl should convert TubeShell topology to RAIJU topology")
+
+        call initShellVar(raiCpl%shGr, SHGR_CC, expCenter)
+        call InterpShellVar_ParentToChild(parentSG, tubeShell%avgP(0), raiCpl%shGr, expCenter)
+        @assertTrue(all(raiCpl%Pavg(0)%mask .eqv. expCenter%mask), "tubeShell2RaiCpl should preserve the closed-tube source mask for center quantities")
+
+        ! Sample a destination cell that should remain well equatorward of the
+        ! synthetic OCB, so these checks are testing transfer math rather than the
+        ! details of how the open boundary lands after interpolation.
+        iSample = raiCpl%shGr%isg + 10
+        jSample = raiCpl%shGr%jsg + 3
+        @assertTrue(expCenter%mask(iSample,jSample), "Chosen sample cell for Pavg mapping should remain on closed topology")
+        @assertLessThanOrEqual(abs(raiCpl%Pavg(0)%data(iSample,jSample) - expCenter%data(iSample,jSample)), testTol, "tubeShell2RaiCpl should map avgP into Pavg away from the low-lat extension region")
+        @assertTrue(any(.not. raiCpl%Pavg(0)%mask), "Synthetic open topology should mask at least one destination center cell")
+
+        ! These are actually just tests of the synthetic topology we made up. If they fail then we might not be testing a relatively realistic boundary
+        @assertTrue(any(raiCpl%topo%data(:,raiCpl%topo%jsv) /= raiCpl%topo%data(:,raiCpl%topo%jsv+3)), "Synthetic TubeShell topology should vary with phi")
+        @assertEqual(int(raiCpl%topo%data(raiCpl%topo%isv,jSample)), RAIJUOPEN, "Synthetic TubeShell topology should be open on the poleward side")
+        @assertEqual(int(raiCpl%topo%data(raiCpl%topo%iev,jSample)), RAIJUCLOSED, "Synthetic TubeShell topology should be closed on the equatorward side")
+
+        @assertLessThanOrEqual(abs(raiCpl%bvol_cc%data(iSample,jSample) - toCenter2D(raiCpl%bvol%data(iSample:iSample+1, jSample:jSample+1))), testTol, "tubeShell2RaiCpl should build bvol_cc from mapped corner bvol values")
+        @assertLessThanOrEqual(abs(raiCpl%xyzMincc(XDIR)%data(iSample,jSample) - toCenter2D(raiCpl%xyzMin(XDIR)%data(iSample:iSample+1, jSample:jSample+1))), testTol, "tubeShell2RaiCpl should build xyzMincc from mapped corner xyzMin values")
+    end subroutine testTubeShell2RaiCpl_mapsTransferFields
+
+
+    @test
+    subroutine testParentToChild_srcMaskBlocksOpenSourceInfluence()
+        !! srcMaskO should participate in the strict four-corner mask check for
+        !! corner -> CC ParentToChild transfers used on the TubeShell -> RAIJU path.
+        type(raijuCoupler_T) :: raiCpl
+        type(XML_Input_T) :: xmlInp
+        type(TubeShell_T) :: tubeShell
+        type(ShellGridVar_T) :: maskedCenter, unmaskedCenter
+        logical, allocatable :: topoMask(:,:)
+        integer :: subis, subjs
+        integer :: firstClosedI0
+        integer :: srcI0, srcJ0
+        integer :: badSrcI, badSrcJ
+        integer :: iMasked, jMasked, iClear, jClear
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+        call initReadyRaiCpl(raiCpl, xmlInp, parentSG, "lfmD_2p0")
+        call childSubsetStarts(raiCpl%shGr, subis, subjs)
+
+        firstClosedI0 = subis + 6
+        call fillSyntheticTubeShell(parentSG, tubeShell, firstClosedIO=firstClosedI0)
+
+        allocate(topoMask(tubeShell%avgP(0)%isv:tubeShell%avgP(0)%iev, tubeShell%avgP(0)%jsv:tubeShell%avgP(0)%jev))
+        topoMask = .true.
+
+        tubeShell%avgP(0)%mask = .true.
+        tubeShell%avgP(0)%data = 1.0_rp
+
+        call initShellVar(raiCpl%shGr, SHGR_CC, maskedCenter)
+        call initShellVar(raiCpl%shGr, SHGR_CC, unmaskedCenter)
+
+        srcI0 = raiCpl%shGr%is + raiCpl%shGr%bndis - 1 - raiCpl%shGr%Ngn
+        srcJ0 = raiCpl%shGr%js + raiCpl%shGr%bndjs - 1 - raiCpl%shGr%Nge
+        badSrcI = srcI0 + 2
+        badSrcJ = srcJ0 + 2
+        topoMask(badSrcI, badSrcJ) = .false.
+        tubeShell%avgP(0)%data(badSrcI, badSrcJ) = 1000.0_rp
+
+        iMasked = maskedCenter%isv + 1
+        jMasked = maskedCenter%jsv + 1
+        iClear = maskedCenter%isv + 4
+        jClear = maskedCenter%jsv + 4
+
+        call InterpShellVar_ParentToChild(parentSG, tubeShell%avgP(0), raiCpl%shGr, maskedCenter, srcMaskO=topoMask)
+        call InterpShellVar_ParentToChild(parentSG, tubeShell%avgP(0), raiCpl%shGr, unmaskedCenter)
+
+        @assertFalse(maskedCenter%mask(iMasked,jMasked), "srcMaskO should mark mixed-topology corner -> CC cells invalid")
+        @assertLessThanOrEqual(abs(maskedCenter%data(iMasked,jMasked)), testTol, "Masked-out corner -> CC cells should be zeroed")
+        @assertTrue(unmaskedCenter%mask(iMasked,jMasked), "Without srcMaskO, the same child cell should remain valid when avgP itself is unmasked")
+        @assertTrue(unmaskedCenter%data(iMasked,jMasked) > 10.0_rp, "Without srcMaskO, open-field sentinel values should still appear in the raw four-corner average")
+        @assertTrue(maskedCenter%mask(iClear,jClear), "Closed-only corner -> CC cells should remain valid")
+        @assertLessThanOrEqual(abs(maskedCenter%data(iClear,jClear) - 1.0_rp), testTol, "Closed-only corner -> CC cells should retain the closed-cell average")
+    end subroutine testParentToChild_srcMaskBlocksOpenSourceInfluence
+
+
+    @test
+    subroutine testRaiCpl2RAIJU_selectivelyCopiesClosedCells()
+        !! Characterize coupler -> RAIJU state transfer.
+        !! This checks which fields always copy, which center fields are gated by
+        !! surrounding closed topology, and how derived quantities are formed.
+        type(raijuCoupler_T) :: raiCpl
+        type(XML_Input_T) :: xmlInp
+        integer :: iClosed, jClosed, iOpen, jOpen, k
+        real(rp) :: expRadMax, expRadMaxCC
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+        call initReadyRaiCpl(raiCpl, xmlInp, parentSG, "lfmD_2p0")
+
+        iClosed = raiCpl%shGr%isg + 4
+        jClosed = raiCpl%shGr%jsg + 4
+        iOpen = raiCpl%shGr%isg + 1
+        jOpen = raiCpl%shGr%jsg + 1
+
+        call fillSyntheticCornerVar(raiCpl%pot_total, 1000.0_rp)
+        call fillSyntheticCornerVar(raiCpl%pot_corot, 1100.0_rp)
+        do k=1,NDIM
+            call fillSyntheticCornerVar(raiCpl%xyzMin(k), 100.0_rp*real(k, rp))
+            call fillSyntheticCornerVar(raiCpl%xyzMaxRad(k), 200.0_rp*real(k, rp))
+        enddo
+        call fillSyntheticCornerVar(raiCpl%Bmin(ZDIR), 1200.0_rp)
+        call fillSyntheticCornerVar(raiCpl%thcon, 1300.0_rp)
+        call fillSyntheticCornerVar(raiCpl%phcon, 1400.0_rp)
+        call fillSyntheticCornerVar(raiCpl%bvol, 1500.0_rp)
+        call fillSyntheticCornerVar(raiCpl%vaFrac, 1600.0_rp)
+
+        do k=1,NDIM
+            call fillCellCenteredFixture(raiCpl%xyzMincc(k), 1700.0_rp + 100.0_rp*real(k, rp))
+        enddo
+        call fillCellCenteredFixture(raiCpl%bvol_cc, 2000.0_rp)
+        call fillCellCenteredFixture(raiCpl%rCurv, 2100.0_rp)
+        call fillCellCenteredFixture(raiCpl%tiote, 2200.0_rp)
+        call fillCellCenteredFixture(raiCpl%Tb, 2300.0_rp)
+        call fillCellCenteredFixture(raiCpl%avgBeta, 2400.0_rp)
+        do k=0,raiCpl%raiApp%Model%nFluidIn
+            call fillCellCenteredFixture(raiCpl%Pavg(k), 2500.0_rp + 100.0_rp*real(k, rp))
+            call fillCellCenteredFixture(raiCpl%Davg(k), 2600.0_rp + 100.0_rp*real(k, rp))
+            call fillCellCenteredFixture(raiCpl%Pstd(k), 2700.0_rp + 100.0_rp*real(k, rp))
+            call fillCellCenteredFixture(raiCpl%Dstd(k), 2800.0_rp + 100.0_rp*real(k, rp))
+        enddo
+
+        raiCpl%topo%data = real(RAIJUCLOSED, rp)
+        raiCpl%topo%data(iOpen+1, jOpen+1) = real(RAIJUOPEN, rp)
+
+        call raiCpl2RAIJU(raiCpl)
+
+        @assertLessThanOrEqual(abs(raiCpl%pot_total%data(iOpen,jOpen) - raiCpl%raiApp%State%espot(iOpen,jOpen)), testTol, "raiCpl2RAIJU should always copy pot_total into State%espot")
+        @assertEqual(int(raiCpl%topo%data(iOpen+1,jOpen+1)), raiCpl%raiApp%State%topo(iOpen+1,jOpen+1), "raiCpl2RAIJU should always copy topology corners")
+        @assertLessThanOrEqual(abs(raiCpl%xyzMin(XDIR)%data(iClosed+1,jClosed+1) - raiCpl%raiApp%State%xyzMin(iClosed+1,jClosed+1,XDIR)), testTol, "raiCpl2RAIJU should copy xyzMin on closed corners")
+
+        expRadMax = sqrt(raiCpl%xyzMaxRad(1)%data(iClosed+1,jClosed+1)**2 + raiCpl%xyzMaxRad(2)%data(iClosed+1,jClosed+1)**2 + raiCpl%xyzMaxRad(3)%data(iClosed+1,jClosed+1)**2)
+        @assertLessThanOrEqual(abs(expRadMax - raiCpl%raiApp%State%radMax(iClosed+1,jClosed+1)), testTol, "raiCpl2RAIJU should derive corner radMax from xyzMaxRad")
+
+        @assertLessThanOrEqual(abs(raiCpl%Pavg(0)%data(iClosed,jClosed) - raiCpl%raiApp%State%Pavg(iClosed,jClosed,0)), testTol, "raiCpl2RAIJU should copy closed-cell Pavg")
+        @assertLessThanOrEqual(abs(raiCpl%Davg(0)%data(iClosed,jClosed) - raiCpl%raiApp%State%Davg(iClosed,jClosed,0)), testTol, "raiCpl2RAIJU should copy closed-cell Davg")
+        @assertLessThanOrEqual(abs(raiCpl%Pstd(0)%data(iClosed,jClosed)/max(raiCpl%Pavg(0)%data(iClosed,jClosed), TINY) - raiCpl%raiApp%State%Pstd(iClosed,jClosed,0)), testTol, "raiCpl2RAIJU should normalize closed-cell Pstd by Pavg")
+        @assertLessThanOrEqual(abs(raiCpl%Dstd(0)%data(iClosed,jClosed)/max(raiCpl%Davg(0)%data(iClosed,jClosed), TINY) - raiCpl%raiApp%State%Dstd(iClosed,jClosed,0)), testTol, "raiCpl2RAIJU should normalize closed-cell Dstd by Davg")
+        @assertLessThanOrEqual(abs(raiCpl%xyzMincc(XDIR)%data(iClosed,jClosed) - raiCpl%raiApp%State%xyzMincc(iClosed,jClosed,XDIR)), testTol, "raiCpl2RAIJU should copy xyzMincc into closed cells")
+        @assertLessThanOrEqual(abs(raiCpl%Tb%data(iClosed,jClosed) - raiCpl%raiApp%State%Tb%data(iClosed,jClosed)), testTol, "raiCpl2RAIJU should copy Tb into closed cells")
+        @assertTrue(raiCpl%raiApp%State%Tb%mask(iClosed,jClosed), "raiCpl2RAIJU should mark closed copied cells in the Tb mask")
+
+        expRadMaxCC = 0.25_rp*sum(raiCpl%raiApp%State%radMax(iClosed:iClosed+1, jClosed:jClosed+1))
+        @assertLessThanOrEqual(abs(expRadMaxCC - raiCpl%raiApp%State%radMax_cc(iClosed,jClosed)), testTol, "raiCpl2RAIJU should derive radMax_cc from surrounding corner radMax values")
+
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%Pavg(iOpen,jOpen,0)), testTol, "raiCpl2RAIJU should leave open-cell Pavg at its reset default")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%Davg(iOpen,jOpen,0)), testTol, "raiCpl2RAIJU should leave open-cell Davg at its reset default")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%xyzMin(iOpen+1,jOpen+1,XDIR)), testTol, "raiCpl2RAIJU should leave open-corner xyzMin at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%thcon(iOpen+1,jOpen+1)), testTol, "raiCpl2RAIJU should leave open-corner thcon at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%phcon(iOpen+1,jOpen+1)), testTol, "raiCpl2RAIJU should leave open-corner phcon at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%bvol(iOpen+1,jOpen+1)), testTol, "raiCpl2RAIJU should leave open-corner bvol at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%vaFrac(iOpen+1,jOpen+1)), testTol, "raiCpl2RAIJU should leave open-corner vaFrac at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%radMax(iOpen+1,jOpen+1)), testTol, "raiCpl2RAIJU should leave open-corner radMax at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%xyzMincc(iOpen,jOpen,XDIR)), testTol, "raiCpl2RAIJU should leave open-cell xyzMincc at zero")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%bvol_cc(iOpen,jOpen)), testTol, "raiCpl2RAIJU should leave open-cell bvol_cc at zero")
+        @assertEqual(HUGE, raiCpl%raiApp%State%rCurv(iOpen,jOpen), "raiCpl2RAIJU should leave open-cell rCurv at HUGE")
+        @assertEqual(def_tiote, raiCpl%raiApp%State%tiote(iOpen,jOpen), "raiCpl2RAIJU should leave open-cell tiote at its reset default")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%Tb%data(iOpen,jOpen)), testTol, "raiCpl2RAIJU should leave open-cell Tb at zero")
+        @assertFalse(raiCpl%raiApp%State%Tb%mask(iOpen,jOpen), "raiCpl2RAIJU should not mark open cells in the Tb mask")
+        @assertLessThanOrEqual(abs(raiCpl%raiApp%State%radMax_cc(iOpen,jOpen)), testTol, "raiCpl2RAIJU should leave open-cell radMax_cc at zero")
+    end subroutine testRaiCpl2RAIJU_selectivelyCopiesClosedCells
+
+
+    @test
+    subroutine testPackRaijuCouplerRT_updatesTimeAndMappedState()
+        !! Characterize the real-time packing path from a Voltron app into the
+        !! raijuCoupler, including TubeShell transfer and potential mapping.
+        type(raijuCoupler_T) :: raiCpl
+        type(voltApp_T) :: vApp
+        type(XML_Input_T) :: xmlInp
+        type(ShellGridVar_T) :: expCorner
+        integer :: subis, subjs
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+        call initReadyRaiCpl(raiCpl, xmlInp, parentSG, "lfmD_2p0")
+        call initVoltAppTestState(vApp, parentSG)
+
+        call childSubsetStarts(raiCpl%shGr, subis, subjs)
+        call fillSyntheticTubeShell(parentSG, vApp%State%tubeShell, firstClosedIO=subis+6)
+        call fillSyntheticCornerVar(vApp%State%potential_total, 5000.0_rp)
+        call fillSyntheticCornerVar(vApp%State%potential_corot, 6000.0_rp)
+        vApp%time = 4321.0_rp
+
+        call packRaijuCoupler_RT(raiCpl, vApp)
+
+        @assertLessThanOrEqual(abs(raiCpl%tLastUpdate - vApp%time), testTol, "packRaijuCoupler_RT should record the Voltron time stamp")
+
+        call initShellVar(raiCpl%shGr, SHGR_CORNER, expCorner)
+        call InterpShellVar_ParentToChild(vApp%shGrid, vApp%State%potential_total, raiCpl%shGr, expCorner)
+        @assertTrue(all(abs(raiCpl%pot_total%data - expCorner%data) <= testTol), "packRaijuCoupler_RT should map total potential onto the child grid")
+
+        call InterpShellVar_ParentToChild(vApp%shGrid, vApp%State%potential_corot, raiCpl%shGr, expCorner)
+        @assertTrue(all(abs(raiCpl%pot_corot%data - expCorner%data) <= testTol), "packRaijuCoupler_RT should map corotation potential onto the child grid")
+
+        call InterpShellVar_ParentToChild(vApp%shGrid, vApp%State%tubeShell%X_bmin(XDIR), raiCpl%shGr, expCorner)
+        @assertTrue(all(abs(raiCpl%xyzMin(XDIR)%data - expCorner%data) <= testTol), "packRaijuCoupler_RT should run the TubeShell-to-coupler mapping path")
+    end subroutine testPackRaijuCouplerRT_updatesTimeAndMappedState
+
+
+    @test
+    subroutine testGetMomentsRAIJU_selectsExpectedBranchByLocation()
+        !! Check the main getMomentsRAIJU location branches:
+        !! off-grid poleward, on-grid inactive, on-grid active, and on-grid low-lat fallback.
+        type(XML_Input_T) :: xmlInp
+        type(raijuCoupler_T) :: raiCpl
+        real(rp) :: tEval
+        real(rp) :: thPoleward, phPoleward
+        real(rp) :: thInactive, phInactive
+        real(rp) :: thActive, phActive
+        real(rp) :: thLowLat
+        real(rp) :: imW(IM_D_RING:IM_TSCL), expW(IM_D_RING:IM_TSCL)
+        logical :: isEdible
+        integer :: iActive, jActive, iInactive, jInactive
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+        call initMomentReadyRaiCpl(raiCpl, xmlInp, "lfmD_2p0")
+        call findMomentBranchCells(raiCpl, iActive, jActive, iInactive, jInactive)
+
+        @assertTrue(iActive > 0 .and. jActive > 0, "Moment test fixture should provide an active on-grid cell poleward of the low-lat boundary")
+        @assertTrue(iInactive > 0 .and. jInactive > 0, "Moment test fixture should provide an inactive on-grid cell poleward of the low-lat boundary")
+        @assertTrue(raiCpl%iFirstCellInGamGhost <= raiCpl%shGr%ie, "Moment test fixture should have at least one cell equatorward of iFirstCellInGamGhost")
+
+        tEval = raiCpl%startup_blendTscl + 10.0_rp
+
+        thPoleward = raiCpl%shGr%minTheta - 1.0e-6_rp
+        phPoleward = raiCpl%shGr%phc(jActive)
+        call raiCpl%getMoments(thPoleward, phPoleward, tEval, imW, isEdible)
+        @assertFalse(isEdible, "Poleward points outside the Raiju domain should not be edible")
+
+        thInactive = raiCpl%shGr%thc(iInactive)
+        phInactive = raiCpl%shGr%phc(jInactive)
+        call raiCpl%getMoments(thInactive, phInactive, tEval, imW, isEdible)
+        @assertFalse(isEdible, "On-grid points in the inactive region should not be edible")
+
+        thActive = raiCpl%shGr%thc(iActive)
+        phActive = raiCpl%shGr%phc(jActive)
+        call raiCpl%getMoments(thActive, phActive, tEval, imW, isEdible)
+        call calcExpectedActiveMoments(raiCpl, thActive, phActive, expW)
+        @assertTrue(isEdible, "On-grid active points poleward of the low-lat boundary should be edible")
+        @assertTrue(all(abs(imW - expW) <= testTol), "Active-domain getMomentsRAIJU output should match TSC-interpolated Raiju moments")
+
+        thLowLat = raiCpl%shGr%thc(raiCpl%iFirstCellInGamGhost + 1)
+        call raiCpl%getMoments(thLowLat, phActive, tEval, imW, isEdible)
+        call calcExpectedLowLatMoments(raiCpl, phActive, expW)
+        @assertTrue(isEdible, "On-grid points equatorward of the low-lat boundary should use the low-lat fallback and remain edible")
+        @assertTrue(all(abs(imW - expW) <= testTol), "Low-lat getMomentsRAIJU output should match the boundary-value fallback moments")
+    end subroutine testGetMomentsRAIJU_selectsExpectedBranchByLocation
+
+
+    @test
+    subroutine testGetMomentsRAIJU_lowLatProfileSamplesFollowBoundaryFallback()
+        !! Sample along one near-Earth MHD profile and verify that points below the
+        !! low-lat boundary all return the same boundary-based fallback moments,
+        !! while the first active interval above the boundary still uses active moments.
+        type(XML_Input_T) :: xmlInp
+        type(raijuCoupler_T) :: raiCpl
+        real(rp), dimension(raiCplTestNGb + IMAG_nMHD_R_NEAREARTH) :: mhdRAll
+        real(rp), dimension(raiCplTestNG) :: mhdRinGcc
+        real(rp), dimension(IMAG_nMHD_R_NEAREARTH) :: mhdRNearEarth
+        real(rp) :: mhdRin
+        real(rp) :: reqLowLatBC, reqSample, thSample, phSample
+        real(rp) :: tEval, frac
+        real(rp) :: imW(IM_D_RING:IM_TSCL), expW(IM_D_RING:IM_TSCL)
+        logical :: isEdible
+        integer :: iActive, jActive, iInactive, jInactive
+        integer :: iReq, iFrac
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+        call initMomentReadyRaiCpl(raiCpl, xmlInp, "lfmD_2p0")
+        call findMomentBranchCells(raiCpl, iActive, jActive, iInactive, jInactive)
+        call getRaiCplTestMhdProfile("lfmD_2p0", mhdRAll, mhdRinGcc, mhdRNearEarth, mhdRin)
+
+        tEval = raiCpl%startup_blendTscl + 10.0_rp
+        phSample = raiCpl%shGr%phc(jActive)
+        reqLowLatBC = DipColat2L(raiCpl%shGr%thcRp(raiCpl%iFirstCellInGamGhost))
+        call calcExpectedLowLatMoments(raiCpl, phSample, expW)
+
+        do iReq=1,raiCplTestNGb+1
+            if (abs(mhdRAll(iReq+1) - mhdRAll(iReq)) <= TINY) cycle
+
+            do iFrac=1,4
+                frac = real(iFrac, rp)/5.0_rp
+                reqSample = (1.0_rp - frac)*mhdRAll(iReq) + frac*mhdRAll(iReq+1)
+                thSample = thetaForDipoleLOnShell(raiCpl%shGr, reqSample)
+                call raiCpl%getMoments(thSample, phSample, tEval, imW, isEdible)
+
+                if (reqSample < reqLowLatBC - TINY) then
+                    @assertTrue(isEdible, "Low-lat profile samples should remain edible")
+                    @assertTrue(all(abs(imW - expW) <= testTol), "All samples below the low-lat boundary should return the same boundary fallback moments")
+                else
+                    call calcExpectedActiveMoments(raiCpl, thSample, phSample, expW)
+                    @assertTrue(isEdible, "The first active interval above the low-lat boundary should use active moments")
+                    @assertTrue(all(abs(imW - expW) <= testTol), "Samples above the low-lat boundary should still use active-domain moments")
+                endif
+            enddo
+        enddo
+    end subroutine testGetMomentsRAIJU_lowLatProfileSamplesFollowBoundaryFallback
+
+
+    @test
+    subroutine testGetMomentsRAIJU_boundaryColdTermsMatchLowLatFallback()
+        !! The cold-density/cold-pressure/tscl values should be continuous across the
+        !! active-to-low-lat handoff because the fallback now evaluates at thLowLatBC.
+        type(XML_Input_T) :: xmlInp
+        type(raijuCoupler_T) :: raiCpl
+        real(rp) :: tEval, phSample
+        real(rp) :: imBoundary(IM_D_RING:IM_TSCL), imLowLat(IM_D_RING:IM_TSCL)
+        logical :: isEdibleBoundary, isEdibleLowLat
+        integer :: iActive, jActive, iInactive, jInactive
+
+        xmlInp = New_XML_Input(testXmlName, "Kaiju", .false.)
+        call initMomentReadyRaiCpl(raiCpl, xmlInp, "lfmD_2p0")
+        call findMomentBranchCells(raiCpl, iActive, jActive, iInactive, jInactive)
+
+        tEval = raiCpl%startup_blendTscl + 10.0_rp
+        phSample = raiCpl%shGr%phc(jActive)
+
+        call raiCpl%getMoments(raiCpl%shGr%thc(raiCpl%iFirstCellInGamGhost), phSample, tEval, imBoundary, isEdibleBoundary)
+        call raiCpl%getMoments(raiCpl%shGr%thc(raiCpl%iFirstCellInGamGhost + 1), phSample, tEval, imLowLat, isEdibleLowLat)
+
+        @assertTrue(isEdibleBoundary .and. isEdibleLowLat, "Boundary and first low-lat sample points should both be edible")
+        @assertLessThanOrEqual(abs(imBoundary(IM_D_COLD) - imLowLat(IM_D_COLD)), testTol, "Cold density should be continuous across the low-lat handoff")
+        @assertLessThanOrEqual(abs(imBoundary(IM_P_COLD) - imLowLat(IM_P_COLD)), testTol, "Cold pressure should be continuous across the low-lat handoff")
+        @assertLessThanOrEqual(abs(imBoundary(IM_TSCL)   - imLowLat(IM_TSCL  )), testTol, "MHD ingest timescale should be continuous across the low-lat handoff")
+    end subroutine testGetMomentsRAIJU_boundaryColdTermsMatchLowLatFallback
+
+
+    subroutine childSubsetStarts(childSG, subis, subjs)
+        type(ShellGrid_T), intent(in) :: childSG
+        integer, intent(out) :: subis, subjs
+
+        !! Convert a child-grid subset back into the corresponding parent-grid start
+        !! indices. The synthetic TubeShell fixtures live on the parent grid, so this
+        !! lets tests place topology features relative to the child domain we will
+        !! later compare against.
+        subis = childSG%bndis - childSG%Ngn
+        subjs = childSG%bndjs - childSG%Nge
+    end subroutine childSubsetStarts
+
+
+    subroutine fillCellCenteredFixture(var, offset)
+        type(ShellGridVar_T), intent(inout) :: var
+        real(rp), intent(in) :: offset
+
+        integer :: i, j
+
+        do j=var%jsv,var%jev
+            do i=var%isv,var%iev
+                var%data(i,j) = offset + 10.0_rp*real(i, rp) + real(j, rp)
+            enddo
+        enddo
+        var%mask = .true.
+    end subroutine fillCellCenteredFixture
+
+
+    subroutine initMomentReadyRaiCpl(raiCpl, xmlInp, profileName)
+        !! Build a fully initialized raiCpl fixture with synthetic coupled moments
+        !! already mapped into RAIJU state and tscl_mhdIngest calculated.
+        type(raijuCoupler_T), intent(inout) :: raiCpl
+        type(XML_Input_T), intent(inout) :: xmlInp
+        character(len=*), intent(in) :: profileName
+
+        type(TubeShell_T) :: tubeShell
+        integer :: firstClosedI0
+
+        call initReadyRaiCpl(raiCpl, xmlInp, parentSG, profileName)
+
+        firstClosedI0 = raiCpl%shGr%bndis - raiCpl%shGr%Ngn + 6
+        call fillSyntheticTubeShell(parentSG, tubeShell, firstClosedIO=firstClosedI0)
+        call tubeShell2RaiCpl(parentSG, tubeShell, raiCpl)
+        call raiCpl2RAIJU(raiCpl)
+        call setActiveDomain(raiCpl%raiApp%Model, raiCpl%raiApp%Grid, raiCpl%raiApp%State)
+        call raiCpl_calcTsclMHD(raiCpl)
+    end subroutine initMomentReadyRaiCpl
+
+
+    subroutine findMomentBranchCells(raiCpl, iActive, jActive, iInactive, jInactive)
+        !! Find one active and one inactive cell poleward of the low-lat fallback
+        !! boundary so getMomentsRAIJU can exercise its location branches.
+        type(raijuCoupler_T), intent(in) :: raiCpl
+        integer, intent(out) :: iActive, jActive, iInactive, jInactive
+
+        integer :: i, j, iHi
+
+        iActive = -1
+        jActive = -1
+        iInactive = -1
+        jInactive = -1
+        iHi = min(raiCpl%iFirstCellInGamGhost - 1, raiCpl%shGr%ie)
+
+        do j=raiCpl%shGr%js, raiCpl%shGr%je
+            do i=raiCpl%shGr%is, iHi
+                if (raiCpl%raiApp%State%active(i,j) == RAIJUACTIVE .and. iActive < 0) then
+                    iActive = i
+                    jActive = j
+                endif
+                if (raiCpl%raiApp%State%active(i,j) == RAIJUINACTIVE .and. iInactive < 0) then
+                    iInactive = i
+                    jInactive = j
+                endif
+                if (iActive > 0 .and. iInactive > 0) return
+            enddo
+        enddo
+    end subroutine findMomentBranchCells
+
+
+    subroutine calcExpectedActiveMoments(raiCpl, th, ph, imW)
+        !! Rebuild the active-domain getMomentsRAIJU answer from the underlying
+        !! TSC-interpolated state variables. This assumes test t > startupTscl.
+        type(raijuCoupler_T), intent(in) :: raiCpl
+        real(rp), intent(in) :: th, ph
+        real(rp), intent(out) :: imW(IM_D_RING:IM_TSCL)
+
+        integer :: s, idx_psph
+        real(rp) :: dCold, dHot, pHot, tScl
+
+        imW = 0.0_rp
+        call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%tscl_mhdIngest, th, ph, tScl)
+        imW(IM_TSCL) = tScl
+
+        idx_psph = spcIdx(raiCpl%raiApp%Grid, F_PSPH)
+        call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%raiApp%State%Den_avg(idx_psph), th, ph, dCold)
+        imW(IM_D_COLD) = dCold
+        imW(IM_P_COLD) = DkT2P(dCold, PsphTemp_Genestreti(dCold))
+
+        do s=1,raiCpl%raiApp%Model%nSpc
+            if (raiCpl%raiApp%Grid%spc(s)%spcType == RAIJUHPLUS) then
+                call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%raiApp%State%Den_avg(s), th, ph, dHot)
+                call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%raiApp%State%Press_avg(s), th, ph, pHot)
+                imW(IM_D_RING) = imW(IM_D_RING) + dHot
+                imW(IM_P_RING) = imW(IM_P_RING) + pHot
+            elseif (raiCpl%raiApp%Grid%spc(s)%spcType == RAIJUELE) then
+                call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%raiApp%State%Press_avg(s), th, ph, pHot)
+                imW(IM_P_RING) = imW(IM_P_RING) + pHot
+            endif
+        enddo
+    end subroutine calcExpectedActiveMoments
+
+
+    subroutine calcExpectedLowLatMoments(raiCpl, ph, imW)
+        !! Rebuild the low-lat fallback moments using the boundary cell-center
+        !! location that getMomentsRAIJU now samples with TSC interpolation.
+        type(raijuCoupler_T), intent(in) :: raiCpl
+        real(rp), intent(in) :: ph
+        real(rp), intent(out) :: imW(IM_D_RING:IM_TSCL)
+
+        integer :: idx_psph
+        real(rp) :: thLowLatBC, dCold, tScl
+
+        imW = 0.0_rp
+        thLowLatBC = raiCpl%shGr%thc(raiCpl%iFirstCellInGamGhost)
+
+        call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%tscl_mhdIngest, thLowLatBC, ph, tScl)
+        imW(IM_TSCL) = tScl
+
+        idx_psph = spcIdx(raiCpl%raiApp%Grid, F_PSPH)
+        call InterpShellVar_TSC_pnt(raiCpl%shGr, raiCpl%raiApp%State%Den_avg(idx_psph), thLowLatBC, ph, dCold)
+        imW(IM_D_COLD) = dCold
+        imW(IM_P_COLD) = DkT2P(dCold, PsphTemp_Genestreti(dCold))
+    end subroutine calcExpectedLowLatMoments
+
+
+    function thetaForDipoleLOnShell(sh, reqL) result(theta)
+        !! Convert an equatorial dipole L shell to the corresponding shell-grid
+        !! colatitude at the current shell radius.
+        type(ShellGrid_T), intent(in) :: sh
+        real(rp), intent(in) :: reqL
+
+        real(rp) :: theta
+
+        theta = asin(sqrt(sh%radius/reqL))
+    end function thetaForDipoleLOnShell
+
+end module testRaiCplTransfer

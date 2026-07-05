@@ -2,8 +2,8 @@
 
 module auroralhelper
     use kdefs
-    use mixdefs
-    use mixtypes
+    use dkdefs
+    use dktypes
     
     implicit none
 
@@ -44,7 +44,7 @@ module auroralhelper
         real(rp), dimension(4), parameter :: A_D = [17.38, 1.67, 6.77, 2.37] !Diffuse
 
         !Choose mono vs. diffuse based on dE
-        if (dE > mixeTINY) then
+        if (dE > eTINY) then
             SigP = SigXK(eavg,eflux,A_M)
         else
             SigP = SigXK(eavg,eflux,A_D)
@@ -58,7 +58,7 @@ module auroralhelper
         real(rp), dimension(4), parameter :: A_M = [26.65, 1.47,10.24, 1.74] !Mono
         real(rp), dimension(4), parameter :: A_D = [23.72, 1.24, 6.55, 1.45] !Diffuse
         !Choose mono vs. diffuse based on dE
-        if (dE > mixeTINY) then
+        if (dE > eTINY) then
             SigH = SigXK(eavg,eflux,A_M)
         else
             SigH = SigXK(eavg,eflux,A_D)
@@ -87,7 +87,7 @@ module auroralhelper
     !Calculate magnitude of E field (unsigned b/c mobius strip)
     !pot is kV, MagE is mV/m
     subroutine CalcMagE(Gr,pot,MagE)
-        type(mixGrid_T), intent(in) :: Gr
+        type(dkGrid_T), intent(in) :: Gr
         real(rp), dimension(Gr%Np,Gr%Nt), intent(in)  :: pot
             !! [kV]
         real(rp), dimension(Gr%Np,Gr%Nt), intent(out) :: MagE
@@ -109,7 +109,7 @@ module auroralhelper
                 !NOTE: only care about magnitude
                 dth = Gr%dt(i,j)
                 dph = Gr%dp(i,j)
-                th  = Gr%t (i,j)
+                th  = Gr%thc(j)
 
                 !Get theta deriv
                 if (j == 1) then

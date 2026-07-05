@@ -13,15 +13,6 @@ module mix2mhd_interface
 
     contains
 
-    ! have this short interface function in case we want to alter how we fill potential data
-    subroutine CouplePotentialToMhd(vApp)
-        class(voltApp_T), intent(inout) :: vApp
-
-        call mapRemixToGamera(vApp%gApp, vApp%remixApp)
-        call convertRemixToGamera(vApp%gApp, vApp%remixApp)
-
-    end subroutine
-
     subroutine init_mix2MhdCoupler(gameraApp, remixApp)
         class(gamCoupler_T), intent(inout) :: gameraApp
         class(mixApp_T), intent(inout) :: remixApp

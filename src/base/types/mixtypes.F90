@@ -1,6 +1,6 @@
 module mixtypes
   use mixdefs
-  use dktypes
+  ! use dktypes
   use shellGrid
 
   use basetypes
@@ -165,7 +165,7 @@ module mixtypes
     type(mixGrid_T)        :: Gapx    ! Gapx - G grid converted to apex updated every coupling step
     type(mixParams_T)      :: P
     type(Solver_T)         :: S
-    type(dkParams_T)       :: aurora
+    ! type(dkAurora_T)       :: aurora
     type(mixConductance_T) :: conductance
     real(rp)               :: rad_iono_m   ! Ionosphere radius in meters
     real(rp)               :: rad_planet_m ! Planet     radius in meters

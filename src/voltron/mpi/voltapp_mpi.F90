@@ -10,6 +10,7 @@ module voltapp_mpi
     use, intrinsic :: ieee_arithmetic, only: IEEE_VALUE, IEEE_SIGNALING_NAN, IEEE_QUIET_NAN
     use volthelpers_mpi
     use voltapp
+    use dkcplhelper, only : shellDK    ! volt -> DK coupling hop (modelInterfaces)
     use gcm_mpi
     use loadBalance
     
@@ -136,9 +137,12 @@ module voltapp_mpi
 
         if ( ( vApp%doGCM ) .and. (vApp%gcmCplRank /= -1) ) then
             write(*,*) "Initializing GCM ..."
-            call init_gcm_mpi(vApp%gcm,vApp%remixApp%ion,vApp%gApp%Model%isRestart)
+            select type(ionoApp => vApp%ionoApp)
+            type is (remixCoupler_T)
+                call init_gcm_mpi(vApp%gcm,ionoApp%mixApp%ion,vApp%gApp%Model%isRestart)
+            end select
             ! Perform one initial coupling for TIEGCM
-            !call coupleGCM2MIX(vApp%gcm,vApp%remixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank)
+            !call coupleGCM2MIX(vApp%gcm,ionoApp%mixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank)
         end if
 
         if(vApp%useHelpers) then
@@ -383,17 +387,13 @@ module voltapp_mpi
 
     subroutine startDeep(vApp)
         type(voltAppMpi_T), intent(inout) :: vApp
-
-        ! convert gamera data to mixInput
-        call Tic("G2R")
-        call convertGameraToRemix(vApp%mhd2mix, vApp%gApp, vApp%remixApp)
-        call Toc("G2R")
-
-        call MJDRecalc(vApp%MJD)
-
+        ! GCM coupling (REMIX-specific)
         if (vApp%doGCM .and. vApp%time >=0 .and. vApp%gcmCplRank /= -1) then
             call Tic("GCM2MIX")
-            call coupleGCM2MIX(vApp%gcm,vApp%remixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank,vApp%voltCplRank)
+            select type(ionoApp => vApp%ionoApp)
+            type is (remixCoupler_T)
+                call coupleGCM2MIX(vApp%gcm,ionoApp%mixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank)
+            end select
             call Toc("GCM2MIX")
         end if
 
@@ -416,27 +416,13 @@ module voltapp_mpi
             endif
         endif
 
-        ! run remix
+        ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
         call Tic("ReMIX", .true.)
-        call runRemix(vApp)
-        call Toc("ReMIX", .true.)
-
-        ! Update potential on voltron's grid
-        call updateVoltPotential(vApp)
-
-        call Tic("R2G")
-        call CouplePotentialToMhd(vApp)
-        call Toc("R2G")
-
-        ! only do imag after spinup
+        ! Finalize tube tracing into tubeShell BEFORE toIono (packInputs reads J11i/bcN/bcP).
         if(vApp%doDeep .and. vApp%time >= 0) then
-            ! instead of PreDeep, use Tube Helpers and replicate other calls
-
             call Tic("VoltTubes",.true.)
             if(vApp%useHelpers .and. vApp%doTubeHelp) then
-                ! Tubes were started earlier
                 call vhReqTubeEnd(vApp)
-                ! Now pack into tubeShell
                 call Tic("Tube2Shell")
                 call tubes2Shell(vApp%shGrid, vApp%State%ijTubes, vApp%State%tubeShell)
                 call Toc("Tube2Shell")
@@ -444,6 +430,20 @@ module voltapp_mpi
                 call genVoltTubes(vApp)
             endif
             call Toc("VoltTubes",.true.)
+        endif
+        if (vApp%doDeep .and. (vApp%time > 0)) &
+            call vApp%imagApp%toShell(vApp%imag2shell, vApp%shGrid, &
+                                      vApp%State%tubeShell%latc, vApp%State%tubeShell%lonc)
+        call shellDK(vApp)                    ! DK conductance on the shell (before toIono maps it)
+        call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
+        call vApp%ionoApp%AdvanceModel(0.0_rp)
+        call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
+        call shellToGamera(vApp)             ! shell -> Gamera BC (model-agnostic)
+        call Toc("ReMIX", .true.)
+
+        ! only do imag after spinup
+        if(vApp%doDeep .and. vApp%time >= 0) then
+            ! instead of PreDeep, use Tube Helpers and replicate other calls
 
             call SquishStart(vApp)
 

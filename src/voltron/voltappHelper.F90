@@ -5,6 +5,7 @@ module voltappHelper
     use kai2geo
     use mixinterfaceutils
     use tubehelper
+    use arrayutil
     
     implicit none
 
@@ -60,40 +61,6 @@ module voltappHelper
         
     end subroutine initVoltState
 
-    subroutine updateVoltPotential(vApp)
-        class(voltApp_T), intent(inout) :: vApp
-
-        type(ShellGridVar_T) :: iono_var
-
-        integer :: i
-            !! We hand this to mixVarToVoltron to give us back the remix potential on the voltron ShellGrid
-
-        ! Get ionospheric potential from remix, add to coration to get total potential in SM coordinates
-        call initShellVar(vApp%shGrid, SHGR_CORNER, iono_var)
-        call calcCorotPotential(vApp%planet, vApp%shGrid, vApp%State%potential_corot,doGeoCorotO=vApp%doGeoCorot)
-        call mixVarToVoltron(vApp%remixApp, POT, vApp%shGrid, iono_var)
-        ! Combine iono and corotation potential to form total potential in SM frame
-        vApp%State%potential_total%data = iono_var%data + vApp%State%potential_corot%data
-        vApp%State%potential_total%mask = .true.
-
-        if (.not. allocated(vApp%precip%data)) then
-            allocate(vApp%precip%data(vApp%precip%nVars))
-            call mixAssignPrecipVars(vApp%precip)
-        endif
-
-        do i = 1, vApp%precip%nVars
-            ! The enumerator for remix are used for precip
-            ! precip%data can be called via precip%data(IM_PHCON)
-            ! This array will be updated into a separate enumerator once DK and Remix are separated without overlapping variables
-            ! So POT is duplicated for now
-            call mixVarToVoltron(vApp%remixApp, i, vApp%shGrid, vApp%precip%data(i))
-        enddo
-
-        ! Diagnostics
-        !call calcPotDrop(vApp)
-
-    end subroutine updateVoltPotential
-
     subroutine calcCorotPotential(planet, sh, pCorot,doGeoCorotO)
         ! Calculate corotation potential to store on voltron ShellGrid
         type(planet_T), intent(in) :: planet
@@ -127,7 +94,7 @@ module voltappHelper
             endif
         endif
 
-        ! IfdoGeoCorotO was not provided, or it was false, we default to corotation on aligned dipole and rotational axis
+        ! Default: corotation for an aligned dipole + rotation axis
         do j=sh%jsg,sh%jeg+1
             pCorot%data(:,j) = -planet%psiCorot*(planet%rp_m/planet%ri_m)*sin(sh%th)**2  ! [kV]
         enddo

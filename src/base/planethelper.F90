@@ -343,6 +343,17 @@ module planethelper
 
     end function InvLatitude
 
+    !Signed invariant latitude (RADIANS): sign of z (negative in southern hemisphere)
+    !InvLatitude itself returns the unsigned magnitude
+    function sInvLatitude(r) result(sinvlat)
+        real(rp), intent(in) :: r(NDIM)
+        real(rp) :: sinvlat
+
+        sinvlat = InvLatitude(r)
+        if (r(ZDIR) < 0.0_rp) sinvlat = -sinvlat
+
+    end function sInvLatitude
+
     !Get mirror ratio at R for a given invariant latitude
     function MirrorRatio(invlat,rad) result(Rm)
         real(rp), intent(in) :: invlat,rad

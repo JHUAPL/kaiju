@@ -4,7 +4,6 @@ module mixmain
   use mixtypes
   use mixparams
   use mixgeom
-  use dkaurora
   use mixconductance
   use mixstate
   use mixsolver
@@ -41,8 +40,8 @@ module mixmain
             call init_state(I(h)%G,I(h)%St, shGrO=I(h)%shGr)            
          end if
 
-         call conductance_init(I(h)%conductance,I(h)%P,I(h)%G)
-         call dragonking_init(I(h)%aurora,I(h)%P,I(h)%G)
+        !  call conductance_init(I(h)%conductance,I(h)%P,I(h)%G)
+        !  call dragonking_init(I(h)%aurora,I(h)%P,I(h)%G)
 
          ! check that hemisphere makes sense.
          if ((I(h)%St%hemisphere.ne.NORTH).and.(I(h)%St%hemisphere.ne.SOUTH)) then
@@ -95,73 +94,22 @@ module mixmain
     end subroutine get_potential
 
     subroutine run_mix(I)
-    ! subroutine run_mix(I,tilt,doModelOpt,gcm)
       type(mixIon_T),dimension(:),intent(inout) :: I 
-      ! type(gcm_T),optional,intent(inout) :: gcm
-      ! real(rp),intent(in) :: tilt
-      ! logical, optional, intent(in) :: doModelOpt  ! allow to change on the fly whether we use conductance model
-
-      ! logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
-      ! logical :: isRestart = .false.
       integer :: h,NumH
-
-      ! if (present(doModelOpt)) doModel = doModelOpt
-      ! if (present(gcm)) isRestart = gcm%isRestart
+      logical :: isGoodSolve
 
       NumH = size(I)
-
-      !Removing OMP loop due to weird runtime errors
-      ! do h=1,NumH
-        ! if (I(h)%St%hemisphere.eq.NORTH) then
-        !   I(h)%St%tilt = tilt
-        ! else
-        !   I(h)%St%tilt = -tilt
-        ! end if
-
-        ! if (doModel) then
-        !   I(h)%conductance%const_sigma = I(h)%P%const_sigma         
-        ! else
-        !   I(h)%conductance%const_sigma = .true.            
-        ! end if
-
-        ! if (.not. present(gcm)) then
-        !   !write(*,*) "GRID TRANSFORM!"
-        !   if (I(h)%St%hemisphere .eq. NORTH) then
-        !     call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=1)
-        !     call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=1)
-        !   else
-        !     call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=-1)
-        !     call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=-1)
-        !   endif
-        !   !write(*,*) "GRID TRANSFORM!!"
-        ! end if
-
-      ! Already commented
-      !   ! if (present(gcm) .and. isRestart) then
-      !   !  !write(*,*) "conductance: restart"
-      !   !  !we read the conductance from file, so we're going to skip
-      !   !  gcm%isRestart = .false.
-      !   !  !write(*,*) "Get rePOT: ", maxval(I(h)%St%Vars(:,:,POT)),minval(I(h)%St%Vars(:,:,POT))
-      !   ! else
-
-        !   call Tic("MIX-COND")
-        !   ! Compute auroral precipitation flux regardless of coupling mode.
-        !   ! Note conductance_euv is used inside dragonking_total.
-        !   call conductance_euv(I(h)%conductance,I(h)%G,I(h)%St)
-        !   call dragonking_total(I(h)%aurora,I(h)%G,I(h)%St,I(h)%conductance)
-
-        !   if (present(gcm)) then
-        !     call conductance_total(I(h)%conductance,I(h)%G,I(h)%St,gcm,h)
-        !   else
-        !     !write(*,*) "conductance: total"
-        !     call conductance_total(I(h)%conductance,I(h)%G,I(h)%St)
-        !   end if
-        !   call Toc("MIX-COND")
         
       do h=1,NumH
           call Tic("MIX-SOLVE")
-          call run_solver(I(h)%P,I(h)%G,I(h)%St,I(h)%S)
+          call run_solver(I(h)%P,I(h)%G,I(h)%St,I(h)%S,isGoodSolveO=isGoodSolve)
           call Toc("MIX-SOLVE")
+
+          if (.not. isGoodSolve) then
+            Write(*,*)"Didn't get a good solve, writing state and dying"
+            call writeMIXCRASH(I)
+            stop
+          endif
 
           call Tic("MIX-POT")
           call get_potential(I(h))
