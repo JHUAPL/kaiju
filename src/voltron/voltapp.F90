@@ -396,12 +396,23 @@ module voltapp
         ! Initialize geopack
         call MJDRecalc(vApp%MJD)
 
-        if(present(optFilename)) then
-            ! read from the prescribed file
-            call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],optFilename=optFilename,RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
-        else
-            call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
+        ! There is no space for optFileName, we directly pass inpXML
+        call vApp%remixApp%InitModel(xmlInp)
+
+        if(isRestart) then
+            call vApp%remixApp%ReadRestart(resId=RunID,nRes=vApp%IO%nRes)
         endif
+        
+        if(vApp%writeFiles) then
+            call vApp%remixApp%InitIO(xmlInp)
+        endif
+        
+        ! if(present(optFilename)) then
+        !     ! read from the prescribed file
+        !     call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],optFilename=optFilename,RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
+        ! else
+        !     call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
+        ! endif
         
         vApp%remixApp%ion%rad_iono_m  = vApp%planet%ri_m
         vApp%remixApp%ion%rad_planet_m = vApp%planet%rp_m
@@ -487,15 +498,33 @@ module voltapp
 
         ! determining the current dipole tilt
         call vApp%tilt%getValue(vApp%time,curTilt)
+        vApp%remixApp%IO%tilt = curTilt
+        vApp%remixApp%IO%time = vApp%time
 
         ! solve for remix output
-        if (vApp%time<=0) then
-            call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.false.)
-        else if (vApp%doGCM) then
-            call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
+        ! if (vApp%time<=0) then
+        !     call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.false.)
+        ! else if (vApp%doGCM) then
+        !     call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
+        ! else
+        !     call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.true.)
+        ! endif
+
+        if (vApp%doGCM) then
+            call getConductance(vApp%remixApp%ion, vApp%remixApp%IO, vApp%gcm)
         else
-            call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.true.)
+            call getConductance(vApp%remixApp%ion, vApp%remixApp%IO)
         endif
+        
+        
+        ! if (vApp%doGCM) then
+        !     call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
+        ! else
+        !     call vApp%remixApp%AdvanceModel(0.0_rp) ! steady-state, dt=0
+        ! endif
+        call vApp%remixApp%AdvanceModel(0.0_rp) ! steady-state, dt=0
+
+        
 
     end subroutine runRemix
 
@@ -840,6 +869,55 @@ module voltapp
         call GenShellGrid(vApp%shGrid, theta_global, phi, "VOLTRON", nGhosts, sh_radius)
 
     end subroutine genVoltShellGrid
+
+    ! Get conductance/conductivity from GCM/DK/etc for Remix/GPS
+    subroutine getConductance(I,mixIOobj,gcm)
+        type(mixIon_T),dimension(:),intent(inout) :: I
+        type(mixIO_T), intent(in) :: mixIOobj  
+        type(gcm_T),optional,intent(inout) :: gcm
+
+        logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
+        integer :: h,NumH
+
+        ! here we should check if Remix or GPS
+        NumH = size(I)
+
+        if (present(gcm)) then
+            doModel = .true.
+        else
+            call mix_transform_grid(I)
+            if (mixIOobj%time<=0) then
+                doModel = .false.
+            end if
+        end if
+
+        do h=1,NumH
+            if (I(h)%St%hemisphere.eq.NORTH) then
+                I(h)%St%tilt = mixIOobj%tilt
+            else
+                I(h)%St%tilt = -mixIOobj%tilt
+            end if
+
+            if (doModel) then
+                I(h)%conductance%const_sigma = I(h)%P%const_sigma         
+            else
+                I(h)%conductance%const_sigma = .true.            
+            end if
+
+            call Tic("MIX-COND")
+            call conductance_euv(I(h)%conductance,I(h)%G,I(h)%St)
+            call dragonking_total(I(h)%aurora,I(h)%G,I(h)%St,I(h)%conductance)
+
+            if (present(gcm)) then
+                call conductance_total(I(h)%conductance,I(h)%G,I(h)%St,gcm,h)
+            else
+                call conductance_total(I(h)%conductance,I(h)%G,I(h)%St)
+            end if
+            call Toc("MIX-COND")
+        end do
+
+    end subroutine getConductance
+
 
 end module voltapp
 

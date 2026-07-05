@@ -81,11 +81,11 @@ contains
     mixUnitNames(IM_PHCON)     = "radians"
   end subroutine initMIXNames
 
-  subroutine initMIXIO(I,RunID,isRestart,nRes)
-    type(mixIon_T),dimension(:),intent(inout) :: I
-    character(len=*),optional, intent(in) :: RunID   ! these two things are needed when we're coupled with Gamera
-    logical,optional, intent(in) :: isRestart
-    integer,optional, intent(inout) :: nRes
+  subroutine initMIXIO(mixApp,RunID,isRestart,nRes)
+    class(mixApp_T), intent(inout) :: mixApp
+    character(len=*), intent(in) :: RunID   ! these two things are needed when we're coupled with Gamera
+    logical, intent(in) :: isRestart
+    integer, intent(inout) :: nRes
     
     logical :: fExist
     real(rp), dimension(:,:),allocatable :: xc,yc
@@ -93,15 +93,17 @@ contains
 
     !Setup remix output file
     h5File = trim(RunID) // ".mix.h5"
-    if (present(RunID))  h5RunID = trim(RunID)
+    h5RunID = trim(RunID)
 
     inquire(file=h5File,exist=fExist)
 
     call initMIXNames() !Always do this ... maybe?
 
-    if (isRestart .and. present(nRes)) then
+    if (isRestart) then
       !Read the damn restart if you gotta
-      call readMIXrestart(trim(RunID),nRes,I)
+      ! call readMIXrestart(trim(RunID),nRes,I)
+      ! call mixApp%ReadRestart(mixApp,trim(RunID),nRes)
+      call mixApp%ReadRestart(trim(RunID), nRes)
     endif
 
     if (isRestart .and. fExist) then
@@ -115,18 +117,18 @@ contains
     !Reset IO chain
     call ClearIO(IOVars)
 
-    call genOutGrid(I(NORTH)%G%x,I(NORTH)%G%y,xc,yc)
-    
+    call genOutGrid(mixApp%ion(NORTH)%G%x,mixApp%ion(NORTH)%G%y,xc,yc)
+
     ! save grid only for north
     call AddOutVar(IOVars,"X",xc,uStr="Ri")
     call AddOutVar(IOVars,"Y",yc,uStr="Ri")
    ! Save units of Ri and Rp as root attributes
-    call AddOutVar(IOVars,"Ri_m",I(1)%rad_iono_m  )
-    call AddOutVar(IOVars,"Rp_m",I(1)%rad_planet_m)
+    call AddOutVar(IOVars,"Ri_m",mixApp%ion(1)%rad_iono_m  )
+    call AddOutVar(IOVars,"Rp_m",mixApp%ion(1)%rad_planet_m)
 
 
     call AddOutVar(IOVars,"UnitsID","ReMIX")
-             
+    
     !Write out the chain (to root)
     call WriteVars(IOVars,.false.,h5File)
 

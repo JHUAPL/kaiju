@@ -1,6 +1,6 @@
 module dktypes
   use kdefs
-!  use shellGrid
+  use shellGrid
 
   implicit none
 
@@ -34,6 +34,14 @@ module dktypes
   ! use this as a container to store the variables read from a previous H5 file
   type auroraIO_T
   end type auroraIO_T
+
+  type precip_t  
+      integer :: nVars ! change together with the enumerator above
+      !type(ShellGridVar_T),target :: FAC,SIGMAP,SIGMAH,SOUND_SPEED,DENSITY,AVG_ENG,NUM_FLUX,NEUTRAL_WIND,EFIELD,IM_EAVG,IM_EFLUX,IM_IAVG,IM_IFLUX,&
+      !  Z_EAVG,Z_NFLUX,CRPOT,TPOT,IM_GTYPE,AUR_TYPE,IM_BETA,IM_EDEN,IM_EPRE,IM_ENFLX,IM_INFLX,DELTAE,IM_NPSP,IM_THCON,IM_PHCON
+      !type(ShellGridVar_T), pointer :: data(:)
+      type(ShellGridVar_T), allocatable :: data(:)
+  end type precip_T
 
 end module dktypes
 

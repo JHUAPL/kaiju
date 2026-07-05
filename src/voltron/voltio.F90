@@ -2,6 +2,7 @@
 module voltio
     use gamapp
     use volttypes
+    use mixtypes
     use cmiutils
     use mixio
     use clocks
@@ -203,7 +204,11 @@ module voltio
         class(gamApp_T) , intent(inout) :: gApp
 
         if (vApp%writeFiles) then
-            call writeMIXRestart(vApp%remixApp%ion,vApp%IO%nRes,mjd=vApp%MJD,time=vApp%time)
+            ! call writeMIXRestart(vApp%remixApp%ion,vApp%IO%nRes,mjd=vApp%MJD,time=vApp%time)
+            vApp%remixApp%IO%mjd = vApp%MJD
+            vApp%remixApp%IO%time = vApp%time
+
+            call vApp%remixApp%WriteRestart(vApp%IO%nRes)
             !Write inner mag restart
             if (vApp%doDeep) then
                 !call vApp%imagApp%doRestart(vApp%IO%nRes,vApp%MJD,vApp%time)
@@ -366,7 +371,10 @@ module voltio
         
         if(vApp%writeFiles) then
             !Write ReMIX data
-            call writeMix(vApp%remixApp%ion,vApp%IO%nOut,mjd=vApp%MJD,time=vApp%time)
+            ! call writeMix(vApp%remixApp%ion,vApp%IO%nOut,mjd=vApp%MJD,time=vApp%time)
+            vApp%remixApp%IO%mjd = vApp%MJD
+            vApp%remixApp%IO%time = vApp%time
+            call vApp%remixApp%WriteFileOutput(vApp%IO%nOut)
 
             !Write inner mag IO if needed
             if (vApp%doDeep) then
