@@ -272,18 +272,25 @@ module mixinterfaceutils
         do iPnt = 1, nPnts
             do jPnt = 1, nPnts
                 call InterpShellVar_TSC_pnt(srcGrid, srcVar, theta_subdiv(iPnt), phi_subdiv(jPnt), varPnt, goodInterpO=isTastyPnt, imap_in=imap)
-                if (.not. isTastyPnt) cycle
-                nGood = nGood + 1
-                varOut = varOut + varPnt
-            end do
-        end do
+                 if (.not. isTastyPnt) then
+               cycle
+            endif
+            ! Otherwise we got good data
+            nGood = nGood + 1
+            varOut = varOut + varPnt
+         enddo
+      enddo
+      ! Finish average and make final isTasty decision
+      if (nGood > 0) then
+         isTasty = .true.
 
-        if (nGood > 0) then
-            isTasty = .true.
-            varOut = varOut / real(nGood, rp)
-        else
-            isTasty = .false.
-        end if
+         ! If dividing by nPnts**2, we are including zero-vals from bad points
+         ! If dividing by nGood, we might be letting just a few points represent a whole cell
+         ! Since we are getting stuff from voltron grid, all points should be well-defined over the remix domain, so there shouldn't be a difference
+         varOut = varOut / nPnts**2         
+      else
+         isTasty = .false.
+      endif
     end subroutine superSampleShellToMix
 
     subroutine genMixGridSubdivs(thetaBnds, phiBnds, nPnts, theta_subdiv, phi_subdiv)
@@ -311,4 +318,3 @@ module mixinterfaceutils
     end subroutine genMixGridSubdivs
 
 end module mixinterfaceutils
-

@@ -120,9 +120,10 @@ submodule (volttypes) raijuCplTypesSub
 
         integer :: s  ! Iterators
         integer :: i0, j0  ! i,j cell that provided th,ph are in
-        integer :: idx_psph
+        integer :: idx_psph, idx_hotp
         real(rp) :: Req, ReqLowLatBC, thLowLatBC
-        real(rp) :: d_cold, t_cold, d_hot, p_hot
+        real(rp) :: d_cold, t_cold, p_hot
+        real(rp) :: dTot_hot_amu, dTot_hot_num, d_hot_num_s, dEle_num
         real(rp) :: tScl, rampC
         real(rp) :: wMHD,wRAI,alpha,beta,p_mhd
         real(rp) :: xeq, yeq
@@ -137,8 +138,11 @@ submodule (volttypes) raijuCplTypesSub
 
         d_cold = 0.0_rp
         t_cold = TINY
-        d_hot = 0.0_rp
         p_hot = 0.0_rp
+        dTot_hot_amu = 0.0_rp  ! mass density in amu/cc
+        dTot_hot_num = 0.0_rp  ! number density in #/cc
+        d_hot_num_s  = 0.0_rp  ! per-species hot number density
+        dEle_num = 0.0_rp  ! electron number density
 
         ! Is this a good point?
         if (th < sh%minTheta) then
@@ -200,20 +204,32 @@ submodule (volttypes) raijuCplTypesSub
             do s=1, Model%nSpc
                 if (spcList(s)%flav == F_PSPH) then
                     call InterpShellVar_TSC_pnt(sh, State%Den_avg(s), th, ph, d_cold)
-                    imW(IM_D_COLD) = d_cold  ! [#/cc]
+                    imW(IM_D_COLD) = spcList(s)%amu * d_cold  ! [amu/cc]
                     t_cold = PsphTemp_Genestreti(d_cold)  ! [keV]
                     imW(IM_P_COLD) = DkT2P(d_cold, t_cold)  ! [nPa]
-                elseif (spcList(s)%spcType == RAIJUHPLUS) then
-                    call InterpShellVar_TSC_pnt(sh, State%Den_avg(s)  , th, ph, d_hot)
+                elseif (spcList(s)%spcType == RAIJUHPLUS .or. (spcList(s)%spcType == RAIJUOPLUS) ) then
+                    call InterpShellVar_TSC_pnt(sh, State%Den_avg(s)  , th, ph, d_hot_num_s)  ! Raiju stores density in #/cc for each flavor
                     call InterpShellVar_TSC_pnt(sh, State%Press_avg(s), th, ph, p_hot)
-                    imW(IM_D_RING) = imW(IM_D_RING) + d_hot  ! [nPa]
-                    imW(IM_P_RING) = imW(IM_P_RING) + p_hot  ! [#/cc]
+                    imW(IM_P_RING) = imW(IM_P_RING) + p_hot  ! [nPa]
+                    dTot_hot_num = dTot_hot_num + d_hot_num_s
+                    dTot_hot_amu = dTot_hot_amu + spcList(s)%amu * d_hot_num_s
                 elseif (spcList(s)%spcType == RAIJUELE) then
-                    ! Don't add number density
+                    call InterpShellVar_TSC_pnt(sh, State%Den_avg(s)  , th, ph, dEle_num)
                     call InterpShellVar_TSC_pnt(sh, State%Press_avg(s), th, ph, p_hot)
-                    imW(IM_P_RING) = imW(IM_P_RING) + p_hot  ! [#/cc]
+                    imW(IM_P_RING) = imW(IM_P_RING) + p_hot  ! [nPa]
                 endif
             enddo
+
+            !! Charge neutrality check
+            if (dEle_num > dTot_hot_num) Then
+                idx_hotp = spcIdx(App%raiApp%Grid, F_HOTP)
+
+                dTot_hot_amu = dTot_hot_amu + spcList(idx_hotp)%amu * (dEle_num - dTot_hot_num)  ! Add H+ to balance out charge difference
+                dTot_hot_num = dEle_num
+            endif
+
+            imW(IM_D_RING) = dTot_hot_amu  ! [amu/cc]
+
 
             !Wolf-limit the pressure going back
             if (App%doWolfLim) then

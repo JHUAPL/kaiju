@@ -634,7 +634,7 @@ contains
         case(IOINT)
             IOVar%data(1) = 1.0*readIntHDF(gId,trim(IOVar%idStr))
         case(IOSTR)
-            IOVar%dStr = readStrHDF(gid,trim(gStr),trim(IOVar%idStr))
+            IOVar%dStr = readStrHDF(gId,trim(gStr),trim(IOVar%idStr))
             !write(*,*) 'Read HDF string not implemented'
             !stop
         case default
@@ -1363,9 +1363,9 @@ contains
             vDef = ""
         endif
 
-        call h5aexists_by_name_f(gID,trim(vId),trim(attrName),aExists,herror)
+        call h5aexists_by_name_f(gID,'.',trim(attrName),aExists,herror)
         if (aExists) then
-            call h5ltget_attribute_string_f(gID,trim(vId),trim(attrName),vOut,herror)
+            call h5ltget_attribute_string_f(gID,'.',trim(attrName),vOut,herror)
         else
             vOut = vDef
         endif

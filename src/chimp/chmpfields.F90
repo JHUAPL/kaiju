@@ -6,13 +6,15 @@ module chmpfields
     use plasmaputils
     use ioH5
     use math
+
+    use volttypes
     
     implicit none
 
     logical, parameter :: doRering = .true.
     integer, parameter :: NumRR = 1
 
-    integer, parameter :: EBIOVARS = 15
+    integer, parameter :: EBIOVARS = 30
     type(IOVAR_T), dimension(EBIOVARS) :: ebIOs
 
     logical :: chkStatic = .false. !Whether to check for static->time interval switch
@@ -35,7 +37,7 @@ module chmpfields
         character(len=strLen) :: ebFile
 
         real(rp), dimension(:,:,:), allocatable :: Bx,By,Bz,Jx,Jy,Jz
-        real(rp), dimension(:,:,:,:), allocatable :: Vx,Vy,Vz,D,P
+        real(rp), dimension(:,:,:,:), allocatable :: Vx,Vy,Vz,D,P,Src
         integer :: Nip,Njp,Nkp
         integer :: i,j,k,s,is,ie,js,je,ks,ke
         integer :: dN(NDIM)
@@ -44,6 +46,7 @@ module chmpfields
         real(rp) :: jScl
         logical :: doCalcLpp
         character(len=strLen) :: dID,pID,vxID,vyID,vzID
+        character(len=strLen), dimension(NVARVOLTSRC) :: srcIDs
 
         jScl = 1.0
         if (present(doCalcLppO)) then
@@ -79,6 +82,19 @@ module chmpfields
             allocate(Jy(Nip,Njp,Nkp))
             allocate(Jz(Nip,Njp,Nkp))
         endif
+        if (Model%doReadSrc) then
+            srcIDs(PROJLAT  )="SrcX1"
+            srcIDs(PROJLON  )="SrcX2"
+            srcIDs(IONEX    )="SrcIONEx"
+            srcIDs(IONEY    )="SrcIONEy"
+            srcIDs(IONEZ    )="SrcIONEz"
+            srcIDs(IM_D_RING)="SrcD_RING"
+            srcIDs(IM_P_RING)="SrcP_RING"
+            srcIDs(IM_D_COLD)="SrcD_COLD"
+            srcIDs(IM_P_COLD)="SrcP_COLD"
+            srcIDs(IM_TSCL  )="SrcDT"
+            allocate(src(Nip,Njp,Nkp,NVARVOLTSRC))
+        endif
 
         !------------
         !Get data from files
@@ -106,7 +122,12 @@ module chmpfields
                         call AddInVar(ebIOs,"Jx")
                         call AddInVar(ebIOs,"Jy")
                         call AddInVar(ebIOs,"Jz")
-                    endif                            
+                    endif        
+                    if (Model%doReadSrc) then
+                        do s=1,NVARVOLTSRC
+                            call AddInVar(ebIOs, srcIDs(s))
+                        enddo
+                    endif                    
                     call ReadVars(ebIOs,.true.,ebFile,gStr)
 
                     !Push piece to grid
@@ -138,6 +159,11 @@ module chmpfields
                         Jx(is:ie,js:je,ks:ke) = reshape(ebIOs(nioJx)%data,dN)
                         Jy(is:ie,js:je,ks:ke) = reshape(ebIOs(nioJy)%data,dN)
                         Jz(is:ie,js:je,ks:ke) = reshape(ebIOs(nioJz)%data,dN)
+                    endif
+                    if (Model%doReadSrc) then
+                        do s=1,NVARVOLTSRC
+                            src(is:ie,js:je,ks:ke,s) = reshape(ebIOs( FindIO( ebIOs,trim(srcIDs(s)) ) )%data,dN)
+                        enddo
                     endif
 
                     if (Model%nSpc > 0) then
@@ -241,6 +267,11 @@ module chmpfields
                         Jxyz = [Jx(i,j,k),Jy(i,j,k),Jz(i,j,k)]
                         ebF%Jxyz(i,j,k,:) = jScl*Jxyz
                     endif
+                    if (Model%doReadSrc) then
+                        do s=1,NVARVOLTSRC
+                            ebF%src(i,j,k,s) = src(i,j,k,s)
+                        enddo
+                    endif
 
                     if (Model%nSpc>0) then
                         do s=1,Model%nSpc
@@ -308,6 +339,13 @@ module chmpfields
                                 enddo
                             enddo !spc
                         endif
+                        ! Src variables
+                        if(Model%doReadSrc) then
+                            do s=1,NVARVOLTSRC
+                                ebF%src (i,ebGr%js+n,ebGr%ks:ebGr%ke,s) = sum(ebF%src (i,ebGr%js+n,ebGr%ks:ebGr%ke,s))/Nk
+                                ebF%src (i,ebGr%je-n,ebGr%ks:ebGr%ke,s) = sum(ebF%src (i,ebGr%je-n,ebGr%ks:ebGr%ke,s))/Nk
+                            enddo
+                        endif
                     enddo !i-loop
                 enddo
             endif
@@ -327,6 +365,9 @@ module chmpfields
                             ebF%E (i,j,k,:) = ebF%E (ip,jp,kp,:)
                             if (Model%doMHD) then
                                 ebF%W (i,j,k,:,:) = ebF%W (ip,jp,kp,:,:)
+                            endif
+                            if (Model%doReadSrc) then
+                                ebF%src(i,j,k,:) = ebF%src(ip,jp,kp,:)
                             endif
                         endif
                     enddo
