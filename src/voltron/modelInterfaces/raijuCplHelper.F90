@@ -343,6 +343,7 @@ module raijuCplHelper
         call fillArray(State%phcon     , 0.0_rp)
         call fillArray(State%Bmin      , 0.0_rp)
         call fillArray(State%bvol      , 0.0_rp)
+        call fillArray(State%rCurv    , HUGE)
         call fillArray(State%vaFrac    , 0.0_rp)
         call fillArray(State%Tb%data   , 0.0_rp)
         call fillArray(State%Tb%mask   , .false.)
@@ -381,7 +382,6 @@ module raijuCplHelper
         call fillArray(State%Pstd     , 0.0_rp)
         call fillArray(State%Dstd     , 0.0_rp)
         call fillArray(State%bvol_cc  , 0.0_rp)
-        call fillArray(State%rCurv    , HUGE)
         call fillArray(State%tiote    , 4.0_rp)
         call fillArray(State%radMax_cc, 0.0_rp)
 
