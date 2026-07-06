@@ -878,7 +878,7 @@ module raijuIO
         class(raijuApp_T), intent(in) :: raiApp
 
         character(len=strLen) :: outF
-        type(IOVAR_T), dimension(300) :: IOVars
+        type(IOVAR_T), dimension(MAXIOVAR) :: IOVars
         integer :: is, ie, js, je, ks, ke
         integer :: i,j,k,s, nClkSteps
         integer, dimension(4) :: outBnds2D

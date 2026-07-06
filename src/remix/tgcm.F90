@@ -3,7 +3,6 @@ module gcminterp
   use math
   use ioh5
   use mixio
-  use mixshellmap, only: mapGlobalShellVarToMix
   use kai2geo
   use clocks
   use shellInterp
@@ -51,8 +50,6 @@ module gcminterp
       integer :: Np, Nt, Nh, i,j,h,v
 
       ! nlon includes periodic ghost
-      Np = gcm%nlon
-      Nt = gcm%nhlat
 
       if (.not.allocated(gcm%gclat)) allocate(gcm%gclat(gcm%nlat))
       if (.not.allocated(gcm%glon)) allocate(gcm%glon(gcm%nlon))
@@ -63,13 +60,20 @@ module gcminterp
       gcm%gclat = gcm%gclat(gcm%nlat:1:-1) ! reverse order. Ascending.
 
       ! Check first and last point of clat to make sure it's 0 and 180
-      if (.not. (gcm%gclat(1) < TINY .or. gcm%gclat(gcm%nlat) > 180.-TINY)) write(*,*) 'CLAT RANGE ERROR: ',gcm%gclat(1),gcm%gclat(gcm%nlat)
+      if (.not. (gcm%gclat(1) < TINY .and. gcm%gclat(gcm%nlat) > 180.-TINY)) write(*,*) 'CLAT RANGE ERROR: ',gcm%gclat(1),gcm%gclat(gcm%nlat)
       
       ! find the point where longitude is 0, so we know how much we need to shift by
-      gcm%lonshift = findloc(gcm%inlon(:gcm%nlon-1),0.,1)-1
+      gcm%lonshift = minloc(abs(gcm%inlon(:gcm%nlon-1)), 1) - 1
 
       gcm%glon(:gcm%nlon-1) = modulo(cshift(gcm%inlon(1:gcm%nlon-1),gcm%lonshift)+360.,360.)
-      gcm%glon(gcm%nlon) = 360.0
+
+      if (abs(gcm%glon(1)) > 0.01) write(*,*) "WARNING: GCM lonshift is not near 0.0 degrees: ",gcm%glon(1)
+
+      gcm%glon(1) = 0.0_rp ! Clamp to 0.0 just in case
+      gcm%glon(gcm%nlon) = 360.0 ! Clamp final value exactly to 360.0
+
+      write(*,*) "GCM Grid GLON: ", gcm%glon
+      write(*,*) "GCM Grid GCLAT: ", gcm%gclat
 
       gcm%glon = gcm%glon * deg2rad
       gcm%gclat = gcm%gclat * deg2rad
@@ -87,34 +91,11 @@ module gcminterp
         call initShellVar(gcm%grid, SHGR_CORNER, gcm%gcmOutput(i))
       end do
 
-      write(*,*) "Created GCM grid with nlat,nlon,nhlat: ",gcm%nlat,gcm%nlon,gcm%nhlat
-      write(*,*) "GCM Grid Check: ", shape(gcm%gcmInput(1)%data), gcm%grid%Nt, gcm%grid%Np
+      write(*,*) "Created GCM grid with nlat,nlon,nhlat: ",gcm%nlat,gcm%nlon
+      write(*,*) "GCM Grid Check: ", shape(gcm%gcmOutput(1)%data), gcm%grid%Nt, gcm%grid%Np
+      write(*,*) "GCM Lower bounds: ", lbound(gcm%gcmOutput(1)%data)
+      write(*,*) "GCM Upper bounds: ", ubound(gcm%gcmOutput(1)%data)
     end subroutine create_gcm_grid
-
-    subroutine process_gcmimport(gcm,ion)
-      type(gcm_T), intent(inout) :: gcm
-      type(mixIon_T),dimension(:),intent(inout) :: ion
-      
-      integer :: g
-
-      call Tic("Processing",.true.)
-      ! Split global GCM array into two hemispheres
-      ! then shift the array so that longitude starts at 0
-      do g=1,2
-        select case (g)
-        case (1)
-          if (gcm%GEO%mix2gcm_nvar > 0) then
-            call mapGCM2MIX(gcm%GEO,ion,g)
-          end if
-        case (2)
-          if (gcm%APEX%mix2gcm_nvar > 0) then
-            call mapGCM2MIX(gcm%APEX,ion,g)
-          end if
-        end select
-      end do
-      call Toc("Processing",.true.)
-
-    end subroutine process_gcmimport
 
     subroutine transform_gcm_export(gcm,g)
         type(gcm_grid_T),intent(inout) :: gcm
@@ -131,89 +112,27 @@ module gcminterp
         do v=1,gcm%mix2gcm_nvar
           ! Invert latitude to map colat -> lat
           ! undo the lonshift by applying it backwards
-          gcm%outvar2d(gcm%nlat:1:-1,:gcm%nlon-1,v) = transpose(cshift(gcm%gcmOutput(v)%data(:gcm%nlon-1,:),-1*gcm%lonshift))
+          gcm%outvar2d(gcm%nlat:1:-1,:gcm%nlon-1,v) = cshift(gcm%gcmOutput(v)%data(:,:gcm%nlon-1),-1*gcm%lonshift, dim=2)
           gcm%outvar2d(:,gcm%nlon,v) = gcm%outvar2d(:,1,v)
         end do
 
     end subroutine transform_gcm_export
 
-    subroutine mapGCM2MIX(gcm,ion,g)
-      type(gcm_grid_T),intent(inout) :: gcm
-      type(mixIon_T),dimension(:),intent(inout) :: ion
-      integer,intent(in) :: g
+    subroutine process_gcm_import(gcm)
+        type(gcm_grid_T),intent(inout) :: gcm
 
-      integer :: v,i,mixVar
+        integer :: v
 
-      ! Skip if not importing on this grid type
-      if ( gcm%gcm2mix_nvar .eq. 0 ) return
+        ! gcmInput lives in colat space on the Shell Grid
+        ! invar2d is the direct lat space from GCM exchange
+        do v=1,gcm%gcm2mix_nvar
+          gcm%gcmInput(v)%data = 0._rp
+        
+          gcm%gcmInput(v)%data(gcm%nlat:1:-1,:gcm%nlon-1) = cshift(gcm%invar2d(:,:gcm%nlon-1,v),gcm%lonshift, dim=2)
+          gcm%gcmInput(v)%data(:,gcm%nlon) = gcm%gcmInput(v)%data(:,1)
+        end do
 
-      call Tic("Shifting")
-      do v=1,gcm%gcm2mix_nvar
-        gcm%gcmInput(v)%data = 0._rp
-        do i=1,gcm%nlat
-          gcm%gcmInput(v)%data(:gcm%nlon-1,i) = cshift(gcm%invar2d(gcm%nlat-i+1,:gcm%nlon-1,v),gcm%lonshift)
-          gcm%gcmInput(v)%data(gcm%nlon,i) = gcm%gcmInput(v)%data(1,i)
-        enddo
-      end do
-      call Toc("Shifting")
-
-      call Tic("Mapping")
-      do v=1,gcm%gcm2mix_nvar
-        select case (trim(gcm%inlist(v)))
-        case ("SIGMAP")
-          mixVar = SIGMAP
-        case ("SIGMAH")
-          mixVar = SIGMAH
-        case default
-          write(*,*) "MIXCPL WARNING: Unknown GCM inlist variable: ", trim(gcm%inlist(v))
-          cycle
-        end select
-
-        call mapGlobalShellVarToMix(gcm%grid, gcm%gcmInput(v), ion, mixVar)
-      end do
-
-      call Toc("Mapping")
-    end subroutine mapGCM2MIX
-
-    subroutine apply_gcm2mix(gcm,St,h)
-      type(gcm_T),intent(in) :: gcm
-      type(mixState_T),intent(inout) :: St
-      integer :: v,h,g,mixVar
-      
-      do g=1,2
-        select case (g)
-        case (1)
-          if (gcm%GEO%gcm2mix_nvar > 0) then
-            do v=1,gcm%GEO%gcm2mix_nvar
-              select case (trim(gcm%GEO%inlist(v)))
-              case ("SIGMAP")
-                mixVar = SIGMAP
-              case ("SIGMAH")
-                mixVar = SIGMAH
-              case default
-                cycle
-              end select
-              St%Vars(:,:,mixVar) = gcm%GEO%mixInput(h,v)%var(:,:)
-            end do
-          end if
-        case (2)
-          if (gcm%APEX%gcm2mix_nvar > 0) then
-            do v=1,gcm%APEX%gcm2mix_nvar
-              select case (trim(gcm%APEX%inlist(v)))
-              case ("SIGMAP")
-                mixVar = SIGMAP
-              case ("SIGMAH")
-                mixVar = SIGMAH
-              case default
-                cycle
-              end select
-              St%Vars(:,:,mixVar) = gcm%APEX%mixInput(h,v)%var(:,:)
-            end do
-          end if
-        end select
-      end do
-      
-    end subroutine apply_gcm2mix
+    end subroutine process_gcm_import
 
 !    subroutine calculate_auroral_boundary(ion,bc)
 ! Fix this to calculate auroral boundary on remix's grid if necessary

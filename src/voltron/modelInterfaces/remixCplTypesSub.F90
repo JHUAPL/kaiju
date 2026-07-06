@@ -8,7 +8,6 @@ submodule (volttypes) remixCplTypesSub
     use mhd2mix_interface
     use mix2mhd_interface
     use imag2mix_interface
-    use mixinterfaceutils
     use mix2shell_interface,  only: mapMixToShell
     use voltappHelper
     use kai2geo
@@ -129,6 +128,10 @@ submodule (volttypes) remixCplTypesSub
 
         ! DK conductance/precip (computed on the shell by shellDK) -> both REMIX hemispheres
         call mapDKToMix(vApp%shGrid, vApp%dkApp%vars, App%mixApp)
+
+        ! DK is always applied first. If enabled, imported GCM conductance then overwrites
+        ! REMIX SIGMAP/SIGMAH in state space.
+        if (vApp%doGCM) call mapGCMToMix(vApp%gcm, App%mixApp)
 
         ! REMIX will live exclusively on SM now.
         !! Geographic grid for the REMIX potential solve (non-GCM path).
@@ -257,9 +260,9 @@ submodule (volttypes) remixCplTypesSub
                     (vApp%State%tubeShell%bcP(BLK)%data > 0._rp)
 
         ! voltron shell -> REMIX's two hemisphere grids (TSC + supersample).
-        call voltVarToMix(vApp%shGrid, facV, App%mixApp, FAC)
-        call voltVarToMix(vApp%shGrid, denV, App%mixApp, DENSITY)
-        call voltVarToMix(vApp%shGrid, csV,  App%mixApp, SOUND_SPEED)
+        call mapShellVarToMix(vApp%shGrid, facV, App%mixApp%ion, FAC)
+        call mapShellVarToMix(vApp%shGrid, denV, App%mixApp%ion, DENSITY)
+        call mapShellVarToMix(vApp%shGrid, csV,  App%mixApp%ion, SOUND_SPEED)
 
         ! Per-hemisphere floor over valid (non-dipole) corners (deep feed only)
         is_ = vApp%shGrid%is; ie_ = vApp%shGrid%ie
@@ -330,11 +333,46 @@ submodule (volttypes) remixCplTypesSub
             enddo
             call wrapJ_SGV(voltGrid, sgv)   ! periodic phi ghost fill (replaces padDKPhiPeriodic)
             sgv%mask = .true.               ! DK conductance/precip valid over the closed active region
-            call voltVarToMix(voltGrid, sgv, mixApp, mixID)
+            call mapShellVarToMix(voltGrid, sgv, mixApp%ion, mixID)
         end subroutine mapOneDK
 
     end subroutine mapDKToMix
 
+    ! Imported GCM conductance overwrite in REMIX state space.
+    ! Uses each GCM  shell-grid as source and maps into both REMIX hemispheres.
+    subroutine mapGCMToMix(gcm, mixApp)
+        type(gcm_T),    intent(inout) :: gcm
+        class(mixApp_T),intent(inout) :: mixApp
 
+        if (gcm%GEO%gcm2mix_nvar > 0) call mapOneGCMGridToMix(gcm%GEO, mixApp)
+        if (gcm%APEX%gcm2mix_nvar > 0) call mapOneGCMGridToMix(gcm%APEX, mixApp)
+    end subroutine mapGCMToMix
 
+    subroutine mapOneGCMGridToMix(gcmGrid, mixApp)
+        type(gcm_grid_T), intent(inout) :: gcmGrid
+        class(mixApp_T),  intent(inout) :: mixApp
+
+        integer :: v, i, mixVar
+
+        if (gcmGrid%gcm2mix_nvar == 0) return
+
+        do v = 1, gcmGrid%gcm2mix_nvar
+
+            select case (trim(gcmGrid%inlist(v)))
+            case ("SIGMAP")
+                mixVar = SIGMAP
+            case ("SIGMAH")
+                mixVar = SIGMAH
+            case default
+                write(*,*) "MIXCPL WARNING: Unknown GCM inlist variable: ", trim(gcmGrid%inlist(v))
+                cycle
+            end select
+
+            call mapShellVarToMix(gcmGrid%grid, gcmGrid%gcmInput(v), mixApp%ion, mixVar)
+            write(*,*) "Mapped GCM variable ", trim(gcmGrid%inlist(v)), " to REMIX variable ", mixVar
+        end do
+
+        write(*,*) "Val Check NORTH: ", maxval(mixApp%ion(NORTH)%St%Vars(:,:,SIGMAP)), minval(mixApp%ion(NORTH)%St%Vars(:,:,SIGMAP))
+        write(*,*) "Val Check SOUTH: ", maxval(mixApp%ion(SOUTH)%St%Vars(:,:,SIGMAP)), minval(mixApp%ion(SOUTH)%St%Vars(:,:,SIGMAP))
+    end subroutine mapOneGCMGridToMix
 end submodule remixCplTypesSub

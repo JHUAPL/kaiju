@@ -5,13 +5,6 @@ module gcm_mpi
 
   implicit none
 
-  interface exportgcm
-    module procedure exportgcmmpi
-  end interface
-  interface importgcm
-    module procedure importgcmmpi
-  end interface
-
 contains
 
     subroutine init_gcm_mpi(gcm,isRestart)
@@ -120,32 +113,25 @@ contains
     subroutine coupleGCM2MIX(gcm,mjd,time,gcmCplComm,gcmRank,myRank)
         type(gcm_T), intent(inout) :: gcm
         real(rp), intent(in) :: time, mjd
-        type(MPI_Comm), optional :: gcmCplComm
-        integer, optional, intent(in) :: gcmRank,myRank
-
-        ! maybe create the SM and GEO list of points here
-        ! since the destination grid does not need to be structured
-        ! can do a simple loop over all grid points and transform
-        ! transform all remix points to GEO
-        ! transform all gcm points to SM
+        type(MPI_Comm), intent(in) :: gcmCplComm
+        integer, intent(in) :: gcmRank,myRank
 
         !Must MIX export first.  TIEGCM will also import first.
         call Tic("Export")
-        if (present(gcmCplComm)) then
-            call exportgcm(gcm,mjd,time,gcmCplComm,gcmRank,myRank)
+        if (gcmCplComm /= MPI_COMM_NULL) then
+            call exportgcmmpi(gcm,mjd,time,gcmCplComm,gcmRank,myRank)
         else
-            write(*,*) "Are we trying to Export to Couple GCM?"
+            write(*,*) "FAILURE: Are we trying to Export to Couple GCM?"
         endif
         call Toc("Export")
 
         !Import gcm data
         call Tic("Import")
-        if (present(gcmCplComm)) then
-            call importgcm(gcm, gcmCplComm,gcmRank)
+        if (gcmCplComm /= MPI_COMM_NULL) then
+            call importgcmmpi(gcm, gcmCplComm,gcmRank)
         else
-            write(*,*) "Are we trying to Import to Couple GCM?"
+            write(*,*) "FAILURE: Are we trying to Import to Couple GCM?"
         endif
-        call process_gcmimport(gcm)
         call Toc("Import")
 
         if (gcm%isRestart) gcm%isRestart=.false.
@@ -159,7 +145,7 @@ contains
 
     subroutine importgcmmpi(gcm, gcmCplComm,gcmCplRank)
         type(gcm_T), intent(inout) :: gcm
-        type(MPI_Comm) :: gcmCplComm
+        type(MPI_Comm), intent(in) :: gcmCplComm
         integer, intent(in) :: gcmCplRank
 
         integer :: v
@@ -184,6 +170,13 @@ contains
 
         enddo
         call Toc("Passing")
+
+        if (gcm%GEO%gcm2mix_nvar > 0) then
+            call process_gcm_import(gcm%GEO)
+        end if
+        if (gcm%APEX%gcm2mix_nvar > 0) then
+            call process_gcm_import(gcm%APEX)
+        end if
 
         call Toc("MpiExchange")
 
@@ -211,7 +204,7 @@ contains
     subroutine exportgcmmpi(gcm,mjd,time,gcmCplComm,gcmCplRank,myCplRank)
         type(gcm_T), intent(inout) :: gcm
         real(rp), intent(in) :: time, mjd
-        type(MPI_Comm) :: gcmCplComm
+        type(MPI_Comm), intent(in) :: gcmCplComm
         integer, intent(in) :: gcmCplRank,myCplRank
 
         integer :: g,ierr,length

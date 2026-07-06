@@ -15,16 +15,11 @@ module gcmtypes
   integer,parameter :: GCMhemispheres=2
 
   
-  type var_T
-      real(rp), dimension(:,:),allocatable :: var
-  end type var_T
-
   type gcm_grid_T
       type(ShellGrid_T) :: grid
       type(ShellGridVar_T), allocatable, dimension(:) :: gcmInput,gcmOutput
       real(rp),dimension(:),allocatable :: inlat, inlon
       real(rp),dimension(:),allocatable :: glon,gclat
-      type(var_T), allocatable, dimension(:,:) :: mixInput,mixOutput
       integer :: nlat,nlon,nlev,nhlat,lonshift
       character(len=32), dimension(:), allocatable :: outlist,inlist
       integer, dimension(:), allocatable :: t2N, t2S

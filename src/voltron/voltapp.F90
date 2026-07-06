@@ -493,6 +493,7 @@ module voltapp
         ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
         ! NOTE: tubeShell must be populated before toIono (same ordering as startDeep)
         call Tic("ReMIX", .true.)
+        call MJDRecalc(vApp%MJD)
         if (vApp%doDeep .and. (vApp%time > 0)) &
             call vApp%imagApp%toShell(vApp%imag2shell, vApp%shGrid, &
                                       vApp%State%tubeShell%latc, vApp%State%tubeShell%lonc)

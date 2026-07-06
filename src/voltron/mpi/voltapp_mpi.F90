@@ -137,10 +137,7 @@ module voltapp_mpi
 
         if ( ( vApp%doGCM ) .and. (vApp%gcmCplRank /= -1) ) then
             write(*,*) "Initializing GCM ..."
-            select type(ionoApp => vApp%ionoApp)
-            type is (remixCoupler_T)
-                call init_gcm_mpi(vApp%gcm,ionoApp%mixApp%ion,vApp%gApp%Model%isRestart)
-            end select
+            call init_gcm_mpi(vApp%gcm,vApp%gApp%Model%isRestart)
             ! Perform one initial coupling for TIEGCM
             !call coupleGCM2MIX(vApp%gcm,ionoApp%mixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank)
         end if
@@ -387,13 +384,13 @@ module voltapp_mpi
 
     subroutine startDeep(vApp)
         type(voltAppMpi_T), intent(inout) :: vApp
+
+        call MJDRecalc(vApp%MJD)
+        
         ! GCM coupling (REMIX-specific)
         if (vApp%doGCM .and. vApp%time >=0 .and. vApp%gcmCplRank /= -1) then
             call Tic("GCM2MIX")
-            select type(ionoApp => vApp%ionoApp)
-            type is (remixCoupler_T)
-                call coupleGCM2MIX(vApp%gcm,ionoApp%mixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank)
-            end select
+            call coupleGCM2MIX(vApp%gcm,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank, vApp%voltCplRank)
             call Toc("GCM2MIX")
         end if
 
