@@ -256,6 +256,7 @@ module dkinit
       if (.not. allocated(vars%Z_Nflux))     allocate(vars%Z_Nflux(Np,Nt))
       if (.not. allocated(vars%Im_Gtype))    allocate(vars%Im_Gtype(Np,Nt))
       if (.not. allocated(vars%Aur_Type))    allocate(vars%Aur_Type(Np,Nt))
+      vars%Aur_Type = AT_NoPre
       if (.not. allocated(vars%Im_Beta))     allocate(vars%Im_Beta(Np,Nt))
       if (.not. allocated(vars%Im_Eden))     allocate(vars%Im_Eden(Np,Nt))
       if (.not. allocated(vars%Im_Epre))     allocate(vars%Im_Epre(Np,Nt)) 

@@ -297,7 +297,7 @@ module mixinterfaceutils
          ! If dividing by nPnts**2, we are including zero-vals from bad points
          ! If dividing by nGood, we might be letting just a few points represent a whole cell
          ! Since we are getting stuff from voltron grid, all points should be well-defined over the remix domain, so there shouldn't be a difference
-         varOut = varOut / nPnts**2         
+         varOut = varOut / nGood
       else
          isTasty = .false.
       endif

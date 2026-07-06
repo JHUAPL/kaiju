@@ -66,6 +66,9 @@ module dkaurora
       real(rp) :: D,Cs,Pe,Ne,dE,phi0,E0,aRes,dEc
       integer :: i,j
 
+      !Default to no precip (diffuse conductance branch)
+      vars%Aur_Type = AT_NoPre
+
       ! fills in rampFactor
       if (params%doRamp) then
          call dragonking_ramp(aurora,grid,rPolarBound,rEquatBound,rLowLimit)
