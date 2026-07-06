@@ -149,11 +149,7 @@ module mixinterfaceutils
 
    end subroutine mixVarToVoltron
 
-   ! Author: Anthony M. Sciola (origin/backport/namelessking-fixes; clone of imag2mix's
-   ! superSampleMomentsPrecip, NOT used by imag2mix -- packInputs is the only caller).
-   ! git blame shows the splice commit 4a2169405 (cookieenick), not the author: use
-   ! `git log -S "subroutine voltVarToMix"` or blame the backport branch. Only local
-   ! change: nGood (not nPnts**2) in superSampleVoltToMix.
+
    subroutine voltVarToMix(voltGrid, voltVar, mixApp, mixVarID)
       !! Takes a ShellGridVar on the Voltron ShellGrid and maps it to a mix var for both hemispheres
       !! May be general to any ShellGrids, but for now this assumes voltGrid stuff like being global
@@ -298,11 +294,10 @@ module mixinterfaceutils
       if (nGood > 0) then
          isTasty = .true.
 
-         ! Local change vs original (see header): /nGood, not /nPnts**2. Masked source vars
-         ! (tubeShell bcN/bcP=0 on open tubes) make partial-coverage cells (nGood<nPnts**2);
-         ! /nPnts**2 dilutes them toward 0 and collapsed the outermost covered row. Safe here:
-         ! voltVarToMix carries only intensive vars (FAC is mask-all-true => nGood==nPnts**2).
-         varOut = varOut / real(nGood, rp)
+         ! If dividing by nPnts**2, we are including zero-vals from bad points
+         ! If dividing by nGood, we might be letting just a few points represent a whole cell
+         ! Since we are getting stuff from voltron grid, all points should be well-defined over the remix domain, so there shouldn't be a difference
+         varOut = varOut / nPnts**2         
       else
          isTasty = .false.
       endif
@@ -342,4 +337,3 @@ module mixinterfaceutils
    end subroutine genMixGridSubdivs
 
 end module mixinterfaceutils
-

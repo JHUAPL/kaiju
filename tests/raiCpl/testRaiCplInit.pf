@@ -67,7 +67,7 @@ contains
         ! Check a few representative ShellGridVar locs
         @assertEqual(SHGR_CORNER, raiCpl%pot_total%loc, "pot_total should be corner-located")
         @assertEqual(SHGR_CORNER, raiCpl%pot_corot%loc, "pot_corot should be corner-located")
-        @assertEqual(SHGR_CC, raiCpl%Tb%loc, "Tb should be cell-centered")
+        @assertEqual(SHGR_CORNER, raiCpl%Tb%loc, "Tb should be corner-centered")
         @assertEqual(SHGR_CC, raiCpl%tscl_mhdIngest%loc, "tscl_mhdIngest should be cell-centered")
 
         ! TubeShell will give bulk + individual fluids, so we should expect nFluidIn + 1 size
@@ -84,8 +84,9 @@ contains
 
         ! XML read
         @assertLessThanOrEqual(abs(raiCpl%startup_blendTscl - 1234.0_rp), testTol, "startup_blendTscl should be read from XML")
-        @assertLessThanOrEqual(abs(raiCpl%tsclSm_dL - 0.75_rp), testTol, "tsclSm_dL should be read from XML")
-        @assertLessThanOrEqual(abs(raiCpl%tsclSm_dMLT - 0.5_rp), testTol, "tsclSm_dMLT should be read from XML")
+        @assertLessThanOrEqual(abs(raiCpl%tsclMHD_vaFrac_min - 0.4_rp), testTol, "tsclMHD_vaFrac_min should default to 0.4")
+        @assertLessThanOrEqual(abs(raiCpl%tsclMHD_vaFrac_max - 0.9_rp), testTol, "tsclMHD_vaFrac_max should default to 0.9")
+        @assertLessThanOrEqual(abs(raiCpl%tsclMHD_maxScale - 2.0_rp), testTol, "tsclMHD_maxScale should default to 2.0")
         @assertFalse(raiCpl%doWolfLim, "doWolfLim should be read from XML")
     end subroutine testRaijuCplInit_allocatesExpectedCouplingState
 
@@ -227,7 +228,7 @@ contains
                 write(msg,'(a,a,a)') "pot_total allocation mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
                 @assertEqual(SHGR_CORNER, raiCpl%pot_total%loc, trim(msg))
                 write(msg,'(a,a,a)') "Tb allocation mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
-                @assertEqual(SHGR_CC, raiCpl%Tb%loc, trim(msg))
+                @assertEqual(SHGR_CORNER, raiCpl%Tb%loc, trim(msg))
             end block
         enddo
     end subroutine testRaiCplInitModel_smoke

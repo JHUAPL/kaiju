@@ -444,7 +444,7 @@ module raijustarter
             call fillArray(State%domWeights, 0.0_rp)
             allocate( State%tiote(sh%isg:sh%ieg  , sh%jsg:sh%jeg) )
             call fillArray(State%tiote, 0.0_rp)
-            call initShellVar(Grid%shGrid, SHGR_CC, State%Tb)
+            call initShellVar(Grid%shGrid, SHGR_CORNER, State%Tb)
             State%Tb%data = 0.0
             State%Tb%mask = .false.
             ! Bmin surface

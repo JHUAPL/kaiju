@@ -1,6 +1,7 @@
 module testVMpi
   use testHelperMpi
   use voltapp_mpi
+  use volttypes, only: IONO_EX,IONO_EY,IONO_EZ
   use gamCouple_mpi_G2V
   use uservoltic
   use ioH5
@@ -94,7 +95,7 @@ contains
                       do i=1,PsiSh
                           do j=gamCplMpi%Grid%jsg,gamCplMpi%Grid%jeg
                               do k=gamCplMpi%Grid%ksg,gamCplMpi%Grid%keg
-                                  do l=1,NDIM
+                                  do l=1,gamCplMpi%Model%nvInExyz
                                       checkVal = lVal*l + &
                                           kVal*(k+gamCplMpi%Grid%ijkShift(KDIR)) + &
                                           jVal*(j+gamCplMpi%Grid%ijkShift(JDIR)) + &
@@ -139,7 +140,7 @@ contains
                   do i=1,PsiSh
                       do j=voltAppMpi%gApp%Grid%jsg,voltAppMpi%gApp%Grid%jeg
                           do k=voltAppMpi%gApp%Grid%ksg,voltAppMpi%gApp%Grid%keg
-                              do l=1,NDIM
+                              do l=1,voltAppMpi%gApp%Model%nvInExyz
                                   iiBC%inExyz(i,j,k,l) = lVal*l + &
                                       iVal*i + &
                                       jVal*j + &
@@ -247,7 +248,9 @@ contains
                                       call cellCenter(gamCplMpi%Grid, ig,j,k,xc,yc,zc)
                                       rHatP = normVec([xc,yc,zc])
 
-                                      eHat = normVec(iiBC%inExyz(np,jp,kp,:))
+                                      eHat = normVec([iiBC%inExyz(np,jp,kp,IONO_EX), &
+                                                      iiBC%inExyz(np,jp,kp,IONO_EY), &
+                                                      iiBC%inExyz(np,jp,kp,IONO_EZ)])
                                       !write(*,*) 'ig,j,k,np = ',ig,j,k,np
                                       !write(*,*) 'eIJK / eXYZ = ', iiBC%inEijk(np,jp,kp,:), iiBC%inExyz(np,jp,kp,:)
 
@@ -277,7 +280,9 @@ contains
                                   !Now convert cc-Eijk to Exyz
                                   Exyz = ccEijk2Exyz(gamCplMpi%Model,gamCplMpi%Grid,ccEijk,ig,j,k)
                                   !Exyz above is approximation to inExyz, ie testing whether or not Eijk and Exyz are consistent
-                                  deltaSum = deltaSum + norm2(Exyz-iiBC%inExyz(np,jp,kp,:))
+                                  deltaSum = deltaSum + norm2(Exyz-[iiBC%inExyz(np,jp,kp,IONO_EX), &
+                                                                   iiBC%inExyz(np,jp,kp,IONO_EY), &
+                                                                   iiBC%inExyz(np,jp,kp,IONO_EZ)])
                               enddo
                           enddo
                     enddo
@@ -348,7 +353,9 @@ contains
                               call cellCenter(voltAppMpi%gApp%Grid, ig,j,k,xc,yc,zc)
                               rHatP = normVec([xc,yc,zc])
 
-                              eHat = normVec(iiBC%inExyz(np,jp,kp,:))
+                              eHat = normVec([iiBC%inExyz(np,jp,kp,IONO_EX), &
+                                              iiBC%inExyz(np,jp,kp,IONO_EY), &
+                                              iiBC%inExyz(np,jp,kp,IONO_EZ)])
                               !write(*,*) 'ig,j,k,np = ',ig,j,k,np
                               !write(*,*) 'eIJK / eXYZ = ', iiBC%inEijk(np,jp,kp,:), iiBC%inExyz(np,jp,kp,:)
 
@@ -378,7 +385,9 @@ contains
                               !Now convert cc-Eijk to Exyz
                               Exyz = ccEijk2Exyz(voltAppMpi%gApp%Model,voltAppMpi%gApp%Grid,ccEijk,ig,j,k)
                               !Exyz above is approximation to inExyz, ie testing whether or not Eijk and Exyz are consistent
-                              deltaSum = deltaSum + norm2(Exyz-iiBC%inExyz(np,jp,kp,:))
+                              deltaSum = deltaSum + norm2(Exyz-[iiBC%inExyz(np,jp,kp,IONO_EX), &
+                                                               iiBC%inExyz(np,jp,kp,IONO_EY), &
+                                                               iiBC%inExyz(np,jp,kp,IONO_EZ)])
                           enddo
                       enddo
                   enddo
@@ -433,4 +442,3 @@ contains
   end subroutine remixEnabledWithoutDeepTest
 
 end module testVMpi
-

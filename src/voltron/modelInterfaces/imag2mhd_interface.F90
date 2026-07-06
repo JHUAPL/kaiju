@@ -211,7 +211,7 @@ module imag2mhd_interface
                                 endif
                             endif
                             if (isTasty) then
-                                !Density/pressure coming back in #/cc and nPa
+                                !Density/pressure coming back in amu/cc and nPa
                                 !Ingestion timescale coming back in seconds
                                 Gr%Gas0(i,j,k,IM_D_RING) = imW(IM_D_RING)
                                 Gr%Gas0(i,j,k,IM_D_COLD) = imW(IM_D_COLD)

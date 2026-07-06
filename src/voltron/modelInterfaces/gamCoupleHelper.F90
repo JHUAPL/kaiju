@@ -38,7 +38,9 @@ module gamCoupleHelper
         associate(Gr => App%Grid)
 
         if (.not. allocated(inEijk)) allocate(inEijk(PsiSh+1,Gr%jsg:Gr%jeg+1,Gr%ksg:Gr%keg+1,1:NDIM))
-        if (.not. allocated(inExyz)) allocate(inExyz(PsiSh  ,Gr%jsg:Gr%jeg  ,Gr%ksg:Gr%keg  ,1:NDIM))
+        ! During testing, inExyz can change size between tests
+        if (allocated(inExyz) .and. size(inExyz,4) /= App%Model%nvInExyz) deallocate(inExyz)
+        if (.not. allocated(inExyz)) allocate(inExyz(PsiSh  ,Gr%jsg:Gr%jeg  ,Gr%ksg:Gr%keg  ,1:App%Model%nvInExyz))
         if (.not. allocated(psi))    allocate(psi(PsiSh,Gr%js:Gr%je,Gr%ks:Gr%ke)) !Cell-centered potential
         if (.not. allocated(Veb))    allocate(Veb(PsiSh,Gr%js:Gr%je,Gr%ks:Gr%ke,1:NDIM))
 
@@ -57,16 +59,18 @@ module gamCoupleHelper
                                        + App%gPsi(i  ,j  ,k) + App%gPsi(i  ,j  ,k+1) )
                     xcc = Gr%xyzcc(i,j,k,:)
                     Bdip = MagsphereDipole(xcc,App%Model%MagM0)
-                    Exyz = inExyz(i,j,k,:)
+                    Exyz(IONO_EX) = inExyz(i,j,k,IONO_EX)
+                    Exyz(IONO_EY) = inExyz(i,j,k,IONO_EY)
+                    Exyz(IONO_EZ) = inExyz(i,j,k,IONO_EZ)
                     Veb(i,j,k,:) = cross(Exyz,Bdip)/dot_product(Bdip,Bdip)
                 enddo
             enddo
         enddo
 
         call ClearIO(IOVars)
-        call AddOutVar(IOVars,"Ex",inExyz(:,Gr%js:Gr%je,Gr%ks:Gr%ke,XDIR))
-        call AddOutVar(IOVars,"Ey",inExyz(:,Gr%js:Gr%je,Gr%ks:Gr%ke,YDIR))
-        call AddOutVar(IOVars,"Ez",inExyz(:,Gr%js:Gr%je,Gr%ks:Gr%ke,ZDIR))
+        call AddOutVar(IOVars,"Ex",inExyz(:,Gr%js:Gr%je,Gr%ks:Gr%ke,IONO_EX))
+        call AddOutVar(IOVars,"Ey",inExyz(:,Gr%js:Gr%je,Gr%ks:Gr%ke,IONO_EY))
+        call AddOutVar(IOVars,"Ez",inExyz(:,Gr%js:Gr%je,Gr%ks:Gr%ke,IONO_EZ))
 
         call AddOutVar(IOVars,"Vx",Veb(:,:,:,XDIR))
         call AddOutVar(IOVars,"Vy",Veb(:,:,:,YDIR))
@@ -180,4 +184,3 @@ module gamCoupleHelper
     end subroutine
 
 end module
-
