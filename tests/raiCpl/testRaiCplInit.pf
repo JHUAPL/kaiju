@@ -67,7 +67,7 @@ contains
         ! Check a few representative ShellGridVar locs
         @assertEqual(SHGR_CORNER, raiCpl%pot_total%loc, "pot_total should be corner-located")
         @assertEqual(SHGR_CORNER, raiCpl%pot_corot%loc, "pot_corot should be corner-located")
-        @assertEqual(SHGR_CC, raiCpl%Tb%loc, "Tb should be cell-centered")
+        @assertEqual(SHGR_CORNER, raiCpl%Tb%loc, "Tb should be corner-centered")
         @assertEqual(SHGR_CC, raiCpl%tscl_mhdIngest%loc, "tscl_mhdIngest should be cell-centered")
 
         ! TubeShell will give bulk + individual fluids, so we should expect nFluidIn + 1 size
@@ -228,7 +228,7 @@ contains
                 write(msg,'(a,a,a)') "pot_total allocation mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
                 @assertEqual(SHGR_CORNER, raiCpl%pot_total%loc, trim(msg))
                 write(msg,'(a,a,a)') "Tb allocation mismatch for ", trim(raiCplTestProfileNames(iProf)), "."
-                @assertEqual(SHGR_CC, raiCpl%Tb%loc, trim(msg))
+                @assertEqual(SHGR_CORNER, raiCpl%Tb%loc, trim(msg))
             end block
         enddo
     end subroutine testRaiCplInitModel_smoke

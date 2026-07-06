@@ -93,6 +93,7 @@ module raijuCplHelper
             call initShellVar(raiCpl%shGr, SHGR_CORNER, raiCpl%bVol)
             call initShellVar(raiCpl%shGr, SHGR_CC    , raiCpl%bvol_cc)
             call initShellVar(raiCpl%shGr, SHGR_CORNER, raiCpl%rCurv)
+            call initShellVar(raiCpl%shGr, SHGR_CORNER, raiCpl%Tb)
 
             allocate(raiCpl%Pavg(0:nFluidIn))
             allocate(raiCpl%Davg(0:nFluidIn))
@@ -105,7 +106,6 @@ module raijuCplHelper
                 call initShellVar(raiCpl%shGr, SHGR_CC, raiCpl%Dstd(i))
             enddo
             call initShellVar(raiCpl%shGr, SHGR_CC, raiCpl%tiote)
-            call initShellVar(raiCpl%shGr, SHGR_CC, raiCpl%Tb)
             call initShellVar(raiCpl%shGr, SHGR_CC, raiCpl%avgBeta)
 
             call initShellVar(raiCpl%shGr, SHGR_CC, raiCpl%tscl_mhdIngest)
@@ -344,6 +344,8 @@ module raijuCplHelper
         call fillArray(State%Bmin      , 0.0_rp)
         call fillArray(State%bvol      , 0.0_rp)
         call fillArray(State%vaFrac    , 0.0_rp)
+        call fillArray(State%Tb%data   , 0.0_rp)
+        call fillArray(State%Tb%mask   , .false.)
         
         !$OMP PARALLEL DO default(shared) &
         !$OMP private(i,j)
@@ -366,6 +368,8 @@ module raijuCplHelper
                 State%bvol  (i,j) = raiCpl%bvol  %data(i,j)
                 State%rCurv (i,j) = raiCpl%rCurv %data(i,j)
                 State%vaFrac(i,j) = raiCpl%vaFrac%data(i,j)
+                State%Tb%data(i,j) = raiCpl%Tb%data(i,j)
+                State%Tb%mask(i,j) = raiCpl%Tb%mask(i,j)
             enddo    
         enddo
         
@@ -379,11 +383,8 @@ module raijuCplHelper
         call fillArray(State%bvol_cc  , 0.0_rp)
         call fillArray(State%rCurv    , HUGE)
         call fillArray(State%tiote    , 4.0_rp)
-        call fillArray(State%Tb%data  , 0.0_rp)
-        State%Tb%mask = .false.
         call fillArray(State%radMax_cc, 0.0_rp)
-        ! 
-        ! Now only copy values for good points
+
         !$OMP PARALLEL DO default(shared) &
         !$OMP private(i,j)
         do j=shGr%jsg,shGr%jeg
@@ -405,8 +406,6 @@ module raijuCplHelper
 
                 State%bvol_cc(i,j) = raiCpl%bvol_cc%data(i,j)
                 State%tiote  (i,j) = raiCpl%tiote%data(i,j)
-                State%Tb%data(i,j) = raiCpl%Tb%data(i,j)
-                State%Tb%mask(i,j) = .true.
 
                 State%radMax_cc(i,j) = 0.25*sum(State%radMax(i:i+1,j:j+1))
             enddo

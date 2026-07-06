@@ -164,7 +164,7 @@ module raijuIO
         type(IOVAR_T), dimension(MAXIOVAR) :: IOVars
         integer :: i,j,k,s, nClkSteps
         integer :: is, ie, js, je, ks, ke
-        integer, dimension(4) :: outBnds2D
+        integer, dimension(4) :: outBnds2D, outBnds2D_corner
         logical :: doGhosts
         real(rp) :: axT, axP
         real(rp), dimension(:,:), allocatable :: outTmp2D
@@ -190,6 +190,7 @@ module raijuIO
             je = Grid%shGrid%je
         endif
         outBnds2D = (/is,ie,js,je/)
+        outBnds2D_corner = (/is,ie+1,js,je+1/)
 
         ! First, make sure root variables are there
         if (doRoot) then
@@ -274,7 +275,7 @@ module raijuIO
         call AddOutVar(IOVars,"Pstd_in" ,State%Pstd   (is:ie,js:je, :)        ,uStr="normalized" ,dStr="Std. dev. of species pressure from imagtubes")
         call AddOutVar(IOVars,"Dstd_in" ,State%Dstd   (is:ie,js:je, :)        ,uStr="normalized" ,dStr="Std. dev. of species density from imagtubes")
         call AddOutVar(IOVars,"domWeights",State%domWeights(is:ie,js:je)     ,                   dStr="Weights used for smoothing moments for questionable cells along boundary")
-        call AddOutSGV(IOVars,"Tbounce",State%Tb, outBndsO=outBnds2D, uStr="[s]", dStr="Bounce timescale along field line (Alfven crossing time)", doWriteMaskO=.false.)
+        call AddOutSGV(IOVars,"Tbounce",State%Tb, outBndsO=outBnds2D_corner, uStr="[s]", dStr="Bounce timescale along field line (Alfven crossing time)", doWriteMaskO=.false.)
         call AddOutVar(IOVars,"bndLoc"    ,State%bndLoc    (js:je)*1.0_rp    ,dStr="Inactive cell closest to planet")
         call AddOutVar(IOVars,"activeLoc" ,State%activeLoc (js:je)*1.0_rp    ,dStr="Active cell furthest from planet")
         if (Model%doOwnCorot) then
@@ -881,7 +882,7 @@ module raijuIO
         type(IOVAR_T), dimension(300) :: IOVars
         integer :: is, ie, js, je, ks, ke
         integer :: i,j,k,s, nClkSteps
-        integer, dimension(4) :: outBnds2D
+        integer, dimension(4) :: outBnds2D, outBnds2D_corner
         real(rp) :: axT, axP
         real(rp), dimension(:,:), allocatable :: outTmp2D
 
@@ -900,6 +901,7 @@ module raijuIO
         js = Grid%shGrid%jsg
         je = Grid%shGrid%jeg
         outBnds2D = (/is,ie,js,je/)
+        outBnds2D_corner = (/is,ie+1,js,je+1/)
 
         call AddOutVar(IOVars,"time",State%t)
         call AddOutVar(IOVars,"dtCpl"  ,State%dt)
@@ -984,7 +986,7 @@ module raijuIO
         call AddOutSGV(IOVars, "Density_inst" , State%Den      , outBndsO=outBnds2D, uStr="#/cc", dStr="Instantaneous density from RAIJU flavors" , doWriteMaskO=.false.)
         call AddOutSGV(IOVars, "Pressure"     , State%Press_avg, outBndsO=outBnds2D, uStr="nPa" , dStr="Step-averaged Pressure from RAIJU flavors", doWriteMaskO=.false.)
         call AddOutSGV(IOVars, "Density"      , State%Den_avg  , outBndsO=outBnds2D, uStr="#/cc", dStr="Step-averaged Density from RAIJU flavors" , doWriteMaskO=.false.)
-        call AddOutSGV(IOVars,"Tbounce"       , State%Tb       , outBndsO=outBnds2D, uStr="[s]", dStr="Bounce timescale along field line (Alfven crossing time)", doWriteMaskO=.false.)
+        call AddOutSGV(IOVars,"Tbounce"       , State%Tb       , outBndsO=outBnds2D_corner, uStr="[s]", dStr="Bounce timescale along field line (Alfven crossing time)", doWriteMaskO=.false.)
 
         if (allocated(State%etaFacePDML)) then
             call AddOutVar(IOVars, "etaFaceReconL", State%etaFaceReconL(is:ie+1,js:je+1,:,:), uStr="#/cm^3 * Rx/T")
