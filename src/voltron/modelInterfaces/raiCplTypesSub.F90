@@ -530,6 +530,7 @@ submodule (volttypes) raijuCplTypesSub
             do ip = shGrid%js, shGrid%je
                 ph = shGrid%phc(ip)
                 imP = 0.0_rp
+                isTasty = .false.   ! invalid until getMomentsPrecip says otherwise (SH open lines skip the call)
                 if (th <= PI/2.0_rp) then
                     ! NH: RAIJU and voltron grids coincide, no supersampling needed
                     call App%getMomentsPrecip(th, ph, imP, isTasty)

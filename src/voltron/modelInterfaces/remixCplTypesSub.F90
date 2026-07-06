@@ -149,6 +149,9 @@ submodule (volttypes) remixCplTypesSub
         ! (shell2gam, shell -> Gamera inner boundary, runs in the driver after this.)
         call mapMixToShell(App%mixApp, vApp)
 
+        ! Solved potential onto the shell corners for DK's doET enhancement
+        call mixVarToVoltron(App%mixApp, POT, vApp%shGrid, vApp%pot_iono)
+
         ! Store MJD/time now so I/O calls need no special setup
         App%mixApp%IO%mjd  = vApp%MJD
         App%mixApp%IO%time = vApp%time

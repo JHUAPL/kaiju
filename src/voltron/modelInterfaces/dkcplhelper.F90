@@ -6,7 +6,7 @@ module dkcplhelper
     use kdefs, only: Mp_cgs          ! #/cc -> mass density for the tubeShell feed
     use gdefs, only: BLK             ! bulk fluid index for tubeShell bcN/bcP
     use planethelper, only: DP2Cs    ! (D,P) -> sound speed
-    use shellGrid, only: ShellGrid_T, SHGR_CC, initShellVar
+    use shellGrid, only: ShellGrid_T, SHGR_CC, SHGR_CORNER, initShellVar
 
     implicit none
 
@@ -19,6 +19,7 @@ module dkcplhelper
         class(voltApp_T), intent(inout) :: vApp
         real(rp) :: curTilt
         real(rp) :: dn(4), cs(4), bn(4)
+        real(rp) :: dmin, cmin
         integer  :: i, j, nGood
 
         ! DK IO/tilt update (DKcompute forces const_sigma when IO%time<=0, so spinup is safe).
@@ -55,6 +56,20 @@ module dkcplhelper
             enddo
         end associate
 
+        !Backfill no-sample cells so FEDDER never sees zero Density/Sound_Speed (dE = 0/0 -> NaN)
+        if (any(vApp%dkApp%vars%Density > 0.0_rp)) then
+            dmin = minval(vApp%dkApp%vars%Density, mask = vApp%dkApp%vars%Density > 0.0_rp)
+        else
+            dmin = 0.01_rp*Mp_cgs   ! feed entirely empty: 0.01 /cc
+        endif
+        if (any(vApp%dkApp%vars%Sound_Speed > 0.0_rp)) then
+            cmin = minval(vApp%dkApp%vars%Sound_Speed, mask = vApp%dkApp%vars%Sound_Speed > 0.0_rp)
+        else
+            cmin = 1.0e6_rp          ! feed entirely empty: 10 km/s [cm/s]
+        endif
+        where (vApp%dkApp%vars%Density     <= 0.0_rp) vApp%dkApp%vars%Density     = dmin
+        where (vApp%dkApp%vars%Sound_Speed <= 0.0_rp) vApp%dkApp%vars%Sound_Speed = cmin
+
         ! IM precip: imag2shell is SHGR_CC (theta,phi); dkVars is (phi,theta) -> transpose
         associate(sg => vApp%shGrid)
             vApp%dkApp%vars%Im_Eflux = transpose(vApp%imag2shell%Im_Eflux%data(sg%is:sg%ie, sg%js:sg%je))
@@ -67,6 +82,21 @@ module dkcplhelper
 
         call vApp%dkApp%AdvanceModel(0.0_rp)
     end subroutine shellDK
+
+    !Average corner potential (pot_iono) to DK cell centers for doET
+    subroutine shellPotToDK(vApp)
+        class(voltApp_T), intent(inout) :: vApp
+        integer :: i, j
+        associate(sg => vApp%shGrid, pot => vApp%pot_iono%data)
+            do j = sg%js, sg%je
+                do i = sg%is, sg%ie
+                    vApp%dkApp%vars%Pot(j-sg%js+1, i-sg%is+1) = &
+                        0.25_rp * ( pot(i  ,j  ) + pot(i+1,j  ) + &
+                                    pot(i  ,j+1) + pot(i+1,j+1) )
+                enddo
+            enddo
+        end associate
+    end subroutine shellPotToDK
 
     ! Allocate the IMAG->shell precip staging ShellGridVars (cell-centered, full-sphere)
     subroutine init_imag2shell(i2s, shGrid)

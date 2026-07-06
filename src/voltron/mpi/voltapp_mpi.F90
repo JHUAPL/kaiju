@@ -10,7 +10,8 @@ module voltapp_mpi
     use, intrinsic :: ieee_arithmetic, only: IEEE_VALUE, IEEE_SIGNALING_NAN, IEEE_QUIET_NAN
     use volthelpers_mpi
     use voltapp
-    use dkcplhelper, only : shellDK    ! volt -> DK coupling hop (modelInterfaces)
+    use dkcplhelper, only : shellDK, shellPotToDK    ! volt -> DK coupling hop (modelInterfaces)
+    use voltCplHelper, only : genVoltTubesSpinup
     use gcm_mpi
     use loadBalance
     
@@ -411,6 +412,11 @@ module voltapp_mpi
                 call VhReqTubeStart(vApp)
                 call Toc("VoltTubes",.true.)
             endif
+        elseif(vApp%doDeep) then
+            !Spinup: refresh CHIMP fields for the seed-projection feed
+            call Tic("G2C")
+            call convertGameraToChimp(vApp%mhd2chmp,vApp%gApp,vApp%ebTrcApp)
+            call Toc("G2C")
         endif
 
         ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
@@ -427,6 +433,9 @@ module voltapp_mpi
                 call genVoltTubes(vApp)
             endif
             call Toc("VoltTubes",.true.)
+        elseif(vApp%doDeep) then
+            !Spinup: seed-projection feed (same sampling tracing uses; deep products stay zero)
+            call genVoltTubesSpinup(vApp)
         endif
         if (vApp%doDeep .and. (vApp%time > 0)) &
             call vApp%imagApp%toShell(vApp%imag2shell, vApp%shGrid, &
@@ -435,6 +444,7 @@ module voltapp_mpi
         call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
         call vApp%ionoApp%AdvanceModel(0.0_rp)
         call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
+        call shellPotToDK(vApp)               ! REMIX Pot -> DK vars%Pot (for doET)
         call shellToGamera(vApp)             ! shell -> Gamera BC (model-agnostic)
         call Toc("ReMIX", .true.)
 

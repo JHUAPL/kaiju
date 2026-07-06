@@ -35,7 +35,7 @@ module voltapp
     use voltappHelper
     use voltCplHelper
     use apex, only : init_apex
-    use dkcplhelper, only : shellDK, init_imag2shell   ! volt -> DK coupling hop
+    use dkcplhelper, only : shellDK, init_imag2shell, shellPotToDK   ! volt -> DK coupling hop
 
     implicit none
 
@@ -166,6 +166,13 @@ module voltapp
 
         !Coupling is unified, so adding a separate XML option to control "deep" parts
         call xmlInp%Set_Val(vApp%doDeep, "coupling/doDeep", .true.)
+        if (.not. vApp%doDeep) then
+            write(*,*) 'coupling/doDeep="F" is not currently supported: the forward feed'
+            write(*,*) ' (REMIX FAC/density/sound speed) comes from tubeShell, which has no'
+            write(*,*) ' producer without deep coupling. A shallow feed is planned; until'
+            write(*,*) ' then set coupling/doDeep="T". Exiting ...'
+            stop
+        endif
 
         !call xmlInp%Set_Val(vApp%doGCM, "coupling/doGCM",.false.)
         if (vApp%isEarth) then
@@ -427,6 +434,7 @@ module voltapp
         ! DK IO: cache <RunID>.dk.h5, seed the EMA on restart, write grid to root
         call vApp%dkApp%InitIO(xmlInp)
         call init_imag2shell(vApp%imag2shell, vApp%shGrid)   ! IMAG precip staging on the shell
+        call initShellVar(vApp%shGrid, SHGR_CORNER, vApp%pot_iono)   ! solved potential for DK doET
 
         ! Per-model coupler init behind the ionoCoupler contract (REMIX/SMITE-specific:
         ! restart/IO/F10.7 + the gApp-dependent map builds). No select type here.
@@ -439,6 +447,7 @@ module voltapp
                 integer  :: jj, kk, iG, ncnt
                 real(rp) :: xc, yc, zc, Rion, acc
                 Rion = RadIonosphere()
+                !Center-mean radius on purpose: a corner-radius mask floors REMIX's outermost valid row
                 iG   = JpSt + JpSh - 1
                 acc  = 0.0_rp; ncnt = 0
                 do kk = gApp%Grid%ks, gApp%Grid%ke
@@ -490,8 +499,22 @@ module voltapp
         class(gamApp_T) , intent(inout) :: gApp
         class(voltApp_T), intent(inout) :: vApp
 
+        !Produce tubes before the ionosphere block (same order as MPI startDeep)
+        if (vApp%doDeep .and. vApp%time >= 0) then
+            !Update i-shell to trace within in case rTrc has changed
+            vApp%iDeep = gApp%Grid%ie-1
+            call Tic("G2C")
+            call convertGameraToChimp(vApp%mhd2chmp, gApp, vApp%ebTrcApp)
+            call Toc("G2C")
+            call Tic("VoltTubes",.true.)
+            call genVoltTubes(vApp)
+            call Toc("VoltTubes",.true.)
+        elseif (vApp%doDeep) then
+            !Spinup: refresh CHIMP fields + seed-projection feed (tracing is off)
+            call convertGameraToChimp(vApp%mhd2chmp, gApp, vApp%ebTrcApp)
+            call genVoltTubesSpinup(vApp)
+        endif
         ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
-        ! NOTE: tubeShell must be populated before toIono (same ordering as startDeep)
         call Tic("ReMIX", .true.)
         call MJDRecalc(vApp%MJD)
         if (vApp%doDeep .and. (vApp%time > 0)) &
@@ -501,19 +524,17 @@ module voltapp
         call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
         call vApp%ionoApp%AdvanceModel(0.0_rp)
         call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
+        call shellPotToDK(vApp)               ! REMIX Pot -> DK vars%Pot (for doET)
         call shellToGamera(vApp)             ! shell -> Gamera BC (model-agnostic)
         call Toc("ReMIX", .true.)
 
         ! only do imag after spinup with deep enabled
         if(vApp%doDeep .and. vApp%time >= 0) then
-            ! DoImag needs PreDeep
-            ! DoImag can be in || with squish
-            ! PostDeep needs everything
-            call PreDeep(vApp, gApp)
-              call DoImag(vApp)
-              call SquishStart(vApp)
-                call Squish(vApp) ! do all squish blocks here
-              call SquishEnd(vApp)
+            call SquishStart(vApp)
+            call calcPotDrop(vApp)
+            call DoImag(vApp)
+            call Squish(vApp) ! do all squish blocks here
+            call SquishEnd(vApp)
             call PostDeep(vApp, gApp)
         elseif(vApp%doDeep) then
             !Doing deep but t<0, call spinup Gas0 (empirical TM plasma sheet)
@@ -529,27 +550,6 @@ module voltapp
     end subroutine DeepUpdate
 
 
-
-    subroutine PreDeep(vApp, gApp)
-        class(gamApp_T) , intent(inout) :: gApp
-        class(voltApp_T), intent(inout) :: vApp
-
-        !Update i-shell to trace within in case rTrc has changed
-        vApp%iDeep = gApp%Grid%ie-1
-        
-        !Pull in updated fields to CHIMP
-        call Tic("G2C")
-        call convertGameraToChimp(vApp%mhd2chmp,gApp,vApp%ebTrcApp)
-        call Toc("G2C")
-        call Tic("VoltTubes",.true.)
-        call genVoltTubes(vApp)
-        call Toc("VoltTubes",.true.)
-
-        ! Diagnostics that need fresh voltron information
-        call calcPotDrop(vApp)
-
-
-    end subroutine
 
     subroutine DoImag(vApp)
         class(voltApp_T), intent(inout) :: vApp

@@ -242,7 +242,6 @@ module voltio
 
         !Coupling info
         call AddOutVar(IOVars,"CoupleT", vApp%DeepT)
-        call AddOutVar(IOVars,"gBAvg",   vApp%mhd2Mix%gBAvg)
         
         ! State object
         call AddOutSGV(IOVars, "potential_total", vApp%State%potential_total, doWriteMaskO=.true.)
@@ -298,8 +297,6 @@ module voltio
         !! TODO: Load new voltState vars from restart file
 
         call ClearIO(IOVars)
-        call AddInVar(IOVars,"gBAvg")
-
         call AddInVar(IOVars,"nOut"    ,vTypeO=IOINT)
         call AddInVar(IOVars,"nRes"    ,vTypeO=IOINT)
         call AddInVar(IOVars,"ts"      ,vTypeO=IOINT)
@@ -328,18 +325,6 @@ module voltio
         vApp%MJD      = GetIOReal(IOVars,"MJD")
         vApp%time     = GetIOReal(IOVars,"time")
         vApp%DeepT    = GetIOReal(IOVars,"CoupleT")
-
-        !Check to see if gB0 is present
-        n0 = FindIO(IOVars,"gBAvg")
-        if (IOVars(n0)%isDone) then
-            if (.not. allocated(vApp%mhd2Mix%gBAvg)) then
-                !Allocate this if necessary
-                allocate( vApp%mhd2Mix%gBAvg(IOVars(n0)%dims(1),IOVars(n0)%dims(2),IOVars(n0)%dims(3),IOVars(n0)%dims(4)) )
-            endif
-            call IOArray4DFill(IOVars,"gBAvg",vApp%mhd2Mix%gBAvg)
-        else
-            write(*,*) "gBAvg not found in Voltron restart, assuming dipole ..."
-        endif
 
         call ReadInSGV(vApp%State%potential_total, ResF, "potential_total", doIOpO=.false.)
         call ReadInSGV(vApp%State%potential_corot, ResF, "potential_corot", doIOpO=.false.)

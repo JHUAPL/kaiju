@@ -4,6 +4,9 @@ module voltCplHelper
     use voltTypes
     use voltCplTypes
     use tubehelper
+    use streamline,   only: FLIonFAC, FLIonDP
+    use msphutils,    only: RadIonosphere
+    use gdefs,        only: BLK
 
     implicit none
 
@@ -20,6 +23,61 @@ module voltCplHelper
         call tubes2Shell(vApp%shGrid, vApp%State%ijTubes, vApp%State%tubeShell)
 
     end subroutine genVoltTubes
+
+    subroutine genVoltTubesSpinup(vApp)
+        !! Spinup stand-in for genVoltTubes: fill J11i/bcN/bcP by seed projection; deep products stay zero
+        class(voltApp_T), intent(inout) :: vApp
+
+        type(magLine_T) :: bTrc
+        real(rp) :: mhd_Rin, seedR, Rion, eqR, bD, bP
+        integer  :: i, j, s
+        integer, parameter :: i0 = 2   ! sampling shell index (matches Line2Tube)
+
+        associate(sh      => vApp%shGrid,                 &
+                  ebModel => vApp%ebTrcApp%ebModel,       &
+                  ebGr    => vApp%ebTrcApp%ebState%ebGr,  &
+                  ebState => vApp%ebTrcApp%ebState,       &
+                  ts      => vApp%State%tubeShell)
+
+            ! Same no-data cutoff as calcTubes: dipole apex below the MHD inner corner
+            mhd_Rin = norm2(ebGr%xyz(ebGr%is+2, ebGr%js, ebGr%ks, :))
+            seedR   = sh%radius
+            Rion    = RadIonosphere()
+
+            ts%J11i%data = 0.0_rp
+            do s = 0, ebModel%nSpc
+                ts%bcN(s)%data = 0.0_rp
+                ts%bcP(s)%data = 0.0_rp
+            enddo
+
+            !$OMP PARALLEL DO default(shared) schedule(dynamic) &
+            !$OMP private(i,j,s,eqR,bTrc,bD,bP)
+            do j = sh%js, sh%je+1
+                do i = sh%is, sh%ie+1
+                    eqR = DipColat2L(sh%thRp(i))
+                    if (eqR <= mhd_Rin) cycle   ! dipole region: no MHD sample (as DipoleTube)
+
+                    ! Seed-projection sample: FLIonFAC/FLIonDP use only the seed point
+                    bTrc%x0 = seedR*[ sin(sh%th(i))*cos(sh%ph(j)), &
+                                      sin(sh%th(i))*sin(sh%ph(j)), &
+                                      cos(sh%th(i)) ]
+                    ts%J11i%data(i,j) = FLIonFAC(ebModel, ebGr, ebState, bTrc, Rion, i0)
+                    do s = 0, ebModel%nSpc
+                        call FLIonDP(ebModel, ebGr, ebState, bTrc, bD, bP, i0, s)
+                        ts%bcN(s)%data(i,j) = bD
+                        ts%bcP(s)%data(i,j) = bP
+                    enddo
+                enddo
+            enddo
+            !$OMP END PARALLEL DO
+
+            if (mod(nint(vApp%time), 60) == 0) then
+                write(*,'(a,f9.1,a,es10.3,a,es10.3)') ' <spinupTubes> t=', vApp%time, &
+                    '  max|J11i|=', maxval(abs(ts%J11i%data)), '  max bcN=', maxval(ts%bcN(BLK)%data)
+            endif
+
+        end associate
+    end subroutine genVoltTubesSpinup
 
     subroutine calcTubes(vApp)
         !! Calculate field lines in ijTubes
