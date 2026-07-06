@@ -183,6 +183,30 @@ module testGridLocator
 
 
     @test
+    subroutine testPeriodicJLocReturnsActiveIndex()
+        type(ShellGrid_T) :: nonuniformSh
+        real(rp), dimension(5) :: theta
+        real(rp), dimension(6) :: phi
+        integer :: jLoc
+
+        theta = [0.2_rp, 0.4_rp, 0.7_rp, 1.0_rp, 1.3_rp]
+        phi = [0.0_rp, 0.12_rp, 0.5_rp, 1.3_rp, 3.4_rp, 2.0_rp*PI]
+        call GenShellGrid(nonuniformSh, theta, phi, 'shgrNonuniformPeriodic', radO=1.1_rp)
+
+        call getSGCellJLoc(nonuniformSh, 0.0_rp, jLoc)
+        @assertEqual(nonuniformSh%js, jLoc, "getSGCellJLoc should return active js at periodic lower boundary")
+
+        call getSGCellJLoc(nonuniformSh, 2.0_rp*PI, jLoc)
+        @assertEqual(nonuniformSh%js, jLoc, "getSGCellJLoc should wrap 2pi to active js")
+
+        call getSGCellJLoc(nonuniformSh, -TINY, jLoc)
+        @assertEqual(nonuniformSh%je, jLoc, "getSGCellJLoc should wrap slightly negative phi to active je")
+
+        call deallocShellGrid(nonuniformSh)
+    end subroutine testPeriodicJLocReturnsActiveIndex
+
+
+    @test
     subroutine testPeriodicWrapHelpers()
         type(ShellGridVar_T) :: wrapVarCC
         type(ShellGridVar_T) :: wrapVarCorner
