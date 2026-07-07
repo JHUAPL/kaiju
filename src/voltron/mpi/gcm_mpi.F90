@@ -219,11 +219,11 @@ contains
             select case (g)
             case (1)
               if (gcm%GEO%mix2gcm_nvar > 0 .or. gcm%GEO%gcm2mix_nvar > 0) then
-                call transform_gcm_export(gcm%GEO,g)
+                call transform_gcm_export(gcm%GEO)
               endif
             case(2)
               if (gcm%APEX%mix2gcm_nvar > 0 .or. gcm%APEX%gcm2mix_nvar > 0) then
-                call transform_gcm_export(gcm%APEX,g)
+                call transform_gcm_export(gcm%APEX)
               endif
             end select
 

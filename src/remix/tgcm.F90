@@ -97,18 +97,16 @@ module gcminterp
       write(*,*) "GCM Upper bounds: ", ubound(gcm%gcmOutput(1)%data)
     end subroutine create_gcm_grid
 
-    subroutine transform_gcm_export(gcm,g)
+    subroutine transform_gcm_export(gcm)
         type(gcm_grid_T),intent(inout) :: gcm
-        integer,intent(in) :: g
 
-        integer :: h,ymod2,v
+        integer :: v
 
         if (gcm%mix2gcm_nvar .eq. 0) return
 
         if (.not. allocated(gcm%outvar2d)) allocate(gcm%outvar2d(gcm%nlat,gcm%nlon,gcm%mix2gcm_nvar))
 
         gcm%outvar2d = 0._rp
-        ! Before we start, we collapse to 1 globe instead of 2 hemispheres
         do v=1,gcm%mix2gcm_nvar
           ! Invert latitude to map colat -> lat
           ! undo the lonshift by applying it backwards
