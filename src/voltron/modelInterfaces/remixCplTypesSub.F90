@@ -317,21 +317,21 @@ submodule (volttypes) remixCplTypesSub
         is_ = voltGrid%is; ie_ = voltGrid%ie
         js_ = voltGrid%js; je_ = voltGrid%je
 
-        call mapOneDK(dkVars%SigmaP,   SIGMAP)
-        call mapOneDK(dkVars%SigmaH,   SIGMAH)
-        call mapOneDK(dkVars%Avg_Eng,  AVG_ENG)
-        call mapOneDK(dkVars%Num_Flux, NUM_FLUX)
+        call mapOneDK(dkVars%SigmaP%data,   SIGMAP)
+        call mapOneDK(dkVars%SigmaH%data,   SIGMAH)
+        call mapOneDK(dkVars%Avg_Eng%data,  AVG_ENG)
+        call mapOneDK(dkVars%Num_Flux%data, NUM_FLUX)
 
     contains
 
         subroutine mapOneDK(dkField, mixID)
-            real(rp), dimension(:,:), intent(in) :: dkField   ! (Np,Nt) active, (phi,theta)
+            real(rp), dimension(:,:), intent(in) :: dkField   ! (Nt,Np) active, (theta,phi)
             integer,                  intent(in) :: mixID
             integer :: i, j
             call initShellVar(voltGrid, SHGR_CC, sgv)
             do i = is_, ie_          ! theta (active; voltron grid has no theta ghosts)
                 do j = js_, je_      ! phi (active)
-                    sgv%data(i,j) = dkField(j - js_ + 1, i - is_ + 1)
+                    sgv%data(i,j) = dkField(i - is_ + 1, j - js_ + 1)
                 enddo
             enddo
             call wrapJ_SGV(voltGrid, sgv)   ! periodic phi ghost fill (replaces padDKPhiPeriodic)

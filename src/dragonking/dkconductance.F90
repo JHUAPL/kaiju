@@ -28,35 +28,35 @@ module dkconductance
       conductance%deltaSigmaH = 0.0_rp
 
       !Save old Sigs
-      allocate(SigH0(grid%Np,grid%Nt))
-      allocate(SigP0(grid%Np,grid%Nt))
-      SigP0 = vars%SigmaP
-      SigH0 = vars%SigmaH
-      
+      allocate(SigH0(grid%Nt,grid%Np))
+      allocate(SigP0(grid%Nt,grid%Np))
+      SigP0 = vars%SigmaP%data
+      SigH0 = vars%SigmaH%data
+
       if (conductance%const_sigma) then
          ! Use constant conductance.
-         vars%SigmaP = params%ped0
-         vars%SigmaH = 0.D0
+         vars%SigmaP%data = params%ped0
+         vars%SigmaH%data = 0.D0
       else
          ! Use vector addition of auroral and EUV conductance.
          call conductance_aurora(conductance,grid,vars,params)
 
          if (params%doET) then
             !Add ET enhancement to embiggen auroral conductance
-            allocate(MagE(grid%Np,grid%Nt))
+            allocate(MagE(grid%Nt,grid%Np))
             MagE = 0.0
-            call CalcMagE(grid,vars%Pot,MagE) !Get magnitude of E field [mV/m]
+            call CalcMagE(grid,vars%Pot%data,MagE) !Get magnitude of E field [mV/m]
             !Apply ET in diffuse regions where auroral conductance is above floor
-            where ( (conductance%deltaSigmaP > params%pedmin + TINY) .and. (vars%DeltaE < TINY) )
+            where ( (conductance%deltaSigmaP > params%pedmin + TINY) .and. (vars%DeltaE%data < TINY) )
                conductance%deltaSigmaP = SigET_P(MagE)*conductance%deltaSigmaP
                conductance%deltaSigmaH = SigET_H(MagE)*conductance%deltaSigmaH
             endwhere
             deallocate(MagE)
          endif
 
-         vars%SigmaP = sqrt( conductance%euvSigmaP**2 + conductance%deltaSigmaP**2) 
-         vars%SigmaH = sqrt( conductance%euvSigmaH**2 + conductance%deltaSigmaH**2)
-         
+         vars%SigmaP%data = sqrt( conductance%euvSigmaP**2 + conductance%deltaSigmaP**2)
+         vars%SigmaH%data = sqrt( conductance%euvSigmaH**2 + conductance%deltaSigmaH**2)
+
       endif
 
       !Before applying cap, do optional exponential smoothing
@@ -75,19 +75,19 @@ module dkconductance
          !$OMP private(i,j)
          do j=1,grid%Nt
             do i=1,grid%Np
-               if(vars%SigmaP(i,j) < SigP0(i,j)) then
+               if(vars%SigmaP%data(j,i) < SigP0(j,i)) then
                   !Local conductance dropping
-                  vars%SigmaP(i,j) = wAvgD*vars%SigmaP(i,j) + (1-wAvgD)*SigP0(i,j)
+                  vars%SigmaP%data(j,i) = wAvgD*vars%SigmaP%data(j,i) + (1-wAvgD)*SigP0(j,i)
                else
                   !Local conductance increasing
-                  vars%SigmaP(i,j) = wAvgU*vars%SigmaP(i,j) + (1-wAvgU)*SigP0(i,j)
+                  vars%SigmaP%data(j,i) = wAvgU*vars%SigmaP%data(j,i) + (1-wAvgU)*SigP0(j,i)
                endif
-               if(vars%SigmaH(i,j) < SigH0(i,j)) then
+               if(vars%SigmaH%data(j,i) < SigH0(j,i)) then
                   !Local conductance dropping
-                  vars%SigmaH(i,j) = wAvgD*vars%SigmaH(i,j) + (1-wAvgD)*SigH0(i,j)
+                  vars%SigmaH%data(j,i) = wAvgD*vars%SigmaH%data(j,i) + (1-wAvgD)*SigH0(j,i)
                else
                   !Local conductance increasing
-                  vars%SigmaH(i,j) = wAvgU*vars%SigmaH(i,j) + (1-wAvgU)*SigH0(i,j)
+                  vars%SigmaH%data(j,i) = wAvgU*vars%SigmaH%data(j,i) + (1-wAvgU)*SigH0(j,i)
                endif
             enddo
          enddo
@@ -98,8 +98,8 @@ module dkconductance
 
       ! Apply cap
       if ((params%apply_cap).and.(.not. conductance%const_sigma)) then
-         vars%SigmaP = max(params%pedmin,vars%SigmaP)
-         vars%SigmaH = min(max(params%hallmin,vars%SigmaH),vars%SigmaP*params%sigma_ratio)
+         vars%SigmaP%data = max(params%pedmin,vars%SigmaP%data)
+         vars%SigmaH%data = min(max(params%hallmin,vars%SigmaH%data),vars%SigmaP%data*params%sigma_ratio)
       endif
 
     end subroutine conductance_total
@@ -114,7 +114,7 @@ module dkconductance
       integer :: j_euv
       ! cos(zenith) = x*cos(tilt) + z*sin(tilt); z must be SIGNED cos(theta) on the full sphere
       do j_euv = 1, grid%Nt
-        conductance%coszen(:,j_euv) = grid%x(:,j_euv)*cos(vars%tilt) + &
+        conductance%coszen(j_euv,:) = grid%x(j_euv,:)*cos(vars%tilt) + &
             cos(grid%thc(j_euv))*sin(vars%tilt)
       end do
       conductance%zenith = acos(conductance%coszen)
@@ -163,10 +163,10 @@ module dkconductance
       !$OMP private(i,j,eflux,eavg,dE)
       do j=1,grid%Nt
          do i=1,grid%Np
-            eflux = kev2erg*vars%Avg_Eng(i,j)*vars%Num_Flux(i,j)  ! Energy flux in ergs/cm^2/s
-            eavg  = vars%Avg_Eng(i,j) ! Average energy in keV
-            if (vars%Aur_Type(i,j) == AT_RMono) then
-               dE = vars%DeltaE(i,j) ! Energy width in keV
+            eflux = kev2erg*vars%Avg_Eng%data(j,i)*vars%Num_Flux%data(j,i)  ! Energy flux in ergs/cm^2/s
+            eavg  = vars%Avg_Eng%data(j,i) ! Average energy in keV
+            if (vars%Aur_Type%data(j,i) == AT_RMono) then
+               dE = vars%DeltaE%data(j,i) ! Energy width in keV
             else
                dE = 0.0_rp
             endif
@@ -174,12 +174,12 @@ module dkconductance
             select case ( params%sigma_model_type )
                case (KAE23)
                   ! Kaeppler et al. [2023] model, mono/diffuse specific parameters.
-                  conductance%deltaSigmaP(i,j) = SigmaP_Kaep23(eavg,eflux,dE)
-                  conductance%deltaSigmaH(i,j) = SigmaH_Kaep23(eavg,eflux,dE)
+                  conductance%deltaSigmaP(j,i) = SigmaP_Kaep23(eavg,eflux,dE)
+                  conductance%deltaSigmaH(j,i) = SigmaH_Kaep23(eavg,eflux,dE)
                case (ROB87)
                   ! Robinson formula
-                  conductance%deltaSigmaP(i,j) = SigmaP_Robinson(eavg,eflux)
-                  conductance%deltaSigmaH(i,j) = SigmaH_Robinson(eavg,eflux)
+                  conductance%deltaSigmaP(j,i) = SigmaP_Robinson(eavg,eflux)
+                  conductance%deltaSigmaH(j,i) = SigmaH_Robinson(eavg,eflux)
                case default
                   stop "The SIGMA model type entered is not supported."
             end select

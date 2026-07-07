@@ -21,15 +21,17 @@ module dktypes
     real(rp), dimension(:,:), allocatable :: deltaSigmaP, deltaSigmaH
   end type dkConductance_T
 
+  ! DK variables live natively on the DK shell grid as ShellGridVar_T (theta,phi),
+  ! matching the ShellGridVar convention used by gam2shell/imag2shell staging.
+  ! This removes the transpose at every coupling hop (shellDK, mapDKToMix).
+  ! All %data are cell-centered (SHGR_CC) on the ghost-free DK grid: (1:Nt,1:Np).
   type dkVariables_T
-    real (rp), dimension(:,:),allocatable :: Pot, FAC, SigmaP, SigmaH
-    real (rp), dimension(:,:),allocatable :: Sound_Speed, Density, Avg_Eng, Num_Flux, Aur_Type
-    real (rp), dimension(:,:),allocatable :: Im_Eflux, Im_Gtype, Im_Beta, Im_Eden, Im_Epre
-    real (rp), dimension(:,:),allocatable :: Im_Enflx, DeltaE, Im_Npsp, Z_Eavg, Z_Nflux
+    type(ShellGridVar_T) :: Pot, FAC, SigmaP, SigmaH
+    type(ShellGridVar_T) :: Sound_Speed, Density, Avg_Eng, Num_Flux, Aur_Type
+    type(ShellGridVar_T) :: Im_Eflux, Im_Gtype, Im_Beta, Im_Eden, Im_Epre
+    type(ShellGridVar_T) :: Im_Enflx, DeltaE, Im_Npsp, Z_Eavg, Z_Nflux
 
     real(rp) :: tilt=0.
-
-    ! type(ShellGridVar_T)   :: pot_shGr
   end type dkVariables_T
   
   ! used to store an entire instance of MIX (e.g., one per hemisphere)
