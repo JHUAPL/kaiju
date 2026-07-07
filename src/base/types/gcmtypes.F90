@@ -1,5 +1,6 @@
 module gcmtypes
   use shellGrid
+  use volttypes, only : ionoCoupler_T
 
   
   implicit none
@@ -30,14 +31,74 @@ module gcmtypes
 
   end type gcm_grid_T
 
-  type gcm_T
-      type(gcm_grid_T) :: GEO,APEX
-      logical :: isRestart, isWACCMX = .false.
-      integer :: gcmId, nWACCMX
-      real(rp) :: altmax = 140. !used for apex, setting it randomly for now, km
-      real(rp) :: ionalt
+  ! ================================================================
+  ! gcm_T — Legacy GCM data container (used internally by tgcm.F90)
+  ! ================================================================
+  type :: gcm_T
+      type(gcm_grid_T) :: GEO, APEX
+      logical :: isRestart = .false.
+      logical :: isWACCMX = .false.
+      integer :: gcmId = -1
+      integer :: nWACCMX = 0
+      real(rp) :: altmax = 140.0_rp
+      real(rp) :: ionalt = 0.0_rp
   end type gcm_T
 
+  ! =========================================================
+  ! gcmCoupler_T — GCM coupler (TIEGCM / WACCM-X)
+  ! Extends ionoCoupler_T so it participates in the standard
+  ! Voltron iono cycle and can live in vApp%ionoApp.
+  ! Replaces direct use of gcm_T in the coupling layer.
+  ! =========================================================
+  type, extends(ionoCoupler_T) :: gcmCoupler_T
 
-  
+      ! Grid data for GEO (geographic) and APEX coordinate systems
+      type(gcm_grid_T) :: GEO, APEX
+
+      ! Control/state flags
+      logical :: isRestart = .false.
+      logical :: isWACCMX = .false.
+      integer :: gcmId = -1
+      integer :: nWACCMX = 0
+
+      ! Physical parameters
+      real(rp) :: altmax = 140.0_rp  !! [km] altitude max for APEX
+      real(rp) :: ionalt = 0.0_rp    !! [km] ionosphere altitude
+
+      contains
+
+      procedure :: toIono       => gcmCpl_toIono
+      procedure :: fromIono     => gcmCpl_fromIono
+      procedure :: packInputs   => gcmCpl_packInputs
+      procedure :: InitCouplers => gcmCpl_InitCouplers
+
+      procedure :: InitModel           => gcmCplInitModel
+      procedure :: InitIO              => gcmCplInitIO
+      procedure :: WriteRestart        => gcmCplWriteRestart
+      procedure :: ReadRestart         => gcmCplReadRestart
+      procedure :: WriteConsoleOutput  => gcmCplWriteConsoleOutput
+      procedure :: WriteFileOutput     => gcmCplWriteFileOutput
+      procedure :: WriteSlimFileOutput => gcmCplWriteSlimFileOutput
+      procedure :: AdvanceModel        => gcmCplAdvanceModel
+      procedure :: Cleanup             => gcmCplCleanup
+
+  end type gcmCoupler_T
+
 end module gcmtypes
+
+! ============================================================================
+! gcminterp — Backward-compatible module interface to GCM routines
+! These procedures are now implemented in volttypes submodule (gcmCplTypesSub)
+! This wrapper module provides access for existing code that imports gcminterp.
+! ============================================================================
+module gcminterp
+    use volttypes, only : init_gcm, init_gcm_grid, init_gcm_vars, create_gcm_grid, &
+                         transform_gcm_export, process_gcm_import
+
+    implicit none
+
+    ! Re-export the submodule procedures
+    public :: init_gcm, init_gcm_grid, init_gcm_vars, create_gcm_grid, &
+              transform_gcm_export, process_gcm_import
+
+end module gcminterp

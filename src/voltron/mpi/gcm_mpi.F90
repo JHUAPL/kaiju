@@ -7,41 +7,6 @@ module gcm_mpi
 
 contains
 
-    subroutine init_gcm_mpi(gcm,isRestart)
-      type(gcm_T),intent(inout) :: gcm
-      logical, intent(in) :: isRestart
-
-      write(*,*) "start init_gcm"
-
-      call init_gcm_grid(gcm)
-
-      write(*,*) "done init_gcm_grid"
-
-      if (.not. allocated(gcm%GEO%outlist)) allocate(gcm%GEO%outlist(gcm%GEO%mix2gcm_nvar))
-      if (.not. allocated(gcm%APEX%outlist)) allocate(gcm%APEX%outlist(gcm%APEX%mix2gcm_nvar))
-      
-      if (gcm%isWACCMX) then
-        gcm%APEX%outlist(1) = "POT"
-        gcm%APEX%outlist(2) = "AVG_ENG"
-        gcm%APEX%outlist(3) = "NUM_FLUX"
-      else ! is TIEGCM
-        gcm%APEX%outlist(1) = "POT"
-        gcm%APEX%outlist(2) = "NUM_FLUX"
-        gcm%GEO%outlist(1) = "AVG_ENG"
-        gcm%GEO%outlist(2) = "NUM_FLUX"
-      endif
-
-      if ( .not. allocated(gcm%GEO%inlist)) allocate(gcm%GEO%inlist(gcm%GEO%gcm2mix_nvar))
-      if ( .not. allocated(gcm%APEX%inlist)) allocate(gcm%APEX%inlist(gcm%APEX%gcm2mix_nvar))
-      gcm%APEX%inlist(1) = "SIGMAP"
-      gcm%APEX%inlist(2) = "SIGMAH"
-
-      gcm%isRestart = isRestart
-
-      write(*,*) "done init_gcm_mpi"
-      
-    end subroutine init_gcm_mpi
-
     subroutine init_gcm_mix_mpi(gcm,gcmCplComm,gcmCplRank)
       type(gcm_T), intent(inout) :: gcm
       type(MPI_Comm) :: gcmCplComm

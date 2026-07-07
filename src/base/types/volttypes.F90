@@ -347,33 +347,6 @@ module volttypes
 
     end type remixCoupler_T
 
-    ! =========================================================
-    ! gcmCoupler_T — GCM coupler (TIEGCM / WACCM-X)
-    ! Extends ionoCoupler_T so it participates in the standard
-    ! Voltron iono cycle and can live in vApp%ionoApp.
-    ! Independent of REMIX internals.
-    ! =========================================================
-    type, extends(ionoCoupler_T) :: gcmCoupler_T
-
-        contains
-
-        procedure :: toIono       => gcmCpl_toIono
-        procedure :: fromIono     => gcmCpl_fromIono
-        procedure :: packInputs   => gcmCpl_packInputs
-        procedure :: InitCouplers => gcmCpl_InitCouplers
-
-        procedure :: InitModel           => gcmCplInitModel
-        procedure :: InitIO              => gcmCplInitIO
-        procedure :: WriteRestart        => gcmCplWriteRestart
-        procedure :: ReadRestart         => gcmCplReadRestart
-        procedure :: WriteConsoleOutput  => gcmCplWriteConsoleOutput
-        procedure :: WriteFileOutput     => gcmCplWriteFileOutput
-        procedure :: WriteSlimFileOutput => gcmCplWriteSlimFileOutput
-        procedure :: AdvanceModel        => gcmCplAdvanceModel
-        procedure :: Cleanup             => gcmCplCleanup
-
-    end type gcmCoupler_T
-
     type, extends(gamApp_T) :: gamCoupler_T
 
         ! data for coupling remix to gamera
@@ -1030,6 +1003,35 @@ module volttypes
         class(innerMagBase_T), intent(inout) :: imag
         integer, intent(in) :: nRes
         real(rp), intent(in) :: MJD, time
+    end subroutine
+
+    ! ================================================================
+    ! GCM initialization procedures (implemented in gcmCplTypesSub)
+    ! ================================================================
+    module subroutine init_gcm(gcm, isRestart)
+        type(gcm_T), intent(inout) :: gcm
+        logical, intent(in) :: isRestart
+    end subroutine
+
+    module subroutine init_gcm_grid(gcm)
+        type(gcm_T), intent(inout) :: gcm
+    end subroutine
+
+    module subroutine init_gcm_vars(gcm)
+        type(gcm_T), intent(inout) :: gcm
+    end subroutine
+
+    module subroutine create_gcm_grid(gcm, coord)
+        type(gcm_grid_T), intent(inout) :: gcm
+        character(len=*), intent(in) :: coord
+    end subroutine
+
+    module subroutine transform_gcm_export(gcm)
+        type(gcm_grid_T), intent(inout) :: gcm
+    end subroutine
+
+    module subroutine process_gcm_import(gcm)
+        type(gcm_grid_T), intent(inout) :: gcm
     end subroutine
     
 end module volttypes
