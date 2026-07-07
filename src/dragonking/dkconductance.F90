@@ -2,8 +2,6 @@ module dkconductance
   use dkdefs
   use dktypes
   use planethelper
-  use gcmtypes
-!   use gcminterp
   use math
   use euvhelper
   use auroralhelper
@@ -35,11 +33,7 @@ module dkconductance
       SigP0 = vars%SigmaP
       SigH0 = vars%SigmaH
       
-      if (params%doGCM) then
-         ! Use GCM conductance.
-         vars%SigmaP = max(params%pedmin,vars%SigmaPgcm)
-         vars%SigmaH = max(params%hallmin,vars%SigmaHgcm)
-      else if (conductance%const_sigma) then
+      if (conductance%const_sigma) then
          ! Use constant conductance.
          vars%SigmaP = params%ped0
          vars%SigmaH = 0.D0
@@ -103,7 +97,7 @@ module dkconductance
       deallocate(SigH0)
 
       ! Apply cap
-      if ((params%apply_cap).and.(.not. conductance%const_sigma).and.(.not. params%doGCM)) then
+      if ((params%apply_cap).and.(.not. conductance%const_sigma)) then
          vars%SigmaP = max(params%pedmin,vars%SigmaP)
          vars%SigmaH = min(max(params%hallmin,vars%SigmaH),vars%SigmaP*params%sigma_ratio)
       endif

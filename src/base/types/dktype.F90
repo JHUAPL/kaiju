@@ -22,7 +22,7 @@ module dktypes
   end type dkConductance_T
 
   type dkVariables_T
-    real (rp), dimension(:,:),allocatable :: Pot, FAC, SigmaP, SigmaH, SigmaPgcm, SigmaHgcm
+    real (rp), dimension(:,:),allocatable :: Pot, FAC, SigmaP, SigmaH
     real (rp), dimension(:,:),allocatable :: Sound_Speed, Density, Avg_Eng, Num_Flux, Aur_Type
     real (rp), dimension(:,:),allocatable :: Im_Eflux, Im_Gtype, Im_Beta, Im_Eden, Im_Epre
     real (rp), dimension(:,:),allocatable :: Im_Enflx, DeltaE, Im_Npsp, Z_Eavg, Z_Nflux
@@ -37,7 +37,7 @@ module dktypes
     ! aurora type parameters
     integer  :: aurora_model_type
     real(rp) :: alpha, beta, R, RinMHD, beta_inp, gamma
-    logical  :: doRamp, doChill, doMR, doAuroralSmooth, doGCM
+    logical  :: doRamp, doChill, doMR, doAuroralSmooth
 
     ! conductance type parameters
     integer :: euv_model_type, et_model_type, sigma_model_type

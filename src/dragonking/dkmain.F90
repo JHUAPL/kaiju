@@ -1,6 +1,5 @@
 module dkmain
     use kdefs
-    use gcmtypes
     use dkdefs
     use dktypes
     use dkconductance
@@ -20,11 +19,11 @@ module dkmain
         
         doModel = .true. ! always default to xml input deck unless doModelOpt is present and on
 
-        if (dkApp%params%doGCM) then
-            doModel = .true.
-        else
-            if (dkApp%IO%time<=0) doModel = .false.
-        end if
+        ! DK is GCM-agnostic: it always computes its own precipitation and conductance.
+        ! When GCM coupling is active, GCM conductance overwrites DK's directly in REMIX
+        ! (mapGCMToMix after mapDKToMix), and DK precip (Avg_Eng/Num_Flux) is exported to
+        ! GCM -- so DK needs nothing from GCM and behaves identically here.
+        if (dkApp%IO%time<=0) doModel = .false.
 
         if (doModel) then
             dkApp%conductance%const_sigma = dkApp%params%const_sigma
@@ -38,26 +37,5 @@ module dkmain
         call conductance_total(dkApp%conductance,dkApp%grid,dkApp%vars,dkApp%params)
         call Toc("DK-COND")
     end subroutine DKcompute
-
-    ! subroutine DKdogcm(dkApp, gcm)
-    !     type(dkApp_T), intent(inout) :: dkApp
-    !     type(gcm_T), intent(in) :: gcm
-    !     integer :: h
-
-    !     do h = 1, size(dkApp%vars)
-    !         call apply_gcm2dk(gcm, dkApp%vars(h), h)   ! writes into vars%SigmaP/SigmaH
-    !     end do
-    !     dkApp%params%doGCM = .true.
-
-    ! end subroutine DKdogcm
-
-    ! subroutine apply_gcm2dk(gcm,vars,h)
-    !   type(gcm_T),intent(in) :: gcm
-    !   type(dkVariables_T),intent(inout) :: vars
-    !   integer,intent(in) :: h
-
-    !   vars%SigmaPgcm = gcm%APEX%mixInput(h,1)%var !sigmaP
-    !   vars%SigmaHgcm = gcm%APEX%mixInput(h,2)%var !sigmaH
-    ! end subroutine apply_gcm2dk
 
 end module dkmain

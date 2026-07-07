@@ -181,7 +181,6 @@ module dkinit
       call xmlInp%Set_Val(params%gamma,"precipitation/gamma",5.0/3.0)
       call xmlInp%Set_Val(params%doEMA,"conductance/doEMA",.true.)
       call xmlInp%Set_Val(params%doET,"conductance/doET",.false.)
-      call xmlInp%Set_Val(params%doGCM, "coupling/doGCM",.false.)
 
       params%beta_inp = params%beta
 
@@ -245,8 +244,6 @@ module dkinit
       if (.not. allocated(vars%FAC))         allocate(vars%FAC(Np,Nt))
       if (.not. allocated(vars%SigmaP))      allocate(vars%SigmaP(Np,Nt))
       if (.not. allocated(vars%SigmaH))      allocate(vars%SigmaH(Np,Nt))
-      if (.not. allocated(vars%SigmaPgcm))   allocate(vars%SigmaPgcm(Np,Nt))
-      if (.not. allocated(vars%SigmaHgcm))   allocate(vars%SigmaHgcm(Np,Nt))
       if (.not. allocated(vars%Sound_Speed)) allocate(vars%Sound_Speed(Np,Nt))
       if (.not. allocated(vars%Density))     allocate(vars%Density(Np,Nt))
       if (.not. allocated(vars%Avg_Eng))     allocate(vars%Avg_Eng(Np,Nt))
@@ -266,9 +263,6 @@ module dkinit
 
       vars%SigmaP = 0.0_rp
       vars%SigmaH = 0.0_rp
-
-      vars%SigmaPgcm = 0.0_rp
-      vars%SigmaHgcm = 0.0_rp
 
     end subroutine initDKvars
 
