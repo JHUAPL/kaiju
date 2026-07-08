@@ -288,20 +288,6 @@ module volttypes
 
 
     integer, parameter :: mix2mhd_varn = 1  ! for now just the potential is sent back
-
-    ! =========================================================
-    ! ionoCoupler_T — abstract ionosphere coupler interface
-    ! Mirrors imagCoupler_T / raijuCoupler_T pattern.
-    ! Any ionospheric model (REMIX, SMITE, ...) extends this.
-    ! =========================================================
-
-    type, extends(BaseOptions_T) :: ionoOptions_T
-        type(ShellGrid_T) :: voltGrid
-            !! Copy of Voltron ShellGrid passed during init
-
-        contains
-    end type ionoOptions_T
-
     type, abstract, extends(BaseApp_T) :: ionoCoupler_T
 
         class(ionoOptions_T), allocatable :: opt
@@ -318,7 +304,6 @@ module volttypes
         procedure(initCouplers_T), deferred :: InitCouplers
 
     end type ionoCoupler_T
-
     type, extends(ionoCoupler_T) :: remixCoupler_T
 
         type(mixApp_T) :: mixApp
@@ -346,6 +331,48 @@ module volttypes
         procedure :: Cleanup             => remixCplCleanup
 
     end type remixCoupler_T
+
+    
+    ! =========================================================
+    ! gcmCoupler_T — GCM coupler (TIEGCM / WACCM-X)
+    ! Extends ionoCoupler_T so it participates in the standard
+    ! Voltron iono cycle and can live in vApp%ionoApp.
+    ! =========================================================
+    type, extends(ionoCoupler_T) :: gcmCoupler_T
+
+        ! Grid data for GEO (geographic) and APEX coordinate systems
+        type(gcm_grid_T) :: GEO, APEX
+
+        ! Control/state flags
+        logical :: isRestart = .false.
+        logical :: isWACCMX = .false.
+        integer :: gcmId = -1
+        integer :: nWACCMX = 0
+
+        ! Physical parameters
+        real(rp) :: altmax = 140.0_rp  !! [km] altitude max for APEX
+        real(rp) :: ionalt = 0.0_rp    !! [km] ionosphere altitude
+
+        contains
+
+        procedure :: toIono       => gcmCpl_toIono
+        procedure :: fromIono     => gcmCpl_fromIono
+        procedure :: InitCouplers => gcmCpl_InitCouplers
+        procedure :: Coupling     => gcmCpl_Coupling
+
+        procedure :: packInputs   => gcmCpl_packInputs
+
+        procedure :: InitModel           => gcmCplInitModel
+        procedure :: InitIO              => gcmCplInitIO
+        procedure :: WriteRestart        => gcmCplWriteRestart
+        procedure :: ReadRestart         => gcmCplReadRestart
+        procedure :: WriteConsoleOutput  => gcmCplWriteConsoleOutput
+        procedure :: WriteFileOutput     => gcmCplWriteFileOutput
+        procedure :: WriteSlimFileOutput => gcmCplWriteSlimFileOutput
+        procedure :: AdvanceModel        => gcmCplAdvanceModel
+        procedure :: Cleanup             => gcmCplCleanup
+
+    end type gcmCoupler_T
 
     type, extends(gamApp_T) :: gamCoupler_T
 
@@ -465,7 +492,7 @@ module volttypes
         type(chmp2Mhd_T)  :: chmp2mhd
         type(imag2Mix_T)  :: imag2mix
 
-        type(gcm_T) :: gcm
+        class(gcmCoupler_T), allocatable :: gcm
 
         !class(innerMagBase_T), allocatable :: imagApp
         class(imagCoupler_T), allocatable :: imagApp
@@ -865,6 +892,12 @@ module volttypes
             type(XML_Input_T),   intent(inout) :: xml
         end subroutine
 
+        module subroutine gcmCpl_Coupling(App, vApp)
+            class(gcmCoupler_T), intent(inout) :: App
+            class(voltApp_T),    intent(inout) :: vApp
+            ! No-op for base class
+        end subroutine
+
         module subroutine gcmCplInitModel(App, xml)
             class(gcmCoupler_T), intent(inout) :: App
             type(XML_Input_T),   intent(inout) :: xml
@@ -1005,33 +1038,4 @@ module volttypes
         real(rp), intent(in) :: MJD, time
     end subroutine
 
-    ! ================================================================
-    ! GCM initialization procedures (implemented in gcmCplTypesSub)
-    ! ================================================================
-    module subroutine init_gcm(gcm, isRestart)
-        type(gcm_T), intent(inout) :: gcm
-        logical, intent(in) :: isRestart
-    end subroutine
-
-    module subroutine init_gcm_grid(gcm)
-        type(gcm_T), intent(inout) :: gcm
-    end subroutine
-
-    module subroutine init_gcm_vars(gcm)
-        type(gcm_T), intent(inout) :: gcm
-    end subroutine
-
-    module subroutine create_gcm_grid(gcm, coord)
-        type(gcm_grid_T), intent(inout) :: gcm
-        character(len=*), intent(in) :: coord
-    end subroutine
-
-    module subroutine transform_gcm_export(gcm)
-        type(gcm_grid_T), intent(inout) :: gcm
-    end subroutine
-
-    module subroutine process_gcm_import(gcm)
-        type(gcm_grid_T), intent(inout) :: gcm
-    end subroutine
-    
 end module volttypes

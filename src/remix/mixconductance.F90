@@ -3,8 +3,6 @@ module mixconductance
   use mixdefs
   use mixtypes
   use planethelper
-  use gcmtypes
-  use gcminterp
   use math
   use euvhelper
   use auroralhelper

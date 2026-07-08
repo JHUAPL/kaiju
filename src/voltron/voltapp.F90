@@ -27,7 +27,6 @@ module voltapp
     use kronos
     use voltio
     use msphutils, only : RadIonosphere
-    use gcminterp
     use gcmtypes
     use planethelper
     use shellGrid

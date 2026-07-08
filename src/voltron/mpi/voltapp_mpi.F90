@@ -3,6 +3,7 @@
 
 module voltapp_mpi
     use volttypes_mpi
+    use gcmCouple_mpi
     use gamcouple_mpi_V2G
     use couplingHelpers
     use mpi_f08
@@ -12,7 +13,6 @@ module voltapp_mpi
     use voltapp
     use dkcplhelper, only : shellDK, shellPotToDK    ! volt -> DK coupling hop (modelInterfaces)
     use voltCplHelper, only : genVoltTubesSpinup
-    use gcm_mpi
     use loadBalance
     
     implicit none
@@ -127,21 +127,14 @@ module voltapp_mpi
         call xmlInp%Set_Val(vApp%doSerialMHD,"coupling/doSerial",.false.)
 
         ! now initialize basic voltron structures from gamera data
-        if(vApp%gcmCplRank /= -1) then
-          call init_gcm_mix_mpi(vApp%gcm,vApp%mageCplComm,vApp%gcmCplRank)
+        if(vApp%doGCM) then
+          call vApp%gcm%InitCouplers(vApp, xmlInp)
         endif
         if(present(optFilename)) then
             call initVoltron(vApp, optFilename)
         else
             call initVoltron(vApp)
         endif
-
-        if ( ( vApp%doGCM ) .and. (vApp%gcmCplRank /= -1) ) then
-            write(*,*) "Initializing GCM ..."
-            call init_gcm_mpi(vApp%gcm,vApp%gApp%Model%isRestart)
-            ! Perform one initial coupling for TIEGCM
-            !call coupleGCM2MIX(vApp%gcm,ionoApp%mixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank)
-        end if
 
         if(vApp%useHelpers) then
             if(vApp%doSquishHelp) then
@@ -391,7 +384,8 @@ module voltapp_mpi
         ! GCM coupling (REMIX-specific)
         if (vApp%doGCM .and. vApp%time >=0 .and. vApp%gcmCplRank /= -1) then
             call Tic("GCM2MIX")
-            call coupleGCM2MIX(vApp%gcm,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank, vApp%voltCplRank)
+            call vApp%gcm%toIono(vApp)
+            call vApp%gcm%Coupling(vApp)
             call Toc("GCM2MIX")
         end if
 
@@ -660,6 +654,11 @@ module voltapp_mpi
             write(*,*) "VOLTRON: Coupling to GCM Failed."
             call mpi_Abort(MPI_COMM_WORLD, 1, ierror)
         endif
+
+        if (vApp%doGCM) then
+            allocate(gcmCoupler_mpi_T :: vApp%gcm)
+        endif
+
     end subroutine init_coupling_comms
 
 end module voltapp_mpi
