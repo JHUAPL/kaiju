@@ -474,6 +474,56 @@ module shellInterp
     end subroutine InterpShellVar_TSC_pnt
 
 
+    subroutine InterpShellVar_NN_pnt(sgSource, sgVar, thin, pin, Qinterp, goodInterpO, imap_in)
+        !! Nearest-neighbour sample of sgVar at point (thin,pin)
+        !! fractionalCell location logic mirrors InterpShellVar_TSC_pnt
+        type(ShellGrid_T   ), intent(in) :: sgSource
+        type(ShellGridVar_T), intent(in) :: sgVar
+        real(rp), intent(in)  :: thin, pin
+        real(rp), intent(out) :: Qinterp
+        logical, optional, intent(inout) :: goodInterpO
+        integer, optional, intent(in) :: imap_in
+
+        integer  :: imap, i0_cell, j0_cell, i0, j0
+        real(rp) :: th, ph, t0, p0
+
+        Qinterp = 0.0
+        if (present(goodInterpO)) goodInterpO = .false.
+
+        imap = 0
+        call transform_TP(thin, pin, th, ph, imap)
+        ph = modulo(ph, 2*PI)
+        if ( (th<0.).or.(th>PI) ) then
+            write(*,*) "ERROR in InterpShellVar_NN_pnt: Theta should be in [0,PI]. Quitting..."
+            write(*,*) "theta=", th, " sourceGrid=", trim(sgSource%name)
+            stop
+        end if
+
+        call getSGCellILoc(sgSource, th, i0_cell, t0)
+        if (sgVar%loc == SHGR_CORNER .or. sgVar%loc == SHGR_FACE_THETA) then
+            call iLocCC2Corner(sgSource, th, i0_cell, iLocCornerO=i0, tLocO=t0)
+        else
+            i0 = i0_cell
+        endif
+        call getSGCellJLoc(sgSource, ph, j0_cell, p0)
+        if (sgVar%loc == SHGR_CORNER .or. sgVar%loc == SHGR_FACE_PHI) then
+            call jLocCC2Corner(sgSource, ph, j0_cell, jLocCornerO=j0, pLocO=p0)
+        else
+            j0 = j0_cell
+        endif
+
+        ! Out of the variable's active range -> no data
+        if (i0 > sgVar%iev .or. i0 < sgVar%isv) return
+        if (j0 > sgVar%jev .or. j0 < sgVar%jsv) return
+        ! Respect the source mask (matches TSC's center-cell mask check)
+        if (.not. sgVar%mask(i0,j0)) return
+
+        Qinterp = sgVar%data(i0,j0)
+        if (present(goodInterpO)) goodInterpO = .true.
+
+    end subroutine InterpShellVar_NN_pnt
+
+
     subroutine InterpShellVar_ParentToChild_Corner2CC(srcGrid, srcVar, destGrid, destVar, srcMaskO)
         type(ShellGrid_T   ), intent(in) :: srcGrid
         type(ShellGridVar_T), intent(in) :: srcVar

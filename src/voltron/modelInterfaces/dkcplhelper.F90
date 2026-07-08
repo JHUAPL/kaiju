@@ -3,7 +3,7 @@
 module dkcplhelper
 
     use volttypes
-    use kdefs, only: Mp_cgs          ! #/cc -> mass density for the tubeShell feed
+    use kdefs, only: Mp_cgs, kev2erg ! #/cc -> mass density; erg<->keV
     use gdefs, only: BLK             ! bulk fluid index for tubeShell bcN/bcP
     use planethelper, only: DP2Cs    ! (D,P) -> sound speed
     use shellGrid, only: ShellGrid_T, SHGR_CC, SHGR_CORNER, initShellVar
@@ -80,6 +80,15 @@ module dkcplhelper
             vApp%dkApp%vars%Im_Epre%data  = vApp%imag2shell%Im_Epre%data (sg%is:sg%ie, sg%js:sg%je)
             vApp%dkApp%vars%Im_Npsp%data  = vApp%imag2shell%Im_Npsp%data (sg%is:sg%ie, sg%js:sg%je)
         end associate
+
+        ! Derived IM electron average energy [keV] (0 outside IM coverage)
+        ! eavg = eflux[erg/cm^2/s] / (enflx[#/cm^2/s] * kev2erg)
+        where (vApp%dkApp%vars%Im_Enflx%data > 0.0_rp)
+            vApp%dkApp%vars%Im_Eavg%data = vApp%dkApp%vars%Im_Eflux%data &
+                                         / (vApp%dkApp%vars%Im_Enflx%data * kev2erg)
+        elsewhere
+            vApp%dkApp%vars%Im_Eavg%data = 0.0_rp
+        end where
 
         call vApp%dkApp%AdvanceModel(0.0_rp)
     end subroutine shellDK

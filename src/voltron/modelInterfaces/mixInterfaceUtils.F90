@@ -188,6 +188,41 @@ module mixinterfaceutils
 
     end subroutine mapShellVarToMix
 
+    ! Nearest-neighbour analogue of mapShellVarToMix, for categorical / integer-code fields
+    subroutine mapShellVarToMixNN(srcGrid, srcVar, ion, mixVarID)
+        type(ShellGrid_T),    intent(in)    :: srcGrid
+        type(ShellGridVar_T), intent(in)    :: srcVar
+        type(mixIon_T), dimension(:), intent(inout) :: ion
+        integer,              intent(in)    :: mixVarID
+
+        integer  :: i, j, jM
+        real(rp) :: varOut, thIn, phIn
+        logical  :: isTasty
+
+        ion(NORTH)%St%Vars(:,:,mixVarID) = 0.0_rp
+        ion(SOUTH)%St%Vars(:,:,mixVarID) = 0.0_rp
+
+        associate(GN => ion(NORTH)%G, GS => ion(SOUTH)%G)
+            !$OMP PARALLEL DO default(shared) &
+            !$OMP private(i,j,jM,varOut,isTasty,thIn,phIn)
+            do j = 1, GN%Np
+                do i = 1, GN%Nt
+                    ! North (REMIX cell center), sampled directly on the shell
+                    thIn = GN%t(j,i); phIn = GN%p(j,i)
+                    call InterpShellVar_NN_pnt(srcGrid, srcVar, thIn, phIn, varOut, goodInterpO=isTasty)
+                    if (isTasty) ion(NORTH)%St%Vars(j,i,mixVarID) = varOut
+
+                    ! South, reflect theta about the equator
+                    jM = GS%Np + 1 - j
+                    thIn = PI - GS%t(jM,i); phIn = GS%p(jM,i)
+                    call InterpShellVar_NN_pnt(srcGrid, srcVar, thIn, phIn, varOut, goodInterpO=isTasty)
+                    if (isTasty) ion(SOUTH)%St%Vars(j,i,mixVarID) = varOut
+                end do
+            end do
+        end associate
+
+    end subroutine mapShellVarToMixNN
+
     subroutine superSampleShellToMix(srcGrid, srcVar, G, i, j, nPnts, varOut, isTasty, doSouthO)
         type(ShellGrid_T), intent(in) :: srcGrid
         type(ShellGridVar_T), intent(in) :: srcVar

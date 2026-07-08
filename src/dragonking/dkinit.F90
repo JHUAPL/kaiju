@@ -274,6 +274,7 @@ module dkinit
       call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Enflx)
       call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%DeltaE)
       call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Npsp)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Eavg)
 
       vars%Aur_Type%data = AT_NoPre
 

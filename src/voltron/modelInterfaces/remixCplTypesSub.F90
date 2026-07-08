@@ -16,7 +16,7 @@ submodule (volttypes) remixCplTypesSub
     ! DK is now computed on the shell (shellDK in voltapp); the coupler only MAPS the
     ! full-sphere DK conductance to REMIX via mapDKToMix -> voltVarToMix (no dkmain/dkinit here).
     use planethelper, only: DP2Cs                          ! (D,P) -> sound speed for tubeShell forward feed
-    use kdefs,        only: Mp_cgs, TINY                    ! #/cc -> mass density conversion
+    use kdefs,        only: Mp_cgs, TINY, PI                ! #/cc -> mass density conversion; PI for conjugate geometry
     use gdefs,        only: BLK                             ! bulk fluid index for tubeShell bcN/bcP
 
     implicit none
@@ -114,9 +114,10 @@ submodule (volttypes) remixCplTypesSub
         call MJDRecalc(vApp%MJD)
 
         ! IMAG precipitation → REMIX (only after spinup, only when deep)
-        if (vApp%doDeep .and. (vApp%time > 0)) then
-            call CoupleIMagToMix(vApp, App%mixApp)
-        endif
+        ! Legacy imag2mix path -- superseded by mapDKToMix + mapNonDKToMix
+        !if (vApp%doDeep .and. (vApp%time > 0)) then
+        !    call CoupleIMagToMix(vApp, App%mixApp)
+        !endif
 
         ! voltron ShellGrid -> REMIX hemisphere grids
         call App%packInputs(vApp)
@@ -128,6 +129,8 @@ submodule (volttypes) remixCplTypesSub
 
         ! DK conductance/precip (computed on the shell by shellDK) -> both REMIX hemispheres
         call mapDKToMix(vApp%shGrid, vApp%dkApp%vars, App%mixApp)
+        ! Non-DK IM fields -> REMIX.
+        if (vApp%doDeep .and. (vApp%time > 0)) call mapNonDKToMix(vApp, App%mixApp)
 
         ! DK is always applied first. If enabled, imported GCM conductance then overwrites
         ! REMIX SIGMAP/SIGMAH in state space.
@@ -317,10 +320,27 @@ submodule (volttypes) remixCplTypesSub
         is_ = voltGrid%is; ie_ = voltGrid%ie
         js_ = voltGrid%js; je_ = voltGrid%je
 
+        ! Fields needed for the REMIX potential solve
         call mapOneDK(dkVars%SigmaP%data,   SIGMAP)
         call mapOneDK(dkVars%SigmaH%data,   SIGMAH)
         call mapOneDK(dkVars%Avg_Eng%data,  AVG_ENG)
         call mapOneDK(dkVars%Num_Flux%data, NUM_FLUX)
+
+        ! DK computed / IM-fed continuous fields (TSC supersample)
+        call mapOneDK(dkVars%DeltaE%data,   DELTAE)    ! mono potential drop
+        call mapOneDK(dkVars%Z_Eavg%data,   Z_EAVG)    ! MHD average energy
+        call mapOneDK(dkVars%Z_Nflux%data,  Z_NFLUX)   ! MHD number flux
+        call mapOneDK(dkVars%Im_Beta%data,  IM_BETA)   ! IM beta
+        call mapOneDK(dkVars%Im_Eden%data,  IM_EDEN)   ! IM electron density
+        call mapOneDK(dkVars%Im_Epre%data,  IM_EPRE)   ! IM electron pressure
+        call mapOneDK(dkVars%Im_Enflx%data, IM_ENFLX)  ! IM number flux e-
+        call mapOneDK(dkVars%Im_Eflux%data, IM_EFLUX)  ! IM energy flux e-
+        call mapOneDK(dkVars%Im_Npsp%data,  IM_NPSP)   ! plasmasphere density
+        call mapOneDK(dkVars%Im_Eavg%data,  IM_EAVG)   ! IM avg energy (derived in shellDK)
+        call mapOneDK(dkVars%Im_Gtype%data, IM_GTYPE)  ! IM grid-type weight [0,1]
+
+        ! CATEGORICAL field -- AUR_TYPE
+        call mapOneDKcat(dkVars%Aur_Type%data, AUR_TYPE)
 
     contains
 
@@ -339,7 +359,73 @@ submodule (volttypes) remixCplTypesSub
             call mapShellVarToMix(voltGrid, sgv, mixApp%ion, mixID)
         end subroutine mapOneDK
 
+        ! Categorical (nearest-neighbour) interpolation for integer fields 
+        subroutine mapOneDKcat(dkField, mixID)
+            real(rp), dimension(:,:), intent(in) :: dkField
+            integer,                  intent(in) :: mixID
+            integer :: i, j
+            call initShellVar(voltGrid, SHGR_CC, sgv)
+            do i = is_, ie_
+                do j = js_, je_
+                    sgv%data(i,j) = dkField(i - is_ + 1, j - js_ + 1)
+                enddo
+            enddo
+            call wrapJ_SGV(voltGrid, sgv)
+            sgv%mask = .true.
+            call mapShellVarToMixNN(voltGrid, sgv, mixApp%ion, mixID)  ! nearest, no averaging
+        end subroutine mapOneDKcat
+
     end subroutine mapDKToMix
+
+    subroutine mapNonDKToMix(vApp, mixApp)
+        class(voltApp_T), intent(inout) :: vApp
+        class(mixApp_T),  intent(inout) :: mixApp
+
+        type(ShellGridVar_T) :: sinLon, cosLon
+        integer  :: i, j, jM
+        real(rp) :: x1, x2, latc_v, lonc_v, s, c
+
+        ! Protons: bypassed (no DK / no RAIJU ion source) -> deterministic zero.
+        mixApp%ion(NORTH)%St%Vars(:,:,IM_IFLUX) = 0.0_rp
+        mixApp%ion(NORTH)%St%Vars(:,:,IM_IAVG ) = 0.0_rp
+        mixApp%ion(NORTH)%St%Vars(:,:,IM_INFLX) = 0.0_rp
+        mixApp%ion(SOUTH)%St%Vars(:,:,IM_IFLUX) = 0.0_rp
+        mixApp%ion(SOUTH)%St%Vars(:,:,IM_IAVG ) = 0.0_rp
+        mixApp%ion(SOUTH)%St%Vars(:,:,IM_INFLX) = 0.0_rp
+
+        ! Conjugate geometry from RAIJU/tube mapping. Interpolate lon via sin/cos (wrap-safe).
+        sinLon = vApp%State%tubeShell%lonc; sinLon%data = sin(vApp%State%tubeShell%lonc%data)
+        cosLon = vApp%State%tubeShell%lonc; cosLon%data = cos(vApp%State%tubeShell%lonc%data)
+
+        associate(GN => mixApp%ion(NORTH)%G, GS => mixApp%ion(SOUTH)%G, &
+                  ion => mixApp%ion, sh => vApp%shGrid, ts => vApp%State%tubeShell)
+            !$OMP PARALLEL DO default(shared) &
+            !$OMP private(i,j,jM,x1,x2,latc_v,lonc_v,s,c)
+            do j = 1, GN%Np
+                do i = 1, GN%Nt
+                    ! NH REMIX cell center
+                    x1 = GN%t(j,i); x2 = GN%p(j,i)
+                    call InterpShellVar_TSC_pnt(sh, ts%latc, x1, x2, latc_v)
+                    call InterpShellVar_TSC_pnt(sh, sinLon,  x1, x2, s)
+                    call InterpShellVar_TSC_pnt(sh, cosLon,  x1, x2, c)
+                    lonc_v = atan2(s, c); if (lonc_v < 0.0_rp) lonc_v = lonc_v + 2.0_rp*PI
+                    ion(NORTH)%St%Vars(j,i,IM_THCON) = PI/2.0_rp - latc_v  ! conjugate colat [0,pi]
+                    ion(NORTH)%St%Vars(j,i,IM_PHCON) = lonc_v              ! conjugate lon   [0,2pi]
+
+                    ! SH REMIX cell center (reflect theta about the equator)
+                    jM = GS%Np + 1 - j
+                    x1 = PI - GS%t(jM,i); x2 = GS%p(jM,i)
+                    call InterpShellVar_TSC_pnt(sh, ts%latc, x1, x2, latc_v)
+                    call InterpShellVar_TSC_pnt(sh, sinLon,  x1, x2, s)
+                    call InterpShellVar_TSC_pnt(sh, cosLon,  x1, x2, c)
+                    lonc_v = atan2(s, c); if (lonc_v < 0.0_rp) lonc_v = lonc_v + 2.0_rp*PI
+                    ion(SOUTH)%St%Vars(j,i,IM_THCON) = PI/2.0_rp - latc_v
+                    ion(SOUTH)%St%Vars(j,i,IM_PHCON) = lonc_v
+                end do
+            end do
+        end associate
+
+    end subroutine mapNonDKToMix
 
     ! Imported GCM conductance overwrite in REMIX state space.
     ! Uses each GCM  shell-grid as source and maps into both REMIX hemispheres.

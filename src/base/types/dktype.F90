@@ -30,6 +30,7 @@ module dktypes
     type(ShellGridVar_T) :: Sound_Speed, Density, Avg_Eng, Num_Flux, Aur_Type
     type(ShellGridVar_T) :: Im_Eflux, Im_Gtype, Im_Beta, Im_Eden, Im_Epre
     type(ShellGridVar_T) :: Im_Enflx, DeltaE, Im_Npsp, Z_Eavg, Z_Nflux
+    type(ShellGridVar_T) :: Im_Eavg
 
     real(rp) :: tilt=0.
   end type dkVariables_T
