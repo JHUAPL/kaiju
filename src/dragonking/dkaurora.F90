@@ -439,7 +439,7 @@ module dkaurora
           ! SmoothOperator55(Q,isGO)
           vars%Num_Flux%data(j,i)=SmoothOperator55(tmpF(j:j+4,i:i+4))
           if(smthE==1) then
-            vars%Avg_Eng%data(j,i) = max(SmoothOperator55(tmpE(j:j+4,i:i+4))/vars%Num_Flux%data(j,i),1.D-8)
+            vars%Avg_Eng%data(j,i) = max(SmoothOperator55(tmpE(j:j+4,i:i+4))/max(vars%Num_Flux%data(j,i), eTINY),1.D-8)
           else
             vars%Avg_Eng%data(j,i) = max(SmoothOperator55(tmpE(j:j+4,i:i+4)),1.D-8)
           end if
@@ -625,11 +625,11 @@ module dkaurora
       real(rp),dimension(grid%Nt,grid%Np), intent(in) :: array
       real(rp),dimension(grid%Nt+4,grid%Np+4), intent(out) :: arraymar
       arraymar(3:grid%Nt+2,3:grid%Np+2) = array
-      ! reflective BC for lat (theta, dim1)
-      arraymar(1,3:grid%Np+2) = array(3,:)
-      arraymar(2,3:grid%Np+2) = array(2,:)
-      arraymar(grid%Nt+3,3:grid%Np+2) = array(grid%Nt-1,:)
-      arraymar(grid%Nt+4,3:grid%Np+2) = array(grid%Nt-2,:)
+      ! Cross-pole lat BC: neighbor is the near-pole cell at antipodal lon
+      arraymar(2,3:grid%Np+2)         = cshift(array(1,:),         grid%Np/2)
+      arraymar(1,3:grid%Np+2)         = cshift(array(2,:),         grid%Np/2)
+      arraymar(grid%Nt+3,3:grid%Np+2) = cshift(array(grid%Nt,:),   grid%Np/2)
+      arraymar(grid%Nt+4,3:grid%Np+2) = cshift(array(grid%Nt-1,:), grid%Np/2)
       ! periodic BC for lon (phi, dim2)
       arraymar(:,1:2) = arraymar(:,grid%Np+1:grid%Np+2)
       arraymar(:,grid%Np+3:grid%Np+4) = arraymar(:,3:4)

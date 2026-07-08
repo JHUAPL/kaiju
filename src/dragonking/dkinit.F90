@@ -42,8 +42,6 @@ module dkinit
       ! Cold-start for the conductance EMA: begin from the const_sigma reference
       dkApp%vars%SigmaP%data = dkApp%params%ped0
       dkApp%vars%SigmaH%data = 0.0_rp
-
-      dkApp%params%R = dkApp%grid%radius
       dkApp%aurora%alpha_RCM = 1.0/(def_tiote+1.0)
       dkApp%aurora%beta_RCM = dkApp%params%beta
       dkApp%aurora%gtype_RCM = 0.0
@@ -107,8 +105,10 @@ module dkinit
       character(len=strLen) :: tmpStr
       logical :: doSuicide
       type(XML_Input_T) :: xmlInp
-      
+      real(rp) :: rDef
+
       doSuicide = .false.
+      rDef = 0.0_rp
 
       ! Make sure root is Kaiju/Remix
       call inpXML%GetFileStr(tmpStr)
@@ -167,6 +167,10 @@ module dkinit
       call xmlInp%Set_Val(params%alpha,"precipitation/alpha",1.0332467_rp)
       call xmlInp%Set_Val(params%beta,"precipitation/beta",0.4362323_rp)
 
+      rDef = params%R
+      if (rDef <= 0.0_rp) rDef = 0.083567956_rp
+      call xmlInp%Set_Val(params%R,"precipitation/R",rDef)
+
       call xmlInp%Set_Val(params%doAuroralSmooth,"precipitation/doAuroralSmooth",.false.)        
       call xmlInp%Set_Val(params%F107,"conductance/F107",120._rp)
       call xmlInp%Set_Val(params%pedmin,"conductance/pedmin",2.0_rp)
@@ -210,6 +214,16 @@ module dkinit
       if (doSuicide) stop
 
     end subroutine initDKparams
+
+    ! Resolution-dependent Fedder current-voltage "R" (precipitation/R)
+    pure function fedderR0default(Nk) result(R0)
+      integer, intent(in) :: Nk
+      real(rp) :: R0
+      if      (Nk <=  64) then; R0 = 0.08_rp   ! DBL
+      else if (Nk <= 128) then; R0 = 0.04_rp   ! QUAD
+      else                    ; R0 = 0.02_rp   ! OCT / HEX+
+      end if
+    end function fedderR0default
 
     subroutine initDKvars(aurora,conductance,vars,grid)
       type(dkAurora_T) , intent(inout) :: aurora

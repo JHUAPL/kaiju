@@ -430,8 +430,9 @@ module voltapp
 
         !DragonKing-on-shell: DK grid from the voltron shell, then model init
         call initDKgrid(vApp%dkApp, vApp%shGrid)
+        ! Fedder R default from the Gamera resolution
+        vApp%dkApp%params%R = fedderR0default(gApp%Grid%Nkp)
         call vApp%dkApp%InitModel(xmlInp)
-        ! DK IO: cache <RunID>.dk.h5, seed the EMA on restart, write grid to root
         call vApp%dkApp%InitIO(xmlInp)
         call init_imag2shell(vApp%imag2shell, vApp%shGrid)   ! IMAG precip staging on the shell
         call initShellVar(vApp%shGrid, SHGR_CORNER, vApp%pot_iono)   ! solved potential for DK doET
