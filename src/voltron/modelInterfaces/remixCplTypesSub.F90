@@ -430,7 +430,7 @@ submodule (volttypes) remixCplTypesSub
     ! Imported GCM conductance overwrite in REMIX state space.
     ! Uses each GCM  shell-grid as source and maps into both REMIX hemispheres.
     subroutine mapGCMToMix(gcm, mixApp)
-        type(gcm_T),    intent(inout) :: gcm
+        class(gcmCoupler_T),    intent(inout) :: gcm
         class(mixApp_T),intent(inout) :: mixApp
 
         if (gcm%GEO%gcm2mix_nvar > 0) call mapOneGCMGridToMix(gcm%GEO, mixApp)

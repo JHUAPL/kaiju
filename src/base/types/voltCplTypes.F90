@@ -6,6 +6,7 @@ module voltCplTypes
     use kdefs
     use shellGrid
     use ebtypes
+    use basetypes
     use raijudefs, ONLY : def_tiote
 
     implicit none
@@ -139,5 +140,19 @@ module voltCplTypes
         real(rp) :: losscone,rCurv,wIMAG,TioTe0=4.0_rp
         real(rp) :: Veb  ! [km/s]
     end type IMAGTube_T
+
+
+    ! =========================================================
+    ! ionoCoupler_T — abstract ionosphere coupler interface
+    ! Mirrors imagCoupler_T / raijuCoupler_T pattern.
+    ! Any ionospheric model (REMIX, SMITE, ...) extends this.
+    ! =========================================================
+
+    type, extends(BaseOptions_T) :: ionoOptions_T
+        type(ShellGrid_T) :: voltGrid
+            !! Copy of Voltron ShellGrid passed during init
+
+        contains
+    end type ionoOptions_T
 
 end module voltCplTypes
