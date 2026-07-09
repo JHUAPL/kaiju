@@ -516,6 +516,7 @@ submodule (volttypes) raijuCplTypesSub
         integer  :: it, ip
         real(rp) :: th, ph
         real(rp) :: lat_conj, ph_conj
+        real(rp) :: s, c
         real(rp) :: imP(nVars_imag2mix)
         logical  :: isTasty
 
