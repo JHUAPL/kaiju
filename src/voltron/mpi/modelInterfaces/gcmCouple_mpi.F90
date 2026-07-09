@@ -55,10 +55,6 @@ contains
         class(voltApp_T),     intent(inout) :: vApp
         type(XML_Input_T),       intent(inout) :: xml
 
-        call init_gcm_mix_mpi(App)
-
-        call init_gcm(App,vApp%gApp%Model%isRestart)
-
         ! Type guard to access MPI-specific members
         select type(vApp)
         type is (voltAppMpi_T)
@@ -69,6 +65,10 @@ contains
             ! Non-MPI call or error handling
             write(*,*) "ERROR: gcmCpl_InitCouplers_mpi requires voltAppMpi_T"
         end select
+
+        call init_gcm_mix_mpi(App)
+
+        call init_gcm(App,vApp%gApp%Model%isRestart)
 
     end subroutine gcmCpl_InitCouplers_mpi
 

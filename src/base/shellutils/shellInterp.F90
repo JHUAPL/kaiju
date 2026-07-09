@@ -232,7 +232,7 @@ module shellInterp
         if (present(goodInterpO)) goodInterpO = .false.
 
         imap = 0
-        !if (present(imap_in)) imap = imap_in
+        if (present(imap_in)) imap = imap_in
 
         ! Defaults to doing nothing if imap_in not present
         call transform_TP(thin,pin,th,ph,imap)
