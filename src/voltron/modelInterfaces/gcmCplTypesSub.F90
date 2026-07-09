@@ -1,6 +1,5 @@
 submodule (volttypes) gcmCplTypesSub
     use shellInterp
-    use shellutils, only: wrapJ_SGV
     use mixdefs, only : NUM_FLUX, AVG_ENG
     use math
     use ioh5
@@ -110,10 +109,7 @@ contains
         type(dkVariables_T),intent(in)    :: dkVars
         class(gcmCoupler_T),        intent(inout) :: gcm
 
-        integer :: v, is_, ie_, js_, je_
-
-        is_ = shGrid%is; ie_ = shGrid%ie
-        js_ = shGrid%js; je_ = shGrid%je
+        integer :: v
 
         if (gcm%GEO%mix2gcm_nvar > 0) then
             do v = 1, gcm%GEO%mix2gcm_nvar
@@ -133,32 +129,16 @@ contains
             character(len=*),     intent(in)    :: varName
             type(ShellGrid_T),    intent(in)    :: dstGrid
             type(ShellGridVar_T), intent(inout) :: dst
-            type(ShellGridVar_T) :: dkVarSGV
-            integer :: i, j
 
+            ! DK vars are now ShellGridVar_T on the shell grid (mask defaults .true., phi wrap
+            ! handled inside the interp), so they map directly -- no repack, same as POT.
             select case (varName)
             case ("POT")
-                call InterpShellVar_TSC_SG(shGrid, State%potential_total,   dstGrid, dst)
+                call InterpShellVar_TSC_SG(shGrid, State%potential_total, dstGrid, dst)
             case ("NUM_FLUX")
-                call initShellVar(shGrid, SHGR_CC, dkVarSGV)
-                do i = is_, ie_
-                    do j = js_, je_
-                        dkVarSGV%data(i,j) = dkVars%Num_Flux(j - js_ + 1, i - is_ + 1)
-                    end do
-                end do
-                call wrapJ_SGV(shGrid, dkVarSGV)
-                dkVarSGV%mask = .true.
-                call InterpShellVar_TSC_SG(shGrid, dkVarSGV, dstGrid, dst)
+                call InterpShellVar_TSC_SG(shGrid, dkVars%Num_Flux, dstGrid, dst)
             case ("AVG_ENG")
-                call initShellVar(shGrid, SHGR_CC, dkVarSGV)
-                do i = is_, ie_
-                    do j = js_, je_
-                        dkVarSGV%data(i,j) = dkVars%Avg_Eng(j - js_ + 1, i - is_ + 1)
-                    end do
-                end do
-                call wrapJ_SGV(shGrid, dkVarSGV)
-                dkVarSGV%mask = .true.
-                call InterpShellVar_TSC_SG(shGrid, dkVarSGV, dstGrid, dst)
+                call InterpShellVar_TSC_SG(shGrid, dkVars%Avg_Eng, dstGrid, dst)
             case default
                 dst%data = 0._rp
                 write(*,*) "GCMCPL WARNING: Unknown outlist variable: ", varName
