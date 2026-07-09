@@ -174,7 +174,7 @@ module shellUtils
             dJ = (p - shGr%ph(shGr%js))/deltap
             jLoc = floor(dJ) + shGr%js
         else
-            jLoc = shGr%jsg
+            jLoc = shGr%js
             do while (p > shGr%ph(jLoc+1))
                 jLoc = jLoc + 1
             enddo
