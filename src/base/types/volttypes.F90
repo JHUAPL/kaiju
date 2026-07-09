@@ -350,7 +350,6 @@ module volttypes
         integer :: nWACCMX = 0
 
         ! Physical parameters
-        real(rp) :: altmax = 140.0_rp  !! [km] altitude max for APEX
         real(rp) :: ionalt = 0.0_rp    !! [km] ionosphere altitude
 
         contains

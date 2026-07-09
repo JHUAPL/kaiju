@@ -420,7 +420,7 @@ module voltapp
         endif
 
         ! Setting apex reference altitude
-        call init_apex(vApp%MJD,vApp%gcm%altmax)
+        call init_apex(vApp%MJD,altmax)
         ! Initialize geopack
         call MJDRecalc(vApp%MJD)
 

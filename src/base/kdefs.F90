@@ -67,6 +67,8 @@ module kdefs
     real(rp), parameter :: REarth = Re_cgs*1.0D-2 !m
 
     real(rp), parameter :: RionE  = 6.5_rp    ! Earth Ionosphere radius in 1000 km
+
+    real(rp), parameter :: altmax = 140.0_rp  !! [km] altitude max for APEX
     ! Earth corotation potential
     !real(rp), parameter :: EarthPsi0 = 92.4 ! !!OUTDATED, based on LFM magntic field strength
     !real(rp), parameter :: EarthPsi0 = 87.62  ! Calculated using B = 0.2961737 Gauss
