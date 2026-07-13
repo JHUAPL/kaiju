@@ -441,6 +441,8 @@ module volttypes
             !! (Corners) [kV] Ionospheric ExB and corotation potential
         type(ShellGridVar_T) :: potential_corot
             !! (Corners) [kV] Corotation potential
+        type(ShellGridVar_T) :: potential_base
+            !! (Corners) [kV] Original potential without corotation
         type(ShellGridVar_T) :: pot_drop
             !! (Corners) [kV] potential drop along field line
 

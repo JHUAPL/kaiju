@@ -355,7 +355,7 @@ submodule (volttypes) remixCplTypesSub
         type(gcm_grid_T), intent(inout) :: gcmGrid
         class(mixApp_T),  intent(inout) :: mixApp
 
-        integer :: v, i, mixVar
+        integer :: v, h, mixVar
 
         if (gcmGrid%gcm2mix_nvar == 0) return
 
@@ -372,6 +372,16 @@ submodule (volttypes) remixCplTypesSub
             end select
 
             call mapShellVarToMix(gcmGrid%grid, gcmGrid%gcmInput(v), mixApp%ion, mixVar)
+            do h = NORTH, SOUTH
+                select case (mixVar)
+                case (SIGMAP)
+                    mixApp%ion(h)%St%Vars(:,:,SIGMAP) = max(mixApp%ion(h)%P%pedmin, &
+                                                             mixApp%ion(h)%St%Vars(:,:,SIGMAP))
+                case (SIGMAH)
+                    mixApp%ion(h)%St%Vars(:,:,SIGMAH) = max(mixApp%ion(h)%P%hallmin, &
+                                                             mixApp%ion(h)%St%Vars(:,:,SIGMAH))
+                end select
+            enddo
             write(*,*) "Mapped GCM variable ", trim(gcmGrid%inlist(v)), " to REMIX variable ", mixVar
         end do
 

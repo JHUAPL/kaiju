@@ -21,6 +21,7 @@ module voltappHelper
             call init_TubeShell(sh, State%tubeShell)
             call initShellVar(sh, SHGR_CORNER, State%potential_total)
             call initShellVar(sh, SHGR_CORNER, State%potential_corot)
+            call initShellVar(sh, SHGR_CORNER, State%potential_base)
             call initShellVar(sh, SHGR_CORNER, State%pot_drop)
 
             call initShellVar(sh, SHGR_CC, State%bIonoMag)

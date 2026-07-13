@@ -246,6 +246,7 @@ module voltio
         ! State object
         call AddOutSGV(IOVars, "potential_total", vApp%State%potential_total, doWriteMaskO=.true.)
         call AddOutSGV(IOVars, "potential_corot", vApp%State%potential_corot, doWriteMaskO=.true.)
+        call AddOutSGV(IOVars, "potential_base", vApp%State%potential_base, doWriteMaskO=.true.)
         call AddOutSGV(IOVars, "bIonoMag", vApp%State%bIonoMag, doWriteMaskO=.true.)
         call AddOutSGV(IOVars, "bIonoRad", vApp%State%bIonoRad, doWriteMaskO=.true.)
 
@@ -328,6 +329,7 @@ module voltio
 
         call ReadInSGV(vApp%State%potential_total, ResF, "potential_total", doIOpO=.false.)
         call ReadInSGV(vApp%State%potential_corot, ResF, "potential_corot", doIOpO=.false.)
+        call ReadInSGV(vApp%State%potential_base, ResF, "potential_base", doIOpO=.false.)
         call ReadInSGV(vApp%State%bIonoMag, ResF, "bIonoMag", doIOpO=.false.)
         call ReadInSGV(vApp%State%bIonoRad, ResF, "bIonoRad", doIOpO=.false.)
 
@@ -459,7 +461,9 @@ module voltio
         call AddOutSGV(IOVars, "Potential_corot", vApp%State%potential_corot, &
                         uStr="kV", dStr="Corotation potential", &
                         outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        
+        call AddOutSGV(IOVars, "Potential_base", vApp%State%potential_base, &
+                        uStr="kV", dStr="Original potential without corotation", &
+                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
         call WriteVars(IOVars,.true.,vh5File,gStr)
 
         write(gStr,'(A,A)') trim(gStr), "/TubeShell"

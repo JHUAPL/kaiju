@@ -614,6 +614,7 @@ module voltapp_mpi
             if (vApp%gcmNumRanks .ne. 0) then
                 write(*,*) "V coupling to ", vApp%gcmNumRanks," ranks of T"
                 vApp%doGCM = .true.
+                allocate(gcmCoupler_mpi_T :: vApp%gcm)
             endif
 
             ! === WACCM-X ===
@@ -623,6 +624,7 @@ module voltapp_mpi
                 if (vApp%gcmNumRanks .ne. 0) then
                     write(*,*) "V coupling to ", vApp%gcmNumRanks," ranks of W"
                     vApp%doGCM = .true.
+                    allocate(gcmCoupler_mpi_T :: vApp%gcm)
                     vApp%gcm%isWACCMX = .true.
                     vApp%gcm%nWACCMX = vApp%gcmNumRanks
                 endif
@@ -653,10 +655,6 @@ module voltapp_mpi
         if (vApp%CplSize == 1 .and. vApp%doGCM) then
             write(*,*) "VOLTRON: Coupling to GCM Failed."
             call mpi_Abort(MPI_COMM_WORLD, 1, ierror)
-        endif
-
-        if (vApp%doGCM) then
-            allocate(gcmCoupler_mpi_T :: vApp%gcm)
         endif
 
     end subroutine init_coupling_comms
