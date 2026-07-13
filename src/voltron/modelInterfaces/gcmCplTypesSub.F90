@@ -138,7 +138,7 @@ contains
 
             select case (varName)
             case ("POT")
-                call InterpShellVar_TSC_SG(shGrid, State%potential_total,   dstGrid, dst)
+                call InterpShellVar_TSC_SG(shGrid, State%potential_base,   dstGrid, dst)
             case ("NUM_FLUX")
                 call initShellVar(shGrid, SHGR_CC, dkVarSGV)
                 do i = is_, ie_
