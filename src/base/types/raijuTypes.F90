@@ -539,7 +539,7 @@ module raijutypes
         type(ShellGridVar_T), dimension(:), allocatable :: Press_avg
             !! (Ngi, Ngj, Nspc+1) Pressure, evaluated using etas averaged over time State%dt [nPa]
         type(ShellGridVar_T) :: Tb
-            !! (Ngi, Ngj) [s] Bounce timescale (Alfven crossing time)
+            !! (Ngi+1, Ngj+1) [s] Bounce timescale (Alfven crossing time)
         
 
 

@@ -134,7 +134,7 @@ contains
             ! handled inside the interp), so they map directly -- no repack, same as POT.
             select case (varName)
             case ("POT")
-                call InterpShellVar_TSC_SG(shGrid, State%potential_total, dstGrid, dst)
+                call InterpShellVar_TSC_SG(shGrid, State%potential_base,   dstGrid, dst)
             case ("NUM_FLUX")
                 call InterpShellVar_TSC_SG(shGrid, dkVars%Num_Flux, dstGrid, dst)
             case ("AVG_ENG")

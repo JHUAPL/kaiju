@@ -249,7 +249,7 @@ module volttypes
         type(ShellGridVar_T) :: bvol_cc
             !! (Ngi, Ngj) [Rp/nT] Flux-tube volume averaged from corners
         type(ShellGridVar_T) :: rCurv
-            !! (Ngi, Ngj) [Rp] Curvature radius
+            !! (Ngi+1, Ngj+1) [Rp] Curvature radius
         type(ShellGridVar_T) :: vaFrac
             !! (Ngi+1, Ngj+1) Fraction of total velocity coming from Alfven speed
             !! Used to limit active region to tubes that can reasonably be treated as averaged and slowly-evolving
@@ -441,6 +441,8 @@ module volttypes
             !! (Corners) [kV] Ionospheric ExB and corotation potential
         type(ShellGridVar_T) :: potential_corot
             !! (Corners) [kV] Corotation potential
+        type(ShellGridVar_T) :: potential_base
+            !! (Corners) [kV] Original potential without corotation
         type(ShellGridVar_T) :: pot_drop
             !! (Corners) [kV] potential drop along field line
 

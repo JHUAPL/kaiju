@@ -32,6 +32,8 @@ module mix2shell_interface
         call mixVarToVoltron(mixApp, POT, vApp%shGrid, iono_var)
 
         ! Total = electrostatic + corotation.
+        vApp%State%potential_base%data = iono_var%data
+        vApp%State%potential_base%mask = .true.
         vApp%State%potential_total%data = iono_var%data + vApp%State%potential_corot%data
         vApp%State%potential_total%mask = .true.
     end subroutine mapMixToShell
