@@ -67,13 +67,14 @@ module cmiutils
         !$OMP PARALLEL DO default(shared)
         do i=1,PsiSh+1
             !Correct for pole
+            !K/NOTE: Not killing Ek b/c small value properly cancels js+1,Ek in CT
             if (Model%Ring%doS) then
-                inEijk(i,Grid%js,:,KDIR) = 0.0
+                !inEijk(i,Grid%js,:,KDIR) = 0.0
                 inEijk(i,Grid%js,:,IDIR) = sum(inEijk(i,Grid%js,Grid%ks:Grid%ke,IDIR))/NumP
             endif
             if (Model%Ring%doE) then
                 inEijk(i,Grid%je+1,:,JDIR) = 0.0
-                inEijk(i,Grid%je+1,:,KDIR) = 0.0
+                !inEijk(i,Grid%je+1,:,KDIR) = 0.0
                 inEijk(i,Grid%je+1,:,IDIR) = sum(inEijk(i,Grid%je+1,Grid%ks:Grid%ke,IDIR))/NumP
             endif
             !Enforce periodicity constraints (needed for differencing in next step)
