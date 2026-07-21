@@ -432,7 +432,7 @@ module voltapp
         ! Fedder R default from the Gamera resolution
         vApp%dkApp%params%R = fedderR0default(gApp%Grid%Nkp)
         call vApp%dkApp%InitModel(xmlInp)
-        call vApp%dkApp%InitIO(xmlInp)
+        if (vApp%writeFiles) call vApp%dkApp%InitIO(xmlInp)
         call init_imag2shell(vApp%imag2shell, vApp%shGrid)   ! IMAG precip staging on the shell
         call initShellVar(vApp%shGrid, SHGR_CORNER, vApp%pot_iono)   ! solved potential for DK doET
 
