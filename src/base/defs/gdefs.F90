@@ -43,6 +43,5 @@ module gdefs
     !Default BC ordering in Halo array, user may not abide by this
     enum, bind(C)
         enumerator :: INI=1,OUTI,INJ,OUTJ,INK,OUTK
-    endenum 
-
+    endenum
 end module gdefs

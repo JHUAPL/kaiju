@@ -213,7 +213,6 @@ module raijutypes
             !! Max reconstruction order we will use when calculating etas at interfaces
         real(rp) :: PDMB
             !! 0 < PDMB < 1 used in PDM limiter. 1 = very diffusive
-        logical :: doUseVelLRs
 
         ! https://media0.giphy.com/media/XfDPdSRhYFUhIU7EPw/giphy.gif
         logical :: isSA
@@ -228,14 +227,14 @@ module raijutypes
             !! For debug
         logical :: writeGhosts
             !! For debug
-        logical :: doSmoothGrads
-            !! Whether or not we smooth variables (bvol and electric potential) before taking gradients
         logical :: doClockConsoleOut
             !! If we are driving, output clock info
         logical :: doOutput_debug
             !! Dump lots of otherwise unnecessary stuff
         logical :: doOutput_3DLoss
             !! Dump extra 3D loss variables
+        logical :: doOutput_velocities
+            !! Dump extra 4D velocities
         logical :: doOwnCorot
             !! If true, we calculate corortation potential ourselves and include it in our velocity calculation
             !! If false, we assume its already included in whatever ionospheric potential we're using
@@ -244,6 +243,9 @@ module raijutypes
             !! If false, calc corotation potential assuming dipole and rotational axes are aligned
         logical :: doExcessToPsph
             !! Allow mapping of excess H+ to plasmasphere channel
+        logical :: doExtraElePrecipFromProtons
+        logical :: doSmoothPotentials
+            !! Whether or not to smooth perturnbation potentials (iono ExB and FTV)
 
         ! Plasmasphere settings
         logical :: doPlasmasphere
@@ -279,6 +281,11 @@ module raijutypes
         real(rp) :: worthyFrac  
             !! Fracton that a channel must contribute to pressure or density for its i shell to be evolved
 
+        ! Boundary settings
+        integer :: iLowLat_Evol
+            !! I shell at or above/equatorward we evolve differently from the rest of the active domain 
+        integer :: iLowLat_BndLoss
+            !! I shell at or above/equatorward we apply boundary loss processes
         ! Lambda controls
         real(rp) :: kappa
             !! Kappa value, used in case of Kappa mapping from moments to eta channels
@@ -357,7 +364,8 @@ module raijutypes
         real(rp), dimension(:,:), allocatable :: Brcc
             !! (Ngi, Ngj) [nT] same as BrFace but at cell centers
 
-        integer :: nB ! Number of buffer cells between open region and active domain
+        integer :: nBufferCells 
+            !! Number of buffer cells between open region and active domain
 
         ! Flags
         logical :: ignoreConfigMismatch
@@ -386,6 +394,10 @@ module raijutypes
 
 
     type raijuState_T
+    
+        class(raijuApp_T), pointer :: myRaiApp => null()
+            !! Poiner to our parent raiju app so that routines that only have this type can call app stuff if necessary (like WriteBlackBox)
+
         logical :: isFirstCpl = .true.
 
         real(rp) :: t, dt
@@ -417,18 +429,12 @@ module raijutypes
 
         logical, dimension(:,:), allocatable :: activeShells
             !! (Ngi, Nk) i shells that should be evolved for a given lambda
-        real(rp), dimension(:,:,:), allocatable :: pEff
-            !! (Ngi+1, Ngj+1, Nk) [V] Effective potential (ExB + corot + gradient-curvature)
-            !! Not actually used in calculations, but helpful for output
-        real(rp), dimension(:,:,:), allocatable :: gradPotE_cc, gradPotCorot_cc, gradVM_cc
-            !! (Ngi, Ngj,2) [V/m] Th/phi gradient of the ionospheric potential, corotation potential, and flux tube volume raised to -2/3
-            !! Cell-centered, calculated using Green-Gauss method
+        real(rp), dimension(:,:), allocatable :: pot_eb
+            !! (Ngi+1, Ngj+1) [V] Smoothed corner electric potential, including corotation
+        real(rp), dimension(:,:), allocatable :: pot_ftv
+            !! (Ngi+1, Ngj+1) [FTV units^(-2/3)] Smoothed corner flux-tube-volume potential piece
         real(rp), dimension(:,:,:,:), allocatable :: iVel
             !! (Ngi+1, Ngj+1, Nk, 2) [m/s] Edge-centered normal velocities
-        real(rp), dimension(:,:,:,:), allocatable :: iVelL
-            !! (Ngi+1, Ngj+1, Nk, 2) [m/s] Left edge-centered normal velocity reconstructed from cell-centered velocities
-        real(rp), dimension(:,:,:,:), allocatable :: iVelR
-            !! (Ngi+1, Ngj+1, Nk, 2) [m/s] Right edge-centered normal velocity reconstructed from cell-centered velocities
         real(rp), dimension(:,:,:,:), allocatable :: cVel
             !! (Ngi, Ngj, Nk, 2) [m/s] Cell-centered velocities
 
@@ -450,6 +456,10 @@ module raijutypes
             !! (Ngi+1, Ngj+1, 3) [Rp] bMin xyz coordinates
         real(rp), dimension(:,:,:), allocatable :: xyzMincc
             !! (Ngi, Ngj, 3) [Rp] cell-centered bMin xyz coordinates
+        real(rp), dimension(:,:), allocatable :: radMax
+            !! (Ngi+1,Ngj+1) [Rp] maximum radius of field line
+        real(rp), dimension(:,:), allocatable :: radMax_cc
+            !! (Ngi,Ngj) [Rp] cell-centered maximum radius of field line
         integer , dimension(:,:), allocatable :: topo   
             !! (Ngi+1, Ngj+1) Topology (0=open, 1=closed)
         real(rp), dimension(:,:), allocatable :: thcon
@@ -460,6 +470,8 @@ module raijutypes
             !! (Ngi+1, Ngj+1) [Rp/nT] Flux-tube volume
         real(rp), dimension(:,:), allocatable :: bvol_cc
             !! (Ngi, Ngj) [Rp/nT] Flux-tube volume averaged from corners
+        real(rp), dimension(:,:), allocatable :: rCurv
+            !! (Ngi+1, Ngj+1) [Rp] Curvature radius
         real(rp), dimension(:,:), allocatable :: vaFrac
             !! (Ngi+1, Ngj+1) Fraction of total velocity coming from Alfven speed
             !! Used to limit active region to tubes that can reasonably be treated as averaged and slowly-evolving
@@ -475,6 +487,8 @@ module raijutypes
         
         integer, dimension(:), allocatable :: bndLoc
             !! (Ngi) i value of boundary between inactive and buffer domain
+        integer, dimension(:), allocatable :: activeLoc
+            !! (Ngi) i value of first active cell
         ! (Ngi, Ngj) cell-centered values
         integer , dimension(:,:), allocatable :: active
             !! (Ngi, Ngj) (-1=inactive, 0=buffer, 1=active)
@@ -525,7 +539,7 @@ module raijutypes
         type(ShellGridVar_T), dimension(:), allocatable :: Press_avg
             !! (Ngi, Ngj, Nspc+1) Pressure, evaluated using etas averaged over time State%dt [nPa]
         type(ShellGridVar_T) :: Tb
-            !! (Ngi, Ngj) [s] Bounce timescale (Alfven crossing time)
+            !! (Ngi+1, Ngj+1) [s] Bounce timescale (Alfven crossing time)
         
 
 
@@ -568,6 +582,7 @@ module raijutypes
         type(raijuState_T) :: State
         
         type(raijuOptions_T) :: opt
+        logical :: blackBoxHasBeenCalled = .false.
 
         contains
 
@@ -580,6 +595,9 @@ module raijutypes
         procedure :: WriteSlimFileOutput => raiWriteSlimFileOutput
         procedure :: AdvanceModel        => raiAdvanceModel
         procedure :: Cleanup             => raiCleanup
+    
+        ! My own
+        procedure :: WriteBlackBox => raiWriteBlackBox
     end type raijuApp_T
 
 !------
@@ -631,6 +649,11 @@ module raijutypes
         module subroutine raiCleanup(App)
             class(raijuApp_T), intent(inout) :: App
         end subroutine raiCleanup
+
+        module subroutine raiWriteBlackBox(App, dieAfterWrite)
+            class(raijuApp_T), intent(inout) :: App
+            logical, optional, intent(in) :: dieAfterWrite
+        end subroutine raiWriteBlackBox
 
     end interface
 
@@ -738,11 +761,6 @@ module raijutypes
     end subroutine raiAppOverride_setVal
 
 end module raijutypes
-
-
-
-
-
 
 
 

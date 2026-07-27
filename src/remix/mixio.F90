@@ -81,27 +81,39 @@ contains
     mixUnitNames(IM_PHCON)     = "radians"
   end subroutine initMIXNames
 
-  subroutine initMIXIO(I,RunID,isRestart,nRes)
+  subroutine initMIXIO(I,RunID,isRestartO,nResO,h5FileO)
     type(mixIon_T),dimension(:),intent(inout) :: I
-    character(len=*),optional, intent(in) :: RunID   ! these two things are needed when we're coupled with Gamera
-    logical,optional, intent(in) :: isRestart
-    integer,optional, intent(inout) :: nRes
+    character(len=*), intent(in) :: RunID   ! these two things are needed when we're coupled with Gamera
+    logical,optional, intent(in) :: isRestartO
+    integer,optional, intent(inout) :: nResO
+    character(len=*), optional, intent(in) :: h5FileO
     
+    logical :: isRestart
     logical :: fExist
     real(rp), dimension(:,:),allocatable :: xc,yc
     integer :: n0
 
     !Setup remix output file
-    h5File = trim(RunID) // ".mix.h5"
-    if (present(RunID))  h5RunID = trim(RunID)
+    if(present(h5FileO)) then
+      h5File = h5FileO
+    else
+      h5File = trim(RunID) // ".mix.h5"
+    endif
+    if(present(isRestartO)) then
+      isRestart = isRestartO
+    else
+      isRestart = .false.
+    endif
+
+    h5RunID = trim(RunID)
 
     inquire(file=h5File,exist=fExist)
 
     call initMIXNames() !Always do this ... maybe?
 
-    if (isRestart .and. present(nRes)) then
+    if (isRestart .and. present(nResO)) then
       !Read the damn restart if you gotta
-      call readMIXrestart(trim(RunID),nRes,I)
+      call readMIXrestart(trim(RunID),nResO,I)
     endif
 
     if (isRestart .and. fExist) then
@@ -132,12 +144,13 @@ contains
 
   end subroutine initMIXIO
 
-  subroutine writeMIX(I,Step,mjd,time)
+  subroutine writeMIX(I,Step,mjd,time,h5FileO)
     type(mixIon_T),dimension(:),intent(in) :: I    
     integer, intent(in) :: Step
     real(rp), optional, intent(in) :: time, mjd
+    character(len=strLen), optional, intent(in) :: h5FileO
+    
     character(len=strLen) :: vStr
-
     integer :: v,h,n0
     character(len=strLen) :: gStr,uStr,hStr
     logical :: doDump = .true.
@@ -282,8 +295,25 @@ contains
     
     !Write out the chain (to root)
     write(gStr,'(A,I0)') "Step#", Step
-    call WriteVars(IOVars,.false.,h5File,gStr)
+    if (present(h5FileO)) then
+      call WriteVars(IOVars,.false.,h5FileO,gStr)
+    else
+      call WriteVars(IOVars,.false.,h5File,gStr)
+    endif
   end subroutine writeMIX
+
+  subroutine writeMIXCRASH(I,mjd,time)
+   type(mixIon_T),dimension(:),intent(inout) :: I    
+   real(rp), optional, intent(in) :: time, mjd
+
+   character(len=strLen) :: crashH5FName
+
+   write(crashH5FName,"(A,A)") "CRASH",trim(h5File)
+
+   call initMIXIO(I,"crash", h5FileO=crashH5FName)
+   call writeMIX(I, 0, mjd=mjd,time=time,h5FileO=crashH5FName)
+
+  end subroutine writeMIXCRASH
 
   subroutine readMIX(inH5,Step,mixIOobj)
     character(len=*), intent(in) :: inH5

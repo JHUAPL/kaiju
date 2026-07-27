@@ -123,7 +123,7 @@ module raijuSpeciesHelper
         do i=1,Grid%nSpc 
             associate(spc=>Grid%spc(i))
 
-            write(gStr, '(A,I0)') "Species/",i-1  ! Species indexing in config starts at 0
+            write(gStr, '(A,I0)') "/Species/",i-1  ! Species indexing in config starts at 0
             if(.not. ioExist(configfname, gStr)) then
                 write(*,*) "ERROR in raijuSpeciesHelper.F90:populateSpeciesFromConfig"
                 write(*,'(A,I0,A,I0)') "  Expected ",Grid%nSpc," species but only found ",i-1
@@ -135,6 +135,7 @@ module raijuSpeciesHelper
                 
             ! Read
             call ClearIO(IOVars)
+            call AddInVar(IOVars, "Name"    ,vTypeO=IOSTR)  ! Attr
             call AddInVar(IOVars, "flav"    )  ! Attr
             call AddInVar(IOVars, "N"       )  ! Attr
             call AddInVar(IOVars, "numNuc_p")  ! Attr
@@ -160,11 +161,12 @@ module raijuSpeciesHelper
             !spc%numNuc_n = IOVars(FindIO(IOVars, "numNuc_n"))%data(1)
             !spc%q        = IOVars(FindIO(IOVars, "q"       ))%data(1)
             !spc%fudge    = IOVars(FindIO(IOVars, "fudge"   ))%data(1)
-            spc%flav     = GetIOInt(IOVars, "flav"    )
-            spc%N        = GetIOInt(IOVars, "N"       )
-            spc%numNuc_p = GetIOInt(IOVars, "numNuc_p")
-            spc%numNuc_n = GetIOInt(IOVars, "numNuc_n")
-            spc%q        = GetIOInt(IOVars, "q"       )
+            spc%name     = trim(GetIOStr(IOVars , "Name"    ))
+            spc%flav     = GetIOInt(IOVars , "flav"    )
+            spc%N        = GetIOInt(IOVars , "N"       )
+            spc%numNuc_p = GetIOInt(IOVars , "numNuc_p")
+            spc%numNuc_n = GetIOInt(IOVars , "numNuc_n")
+            spc%q        = GetIOInt(IOVars , "q"       )
             spc%fudge    = GetIOReal(IOVars, "fudge"   )
             
             spc%amu = SpcAmu(spc)
@@ -185,11 +187,13 @@ module raijuSpeciesHelper
             allocate(spc%alami(spc%kStart:spc%kEnd+1))
             call IOArray1DFill(IOVars,"alami",spc%alami)
 
+            write(*,*)" Name:         ", trim(spc%name)
             write(*,*)" Flav:         ", spc%flav
             write(*,*)" N:            ", spc%N
             write(*,*)" # nuc_p:      ", spc%numNuc_p
             write(*,*)" # nuc_n:      ", spc%numNuc_n
             write(*,*)" q:            ", spc%q
+            write(*,*)" amu:          ", spc%amu
             write(*,*)" spcType:      ", spc%spcType
             write(*,*)" Fudge:        ", spc%fudge
             write(*,*)" kStart:       ", spc%kStart
@@ -316,23 +320,25 @@ module raijuSpeciesHelper
         call ClearIO(IOVars)
         call WriteVars(IOVars, .false., fname, "Species")
 
-        do i=1,Grid%nSpc 
-            associate(spc=>Grid%spc(i))
-
-            write(gStr, '(A,I0)') "Species/",i-1    
-
-            ! Write
+        ! Output detailed lambda grid info
+        do i=1,Grid%nSpc
             call ClearIO(IOVars)
-            call AddOutVar(IOVars, "flav"    ,spc%flav)  ! Attr
-            call AddOutVar(IOVars, "N"       ,spc%N)  ! Attr
-            call AddOutVar(IOVars, "numNuc_p",spc%numNuc_p)  ! Attr
-            call AddOutVar(IOVars, "numNuc_n",spc%numNuc_n)  ! Attr
-            call AddOutVar(IOVars, "q"       ,spc%q)  ! Attr
-            call AddOutVar(IOVars, "fudge"   ,spc%fudge)  ! Attr
-            call AddOutVar(IOVars, "alami"   ,spc%alami)  ! Dataset
-            call WriteVars(IOVars, .false., fname, gStr)
-        
-            end associate
+            ! Attrs
+            call AddOutVar(IOVars,"Name"     ,trim(Grid%spc(i)%name))
+            call AddOutVar(IOVars,"flav"     ,Grid%spc(i)%flav    )
+            call AddOutVar(IOVars,"N"        ,Grid%spc(i)%N       )
+            call AddOutVar(IOVars,"fudge"    ,Grid%spc(i)%fudge   )
+            call AddOutVar(IOVars,"numNuc_p" ,Grid%spc(i)%numNuc_p)
+            call AddOutVar(IOVars,"numNuc_n" ,Grid%spc(i)%numNuc_n)
+            call AddOutVar(IOVars,"spcType"  ,Grid%spc(i)%spcType )
+            call AddOutVar(IOVars,"q"        ,Grid%spc(i)%q       )
+            call AddOutVar(IOVars,"amu"      ,Grid%spc(i)%amu     )
+            call AddOutVar(IOVars,"kStart"   ,Grid%spc(i)%kStart-1)  ! Change to assume zero-based
+            call AddOutVar(IOVars,"kEnd"     ,Grid%spc(i)%kEnd  -1)  ! Change to assume zero-based
+            ! Datasets
+            call AddOutVar(IOVars,"alami",Grid%spc(i)%alami,uStr="eV * (Rx/nT)^(2/3)")
+            write(gStr,'(I0)') Grid%spc(i)%flav  ! Idk if this is the easiest way to format ints as strings
+            call WriteVars(IOVars,.true.,fname,"Species",gStr)
         enddo
 
     end subroutine writeSpeciesInfo

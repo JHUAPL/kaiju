@@ -122,6 +122,7 @@ module mixmain
       logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
       logical :: isRestart = .false.
       integer :: h,NumH
+      logical :: isGoodSolve
 
       if (present(doModelOpt)) doModel = doModelOpt
       if (present(gcm)) isRestart = gcm%isRestart
@@ -175,8 +176,14 @@ module mixmain
           call Toc("MIX-COND")
 
           call Tic("MIX-SOLVE")
-          call run_solver(I(h)%P,I(h)%G,I(h)%St,I(h)%S)
+          call run_solver(I(h)%P,I(h)%G,I(h)%St,I(h)%S,isGoodSolveO=isGoodSolve)
           call Toc("MIX-SOLVE")
+
+          if (.not. isGoodSolve) then
+            Write(*,*)"Didn't get a good solve, writing state and dying"
+            call writeMIXCRASH(I)
+            stop
+          endif
 
           call Tic("MIX-POT")
           call get_potential(I(h))

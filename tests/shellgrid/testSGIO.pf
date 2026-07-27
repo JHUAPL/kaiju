@@ -66,7 +66,7 @@ module testSGIO
             @assertLessThanOrEqual(abs(sh%lat(i) - shRead%lat(i)), tol, "SG Read/Write: lats differ"  )
         enddo
         do j=sh%jsg,sh%jeg
-            @assertLessThanOrEqual(abs(sh%th(j) - shRead%th(j)), tol, "SG Read/Write: phis differ")
+            @assertLessThanOrEqual(abs(sh%ph(j) - shRead%ph(j)), tol, "SG Read/Write: phis differ")
         enddo
         
     end subroutine testSGRead

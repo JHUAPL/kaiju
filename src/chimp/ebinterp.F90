@@ -7,6 +7,8 @@ module ebinterp
     use gridinterp
     use ebutils
 
+    use volttypes, only : NVARVOLTSRC
+
     implicit none
 
     logical, parameter, private :: doCurldbdt = .false.
@@ -132,13 +134,14 @@ module ebinterp
 
     !ijkO is optional guess to pass to locate routine
     !     if present will return correct location
-    recursive subroutine ebFields(xyz,t,Model,ebState,E,B,ijkO,vExB,gcFields)
+    recursive subroutine ebFields(xyz,t,Model,ebState,E,B,ijkO,vExB,gcFields,src)
         real(rp), intent(in) :: xyz(NDIM),t
         type(chmpModel_T), intent(in) :: Model
         type(ebState_T), intent(in)   :: ebState
         real(rp), dimension(NDIM), intent(out) :: E,B
         real(rp), dimension(NDIM), intent(out), optional :: vExB
         type(gcFields_T), intent(out), optional :: gcFields
+        real(rp), dimension(NVARVOLTSRC), intent(out), optional :: src
         integer, intent(inout) , optional :: ijkO(NDIM)
 
         integer, dimension(NDIM) :: ijk
@@ -147,6 +150,7 @@ module ebinterp
         real(rp), dimension(NDIM,NDIM) :: Tix
         real(rp), dimension(NDIM) :: ezp,B0,wE,wZ,wP,wEp,wZp,wPp
         real(rp), dimension(Nw,Nw,Nw,NDIM) :: E1,E2,dB1,dB2 !Interpolation stencils
+        real(rp), dimension(Nw,Nw,Nw,NVARVOLTSRC) :: Src1,Src2
         real(rp), dimension(Nw,Nw,Nw) :: W,eW,zW,pW !Interpolation weights
         logical :: isIn,doJacob,isAxis,isAxisS,isAxisE
         
@@ -256,6 +260,18 @@ module ebinterp
 
         enddo
 
+        if (present(src)) then
+            Src1 = eb1%src(i0-1:i0+1,j0-1:j0+1,k0-1:k0+1,:)
+            if (.not. ebState%doStatic) then
+                Src2 = eb2%src(i0-1:i0+1,j0-1:j0+1,k0-1:k0+1,:)
+            else
+                Src2 = 0.0
+            endif
+            do n=1,NVARVOLTSRC
+                src(n) = wT1*sum(W* Src1(:,:,:,n)) &
+                       + wT2*sum(W* Src2(:,:,:,n))
+            enddo
+        endif
         !Clean E field (guarantee E.B = 0)
         if (Model%doEBFix) then
             call CleanE(E,B)
@@ -452,6 +468,85 @@ module ebinterp
         end associate
 
     end function mhdInterp
+
+
+    !Interpolate moments (D,P) for a specific species
+    subroutine mhdInterpDP(xyz,t,Model,ebState,D,P,sOpt)
+        real(rp)         , intent(in) :: xyz(NDIM),t
+        type(chmpModel_T), intent(in) :: Model
+        type(ebState_T)  , intent(in) :: ebState
+        real(rp), intent(out) :: D,P
+        integer , intent(in ), optional :: sOpt
+
+        integer :: s0,i0,j0,k0,ijk(NDIM)
+        logical :: isIn
+        real(rp), dimension(Nw,Nw,Nw) :: Wijk,Db,Pb
+        logical , dimension(Nw,Nw,Nw) :: isG
+        real(rp) :: dt,w1,w2,wScl
+        logical , parameter :: doRescale = .false.
+
+        associate( ebGr=>ebState%ebGr,eb1=>ebState%eb1,eb2=>ebState%eb2 )
+        D = 0.0
+        P = 0.0
+        if (present(sOpt)) then
+            if (sOpt > Model%nSpc) then
+                !Got nothing for ya
+                return
+            else
+                s0 = sOpt
+            endif
+        else
+            s0 = BLK
+        endif
+
+        if ( inGap(xyz,Model,ebGr) .or. (.not. Model%doMHD) ) return 
+
+        call locate(xyz,ijk,Model,ebGr,isIn)
+        if (.not. isIn) return
+
+        !Get time weighting
+        if (ebState%doStatic) then
+            w1 = 1.0
+            w2 = 0.0
+        else
+            write(*,*) "This won't work!"
+            stop
+            dt = eb2%time-eb1%time
+            w1 = (eb2%time-t)/dt
+            w2 = (t-eb1%time)/dt
+        endif
+
+        !Get weight coefficients
+        call GetWeights(xyz,ijk,Wijk,Model,ebGr)
+
+        !Get stencils
+        i0 = ijk(IDIR) ; j0 = ijk(JDIR) ; k0 = ijk(KDIR)
+        Db = eb1%W(i0-1:i0+1,j0-1:j0+1,k0-1:k0+1,DEN     ,s0)
+        Pb = eb1%W(i0-1:i0+1,j0-1:j0+1,k0-1:k0+1,PRESSURE,s0)
+
+        isG = (Db > TINY) !Check for good values
+        !If no good values or cell point is in (center cell) is bad get outta here
+        if ( (.not. any(isG)) .or. (.not. isG(2,2,2)) ) return
+
+        if (doRescale) then
+            !If still here, rescale weights to account for what we have
+            wScl = sum(Wijk,mask=isG)
+            if (wScl<TINY) return
+
+            where (isG)
+                Wijk = Wijk/wScl
+            elsewhere
+                Wijk = 0.0
+                Db   = 0.0
+                Pb   = 0.0
+            endwhere
+        endif
+        
+        D = sum(Wijk*Db)
+        P = sum(Wijk*Pb)
+
+        end associate
+    end subroutine mhdInterpDP
 
     !Interpolate all species all MHD variables @ (xyz,t) and return
     !Optionally accepts guess for ijk localization

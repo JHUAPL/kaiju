@@ -18,7 +18,7 @@ module imag2mhd_interface
         real(rp), dimension(:,:,:,:), allocatable :: Eijk
         logical , dimension(:,:,:)  , allocatable :: isGoodCC
 
-        integer :: n,i,j,k,Nk
+        integer :: n,i,j,k,Nk,nQuad
         real(rp) :: x1,x2,x1c,di,dj,dk,Rion,t,eScl
         real(rp), dimension(NDIM) :: xyz
         real(rp) :: Qs(8) !Squish all the corners of a single cell
@@ -181,8 +181,7 @@ module imag2mhd_interface
                 call FillGhostsCC(gModel,Gr,Gr%Gas0(:,:,:,n))
             enddo
 
-
-            !t = (vApp%gApp%Model%t)*(vApp%gApp%Model%Units%gT0)
+            nQuad = vApp%imagSrcNQuad
 
             !Loop over and get imag data
             !$OMP PARALLEL DO default(shared) collapse(2) &
@@ -197,13 +196,22 @@ module imag2mhd_interface
                         if (isGoodCC(i,j,k)) then
                             !Get imag value here
                             imW = 0.0
-                            x1c = PI/2 - Gr%Gas0(i,j,k,PROJLAT)
-                            x2  = Gr%Gas0(i,j,k,PROJLON)
-
-                            !call vApp%imagApp%getMoments(x1c,x2,t,imW,isTasty)
-                            call vApp%imagApp%getMoments(x1c,x2,vApp%time,imW,isTasty)
+                            if (nQuad <= 1) then
+                                x1c = PI/2 - Gr%Gas0(i,j,k,PROJLAT)
+                                x2  = Gr%Gas0(i,j,k,PROJLON)
+                                call vApp%imagApp%getMoments(x1c,x2,vApp%time,imW,isTasty)
+                            else
+                                call GetProjectedCellMoment_Quad(Gr,isGoodCC,i,j,k,nQuad,imW,isTasty)
+                                if (.not. isTasty) then
+                                    ! Only cells fully edible from IMAG/RAIJU get quadrature; otherwise
+                                    ! preserve the legacy center-sample behavior for this cell.
+                                    x1c = PI/2 - Gr%Gas0(i,j,k,PROJLAT)
+                                    x2  = Gr%Gas0(i,j,k,PROJLON)
+                                    call vApp%imagApp%getMoments(x1c,x2,vApp%time,imW,isTasty)
+                                endif
+                            endif
                             if (isTasty) then
-                                !Density/pressure coming back in #/cc and nPa
+                                !Density/pressure coming back in amu/cc and nPa
                                 !Ingestion timescale coming back in seconds
                                 Gr%Gas0(i,j,k,IM_D_RING) = imW(IM_D_RING)
                                 Gr%Gas0(i,j,k,IM_D_COLD) = imW(IM_D_COLD)
@@ -275,6 +283,138 @@ module imag2mhd_interface
 
             end function AvgOverGood
 
+            subroutine GetProjectedCellMoment_Quad(Gr,isGoodCC,i,j,k,nQuad,imW,isTasty)
+                type(Grid_T), intent(in) :: Gr
+                logical, intent(in) :: isGoodCC(Gr%isg:Gr%ieg,Gr%jsg:Gr%jeg,Gr%ksg:Gr%keg)
+                integer, intent(in) :: i,j,k,nQuad
+                real(rp), intent(out) :: imW(IM_D_RING:IM_TSCL)
+                logical, intent(out) :: isTasty
+
+                integer :: qi,qj,qk,nSamp
+                real(rp) :: u,v,w
+                real(rp) :: imWq(IM_D_RING:IM_TSCL)
+                logical :: isTastyQ
+
+                imW = 0.0_rp
+                isTasty = .false.
+                if (.not. isGoodCC(i,j,k)) return
+
+                nSamp = 0
+                do qk=1,nQuad
+                    w = (qk - 0.5_rp)/nQuad
+                    do qj=1,nQuad
+                        v = (qj - 0.5_rp)/nQuad
+                        do qi=1,nQuad
+                            u = (qi - 0.5_rp)/nQuad
+
+                            call GetProjectedPointMoment_Quad(Gr,i,j,k,u,v,w,imWq,isTastyQ)
+
+                            ! Only quadrature-average cells whose sampled volume is fully edible from IMAG/RAIJU.
+                            if (.not. isTastyQ) then
+                                imW = 0.0_rp
+                                return
+                            endif
+
+                            imW = imW + imWq
+                            nSamp = nSamp + 1
+                        enddo
+                    enddo
+                enddo
+
+                if (nSamp > 0) then
+                    imW = imW/nSamp
+                    isTasty = .true.
+                endif
+
+            end subroutine GetProjectedCellMoment_Quad
+
+            subroutine GetProjectedPointMoment_Quad(Gr,i,j,k,u,v,w,imW,isTasty)
+                type(Grid_T), intent(in) :: Gr
+                integer, intent(in) :: i,j,k
+                real(rp), intent(in) :: u,v,w
+                real(rp), intent(out) :: imW(IM_D_RING:IM_TSCL)
+                logical, intent(out) :: isTasty
+
+                integer :: ii,jj,kk
+                real(rp) :: qWgt,x1,x2,x1c,c2,s2
+                real(rp) :: xyzq(NDIM)
+
+                imW = 0.0_rp
+                isTasty = .false.
+
+                if (i < Gr%is) then
+                    call QuadCellPointXYZ(Gr,i,j,k,u,v,w,xyzq)
+                    call NHProj(xyzq,x1,x2)
+                else
+                    if (.not. all(vApp%chmp2mhd%isGood(i:i+1,j:j+1,k:k+1))) return
+
+                    x1 = 0.0_rp
+                    c2 = 0.0_rp
+                    s2 = 0.0_rp
+                    do kk=0,1
+                        do jj=0,1
+                            do ii=0,1
+                                qWgt = CellPointWeight(ii,jj,kk,u,v,w)
+                                x1 = x1 + qWgt*vApp%chmp2mhd%xyzSquish(i+ii,j+jj,k+kk,1)
+                                c2 = c2 + qWgt*cos(vApp%chmp2mhd%xyzSquish(i+ii,j+jj,k+kk,2))
+                                s2 = s2 + qWgt*sin(vApp%chmp2mhd%xyzSquish(i+ii,j+jj,k+kk,2))
+                            enddo
+                        enddo
+                    enddo
+                    x2 = katan2(s2,c2)
+                endif
+
+                x1c = PI/2 - x1
+                call vApp%imagApp%getMoments(x1c,x2,vApp%time,imW,isTasty)
+                if (.not. isTasty) imW = 0.0_rp
+
+            end subroutine GetProjectedPointMoment_Quad
+
+            subroutine QuadCellPointXYZ(Gr,i,j,k,u,v,w,xyz)
+                type(Grid_T), intent(in) :: Gr
+                integer, intent(in) :: i,j,k
+                real(rp), intent(in) :: u,v,w
+                real(rp), intent(out) :: xyz(NDIM)
+
+                integer :: ii,jj,kk
+                real(rp) :: qWgt
+
+                xyz = 0.0_rp
+                do kk=0,1
+                    do jj=0,1
+                        do ii=0,1
+                            qWgt = CellPointWeight(ii,jj,kk,u,v,w)
+                            xyz = xyz + qWgt*Gr%xyz(i+ii,j+jj,k+kk,:)
+                        enddo
+                    enddo
+                enddo
+
+            end subroutine QuadCellPointXYZ
+
+            pure function CellPointWeight(ii,jj,kk,u,v,w) result(qWgt)
+                integer, intent(in) :: ii,jj,kk
+                real(rp), intent(in) :: u,v,w
+                real(rp) :: qWgt
+
+                qWgt = 1.0_rp
+                if (ii == 0) then
+                    qWgt = qWgt*(1.0_rp-u)
+                else
+                    qWgt = qWgt*u
+                endif
+                if (jj == 0) then
+                    qWgt = qWgt*(1.0_rp-v)
+                else
+                    qWgt = qWgt*v
+                endif
+                if (kk == 0) then
+                    qWgt = qWgt*(1.0_rp-w)
+                else
+                    qWgt = qWgt*w
+                endif
+
+            end function CellPointWeight
+
             !Take a full-sized cell-centered grid w/ active values defined and fill ghosts
             subroutine FillGhostsCC(Model,Gr,Q)
                 type(Model_T), intent(in) :: Model
@@ -323,4 +463,3 @@ module imag2mhd_interface
     end subroutine
 
 end module
-

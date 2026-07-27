@@ -17,6 +17,9 @@ module volttypes
 
     implicit none
 
+    integer, parameter :: IMAG_nMHD_R_NEAREARTH = 10
+        !! imag wants to make decisions based on the first few mhd cells, this is how many cell Req distances we will tell imag about
+
     enum, bind(C)
         enumerator :: IMAGRCM=1,IMAGRCMX,IMAGSST,IMAGRAIJU
     endenum
@@ -136,9 +139,11 @@ module volttypes
         character(len=strLen) :: swF
             !! Solar wind filename
         real(rp) :: mhdRin
-            !! GAMERA near-Earth active cell boundary
-        real(rp) :: mhdRinG
-            !! GAMERA near-Earth ghost cell boundary
+            !! GAMERA near-Earth active cell boundary [Rp]
+        real(rp), dimension(:), allocatable :: mhdRinGcc_arr
+            !! GAMERA near-Earth ghost cell radii [Rp]
+        real(rp), dimension(IMAG_nMHD_R_NEAREARTH) :: mhdR_nearEarth_arr
+            !! GAMERA near-Earth active corner radii [Rp]
         real(rp) :: mjd0
             !! MJD at sim t=0
         logical :: doColdStart
@@ -185,6 +190,21 @@ module volttypes
             !! [Rp] theta/L-direction smoothing scale for mhd ingestion timescale
         real(rp) :: tsclSm_dMLT = 1.0_rp
             !! [hr] phi/MLT-direction smoothing scale for mhd ingestion timescale
+        logical :: doWolfLim = .true.
+            !! Whether or not to apply beta-based Wolf limiting when passing moments to MHD
+        character(len=strLen) :: tsclMHD_option
+            !! Variable to help us determine which method for calculating MHD ingestion timescale we wanna use
+        real(rp) :: tsclMHD_vaFrac_min = 0.4_rp
+            !! In bounce_wimag option, vaFrac at or below this gets the full maxScale multiplier
+        real(rp) :: tsclMHD_vaFrac_max = 0.9_rp
+            !! In bounce_wimag option, How good does vaFrac need to be for us to scale by 1?
+        real(rp) :: tsclMHD_maxScale = 2.0_rp
+            !! In bounce_wimag option, maximum factor by which low vaFrac can increase Tb-based tscl
+
+        ! --- Calculated settings --- !
+        integer :: iFirstCellInGamGhost
+            !! This cell bounds the GAMERA ghost/active boundary. Higher lat is full gam active, lower lat is full gam ghost
+            !! This should also be an active RAIJU cell
 
         ! --- Grid --- !
         type(ShellGrid_T) :: shGr
@@ -214,6 +234,8 @@ module volttypes
             !! (Ngi+1, Ngj+1, 3) [Rp] bMin xyz coordinates
         type(ShellGridVar_T), dimension(NDIM) :: xyzMincc
             !! (Ngi, Ngj, 3) [Rp] cell-centered bMin xyz coordinates
+        type(ShellGridVar_T), dimension(NDIM) :: xyzMaxRad
+            !! (Ngi+1, Ngj+1, 3) [Rp] field line max radius xyz coordinates
         type(ShellGridVar_T) :: topo
             !! (Ngi+1, Ngj+1) Topology (0=open, 1=closed)
         type(ShellGridVar_T) :: thcon
@@ -224,6 +246,8 @@ module volttypes
             !! (Ngi+1, Ngj+1) [Rp/nT] Flux-tube volume
         type(ShellGridVar_T) :: bvol_cc
             !! (Ngi, Ngj) [Rp/nT] Flux-tube volume averaged from corners
+        type(ShellGridVar_T) :: rCurv
+            !! (Ngi+1, Ngj+1) [Rp] Curvature radius
         type(ShellGridVar_T) :: vaFrac
             !! (Ngi+1, Ngj+1) Fraction of total velocity coming from Alfven speed
             !! Used to limit active region to tubes that can reasonably be treated as averaged and slowly-evolving
@@ -388,6 +412,9 @@ module volttypes
         logical  :: doQkSquish = .false. !Whether or not to do fast squishing
         integer  :: qkSquishStride = 2 ! Stride to use when fast squishing
         logical  :: doGCM = .false.
+        integer  :: imagSrcNQuad = 3
+            !! Number of IMAG->MHD source quadrature points per projected-cell direction.
+            !! 0 preserves the legacy cell-center source sampling.
 
         !Dynamic coupling info
         logical :: doDynCplDT = .false. !Whether to do dynamic coupling cadence

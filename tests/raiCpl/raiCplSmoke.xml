@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<Kaiju>
+  <VOLTRON>
+    <output dtCon="-1.0" dtOut="-1.0" doTimer="F" doFat="F" doSlim="F"/>
+    <restart dtRes="-1.0"/>
+  </VOLTRON>
+  <Gamera>
+    <sim runid="raiCplTest"/>
+    <restart doRes="F"/>
+    <wind tsFile="bcwind_2step.h5"/>
+  </Gamera>
+  <RAIJU>
+    <driver isSA="F"/>
+    <output loudConsole="F" doFat="F" doLossExtras="F" doDebug="F" writeGhosts="F"/>
+    <grid gType="SHGRID" Ng="4" ThetaL="30.0" ThetaU="45.0"/>
+    <config fname="raijuconfig_noWM.h5" ignoreMismatch="F"/>
+    <plasmasphere doPsphere="T" doExcessMap="T"/>
+    <losses doLosses="F" doCX="F" doSS="F" doCC="F"/>
+    <cpl nFluidsIn="1" startupTscl="1234.0" tsclSm_dL="0.75" tsclSm_dMLT="0.5" doWolfLim="F"/>
+    <fluidIn1 imhd="0" flav="2" excessToPsph="T"/>
+  </RAIJU>
+</Kaiju>

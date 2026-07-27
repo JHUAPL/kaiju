@@ -821,7 +821,14 @@ contains
            this%buf = trim(this%buf(pos + 1:))
            pos = scan(this%buf, '"') ! get pos of second "
            xmld(nxml)%val = this%buf(1:pos - 1) ! set value
-           this%buf = trim(this%buf(pos + 2:)) ! remove value"_
+
+           !this%buf = trim(this%buf(pos + 2:)) ! remove value"_ (GARBAGE CODE)
+            if (pos < len_trim(this%buf)) then
+              this%buf = this%buf(pos+1:)   ! drop ONLY the closing quote
+            else
+              this%buf = ""
+            endif
+            this%buf = adjustl(this%buf)    ! remove any amount of leading whitespace
 
          end do
 

@@ -13,7 +13,7 @@ module voltio
     use voltappHelper
     use gamCoupleHelper, only : getCPCP
 
-    use tubehelper, only : writeTubeShellRestart, readTubeShellRestart
+    use tubehelper, only : writeTubeShell, readTubeShellRestart
     
     implicit none
 
@@ -24,7 +24,7 @@ module voltio
     real(rp), private :: fastWeight = 0.8
     real(rp), private :: slowWeight = 0.95
 
-    integer , parameter, private :: MAXVOLTIOVAR = 50
+    integer , parameter, private :: MAXVOLTIOVAR = 90
     real(rp), parameter, private :: dtWallMax = 1.0 !How long between timer resets[hr]
     logical , private :: isConInit = .false.
     real(rp), private ::  oMJD = 0.0
@@ -252,7 +252,7 @@ module voltio
         call writeShellGrid(vApp%shGrid, ResF)
 
         ! And all TubeShell vars
-        call writeTubeShellRestart(vApp%State%tubeShell, ResF)
+        call writeTubeShell(vApp%shGrid, vApp%State%tubeShell, ResF, doGhostsO=.true.)
 
         !Create link to latest restart
         write (lnResF, '(A,A,A,A)') trim(gApp%Model%RunID), ".volt.Res.", "XXXXX", ".h5"
@@ -398,6 +398,7 @@ module voltio
         real(rp) :: BSDst0,AvgBSDst,DPSDst,BSSMRs(4)
         integer, dimension(4) :: outSGVBnds_corner
         logical :: doGhosts
+        logical :: doFat = .true. !TODO: Hoist this up to an XML parameter
 
         if (present(doGhostsO)) then
             doGhosts = doGhostsO
@@ -466,60 +467,11 @@ module voltio
         call AddOutSGV(IOVars, "Potential_corot", vApp%State%potential_corot, &
                         uStr="kV", dStr="Corotation potential", &
                         outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "Potential_drop", vApp%State%pot_drop, &
-                        uStr='"kV', dStr="Potential drop between given location and its conjugate footpoint", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.true.)
-        associate(tubeShell=>vApp%State%tubeShell)
-        call AddOutSGV(IOVars, "xMin", tubeShell%X_bmin(XDIR), &
-                        uStr="Rx", dStr="SM-X location of flux tube bMin", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "yMin", tubeShell%X_bmin(YDIR), &
-                        uStr="Rx", dStr="SM-Y location of flux tube bMin", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "zMin", tubeShell%X_bmin(ZDIR), &
-                        uStr="Rx", dStr="SM-Z location of flux tube bMin", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "bMin", tubeShell%bmin, &
-                        uStr="nT", dStr="Field strength at magnetic equator", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "topo", tubeShell%topo, &
-                        dStr="Magnetic field topology (0=closed,1=open,2=undefined)", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "bVol", tubeShell%bVol, &
-                        uStr="Rx/nT", dStr="Flux tube volume (if closed)", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "lat0", tubeShell%lat0, &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "lon0", tubeShell%lon0, &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "x0", tubeShell%xyz0(XDIR), &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "y0", tubeShell%xyz0(YDIR), &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "z0", tubeShell%xyz0(ZDIR), &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "latc", tubeShell%latc, &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.true.)
-        call AddOutSGV(IOVars, "lonc", tubeShell%lonc, &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.true.)
-        call AddOutSGV(IOVars, "rCuravture", tubeShell%rCurv, &
-                        uStr="Rx", dStr="Radius of curvature @ bmin if this is a closed field line", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "tube_nTrc", tubeShell%nTrc, &
-                        dStr="Number of points along field line", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "tube_wIMAG", tubeShell%wMAG, &
-                        dStr="'Good' weighting for IMAG model based on Alfven speed vs. magnetofast and ExB flow", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "tube_avgP", tubeShell%avgP, &
-                        ustr="nPa",dStr="Flux tube averaged pressure", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "tube_avgD", tubeShell%avgN, &
-                        uStr="#/cc",dStr="Flux tube averaged density", &
-                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        end associate
-
+        
         call WriteVars(IOVars,.true.,vh5File,gStr)
+
+        write(gStr,'(A,A)') trim(gStr), "/TubeShell"
+        call writeTubeShell(vApp%shGrid, vApp%State%tubeShell, vh5File, gStrO=gStr, doGhostsO=doGhosts,doFatO=doFat)
 
 
     end subroutine WriteVolt

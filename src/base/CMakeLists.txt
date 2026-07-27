@@ -30,3 +30,4 @@ add_custom_command(
 
 add_library(baselib ${base_srcs} "${GIT_INFO_FILE}")
 set_source_files_properties("${GIT_INFO_FILE}" PROPERTIES GENERATED TRUE)
+target_include_directories(baselib PUBLIC "${PROJECT_BINARY_DIR}/modules")
