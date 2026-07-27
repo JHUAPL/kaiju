@@ -90,6 +90,7 @@ module gamCouple_mpi_V2G
         type(XML_Input_T), intent(inout) :: Xml
 
         integer :: commSize, ierr, numCells, length, ic, numInNeighbors, numOutNeighbors
+        integer :: poolRank, worldSize, splitKey
         type(MPI_Comm) :: voltComm
         integer :: gamNRES
         character( len = MPI_MAX_ERROR_STRING) :: message
@@ -111,8 +112,12 @@ module gamCouple_mpi_V2G
         call PrepState(App%Model,App%Grid,&
             App%State,App%oState,App%ooState,Xml,App%gOptions%userInitFunc)
 
+        ! Force Voltron to the highest rank in voltComm so downstream rank assumptions hold.
+        call MPI_Comm_rank(App%gOptionsCplMpiV%couplingPoolComm, poolRank, ierr)
+        call MPI_Comm_Size(MPI_COMM_WORLD, worldSize, ierr)
+        splitKey = worldSize + poolRank
         ! split couplingPoolComm into a communicator with only the non-helper voltron rank and Gamera ranks
-        call voltronSplitWithApp(App%gOptionsCplMpiV%couplingPoolComm, gamId, 0, voltComm)
+        call voltronSplitWithApp(App%gOptionsCplMpiV%couplingPoolComm, gamId, splitKey, voltComm)
 
         call Xml%Set_Val(App%doAsyncCoupling,"/kaiju/voltron/coupling/doAsyncCoupling",.true.)
         call Xml%Set_Val(App%doDeep, "/kaiju/voltron/coupling/doDeep", .true.)
@@ -632,4 +637,3 @@ module gamCouple_mpi_V2G
     end subroutine sendCplTimeMpi
 
 end module
-

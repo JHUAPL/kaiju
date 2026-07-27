@@ -103,7 +103,10 @@ module mixgeom
       if (present(shGrO)) then
          allocate(p_periodic(Np+1))
          p_periodic(1:Np) = p(:,1)
-         p_periodic(Np+1) = 2*PI
+         p_periodic(Np+1) = 2*p(Np,1) - p(Np-1,1)
+         if ((p_periodic(Np+1) > 2*pi) .and. (p_periodic(Np+1) - 2*pi < TINY)) then
+            p_periodic(Np+1) = 2.0_rp*pi
+         endif
          call GenShellGrid(shGrO, t(1,:), p_periodic, "REMIX", nGhosts=(/0,0,0,0/))
       endif
     end subroutine init_uniform
