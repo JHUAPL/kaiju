@@ -88,10 +88,10 @@ module auroralhelper
     !pot is kV, MagE is mV/m
     subroutine CalcMagE(Gr,pot,MagE)
         type(dkGrid_T), intent(in) :: Gr
-        real(rp), dimension(Gr%Np,Gr%Nt), intent(in)  :: pot
-            !! [kV]
-        real(rp), dimension(Gr%Np,Gr%Nt), intent(out) :: MagE
-            !! [mV/m]
+        real(rp), dimension(Gr%Nt,Gr%Np), intent(in)  :: pot
+            !! [kV] (theta,phi)
+        real(rp), dimension(Gr%Nt,Gr%Np), intent(out) :: MagE
+            !! [mV/m] (theta,phi)
 
         integer :: i,j
         real(rp) :: R0,Et,Ep,dth,dph,th,EAvg
@@ -107,37 +107,37 @@ module auroralhelper
         do i=1,Gr%Np
             do j=1+1,Gr%Nt-1
                 !NOTE: only care about magnitude
-                dth = Gr%dt(i,j)
-                dph = Gr%dp(i,j)
+                dth = Gr%dt(j,i)
+                dph = Gr%dp(j,i)
                 th  = Gr%thc(j)
 
                 !Get theta deriv
                 if (j == 1) then
-                    Et = ( pot(i,j+1)-pot(i,j) )/(R0*dth)
+                    Et = ( pot(j+1,i)-pot(j,i) )/(R0*dth)
                 else if (j == Gr%Nt) then
-                    Et = ( pot(i,j-1) - pot(i,j) )/(R0*dth)
+                    Et = ( pot(j-1,i) - pot(j,i) )/(R0*dth)
                 else
-                    Et = ( pot(i,j+1) - pot(i,j-1) )/(2*R0*dth)
+                    Et = ( pot(j+1,i) - pot(j-1,i) )/(2*R0*dth)
                 endif
 
                 !Get phi deriv
                 if (i == 1) then
-                    Ep = ( pot(i+1,j) - pot(i,j) )/(R0*sin(th)*dph)
+                    Ep = ( pot(j,i+1) - pot(j,i) )/(R0*sin(th)*dph)
                 else if (i == Gr%Np) then
-                    Ep = ( pot(i,j) - pot(i-1,j) )/(R0*sin(th)*dph)
+                    Ep = ( pot(j,i) - pot(j,i-1) )/(R0*sin(th)*dph)
                 else
-                    Ep = ( pot(i+1,j) - pot(i-1,j) )/(2*R0*sin(th)*dph)
+                    Ep = ( pot(j,i+1) - pot(j,i-1) )/(2*R0*sin(th)*dph)
                 endif
 
-                MagE(i,j) = sqrt( Et**2.0 + Ep**2.0 )
+                MagE(j,i) = sqrt( Et**2.0 + Ep**2.0 )
             enddo
         enddo
 
-        EAvg = sum(MagE(:,2))/Gr%Np
-        MagE(:,1) = EAvg
+        EAvg = sum(MagE(2,:))/Gr%Np
+        MagE(1,:) = EAvg
 
-        EAvg = sum(MagE(:,Gr%Nt-1))/Gr%Np
-        MagE(:,Gr%Nt) = EAvg
+        EAvg = sum(MagE(Gr%Nt-1,:))/Gr%Np
+        MagE(Gr%Nt,:) = EAvg
         
         !Have MagE in kV/Re, convert to mV/m
         MagE = (1.0e+3)*(1.0e+3)*MagE/REarth

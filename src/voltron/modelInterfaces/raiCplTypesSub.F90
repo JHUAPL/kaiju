@@ -511,10 +511,12 @@ submodule (volttypes) raijuCplTypesSub
         type(imag2shell_T),    intent(inout) :: i2s
         type(ShellGrid_T),     intent(in)    :: shGrid
         type(ShellGridVar_T),  intent(in)    :: latConj, lonConj
+        type(ShellGridVar_T) :: sinLon, cosLon
 
         integer  :: it, ip
         real(rp) :: th, ph
         real(rp) :: lat_conj, ph_conj
+        real(rp) :: s, c
         real(rp) :: imP(nVars_imag2mix)
         logical  :: isTasty
 
@@ -524,6 +526,9 @@ submodule (volttypes) raijuCplTypesSub
         i2s%Im_Eden%data  = 0.0_rp
         i2s%Im_Epre%data  = 0.0_rp
         i2s%Im_Npsp%data  = 0.0_rp
+
+        sinLon = lonConj;  sinLon%data = sin(lonConj%data)
+        cosLon = lonConj;  cosLon%data = cos(lonConj%data)
 
         do it = shGrid%is, shGrid%ie
             th = shGrid%thc(it)
@@ -538,7 +543,12 @@ submodule (volttypes) raijuCplTypesSub
                     ! SH: find the NH conjugate point via tubeShell mapping
                     call InterpShellVar_TSC_pnt(shGrid, latConj, th, ph, lat_conj)
                     if (lat_conj > 0.0_rp) then  ! lat_conj=0 => open field line
-                        call InterpShellVar_TSC_pnt(shGrid, lonConj, th, ph, ph_conj)
+                        ! call InterpShellVar_TSC_pnt(shGrid, lonConj, th, ph, ph_conj)
+                        call InterpShellVar_TSC_pnt(shGrid, sinLon, th, ph, s)
+                        call InterpShellVar_TSC_pnt(shGrid, cosLon, th, ph, c)
+                        ph_conj = atan2(s, c)
+                        if (ph_conj < 0.0_rp) ph_conj = ph_conj + 2.0_rp*PI
+
                         call App%getMomentsPrecip(PI/2.0_rp - lat_conj, ph_conj, imP, isTasty)
                     endif
                 endif

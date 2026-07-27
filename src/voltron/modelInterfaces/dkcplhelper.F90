@@ -3,7 +3,7 @@
 module dkcplhelper
 
     use volttypes
-    use kdefs, only: Mp_cgs          ! #/cc -> mass density for the tubeShell feed
+    use kdefs, only: Mp_cgs, kev2erg ! #/cc -> mass density; erg<->keV
     use gdefs, only: BLK             ! bulk fluid index for tubeShell bcN/bcP
     use planethelper, only: DP2Cs    ! (D,P) -> sound speed
     use shellGrid, only: ShellGrid_T, SHGR_CC, SHGR_CORNER, initShellVar
@@ -35,8 +35,9 @@ module dkcplhelper
                   bcP => vApp%State%tubeShell%bcP(BLK)%data)
             do i = sg%is, sg%ie          ! theta (active)
                 do j = sg%js, sg%je      ! phi (active)
+                    ! DK vars are shell-native (theta,phi); write %data(theta_local, phi_local).
                     ! FAC: plain 4-corner average [uA/m^2]
-                    vApp%dkApp%vars%FAC(j-sg%js+1, i-sg%is+1) = &
+                    vApp%dkApp%vars%FAC%data(i-sg%is+1, j-sg%js+1) = &
                         0.25_rp*( j11(i,j)+j11(i+1,j)+j11(i,j+1)+j11(i+1,j+1) )
 
                     ! Density/Sound_Speed: mask-aware 4-corner average (bcN>0 closed corners only).
@@ -46,39 +47,48 @@ module dkcplhelper
                            DP2Cs(bcN(i,j+1),  bcP(i,j+1)),  DP2Cs(bcN(i+1,j+1),bcP(i+1,j+1)) ] * 1.0e5_rp
                     nGood = count(bn > 0.0_rp)
                     if (nGood > 0) then
-                        vApp%dkApp%vars%Density(j-sg%js+1, i-sg%is+1)     = sum(dn, mask=bn>0.0_rp) / nGood
-                        vApp%dkApp%vars%Sound_Speed(j-sg%js+1, i-sg%is+1) = sum(cs, mask=bn>0.0_rp) / nGood
+                        vApp%dkApp%vars%Density%data(i-sg%is+1, j-sg%js+1)     = sum(dn, mask=bn>0.0_rp) / nGood
+                        vApp%dkApp%vars%Sound_Speed%data(i-sg%is+1, j-sg%js+1) = sum(cs, mask=bn>0.0_rp) / nGood
                     else
-                        vApp%dkApp%vars%Density(j-sg%js+1, i-sg%is+1)     = 0.0_rp
-                        vApp%dkApp%vars%Sound_Speed(j-sg%js+1, i-sg%is+1) = 0.0_rp
+                        vApp%dkApp%vars%Density%data(i-sg%is+1, j-sg%js+1)     = 0.0_rp
+                        vApp%dkApp%vars%Sound_Speed%data(i-sg%is+1, j-sg%js+1) = 0.0_rp
                     endif
                 enddo
             enddo
         end associate
 
         !Backfill no-sample cells so FEDDER never sees zero Density/Sound_Speed (dE = 0/0 -> NaN)
-        if (any(vApp%dkApp%vars%Density > 0.0_rp)) then
-            dmin = minval(vApp%dkApp%vars%Density, mask = vApp%dkApp%vars%Density > 0.0_rp)
+        if (any(vApp%dkApp%vars%Density%data > 0.0_rp)) then
+            dmin = minval(vApp%dkApp%vars%Density%data, mask = vApp%dkApp%vars%Density%data > 0.0_rp)
         else
             dmin = 0.01_rp*Mp_cgs   ! feed entirely empty: 0.01 /cc
         endif
-        if (any(vApp%dkApp%vars%Sound_Speed > 0.0_rp)) then
-            cmin = minval(vApp%dkApp%vars%Sound_Speed, mask = vApp%dkApp%vars%Sound_Speed > 0.0_rp)
+        if (any(vApp%dkApp%vars%Sound_Speed%data > 0.0_rp)) then
+            cmin = minval(vApp%dkApp%vars%Sound_Speed%data, mask = vApp%dkApp%vars%Sound_Speed%data > 0.0_rp)
         else
             cmin = 1.0e6_rp          ! feed entirely empty: 10 km/s [cm/s]
         endif
-        where (vApp%dkApp%vars%Density     <= 0.0_rp) vApp%dkApp%vars%Density     = dmin
-        where (vApp%dkApp%vars%Sound_Speed <= 0.0_rp) vApp%dkApp%vars%Sound_Speed = cmin
+        where (vApp%dkApp%vars%Density%data     <= 0.0_rp) vApp%dkApp%vars%Density%data     = dmin
+        where (vApp%dkApp%vars%Sound_Speed%data <= 0.0_rp) vApp%dkApp%vars%Sound_Speed%data = cmin
 
-        ! IM precip: imag2shell is SHGR_CC (theta,phi); dkVars is (phi,theta) -> transpose
+        ! IM precip: imag2shell and dkVars are both SHGR_CC (theta,phi) -> direct copy, no transpose
         associate(sg => vApp%shGrid)
-            vApp%dkApp%vars%Im_Eflux = transpose(vApp%imag2shell%Im_Eflux%data(sg%is:sg%ie, sg%js:sg%je))
-            vApp%dkApp%vars%Im_Enflx = transpose(vApp%imag2shell%Im_Enflx%data(sg%is:sg%ie, sg%js:sg%je))
-            vApp%dkApp%vars%Im_Gtype = transpose(vApp%imag2shell%Im_Gtype%data(sg%is:sg%ie, sg%js:sg%je))
-            vApp%dkApp%vars%Im_Eden  = transpose(vApp%imag2shell%Im_Eden%data (sg%is:sg%ie, sg%js:sg%je))
-            vApp%dkApp%vars%Im_Epre  = transpose(vApp%imag2shell%Im_Epre%data (sg%is:sg%ie, sg%js:sg%je))
-            vApp%dkApp%vars%Im_Npsp  = transpose(vApp%imag2shell%Im_Npsp%data (sg%is:sg%ie, sg%js:sg%je))
+            vApp%dkApp%vars%Im_Eflux%data = vApp%imag2shell%Im_Eflux%data(sg%is:sg%ie, sg%js:sg%je)
+            vApp%dkApp%vars%Im_Enflx%data = vApp%imag2shell%Im_Enflx%data(sg%is:sg%ie, sg%js:sg%je)
+            vApp%dkApp%vars%Im_Gtype%data = vApp%imag2shell%Im_Gtype%data(sg%is:sg%ie, sg%js:sg%je)
+            vApp%dkApp%vars%Im_Eden%data  = vApp%imag2shell%Im_Eden%data (sg%is:sg%ie, sg%js:sg%je)
+            vApp%dkApp%vars%Im_Epre%data  = vApp%imag2shell%Im_Epre%data (sg%is:sg%ie, sg%js:sg%je)
+            vApp%dkApp%vars%Im_Npsp%data  = vApp%imag2shell%Im_Npsp%data (sg%is:sg%ie, sg%js:sg%je)
         end associate
+
+        ! Derived IM electron average energy [keV] (0 outside IM coverage)
+        ! eavg = eflux[erg/cm^2/s] / (enflx[#/cm^2/s] * kev2erg)
+        where (vApp%dkApp%vars%Im_Enflx%data > 0.0_rp)
+            vApp%dkApp%vars%Im_Eavg%data = vApp%dkApp%vars%Im_Eflux%data &
+                                         / (vApp%dkApp%vars%Im_Enflx%data * kev2erg)
+        elsewhere
+            vApp%dkApp%vars%Im_Eavg%data = 0.0_rp
+        end where
 
         call vApp%dkApp%AdvanceModel(0.0_rp)
     end subroutine shellDK
@@ -90,7 +100,7 @@ module dkcplhelper
         associate(sg => vApp%shGrid, pot => vApp%pot_iono%data)
             do j = sg%js, sg%je
                 do i = sg%is, sg%ie
-                    vApp%dkApp%vars%Pot(j-sg%js+1, i-sg%is+1) = &
+                    vApp%dkApp%vars%Pot%data(i-sg%is+1, j-sg%js+1) = &
                         0.25_rp * ( pot(i  ,j  ) + pot(i+1,j  ) + &
                                     pot(i  ,j+1) + pot(i+1,j+1) )
                 enddo

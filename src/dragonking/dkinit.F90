@@ -10,6 +10,7 @@ module dkinit
     use xml_input
     use raijudefs, ONLY : def_tiote
     use earthhelper, only: GallagherRP
+    use shellGrid, only: initShellVar, SHGR_CC
     
     implicit none
 
@@ -39,10 +40,8 @@ module dkinit
       call initDKvars(dkApp%aurora, dkApp%conductance, dkApp%vars, dkApp%grid)
 
       ! Cold-start for the conductance EMA: begin from the const_sigma reference
-      dkApp%vars%SigmaP = dkApp%params%ped0
-      dkApp%vars%SigmaH = 0.0_rp
-
-      dkApp%params%R = dkApp%grid%radius
+      dkApp%vars%SigmaP%data = dkApp%params%ped0
+      dkApp%vars%SigmaH%data = 0.0_rp
       dkApp%aurora%alpha_RCM = 1.0/(def_tiote+1.0)
       dkApp%aurora%beta_RCM = dkApp%params%beta
       dkApp%aurora%gtype_RCM = 0.0
@@ -77,25 +76,25 @@ module dkinit
       dkApp%grid%Ngn = 0;   dkApp%grid%Ngs = 0
       dkApp%grid%Ngw = 0;   dkApp%grid%Nge = 0
 
-      allocate(dkApp%grid%x (Np,Nt), dkApp%grid%y (Np,Nt), dkApp%grid%r (Np,Nt), &
-             dkApp%grid%D0(Np,Nt), dkApp%grid%dt(Np,Nt), dkApp%grid%dp(Np,Nt))
+      ! DK arrays are shell-native (theta,phi) = (Nt,Np), matching ShellGridVar%data.
+      allocate(dkApp%grid%x (Nt,Np), dkApp%grid%y (Nt,Np), dkApp%grid%r (Nt,Np), &
+             dkApp%grid%D0(Nt,Np), dkApp%grid%dt(Nt,Np), dkApp%grid%dp(Nt,Np))
 
       ! SM coordinates: x = sin(th)*cos(ph), y = sin(th)*sin(ph)
-      dkApp%grid%x  = spread(sin(dkApp%grid%thc), 1, Np) * spread(cos(dkApp%grid%phc), 2, Nt)
-      dkApp%grid%y  = spread(sin(dkApp%grid%thc), 1, Np) * spread(sin(dkApp%grid%phc), 2, Nt)
+      dkApp%grid%x  = spread(sin(dkApp%grid%thc), 2, Np) * spread(cos(dkApp%grid%phc), 1, Nt)
+      dkApp%grid%y  = spread(sin(dkApp%grid%thc), 2, Np) * spread(sin(dkApp%grid%phc), 1, Nt)
 
       ! FEDDER ramp coordinate: sin(th), symmetric about equator, phi-independent
-      dkApp%grid%r  = spread(sin(dkApp%grid%thc), 1, Np)
+      dkApp%grid%r  = spread(sin(dkApp%grid%thc), 2, Np)
 
       ! Gallagher background density: function of radius and colatitude, phi-independent
       do j=1,Nt
-         dkApp%grid%D0(:,j) = GallagherRP(dkApp%grid%radius, dkApp%grid%thc(j))
+         dkApp%grid%D0(j,:) = GallagherRP(dkApp%grid%radius, dkApp%grid%thc(j))
       end do
-      ! dkApp%grid%D0 = spread([(GallagherRP(dkApp%grid%radius, dkApp%grid%thc(j)), j=1,Nt)], 1, Np)
 
       ! Cell spacings for CalcMagE: differences of corner arrays
-      dkApp%grid%dt = spread(dkApp%grid%th(2:Nt+1) - dkApp%grid%th(1:Nt), 1, Np)
-      dkApp%grid%dp = spread(dkApp%grid%ph(2:Np+1) - dkApp%grid%ph(1:Np), 2, Nt)
+      dkApp%grid%dt = spread(dkApp%grid%th(2:Nt+1) - dkApp%grid%th(1:Nt), 2, Np)
+      dkApp%grid%dp = spread(dkApp%grid%ph(2:Np+1) - dkApp%grid%ph(1:Np), 1, Nt)
 
     end subroutine initDKgrid
 
@@ -106,8 +105,10 @@ module dkinit
       character(len=strLen) :: tmpStr
       logical :: doSuicide
       type(XML_Input_T) :: xmlInp
-      
+      real(rp) :: rDef
+
       doSuicide = .false.
+      rDef = 0.0_rp
 
       ! Make sure root is Kaiju/Remix
       call inpXML%GetFileStr(tmpStr)
@@ -166,6 +167,10 @@ module dkinit
       call xmlInp%Set_Val(params%alpha,"precipitation/alpha",1.0332467_rp)
       call xmlInp%Set_Val(params%beta,"precipitation/beta",0.4362323_rp)
 
+      rDef = params%R
+      if (rDef <= 0.0_rp) rDef = 0.083567956_rp
+      call xmlInp%Set_Val(params%R,"precipitation/R",rDef)
+
       call xmlInp%Set_Val(params%doAuroralSmooth,"precipitation/doAuroralSmooth",.false.)        
       call xmlInp%Set_Val(params%F107,"conductance/F107",120._rp)
       call xmlInp%Set_Val(params%pedmin,"conductance/pedmin",2.0_rp)
@@ -181,7 +186,6 @@ module dkinit
       call xmlInp%Set_Val(params%gamma,"precipitation/gamma",5.0/3.0)
       call xmlInp%Set_Val(params%doEMA,"conductance/doEMA",.true.)
       call xmlInp%Set_Val(params%doET,"conductance/doET",.false.)
-      call xmlInp%Set_Val(params%doGCM, "coupling/doGCM",.false.)
 
       params%beta_inp = params%beta
 
@@ -211,6 +215,16 @@ module dkinit
 
     end subroutine initDKparams
 
+    ! Resolution-dependent Fedder current-voltage "R" (precipitation/R)
+    pure function fedderR0default(Nk) result(R0)
+      integer, intent(in) :: Nk
+      real(rp) :: R0
+      if      (Nk <=  64) then; R0 = 0.08_rp   ! DBL
+      else if (Nk <= 128) then; R0 = 0.04_rp   ! QUAD
+      else                    ; R0 = 0.02_rp   ! OCT / HEX+
+      end if
+    end function fedderR0default
+
     subroutine initDKvars(aurora,conductance,vars,grid)
       type(dkAurora_T) , intent(inout) :: aurora
       type(dkConductance_T) , intent(inout) :: conductance
@@ -221,54 +235,51 @@ module dkinit
       Np = grid%Np
       Nt = grid%Nt
 
-      ! Allocate auroral variables
-      if (.not. allocated(aurora%E0))         allocate(aurora%E0(Np,Nt))
-      if (.not. allocated(aurora%phi0))       allocate(aurora%phi0(Np,Nt))
-      if (.not. allocated(aurora%deltaE))     allocate(aurora%deltaE(Np,Nt))
-      if (.not. allocated(aurora%rampFactor)) allocate(aurora%rampFactor(Np,Nt))
-      if (.not. allocated(aurora%PrecipMask)) allocate(aurora%PrecipMask(Np,Nt))
+      ! Aurora/conductance scratch: plain (theta,phi)=(Nt,Np) arrays (internal, never coupled out)
+      if (.not. allocated(aurora%E0))         allocate(aurora%E0(Nt,Np))
+      if (.not. allocated(aurora%phi0))       allocate(aurora%phi0(Nt,Np))
+      if (.not. allocated(aurora%deltaE))     allocate(aurora%deltaE(Nt,Np))
+      if (.not. allocated(aurora%rampFactor)) allocate(aurora%rampFactor(Nt,Np))
+      if (.not. allocated(aurora%PrecipMask)) allocate(aurora%PrecipMask(Nt,Np))
 
-      if (.not. allocated(aurora%beta_RCM))  allocate(aurora%beta_RCM(Np,Nt))
-      if (.not. allocated(aurora%alpha_RCM)) allocate(aurora%alpha_RCM(Np,Nt))
-      if (.not. allocated(aurora%gtype_RCM)) allocate(aurora%gtype_RCM(Np,Nt))
+      if (.not. allocated(aurora%beta_RCM))  allocate(aurora%beta_RCM(Nt,Np))
+      if (.not. allocated(aurora%alpha_RCM)) allocate(aurora%alpha_RCM(Nt,Np))
+      if (.not. allocated(aurora%gtype_RCM)) allocate(aurora%gtype_RCM(Nt,Np))
 
-      ! Allocate conductance variables
-      if (.not. allocated(conductance%zenith))      allocate(conductance%zenith(Np,Nt))
-      if (.not. allocated(conductance%coszen))      allocate(conductance%coszen(Np,Nt))
-      if (.not. allocated(conductance%euvSigmaP))   allocate(conductance%euvSigmaP(Np,Nt))
-      if (.not. allocated(conductance%euvSigmaH))   allocate(conductance%euvSigmaH(Np,Nt))
-      if (.not. allocated(conductance%deltaSigmaP)) allocate(conductance%deltaSigmaP(Np,Nt))
-      if (.not. allocated(conductance%deltaSigmaH)) allocate(conductance%deltaSigmaH(Np,Nt))
+      if (.not. allocated(conductance%zenith))      allocate(conductance%zenith(Nt,Np))
+      if (.not. allocated(conductance%coszen))      allocate(conductance%coszen(Nt,Np))
+      if (.not. allocated(conductance%euvSigmaP))   allocate(conductance%euvSigmaP(Nt,Np))
+      if (.not. allocated(conductance%euvSigmaH))   allocate(conductance%euvSigmaH(Nt,Np))
+      if (.not. allocated(conductance%deltaSigmaP)) allocate(conductance%deltaSigmaP(Nt,Np))
+      if (.not. allocated(conductance%deltaSigmaH)) allocate(conductance%deltaSigmaH(Nt,Np))
 
-      ! Allocate variables
-      if (.not. allocated(vars%Pot))         allocate(vars%Pot(Np,Nt))
-      if (.not. allocated(vars%FAC))         allocate(vars%FAC(Np,Nt))
-      if (.not. allocated(vars%SigmaP))      allocate(vars%SigmaP(Np,Nt))
-      if (.not. allocated(vars%SigmaH))      allocate(vars%SigmaH(Np,Nt))
-      if (.not. allocated(vars%SigmaPgcm))   allocate(vars%SigmaPgcm(Np,Nt))
-      if (.not. allocated(vars%SigmaHgcm))   allocate(vars%SigmaHgcm(Np,Nt))
-      if (.not. allocated(vars%Sound_Speed)) allocate(vars%Sound_Speed(Np,Nt))
-      if (.not. allocated(vars%Density))     allocate(vars%Density(Np,Nt))
-      if (.not. allocated(vars%Avg_Eng))     allocate(vars%Avg_Eng(Np,Nt))
-      if (.not. allocated(vars%Num_Flux))    allocate(vars%Num_Flux(Np,Nt))
-      if (.not. allocated(vars%Im_Eflux))    allocate(vars%Im_Eflux(Np,Nt))
-      if (.not. allocated(vars%Z_Eavg))      allocate(vars%Z_Eavg(Np,Nt))
-      if (.not. allocated(vars%Z_Nflux))     allocate(vars%Z_Nflux(Np,Nt))
-      if (.not. allocated(vars%Im_Gtype))    allocate(vars%Im_Gtype(Np,Nt))
-      if (.not. allocated(vars%Aur_Type))    allocate(vars%Aur_Type(Np,Nt))
-      vars%Aur_Type = AT_NoPre
-      if (.not. allocated(vars%Im_Beta))     allocate(vars%Im_Beta(Np,Nt))
-      if (.not. allocated(vars%Im_Eden))     allocate(vars%Im_Eden(Np,Nt))
-      if (.not. allocated(vars%Im_Epre))     allocate(vars%Im_Epre(Np,Nt)) 
-      if (.not. allocated(vars%Im_Enflx))    allocate(vars%Im_Enflx(Np,Nt))
-      if (.not. allocated(vars%DeltaE))      allocate(vars%DeltaE(Np,Nt))
-      if (.not. allocated(vars%Im_Npsp))     allocate(vars%Im_Npsp(Np,Nt))
+      ! DK variables as ShellGridVar_T (cell-centered) on the ghost-free DK grid.
+      ! initShellVar allocates %data(1:Nt,1:Np) and zero-fills; %mask defaults .true.
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Pot)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%FAC)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%SigmaP)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%SigmaH)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Sound_Speed)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Density)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Avg_Eng)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Num_Flux)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Eflux)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Z_Eavg)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Z_Nflux)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Gtype)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Aur_Type)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Beta)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Eden)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Epre)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Enflx)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%DeltaE)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Npsp)
+      call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Eavg)
 
-      vars%SigmaP = 0.0_rp
-      vars%SigmaH = 0.0_rp
+      vars%Aur_Type%data = AT_NoPre
 
-      vars%SigmaPgcm = 0.0_rp
-      vars%SigmaHgcm = 0.0_rp
+      vars%SigmaP%data = 0.0_rp
+      vars%SigmaH%data = 0.0_rp
 
     end subroutine initDKvars
 

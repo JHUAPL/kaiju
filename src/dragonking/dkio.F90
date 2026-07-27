@@ -53,8 +53,8 @@ module dkio
         Np = dkApp%grid%Np
         Nt = dkApp%grid%Nt
         call ClearIO(IOVars)
-        call AddOutVar(IOVars, "X", dkApp%grid%x(1:Np,1:Nt), uStr="Ri")
-        call AddOutVar(IOVars, "Y", dkApp%grid%y(1:Np,1:Nt), uStr="Ri")
+        call AddOutVar(IOVars, "X", dkApp%grid%x(1:Nt,1:Np), uStr="Ri")
+        call AddOutVar(IOVars, "Y", dkApp%grid%y(1:Nt,1:Np), uStr="Ri")
         call AddOutVar(IOVars, "UnitsID", "DragonKing")
         call WriteVars(IOVars, .false., h5File)
     end subroutine initDKIO
@@ -76,8 +76,8 @@ module dkio
         call CheckAndKill(h5Str)
 
         call ClearIO(IOVars)
-        call AddOutVar(IOVars, "Pedersen conductance", dkApp%vars%SigmaP, uStr="S")
-        call AddOutVar(IOVars, "Hall conductance", dkApp%vars%SigmaH, uStr="S")
+        call AddOutVar(IOVars, "Pedersen conductance", dkApp%vars%SigmaP%data, uStr="S")
+        call AddOutVar(IOVars, "Hall conductance", dkApp%vars%SigmaH%data, uStr="S")
         call AddOutVar(IOVars, "nRes", nRes)
         call AddOutVar(IOVars, "time", dkApp%IO%time)
         call AddOutVar(IOVars, "MJD",  dkApp%IO%mjd)
@@ -122,9 +122,9 @@ module dkio
         call ReadVars(IOVars, .false., h5Str)
 
         n0 = FindIO(IOVars, "Pedersen conductance")
-        if (IOVars(n0)%isDone) call IOArray2DFill(IOVars, "Pedersen conductance", dkApp%vars%SigmaP)
+        if (IOVars(n0)%isDone) call IOArray2DFill(IOVars, "Pedersen conductance", dkApp%vars%SigmaP%data)
         n0 = FindIO(IOVars, "Hall conductance")
-        if (IOVars(n0)%isDone) call IOArray2DFill(IOVars, "Hall conductance", dkApp%vars%SigmaH)
+        if (IOVars(n0)%isDone) call IOArray2DFill(IOVars, "Hall conductance", dkApp%vars%SigmaH%data)
 
         write(*,*) "Done readDKRestart"
     end subroutine readDKRestart
@@ -137,26 +137,22 @@ module dkio
         integer,        intent(in)    :: nStep
 
         character(len=strLen) :: gStr
-        integer :: Np, Nt
 
-        ! DK runs on the active grid, so vars are all (Np,Nt); the explicit
-        ! (1:Np,1:Nt) slices below are just defensive shape pins.
-        Np = dkApp%grid%Np
-        Nt = dkApp%grid%Nt
+        ! DK vars are ShellGridVar_T on the ghost-free DK grid: %data is (Nt,Np) (theta,phi).
         write(gStr,'(A,I0)') "Step#", nStep
 
         call ClearIO(IOVars)
-        call AddOutVar(IOVars, "Pedersen conductance",   dkApp%vars%SigmaP(1:Np,1:Nt),   uStr="S")
-        call AddOutVar(IOVars, "Hall conductance",       dkApp%vars%SigmaH(1:Np,1:Nt),   uStr="S")
-        call AddOutVar(IOVars, "Field-aligned current",  dkApp%vars%FAC(1:Np,1:Nt),      uStr="microA/m2")
-        call AddOutVar(IOVars, "Average energy",         dkApp%vars%Avg_Eng(1:Np,1:Nt),  uStr="keV")
-        call AddOutVar(IOVars, "Number flux",            dkApp%vars%Num_Flux(1:Np,1:Nt), uStr="1/cm2/s")
-        call AddOutVar(IOVars, "Potential",              dkApp%vars%Pot(1:Np,1:Nt),      uStr="kV")
-        call AddOutVar(IOVars, "Auroral type",           dkApp%vars%Aur_Type(1:Np,1:Nt), uStr="")
-        call AddOutVar(IOVars, "Mono potential drop",    dkApp%vars%DeltaE(1:Np,1:Nt),   uStr="kV")
-        call AddOutVar(IOVars, "RCM beta",               dkApp%aurora%beta_RCM(1:Np,1:Nt), uStr="")
-        call AddOutVar(IOVars, "MHD average energy",     dkApp%vars%Z_Eavg(1:Np,1:Nt),   uStr="keV")
-        call AddOutVar(IOVars, "MHD number flux",        dkApp%vars%Z_Nflux(1:Np,1:Nt),  uStr="1/cm2/s")
+        call AddOutVar(IOVars, "Pedersen conductance",   dkApp%vars%SigmaP%data,   uStr="S")
+        call AddOutVar(IOVars, "Hall conductance",       dkApp%vars%SigmaH%data,   uStr="S")
+        call AddOutVar(IOVars, "Field-aligned current",  dkApp%vars%FAC%data,      uStr="microA/m2")
+        call AddOutVar(IOVars, "Average energy",         dkApp%vars%Avg_Eng%data,  uStr="keV")
+        call AddOutVar(IOVars, "Number flux",            dkApp%vars%Num_Flux%data, uStr="1/cm2/s")
+        call AddOutVar(IOVars, "Potential",              dkApp%vars%Pot%data,      uStr="kV")
+        call AddOutVar(IOVars, "Auroral type",           dkApp%vars%Aur_Type%data, uStr="")
+        call AddOutVar(IOVars, "Mono potential drop",    dkApp%vars%DeltaE%data,   uStr="kV")
+        call AddOutVar(IOVars, "RCM beta",               dkApp%aurora%beta_RCM,    uStr="")
+        call AddOutVar(IOVars, "MHD average energy",     dkApp%vars%Z_Eavg%data,   uStr="keV")
+        call AddOutVar(IOVars, "MHD number flux",        dkApp%vars%Z_Nflux%data,  uStr="1/cm2/s")
         call AddOutVar(IOVars, "time", dkApp%IO%time)
         call AddOutVar(IOVars, "MJD",  dkApp%IO%mjd)
         call WriteVars(IOVars, .false., h5File, gStr)
