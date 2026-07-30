@@ -71,11 +71,6 @@ module voltCplHelper
             enddo
             !$OMP END PARALLEL DO
 
-            if (mod(nint(vApp%time), 60) == 0) then
-                write(*,'(a,f9.1,a,es10.3,a,es10.3)') ' <spinupTubes> t=', vApp%time, &
-                    '  max|J11i|=', maxval(abs(ts%J11i%data)), '  max bcN=', maxval(ts%bcN(BLK)%data)
-            endif
-
         end associate
     end subroutine genVoltTubesSpinup
 
