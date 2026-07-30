@@ -3,6 +3,7 @@ module shellGrid
     use kdefs
     use math
     use planethelper
+    use strings, only: toUpper
 
     implicit none
 
@@ -145,7 +146,7 @@ module shellGrid
 
         ! Default to SM if coord not provided
         if (present(coord)) then
-            shGr%coord = coord
+            shGr%coord = toUpper(coord)
         else
             shGr%coord = "SM"
         endif
