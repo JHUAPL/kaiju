@@ -464,8 +464,16 @@ module voltio
         call AddOutSGV(IOVars, "Potential_base", vApp%State%potential_base, &
                         uStr="kV", dStr="Original potential without corotation", &
                         outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Number flux", vApp%dkApp%vars%Num_Flux, &
+                        uStr="1/cm2/s", dStr="DK precipitation number flux", &
+                        doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Average energy", vApp%dkApp%vars%Avg_Eng, &
+                        uStr="keV", dStr="DK precipitation mean average energy", &
+                        doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Auroral type", vApp%dkApp%vars%Aur_Type, &
+                        uStr="", dStr="DK auroral type", &
+                        doWriteMaskO=.false.)                      
         call WriteVars(IOVars,.true.,vh5File,gStr)
-
         write(gStr,'(A,A)') trim(gStr), "/TubeShell"
         call writeTubeShell(vApp%shGrid, vApp%State%tubeShell, vh5File, gStrO=gStr, doGhostsO=doGhosts,doFatO=doFat)
 
