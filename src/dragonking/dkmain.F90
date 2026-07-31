@@ -1,6 +1,5 @@
 module dkmain
     use kdefs
-    use dkdefs
     use dktypes
     use dkconductance
     use dkaurora

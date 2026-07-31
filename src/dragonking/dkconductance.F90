@@ -1,5 +1,4 @@
 module dkconductance
-  use dkdefs
   use dktypes
   use planethelper
   use math
@@ -12,7 +11,6 @@ module dkconductance
   contains
 
     subroutine conductance_total(conductance,grid,vars,params)
-      ! The main subroutine in module mixconductance.
       ! It derives auroral precipitation and conductance caused by both solar EUV and aurora.
       type(dkConductance_T), intent(inout) :: conductance
       type(dkGrid_T), intent(in) :: grid
@@ -120,7 +118,7 @@ module dkconductance
       conductance%zenith = acos(conductance%coszen)
 
       select case ( params%euv_model_type )
-         case (LOMPE) 
+         case (DKModel%LOMPE)
             conductance%euvSigmaP = SigP_EUV_LOMPE(conductance%zenith,params%f107)
             conductance%euvSigmaH = SigH_EUV_LOMPE(conductance%zenith,params%f107)
 
@@ -165,18 +163,18 @@ module dkconductance
          do i=1,grid%Np
             eflux = kev2erg*vars%Avg_Eng%data(j,i)*vars%Num_Flux%data(j,i)  ! Energy flux in ergs/cm^2/s
             eavg  = vars%Avg_Eng%data(j,i) ! Average energy in keV
-            if (vars%Aur_Type%data(j,i) == AT_RMono) then
+            if (vars%Aur_Type%data(j,i) == DKModel%AT_RMono) then
                dE = vars%DeltaE%data(j,i) ! Energy width in keV
             else
                dE = 0.0_rp
             endif
 
             select case ( params%sigma_model_type )
-               case (KAE23)
+               case (DKModel%KAE23)
                   ! Kaeppler et al. [2023] model, mono/diffuse specific parameters.
                   conductance%deltaSigmaP(j,i) = SigmaP_Kaep23(eavg,eflux,dE)
                   conductance%deltaSigmaH(j,i) = SigmaH_Kaep23(eavg,eflux,dE)
-               case (ROB87)
+               case (DKModel%ROB87)
                   ! Robinson formula
                   conductance%deltaSigmaP(j,i) = SigmaP_Robinson(eavg,eflux)
                   conductance%deltaSigmaH(j,i) = SigmaH_Robinson(eavg,eflux)

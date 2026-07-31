@@ -2,7 +2,6 @@
 
 module auroralhelper
     use kdefs
-    use dkdefs
     use dktypes
     
     implicit none

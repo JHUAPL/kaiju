@@ -1,6 +1,5 @@
 module dkaurora
   use kdefs
-  use dkdefs
   use dktypes
 !  use planethelper
 !  use gcmtypes
@@ -33,11 +32,11 @@ module dkaurora
       type(dkParameters_T), intent(in) :: params
 
       select case ( params%aurora_model_type )
-        case (FEDDER)
+        case (DKModel%FEDDER)
           call dragonking_fedder95(aurora,grid,vars,conductance,params)
-        case (SUNNY)
+        case (DKModel%SUNNY)
           call dragonking_sunny(vars)
-        case (LINMRG)
+        case (DKModel%LINMRG)
           call dragonking_linmrg(aurora,grid,vars,params)
         case default
           stop "The auroral precipitation model type entered is not supported."
@@ -67,7 +66,7 @@ module dkaurora
       integer :: i,j
 
       !Default to no precip (diffuse conductance branch)
-      vars%Aur_Type%data = AT_NoPre
+      vars%Aur_Type%data = DKModel%AT_NoPre
 
       ! fills in rampFactor
       if (params%doRamp) then
@@ -130,7 +129,7 @@ module dkaurora
       type(dkVariables_T), intent(inout) :: vars
 
       ! Make sure zero Eavg/Nflux does not cause issues in conductance calculation.
-      vars%Aur_Type%data = AT_NoPre
+      vars%Aur_Type%data = DKModel%AT_NoPre
       vars%Avg_Eng%data = 0.D0
       vars%Num_Flux%data = 0.D0
       vars%DeltaE%data = 0.D0
@@ -194,25 +193,25 @@ module dkaurora
                vars%Num_Flux%data(j,i) = rcm_nflx
                vars%Avg_Eng%data(j,i)  = rcm_eavg
                if(rcm_nflx>GuABNF) then
-                  vars%Aur_Type%data(j,i) = AT_RMnoE
+                  vars%Aur_Type%data(j,i) = DKModel%AT_RMnoE
                else
-                  vars%Aur_Type%data(j,i) = AT_NoPre
+                  vars%Aur_Type%data(j,i) = DKModel%AT_NoPre
                endif
             elseif(isMono .and. .not.isPSP) then
                ! Set auroral type to mono if mono is above Gussenhove threshold and gives higher Robinson L2.
                ! Else set diffuse or no precipitation depending on rcm values relative to the threshold.
                mhd_SigPH = SigmaP_Robinson(mhd_eavg,mhd_eflx)**2+SigmaH_Robinson(mhd_eavg,mhd_eflx)**2
                rcm_SigPH = SigmaP_Robinson(rcm_eavg,rcm_eflx)**2+SigmaH_Robinson(rcm_eavg,rcm_eflx)**2
-               vars%Aur_Type%data(j,i) = AT_RMono
+               vars%Aur_Type%data(j,i) = DKModel%AT_RMono
                if(mhd_nflx>GuABNF .and. mhd_SigPH>rcm_SigPH) then
-                  vars%Aur_Type%data(j,i) = AT_RMono
+                  vars%Aur_Type%data(j,i) = DKModel%AT_RMono
                else
                   vars%Num_Flux%data(j,i) = rcm_nflx
                   vars%Avg_Eng%data(j,i)  = rcm_eavg
                   if(rcm_nflx>GuABNF) then
-                     vars%Aur_Type%data(j,i) = AT_RMfnE
+                     vars%Aur_Type%data(j,i) = DKModel%AT_RMfnE
                   else
-                     vars%Aur_Type%data(j,i) = AT_NoPre
+                     vars%Aur_Type%data(j,i) = DKModel%AT_NoPre
                   endif
                endif
             else
@@ -224,10 +223,10 @@ module dkaurora
                vars%Num_Flux%data(j,i) = mix_nflx
                if(mix_nflx>GuABNF) then
                   vars%Avg_Eng%data(j,i) = (wMHD*mhd_eflx+wRCM*rcm_eflx)/(mix_nflx*kev2erg)
-                  vars%Aur_Type%data(j,i)= AT_RMnoE
+                  vars%Aur_Type%data(j,i)= DKModel%AT_RMnoE
                else
                   vars%Avg_Eng%data(j,i) = eTINY
-                  vars%Aur_Type%data(j,i)= AT_NoPre
+                  vars%Aur_Type%data(j,i)= DKModel%AT_NoPre
                endif
             endif
          enddo

@@ -1,6 +1,5 @@
 module dkinit
     use kdefs
-    use dkdefs
     use dktypes
     use dkconductance
     use dkaurora
@@ -121,7 +120,7 @@ module dkinit
       call xmlInp%Set_Val(tmpStr,"conductance/euv_model_type","LOMPE")
       select case (tmpSTR)
          case ("LOMPE")
-            params%euv_model_type = LOMPE
+            params%euv_model_type = DKModel%LOMPE
          case default 
             stop "The EUV model type entered is not supported."              
       end select
@@ -130,11 +129,11 @@ module dkinit
       call xmlInp%Set_Val(tmpStr,"conductance/et_model_type","NONE")
       select case (tmpSTR)
          case ("NONE")
-            params%et_model_type = NONE
+            params%et_model_type = DKModel%ET_NONE
          case ("ADHOC")
-            params%et_model_type = ADHOC
+            params%et_model_type = DKModel%ET_ADHOC
          case ("CMIT")
-            params%et_model_type = CMIT
+            params%et_model_type = DKModel%ET_CMIT
          case default 
             stop "The ET model type entered is not supported."              
       end select
@@ -143,9 +142,9 @@ module dkinit
       call xmlInp%Set_Val(tmpStr,"conductance/sigma_model_type","KAE23")
       select case (tmpSTR)
          case ("KAE23")
-            params%sigma_model_type = KAE23
+            params%sigma_model_type = DKModel%KAE23
          case ("ROB87")
-            params%sigma_model_type = ROB87
+            params%sigma_model_type = DKModel%ROB87
          case default
             stop "The SIGMA model type entered is not supported."
       end select
@@ -154,11 +153,11 @@ module dkinit
       call xmlInp%Set_Val(tmpStr,"precipitation/aurora_model_type","FEDDER")
       select case (tmpSTR)
          case ("FEDDER")
-            params%aurora_model_type = FEDDER
+            params%aurora_model_type = DKModel%FEDDER
          case ("SUNNY")
-            params%aurora_model_type = SUNNY
+            params%aurora_model_type = DKModel%SUNNY
          case ("LINMRG")
-            params%aurora_model_type = LINMRG
+            params%aurora_model_type = DKModel%LINMRG
          case default 
             stop "The auroral model type entered is not supported (Available options: FEDDER, SUNNY, LINMRG)."
       end select
@@ -276,7 +275,7 @@ module dkinit
       call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Npsp)
       call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Eavg)
 
-      vars%Aur_Type%data = AT_NoPre
+      vars%Aur_Type%data = DKModel%AT_NoPre
 
       vars%SigmaP%data = 0.0_rp
       vars%SigmaH%data = 0.0_rp

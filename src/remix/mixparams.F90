@@ -1,6 +1,5 @@
 module mixparams
   use mixdefs
-  use dkdefs
   use mixtypes
   use xml_input
 
@@ -80,53 +79,9 @@ module mixparams
       ! Create new XML reader w/ REMIX as root
       xmlInp = New_XML_Input(trim(tmpStr),'Kaiju/REMIX',.true.)
 
-      ! =========== CONDUCTANCE MODEL PARAMTERS =================== !
-      ! EUV_MODEL_TYPE
-      !NOTE: Changing default EUV to LOMPE, it's 2021 ffs
-      call xmlInp%Set_Val(tmpStr,"conductance/euv_model_type","LOMPE")
-      select case (tmpSTR)
-         case ("LOMPE")
-            Params%euv_model_type = LOMPE
-         case default 
-            stop "The EUV model type entered is not supported."              
-      end select
-
-      ! ET_MODEL_TYPE
-      call xmlInp%Set_Val(tmpStr,"conductance/et_model_type","NONE")
-      select case (tmpSTR)
-         case ("NONE")
-            Params%et_model_type = NONE
-         case ("ADHOC")
-            Params%et_model_type = ADHOC
-         case ("CMIT")
-            Params%et_model_type = CMIT
-         case default 
-            stop "The ET model type entered is not supported."              
-      end select
-
-      ! SIGMA_MODEL_TYPE
-      call xmlInp%Set_Val(tmpStr,"conductance/sigma_model_type","KAE23")
-      select case (tmpSTR)
-         case ("KAE23")
-            Params%sigma_model_type = KAE23
-         case ("ROB87")
-            Params%sigma_model_type = ROB87
-         case default
-            stop "The SIGMA model type entered is not supported."
-      end select
-
-      ! AURORA_MODEL_TYPE
-      call xmlInp%Set_Val(tmpStr,"precipitation/aurora_model_type","FEDDER")
-      select case (tmpSTR)
-         case ("FEDDER")
-            Params%aurora_model_type = FEDDER
-         case ("SUNNY")
-            Params%aurora_model_type = SUNNY
-         case ("LINMRG")
-            Params%aurora_model_type = LINMRG
-         case default 
-            stop "The auroral model type entered is not supported (Available options: FEDDER, SUNNY, LINMRG)."
-      end select
+      ! NOTE: precipitation (auroral) and EUV/ET/SIGMA conductance model
+      !       selection now live in DragonKing only; the mix-side copies were
+      !       unused and have been removed.
 
       ! =========== CONDUCTANCE MODEL PARAMETERS =================== !
       call xmlInp%Set_Val(Params%alpha,"precipitation/alpha",1.0332467_rp)
@@ -191,9 +146,6 @@ module mixparams
          doSuicide=.true.
       else if (xmlInp%Exists("conductance/R")) then
          write(*,*) "conductance/R is gone. You're entering a world of pain. Use precipitation/R"
-         doSuicide=.true.
-      else if (xmlInp%Exists("conductance/aurora_model_type")) then
-         write(*,*) "conductance/aurora_model_type is gone. You're entering a world of pain. Use precipitation/aurora_model_type"
          doSuicide=.true.
       end if
       write(*,*) ANSIRESET, ''

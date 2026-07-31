@@ -287,20 +287,19 @@ module voltapp
             call initializeFromGamera(vApp, gApp, xmlInp)
         endif
 
-        ! now that remix is initialized, check if precipitation model is OK with deep choice
+        ! now that models are initialized, check that the DragonKing precipitation
+        ! model is compatible with the deep-coupling choice
         if(.not. vApp%doDeep) then
-            ! if we aren't using "deep" parts such as RCM, we need to use a
-            !    precipitation model that doesn't rely on them
-            select type(ionoApp => vApp%ionoApp)
-            type is (remixCoupler_T)
-                if(ionoApp%mixApp%ion(NORTH)%P%aurora_model_type /= FEDDER .and. &
-                   ionoApp%mixApp%ion(NORTH)%P%aurora_model_type /= SUNNY) then
-                    write(*,*) 'The "FEDDER" or SUNNY precipitation model MUST be used when deep coupling is disabled.'
-                    write(*,*) 'Please either enable the "voltron/coupling/doDeep" option, or'
-                    write(*,*) ' set "remix/precipitation/aurora_model_type" to "FEDDER" or "SUNNY"'
-                    stop
-                endif
-            end select
+            ! if we aren't using "deep" parts such as RCM, we need a
+            !    precipitation model that doesn't rely on them. Precipitation is
+            !    computed by DragonKing, so query DK's model (not the ionosphere).
+            if(vApp%dkApp%params%aurora_model_type /= DKModel%FEDDER .and. &
+               vApp%dkApp%params%aurora_model_type /= DKModel%SUNNY) then
+                write(*,*) 'The FEDDER or SUNNY precipitation model MUST be used when deep coupling is disabled.'
+                write(*,*) 'Please either enable the "voltron/coupling/doDeep" option, or'
+                write(*,*) ' set the DragonKing "precipitation/aurora_model_type" to "FEDDER" or "SUNNY".'
+                stop
+            endif
         endif
 
         if (gApp%Grid%Nkp>=512) then

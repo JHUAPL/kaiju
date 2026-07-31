@@ -1,10 +1,36 @@
 module dktypes
   use kdefs
   use shellGrid
-  use dkdefs
   use basetypes
 
   implicit none
+
+  ! === DragonKing model / output codes (formerly module dkdefs) ===
+  ! Namespaced as components of a PARAMETER-qualified derived type so that
+  ! `use dktypes` exports only DKModel, instead of ~13 bare constants
+  ! (NONE, FEDDER, LINMRG, ...). A generic name like NONE leaking into every
+  ! importing module (including REMIX) is a namespace-collision hazard;
+  ! qualifying access (DKModel%ET_NONE) removes it.
+  !
+  ! A structure component of a named constant is itself a constant
+  ! expression, so DKModel%FEDDER etc. are valid select-case labels.
+  ! Values are unchanged from the previous enum, so h5 output/restarts
+  ! remain bit-compatible.
+  type :: dkModel_T
+     ! precipitation/aurora_model_type
+     integer :: FEDDER = 1, LINMRG = 2, SUNNY = 3
+     ! conductance/euv_model_type
+     integer :: LOMPE = 1
+     ! conductance/et_model_type  (electron temperature)
+     integer :: ET_NONE = 1, ET_ADHOC = 2, ET_CMIT = 3
+     ! conductance/sigma_model_type  (Robinson variant)
+     integer :: KAE23 = 1, ROB87 = 2
+     ! auroral output type codes (written to h5 as the Aur_Type variable)
+     integer :: AT_NoPre = 0, AT_RMnoE = 1, AT_RMfnE = 2, AT_RMono = 3
+  end type dkModel_T
+  type(dkModel_T), parameter :: DKModel = dkModel_T()
+
+  real(rp), parameter :: eTINY = 1.D-8 ! Floor of average energy [keV]
 
   type dkAurora_T
     ! arrays on the grid
