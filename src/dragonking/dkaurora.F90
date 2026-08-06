@@ -149,7 +149,7 @@ module dkaurora
       real(rp) :: mhd_nflx,mhd_eflx,mhd_eavg
       real(rp) :: rcm_nflx,rcm_eflx,rcm_eavg
       real(rp) :: mix_nflx,mhd_SigPH,rcm_SigPH
-      logical :: isMono,isPSP
+      logical :: isMono,isIMAG
 
       vars%Aur_Type%data = 0
 
@@ -161,14 +161,15 @@ module dkaurora
       call dragonking_linmono(aurora,grid,vars,params)
 
       !$OMP PARALLEL DO default(shared) &
-      !$OMP private(i,j,isMono,isPSP,wRCM,wMHD) &
+      !$OMP private(i,j,isMono,isIMAG,wRCM,wMHD) &
       !$OMP private(mhd_nflx,mhd_eflx,mhd_eavg) &
       !$OMP private(rcm_nflx,rcm_eflx,rcm_eavg) &
       !$OMP private(mix_nflx,mhd_SigPH,rcm_SigPH)
       do j=1,grid%Nt
          do i=1,grid%Np
             !Start by figuring out where we are
-            isPSP = vars%Im_Npsp%data(j,i)>=Ne_psp .or. aurora%beta_RCM(j,i)<=0.01
+!            isPSP = vars%Im_Npsp%data(j,i)>=Ne_psp .or. aurora%beta_RCM(j,i)<=0.01
+            isIMAG = vars%Im_Gtype%data(j,i)>=0.5 ! defined in raiCplTypesSub.F90: "-1=Inactive, 0=Buffer, 1=Active" -> 0, 0.5, and 1.0.
             isMono = vars%DeltaE%data(j,i)>eTINY
             !Grab values
             mhd_nflx = vars%Num_Flux%data(j,i)
@@ -187,31 +188,19 @@ module dkaurora
             endif
             rcm_eflx = rcm_eavg*rcm_nflx*kev2erg
 
-            if(isPSP) then
-               ! Set auroral type to diffuse or no precipitation.
-               ! Use RCM values for diffuse nflux and eavg in the plasmasphere.
-               vars%Num_Flux%data(j,i) = rcm_nflx
-               vars%Avg_Eng%data(j,i)  = rcm_eavg
-               if(rcm_nflx>GuABNF) then
-                  vars%Aur_Type%data(j,i) = DKModel%AT_RMnoE
-               else
-                  vars%Aur_Type%data(j,i) = DKModel%AT_NoPre
-               endif
-            elseif(isMono .and. .not.isPSP) then
-               ! Set auroral type to mono if mono is above Gussenhove threshold and gives higher Robinson L2.
-               ! Else set diffuse or no precipitation depending on rcm values relative to the threshold.
-               mhd_SigPH = SigmaP_Robinson(mhd_eavg,mhd_eflx)**2+SigmaH_Robinson(mhd_eavg,mhd_eflx)**2
-               rcm_SigPH = SigmaP_Robinson(rcm_eavg,rcm_eflx)**2+SigmaH_Robinson(rcm_eavg,rcm_eflx)**2
+            if(isMono) then
+               vars%Num_Flux%data(j,i) = mhd_nflx
+               vars%Avg_Eng%data(j,i)  = mhd_eavg
                vars%Aur_Type%data(j,i) = DKModel%AT_RMono
-               if(mhd_nflx>GuABNF .and. mhd_SigPH>rcm_SigPH) then
-                  vars%Aur_Type%data(j,i) = DKModel%AT_RMono
-               else
-                  vars%Num_Flux%data(j,i) = rcm_nflx
-                  vars%Avg_Eng%data(j,i)  = rcm_eavg
-                  if(rcm_nflx>GuABNF) then
+               if(isIMAG) then
+                  ! Set auroral type to mono if mono is above Gussenhove threshold and gives higher Robinson L2.
+                  ! Else set diffuse or no precipitation depending on rcm values relative to the threshold.
+                  mhd_SigPH = SigmaP_Robinson(mhd_eavg,mhd_eflx)**2+SigmaH_Robinson(mhd_eavg,mhd_eflx)**2
+                  rcm_SigPH = SigmaP_Robinson(rcm_eavg,rcm_eflx)**2+SigmaH_Robinson(rcm_eavg,rcm_eflx)**2
+                  if(mhd_SigPH<rcm_SigPH) then
+                     vars%Num_Flux%data(j,i) = rcm_nflx
+                     vars%Avg_Eng%data(j,i)  = rcm_eavg
                      vars%Aur_Type%data(j,i) = DKModel%AT_RMfnE
-                  else
-                     vars%Aur_Type%data(j,i) = DKModel%AT_NoPre
                   endif
                endif
             else
@@ -319,7 +308,7 @@ module dkaurora
                ! Linearize the Fridman-Lemaire relation:
                ! eV = kB*Te*(RM-1)*ln((RM-1)/(RM-J/e/F0)) when 1<=J/e/F0<=RM.
                ! eV ~ kB*Te*(J/e/F0-1) when RM>>J/e/F0
-               if (J2eF0>1.0 .and. Ne>Ne_floor) hasMono = .true.
+               if (J2eF0>1.0 .and. Ne>Ne_floor .and. vars%Im_Npsp%data(j,i)<Ne_psp) hasMono = .true.
             endif
             if (hasMono) then
                dE = kT*(J2eF0-1.0)
@@ -507,14 +496,14 @@ module dkaurora
             if(phi0_rcm>TINY) then
                ! This criterion includes all RCM grid. Note beta is 0 where IM_ENFLX is zero.
                vars%Im_Beta%data(j,i) = vars%Im_Enflx%data(j,i)/phi0_rcm
-               if(vars%Im_Beta%data(j,i)>1.0) then
+               !if(vars%Im_Beta%data(j,i)>1.0) then
                   ! Near RCM high lat boundary, trapped flux is not well constrained.
                   ! The beta there can be easily >>1 and is thus not as reliable.
                   ! Reset grid weight to MHD if RCM beta>1.
-                  vars%Im_Gtype%data(j,i) = 0.0 !1.0/vars%Im_Beta%data(j,i)**2
-                  vars%Im_Beta%data(j,i)  = 0.5*(1.0+params%beta_inp)
-                  isAncG(j,i) = .false.
-               endif
+               !   vars%Im_Gtype%data(j,i) = 0.0 !1.0/vars%Im_Beta%data(j,i)**2
+               !   vars%Im_Beta%data(j,i)  = 0.5*(1.0+params%beta_inp)
+               !   isAncG(j,i) = .false.
+               !endif
             endif
          enddo
       enddo
