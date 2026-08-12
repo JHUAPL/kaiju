@@ -27,6 +27,11 @@ module voltappHelper
             call initShellVar(sh, SHGR_CC, State%bIonoMag)
             call initShellVar(sh, SHGR_CC, State%bIonoRad)
 
+            ! DK precipitation outputs, mirrored from dkApp each step (shellDK)
+            call initShellVar(sh, SHGR_CC, State%Num_Flux)
+            call initShellVar(sh, SHGR_CC, State%Avg_Eng)
+            call initShellVar(sh, SHGR_CC, State%Aur_Type)
+
             ! Default values
             call initMagVars(sh, vApp%planet, State)
         end associate 

@@ -250,6 +250,11 @@ module voltio
         call AddOutSGV(IOVars, "bIonoMag", vApp%State%bIonoMag, doWriteMaskO=.true.)
         call AddOutSGV(IOVars, "bIonoRad", vApp%State%bIonoRad, doWriteMaskO=.true.)
 
+        ! DK precipitation vars
+        call AddOutSGV(IOVars, "Number flux",    vApp%State%Num_Flux, doWriteMaskO=.true.)
+        call AddOutSGV(IOVars, "Average energy", vApp%State%Avg_Eng,  doWriteMaskO=.true.)
+        call AddOutSGV(IOVars, "Auroral type",   vApp%State%Aur_Type, doWriteMaskO=.true.)
+
         call WriteVars(IOVars,.false.,ResF)
 
         ! Save shellGrid
@@ -332,6 +337,15 @@ module voltio
         call ReadInSGV(vApp%State%potential_base, ResF, "potential_base", doIOpO=.false.)
         call ReadInSGV(vApp%State%bIonoMag, ResF, "bIonoMag", doIOpO=.false.)
         call ReadInSGV(vApp%State%bIonoRad, ResF, "bIonoRad", doIOpO=.false.)
+
+        ! DK precipitation vars
+        if (ioExist(ResF, "Number flux")) then
+            call ReadInSGV(vApp%State%Num_Flux, ResF, "Number flux",   doIOpO=.false.)
+            call ReadInSGV(vApp%State%Avg_Eng,  ResF, "Average energy", doIOpO=.false.)
+            call ReadInSGV(vApp%State%Aur_Type, ResF, "Auroral type",   doIOpO=.false.)
+        else
+            write(*,*) "DK precip vars absent from this Voltron restart (older file); they need to be recomputed."
+        endif
 
         ! And all of tubeShell
         call readTubeShellRestart(vApp%State%tubeShell, ResF)
@@ -464,15 +478,15 @@ module voltio
         call AddOutSGV(IOVars, "Potential_base", vApp%State%potential_base, &
                         uStr="kV", dStr="Original potential without corotation", &
                         outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "Number flux", vApp%dkApp%vars%Num_Flux, &
+        call AddOutSGV(IOVars, "Number flux", vApp%State%Num_Flux, &
                         uStr="1/cm2/s", dStr="DK precipitation number flux", &
-                        doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "Average energy", vApp%dkApp%vars%Avg_Eng, &
+                        outBndsO=(/is,ie,js,je/), doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Average energy", vApp%State%Avg_Eng, &
                         uStr="keV", dStr="DK precipitation mean average energy", &
-                        doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "Auroral type", vApp%dkApp%vars%Aur_Type, &
+                        outBndsO=(/is,ie,js,je/), doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Auroral type", vApp%State%Aur_Type, &
                         uStr="", dStr="DK auroral type", &
-                        doWriteMaskO=.false.)                      
+                        outBndsO=(/is,ie,js,je/), doWriteMaskO=.false.)
         call WriteVars(IOVars,.true.,vh5File,gStr)
         write(gStr,'(A,A)') trim(gStr), "/TubeShell"
         call writeTubeShell(vApp%shGrid, vApp%State%tubeShell, vh5File, gStrO=gStr, doGhostsO=doGhosts,doFatO=doFat)

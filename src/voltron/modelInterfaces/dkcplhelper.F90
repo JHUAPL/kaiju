@@ -91,6 +91,14 @@ module dkcplhelper
         end where
 
         call vApp%dkApp%AdvanceModel(0.0_rp)
+
+        ! Mirror DK precipitation outputs onto the voltron state
+        ! DK vars are ghost-free (1:Nt,1:Np); CC region is (is:ie,js:je).
+        associate(sg => vApp%shGrid)
+            vApp%State%Num_Flux%data(sg%is:sg%ie, sg%js:sg%je) = vApp%dkApp%vars%Num_Flux%data
+            vApp%State%Avg_Eng%data (sg%is:sg%ie, sg%js:sg%je) = vApp%dkApp%vars%Avg_Eng%data
+            vApp%State%Aur_Type%data(sg%is:sg%ie, sg%js:sg%je) = vApp%dkApp%vars%Aur_Type%data
+        end associate
     end subroutine shellDK
 
     !Average corner potential (pot_iono) to DK cell centers for doET
