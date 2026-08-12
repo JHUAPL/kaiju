@@ -451,6 +451,13 @@ module volttypes
         type(ShellGridVar_T) :: bIonoRad
             !! [nT] Radial component of the magnetic field at grid's ionosphere location
 
+        type(ShellGridVar_T) :: Num_Flux
+            !! (CC) [1/cm2/s] DK precipitation number flux (mirrored from dkApp each step)
+        type(ShellGridVar_T) :: Avg_Eng
+            !! (CC) [keV] DK precipitation mean energy (mirrored from dkApp each step)
+        type(ShellGridVar_T) :: Aur_Type
+            !! (CC) DK auroral type code (0=NoPre,1=RCM diffuse,2=mono->diffuse,3=mono)
+
     end type voltState_t
     ! IMAG precipitation moments staged on the voltron shell (filled by imagApp%toShell,
     ! consumed by shellDK)
