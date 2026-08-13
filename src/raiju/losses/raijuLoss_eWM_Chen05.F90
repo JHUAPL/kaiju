@@ -83,7 +83,7 @@ module raijuLoss_eWM_Chen05
         type(raijuState_T ), intent(in) :: State
 
         this%nowT = State%t
-        this%nowKp = this%KpTS%evalAt(this%nowT)
+        this%nowKp = evalTimeSeriesAt(this%KpTS,this%nowT)
     end subroutine eWM_C05_LossUpdate
 
 

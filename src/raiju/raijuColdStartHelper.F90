@@ -411,7 +411,7 @@ module raijuColdStartHelper
         type(TimeSeries_T) :: tsQ
         tsQ%wID = trim(fID)
         call tsQ%initTS(trim(vID),doLoudO=.false.)
-        qSW = tsQ%evalAt(t)
+        qSW = evalTimeSeriesAt(tsQ,t)
     end function GetSWVal
 
 end module raijuColdStartHelper
