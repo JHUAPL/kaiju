@@ -22,6 +22,54 @@ module coupled_layout_mpi
 
 contains
 
+    function isAppIdInLayout(layout, id) result(res)
+        type(coupledLayout_T), intent(in) :: layout
+        integer, intent(in) :: id
+        logical :: res
+
+        integer :: seg
+
+        res = .false.
+
+        if (.not. layout%hasCustomLayout) then
+            res = .false.
+            return
+        endif
+        if (layout%nSegments <= 0) then
+            res = .false.
+            return
+        endif
+
+        do seg=1,layout%nSegments
+            if (layout%appId(seg) == id) res = .true.
+        enddo
+
+    end function isAppIdInLayout
+
+    function isAppLabelInLayout(layout, label) result(res)
+        type(coupledLayout_T), intent(in) :: layout
+        character(len=*), intent(in) :: label
+        logical :: res
+
+        integer :: seg
+
+        res = .false.
+
+        if (.not. layout%hasCustomLayout) then
+            res = .false.
+            return
+        endif
+        if (layout%nSegments <= 0) then
+            res = .false.
+            return
+        endif
+
+        do seg=1,layout%nSegments
+            if (trim(toUpper(layout%label(seg))) == trim(toUpper(label))) res = .true.
+        enddo
+
+    end function isAppLabelInLayout
+
     subroutine initVoltronCoupledLayout(xmlInp, worldSize, layout)
         type(XML_Input_T), intent(inout) :: xmlInp
         integer, intent(in) :: worldSize

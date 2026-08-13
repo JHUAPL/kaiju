@@ -4,6 +4,7 @@ module testCoupling
   use gamCouple_mpi_G2V
   use uservoltic
   use ioH5
+  use coupled_layout_mpi
 
   implicit none
 
@@ -39,8 +40,21 @@ contains
       integer :: ierror
       type(MPI_Comm) :: voltComm
       type(XML_Input_T) :: xmlInp
+      type(coupledLayout_T) :: mpiLayout
+      integer :: appId
 
-      if(this%getProcessRank() < (this%getNumProcesses()-1)) then
+      call initVoltronCoupledLayout(xmlInp, this%getNumProcesses(), mpiLayout)
+      if(mpiLayout%hasCustomLayout) then
+          call getLayoutAppId(mpiLayout, this%getProcessRank(), appId)
+      else
+          if(this%getProcessRank() < (this%getNumProcesses()-1)) then
+              appId = gamId
+          else
+              appId = voltId
+          endif
+      endif
+
+      if(appId == gamId) then
           allocate(gamCplMpi)
 
           ! make gamera-only mpi communicator
@@ -58,8 +72,9 @@ contains
           call MPI_Comm_Split(getMpiF08Communicator(this), voltId, this%getProcessRank(), voltComm, ierror)
 
           voltAppMpi%vOptions%gamUserInitFunc => initUser
-	  allocate(voltAppMpi%vOptionsMpi%couplingPoolComm)
+          allocate(voltAppMpi%vOptionsMpi%couplingPoolComm)
           voltAppMpi%vOptionsMpi%couplingPoolComm = getMpiF08Communicator(this)
+          voltAppMpi%vOptionsMpi%mageLayout = mpiLayout
           call initVoltron_mpi(voltAppMpi, trim(caseFile))
       endif
 
@@ -325,7 +340,26 @@ contains
 
       endif
 
-  end subroutine testQuickSquishStorm
+  end subroutine testSwapModelLayout
+
+  @test(npes=[9])
+  subroutine testReadModelLayout(this)
+      class (MpiTestMethod), intent(inout) :: this
+
+      character(len=strLen) :: caseFile
+      write(caseFile,'(A,I0,A)') 'cmiD_deep_', this%getNumProcesses()-1, '_res0_swapLayout.xml'
+      call initializeWithCaseXml(this, caseFile)
+
+      if(allocated(voltAppMpi)) then
+          @assertTrue(isAppIdInLayout(voltAppMpi%vOptionsMpi%mageLayout, voltId), trim("Voltron should be in layout"))
+          @assertTrue(isAppLabelInLayout(voltAppMpi%vOptionsMpi%mageLayout, "V"), trim("Voltron should be in layout"))
+          @assertTrue(isAppIdInLayout(voltAppMpi%vOptionsMpi%mageLayout, gamId), trim("Gamera should be in layout"))
+          @assertTrue(isAppLabelInLayout(voltAppMpi%vOptionsMpi%mageLayout, "G"), trim("Gamera should be in layout"))
+          @assertTrue(isAppIdInLayout(voltAppMpi%vOptionsMpi%mageLayout, tgcmId), trim("TIEGCM should NOT be in layout"))
+          @assertTrue(isAppLabelInLayout(voltAppMpi%vOptionsMpi%mageLayout, "T"), trim("TIEGCM should NOT be in layout"))
+      endif
+
+  end subroutine testReadModelLayout
 
 end module testCoupling
 
