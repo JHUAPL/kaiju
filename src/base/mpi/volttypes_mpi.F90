@@ -1,5 +1,6 @@
 module volttypes_mpi
     use volttypes
+    use coupled_layout_mpi
     use mpi_f08
     use mpidefs
 
@@ -8,6 +9,7 @@ module volttypes_mpi
     ! mpi voltron specific options
     type, extends(BaseOptions_T) :: VoltOptionsMpi_T
         type(MPI_Comm), pointer :: couplingPoolComm
+        type(coupledLayout_T) :: mageLayout
 
         contains
     end type voltOptionsMpi_T

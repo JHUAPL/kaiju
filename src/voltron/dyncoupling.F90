@@ -55,7 +55,7 @@ module dyncoupling
                 newAlert = REDALERT
             case default
                 dynDT = 15.0
-
+                newAlert = NULLALERT
         end select
 
         !Whether to reset current Kp default
