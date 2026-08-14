@@ -195,6 +195,7 @@ program voltron_mpix
         vApp%vOptions%gamUserInitFunc => initUser
         allocate(vApp%vOptionsMpi%couplingPoolComm)
         vApp%vOptionsMpi%couplingPoolComm = splittingComm
+        vApp%vOptionsMpi%mageLayout = mpiLayout
         call initVoltron_mpi(vApp)
 
         ! voltron run loop
