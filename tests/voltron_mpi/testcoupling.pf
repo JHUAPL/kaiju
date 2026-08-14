@@ -43,6 +43,7 @@ contains
       type(coupledLayout_T) :: mpiLayout
       integer :: appId
 
+      xmlInp = New_XML_Input(trim(caseFile),'Kaiju',.true.)
       call initVoltronCoupledLayout(xmlInp, this%getNumProcesses(), mpiLayout)
       if(mpiLayout%hasCustomLayout) then
           call getLayoutAppId(mpiLayout, this%getProcessRank(), appId)
@@ -63,7 +64,6 @@ contains
           gamCplMpi%gOptionsCplMpiG%couplingPoolComm = getMpiF08Communicator(this)
           gamCplMpi%gOptions%userInitFunc => initUser
           gamCplMpi%gOptionsMpi%doIO = .false.
-          xmlInp = New_XML_Input(trim(caseFile),'Kaiju',.true.)
           call gamCplMpi%InitModel(xmlInp)
       else
           allocate(voltAppMpi)
@@ -331,7 +331,7 @@ contains
           ! run case for 10 seconds past restart
           call runApplication(11.0_rp)
       else
-          write (*,'(a,I0)') 'Testing Quick Squish Storm ',this%getNumProcesses()
+          write (*,'(a,I0)') 'Testing Swapped Model Layout ',this%getNumProcesses()
 
           @assertEqual(this%getProcessRank(), 0, trim("Voltrank rank should be 0"))
 
@@ -352,11 +352,11 @@ contains
 
       if(allocated(voltAppMpi)) then
           @assertTrue(isAppIdInLayout(voltAppMpi%vOptionsMpi%mageLayout, voltId), trim("Voltron should be in layout"))
-          @assertTrue(isAppLabelInLayout(voltAppMpi%vOptionsMpi%mageLayout, "V"), trim("Voltron should be in layout"))
+          @assertTrue(isAppLabelInLayout(voltAppMpi%vOptionsMpi%mageLayout, "VOLTRON"), trim("Voltron should be in layout"))
           @assertTrue(isAppIdInLayout(voltAppMpi%vOptionsMpi%mageLayout, gamId), trim("Gamera should be in layout"))
-          @assertTrue(isAppLabelInLayout(voltAppMpi%vOptionsMpi%mageLayout, "G"), trim("Gamera should be in layout"))
-          @assertTrue(isAppIdInLayout(voltAppMpi%vOptionsMpi%mageLayout, tgcmId), trim("TIEGCM should NOT be in layout"))
-          @assertTrue(isAppLabelInLayout(voltAppMpi%vOptionsMpi%mageLayout, "T"), trim("TIEGCM should NOT be in layout"))
+          @assertTrue(isAppLabelInLayout(voltAppMpi%vOptionsMpi%mageLayout, "GAMERA"), trim("Gamera should be in layout"))
+          @assertFalse(isAppIdInLayout(voltAppMpi%vOptionsMpi%mageLayout, tgcmId), trim("TIEGCM should NOT be in layout"))
+          @assertFalse(isAppLabelInLayout(voltAppMpi%vOptionsMpi%mageLayout, "TIEGCM"), trim("TIEGCM should NOT be in layout"))
       endif
 
   end subroutine testReadModelLayout
