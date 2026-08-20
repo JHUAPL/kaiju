@@ -216,7 +216,7 @@ module raijuLoss_eWM_BW
         ! Things that aren't i,j,k-dependent
         psphIdx = spcIdx(Grid, F_PSPH)
         eleIdx = spcIdx(Grid, F_HOTE)
-        Kp = this%KpTS%evalAt(State%t)
+        Kp = evalTimeSeriesAt(this%KpTS,State%t)
 
         associate(sh=>Grid%shGrid, spc=>Grid%spc(eleIdx))
 

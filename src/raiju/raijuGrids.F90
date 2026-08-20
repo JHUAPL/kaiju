@@ -454,7 +454,8 @@ module raijugrids
             allocate( Grid%cosdip(shGr%isg:shGr%ieg,shGr%jsg:shGr%jeg) )
             allocate( Grid%BrFace(shGr%isg:shGr%ieg+1,shGr%jsg:shGr%jeg+1, 2) )
             allocate( Grid%Brcc(shGr%isg:shGr%ieg,shGr%jsg:shGr%jeg) )
-            
+
+            Grid%lenFace = 0.0_rp
 
             ! For each theta value (defined on spherical grid in the ionosphere), 
             ! calculate corresponding theta of field line mapped to planet's surface
