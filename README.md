@@ -69,6 +69,14 @@ documentation](https://kaiju-docs.readthedocs.io/en/latest/roadrules.html).
 We ask that the following papers be cited dependent on which
 configuration the `Kaiju` software is being run.
 
+If you use MAGE 1.0 in your research,  please cite the software release:
+
+> Merkin, V., Arnold, H., Bao, S., Garretson, J., Lin, D., Lyon, J., et al. (2025). *JHUAPL/kaiju: MAGE_1.0.5* [Software]. Zenodo. https://doi.org/10.5281/zenodo.16818682
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.16818682.svg)](https://doi.org/10.5281/zenodo.16818682)
+
+This is the open source release which includes GAMERA for the magnetosphere, RCM for the inner magnetosphere, REMIX for electrodynamic coupling as well as the TIEGCM for the thermosphere-ionosphere system. This version of the model is available for Runs on Request from the Community Coordinate Modeling Center.
+
 #### For MAGE ####
 
 ##### For individual model components please cite the following:
