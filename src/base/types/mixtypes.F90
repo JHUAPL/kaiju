@@ -79,20 +79,6 @@ module mixtypes
     integer, dimension(:,:), allocatable :: mask
   end type mixGrid_T
 
-!   type mixGgrid_T
-!      integer :: Np, Nt
-!      logical :: isPeriodic=.true.
-     
-!      real(rp), dimension(:,:), allocatable :: x,y,t,p,r
-!      real(rp), dimension(:,:), allocatable :: dt,dp
-!      real(rp), dimension(:,:), allocatable :: ft,fp
-!      real(rp), dimension(:,:), allocatable :: dtdt,dpdp
-!      real(rp), dimension(:,:), allocatable :: cosd
-!      real(rp), dimension(:,:), allocatable :: D0  ! background density, usually plasmasphere, to apply to precipitation
-!      real(rp), dimension(:,:,:,:), allocatable :: Interpolant
-!      integer, dimension(:,:), allocatable :: mask
-!   end type mixGgrid_T
-
   type Map_T
     real(rp), dimension(:,:,:), allocatable :: M  ! map matrix
     integer, dimension(:,:), allocatable :: I1, J1  ! indices of grid

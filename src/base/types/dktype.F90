@@ -26,6 +26,9 @@ module dktypes
      ! conductance/sigma_model_type  (Robinson variant)
      integer :: KAE23 = 1, ROB87 = 2
      ! auroral output type codes (written to h5 as the Aur_Type variable)
+     ! 0: No precipitation; 1: Precipitation without mono acceleration; 
+     ! 2: Precipitation with finite mono acceleration but not producing stronger conductance than diffuse; 
+     ! 3: Mono-energetic precipitation.
      integer :: AT_NoPre = 0, AT_RMnoE = 1, AT_RMfnE = 2, AT_RMono = 3
   end type dkModel_T
   type(dkModel_T), parameter :: DKModel = dkModel_T()
@@ -162,10 +165,7 @@ module dktypes
   end interface
 
   type precip_t  
-      integer :: nVars ! change together with the enumerator above
-      !type(ShellGridVar_T),target :: FAC,SIGMAP,SIGMAH,SOUND_SPEED,DENSITY,AVG_ENG,NUM_FLUX,NEUTRAL_WIND,EFIELD,IM_EAVG,IM_EFLUX,IM_IAVG,IM_IFLUX,&
-      !  Z_EAVG,Z_NFLUX,CRPOT,TPOT,IM_GTYPE,AUR_TYPE,IM_BETA,IM_EDEN,IM_EPRE,IM_ENFLX,IM_INFLX,DELTAE,IM_NPSP,IM_THCON,IM_PHCON
-      !type(ShellGridVar_T), pointer :: data(:)
+      integer :: nVars
       type(ShellGridVar_T), allocatable :: data(:)
   end type precip_T
 

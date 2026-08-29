@@ -114,9 +114,9 @@ module dkinit
       ! Create new XML reader w/ REMIX as root
       xmlInp = New_XML_Input(trim(tmpStr),'Kaiju/REMIX',.true.)
 
-      ! =========== CONDUCTANCE MODEL PARAMTERS =================== !
+      ! =========== CONDUCTANCE MODEL PARAMETERS =================== !
       ! EUV_MODEL_TYPE
-      !NOTE: Changing default EUV to LOMPE, it's 2021 ffs
+      !NOTE: Changing default EUV to LOMPE.
       call xmlInp%Set_Val(tmpStr,"conductance/euv_model_type","LOMPE")
       select case (tmpSTR)
          case ("LOMPE")
