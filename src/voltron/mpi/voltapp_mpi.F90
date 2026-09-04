@@ -413,8 +413,6 @@ module voltapp_mpi
             call Toc("G2C")
         endif
 
-        ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
-        call Tic("ReMIX", .true.)
         ! Finalize tube tracing into tubeShell BEFORE toIono (packInputs reads J11i/bcN/bcP).
         if(vApp%doDeep .and. vApp%time >= 0) then
             call Tic("VoltTubes",.true.)
@@ -429,8 +427,12 @@ module voltapp_mpi
             call Toc("VoltTubes",.true.)
         elseif(vApp%doDeep) then
             !Spinup: seed-projection feed (same sampling tracing uses; deep products stay zero)
+            call Tic("VoltTubes",.true.)
             call genVoltTubesSpinup(vApp)
+            call Toc("VoltTubes",.true.)
         endif
+        ! Run ionosphere coupler
+        call Tic("ReMIX", .true.)
         if (vApp%doDeep .and. (vApp%time > 0)) &
             call vApp%imagApp%toShell(vApp%imag2shell, vApp%shGrid, &
                                       vApp%State%tubeShell%latc, vApp%State%tubeShell%lonc)

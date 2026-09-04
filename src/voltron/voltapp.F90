@@ -511,9 +511,11 @@ module voltapp
         elseif (vApp%doDeep) then
             !Spinup: refresh CHIMP fields + seed-projection feed (tracing is off)
             call convertGameraToChimp(vApp%mhd2chmp, gApp, vApp%ebTrcApp)
+            call Tic("VoltTubes",.true.)
             call genVoltTubesSpinup(vApp)
+            call Toc("VoltTubes",.true.)
         endif
-        ! Run ionosphere coupler (ReMIX timer kept for compatibility with console/IO reporting)
+        ! Run ionosphere coupler
         call Tic("ReMIX", .true.)
         call MJDRecalc(vApp%MJD)
         if (vApp%doDeep .and. (vApp%time > 0)) &
