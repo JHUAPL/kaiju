@@ -34,7 +34,7 @@ module voltapp
     use voltappHelper
     use voltCplHelper
     use apex, only : init_apex
-    use dkcplhelper, only : shellDK, init_imag2shell, shellPotToDK   ! volt -> DK coupling hop
+    use dkcplhelper, only : shellDK, init_imag2shell   ! volt -> DK coupling hop
 
     implicit none
 
@@ -524,7 +524,6 @@ module voltapp
         call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
         call vApp%ionoApp%AdvanceModel(0.0_rp)
         call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
-        call shellPotToDK(vApp)               ! REMIX Pot -> DK vars%Pot (for doET)
         call shellToGamera(vApp)             ! shell -> Gamera BC (model-agnostic)
         call Toc("ReMIX", .true.)
 

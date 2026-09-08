@@ -90,6 +90,8 @@ module dkcplhelper
             vApp%dkApp%vars%Im_Eavg%data = 0.0_rp
         end where
 
+        ! Potential DK uses for doET, pulled here so DK output matches what it computed with
+        call shellPotToDK(vApp)
         call vApp%dkApp%AdvanceModel(0.0_rp)
 
         ! Mirror DK precipitation outputs onto the voltron state
