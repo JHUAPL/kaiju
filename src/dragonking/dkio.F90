@@ -53,8 +53,8 @@ module dkio
         Np = dkApp%grid%Np
         Nt = dkApp%grid%Nt
         call ClearIO(IOVars)
-        call AddOutVar(IOVars, "X", dkApp%grid%x(1:Nt,1:Np), uStr="Ri")
-        call AddOutVar(IOVars, "Y", dkApp%grid%y(1:Nt,1:Np), uStr="Ri")
+        call AddOutVar(IOVars, "X", dkApp%grid%x(1:Nt,1:Np), uStr="unit sphere")
+        call AddOutVar(IOVars, "Y", dkApp%grid%y(1:Nt,1:Np), uStr="unit sphere")
         call AddOutVar(IOVars, "UnitsID", "DragonKing")
         call WriteVars(IOVars, .false., h5File)
     end subroutine initDKIO

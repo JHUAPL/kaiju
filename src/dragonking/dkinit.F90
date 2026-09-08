@@ -79,7 +79,7 @@ module dkinit
       allocate(dkApp%grid%x (Nt,Np), dkApp%grid%y (Nt,Np), dkApp%grid%r (Nt,Np), &
              dkApp%grid%D0(Nt,Np), dkApp%grid%dt(Nt,Np), dkApp%grid%dp(Nt,Np))
 
-      ! SM coordinates: x = sin(th)*cos(ph), y = sin(th)*sin(ph)
+      ! Unit-sphere direction cosines for the solar zenith angle, not positions (no radius applied)
       dkApp%grid%x  = spread(sin(dkApp%grid%thc), 2, Np) * spread(cos(dkApp%grid%phc), 1, Nt)
       dkApp%grid%y  = spread(sin(dkApp%grid%thc), 2, Np) * spread(sin(dkApp%grid%phc), 1, Nt)
 
