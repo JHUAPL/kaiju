@@ -508,7 +508,6 @@ module volttypes
         ! DragonKing-on-shell (model-agnostic, full-sphere)
         type(dkApp_T)        :: dkApp
         type(imag2shell_T)   :: imag2shell   !! IMAG precip staged on the voltron shell
-        type(ShellGridVar_T) :: pot_iono     !! solved iono potential on shell CORNER grid (DK doET)
 
         !Deep coupling information
         real(rp) :: DeepT ! Time of next deep coupling

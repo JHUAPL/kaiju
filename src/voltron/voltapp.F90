@@ -433,7 +433,6 @@ module voltapp
         call vApp%dkApp%InitModel(xmlInp)
         if (vApp%writeFiles) call vApp%dkApp%InitIO(xmlInp)
         call init_imag2shell(vApp%imag2shell, vApp%shGrid)   ! IMAG precip staging on the shell
-        call initShellVar(vApp%shGrid, SHGR_CORNER, vApp%pot_iono)   ! solved potential for DK doET
 
         ! Per-model coupler init behind the ionoCoupler contract (REMIX/SMITE-specific:
         ! restart/IO/F10.7 + the gApp-dependent map builds). No select type here.

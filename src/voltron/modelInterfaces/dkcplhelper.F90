@@ -101,11 +101,11 @@ module dkcplhelper
         end associate
     end subroutine shellDK
 
-    !Average corner potential (pot_iono) to DK cell centers for doET
+    !Average corner potential to DK cell centers for doET
     subroutine shellPotToDK(vApp)
         class(voltApp_T), intent(inout) :: vApp
         integer :: i, j
-        associate(sg => vApp%shGrid, pot => vApp%pot_iono%data)
+        associate(sg => vApp%shGrid, pot => vApp%State%potential_base%data)
             do j = sg%js, sg%je
                 do i = sg%is, sg%ie
                     vApp%dkApp%vars%Pot%data(i-sg%is+1, j-sg%js+1) = &

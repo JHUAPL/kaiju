@@ -123,9 +123,6 @@ submodule (volttypes) remixCplTypesSub
 
         call mapMixToShell(App%mixApp, vApp)
 
-        ! Corner potential for DK doET
-        call mixVarToVoltron(App%mixApp, POT, vApp%shGrid, vApp%pot_iono)
-
     end subroutine remixCpl_fromIono
 
 
