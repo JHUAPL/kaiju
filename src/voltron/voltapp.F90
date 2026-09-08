@@ -524,6 +524,7 @@ module voltapp
         call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
         call vApp%ionoApp%AdvanceModel(0.0_rp)
         call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
+        call updateVoltPotential(vApp)        ! potential_total = potential_base + corotation
         call shellToGamera(vApp)             ! shell -> Gamera BC (model-agnostic)
         call Toc("ReMIX", .true.)
 

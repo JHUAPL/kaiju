@@ -107,6 +107,16 @@ module voltappHelper
 
     end subroutine calcCorotPotential
 
+    !Voltron-owned total potential: the iono model's potential_base + corotation
+    subroutine updateVoltPotential(vApp)
+        class(voltApp_T), intent(inout) :: vApp
+
+        call calcCorotPotential(vApp%planet, vApp%shGrid, vApp%State%potential_corot, &
+                                doGeoCorotO=vApp%doGeoCorot)
+        vApp%State%potential_total%data = vApp%State%potential_base%data + vApp%State%potential_corot%data
+        vApp%State%potential_total%mask = .true.
+    end subroutine updateVoltPotential
+
 
     subroutine calcPotDrop(vApp)
         !! Calculate as a diagnostic quantity the potential drop along field lines by comparing potentail at either end of field line

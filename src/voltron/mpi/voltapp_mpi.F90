@@ -12,6 +12,7 @@ module voltapp_mpi
     use volthelpers_mpi
     use voltapp
     use dkcplhelper, only : shellDK    ! volt -> DK coupling hop (modelInterfaces)
+    use voltappHelper, only : updateVoltPotential
     use voltCplHelper, only : genVoltTubesSpinup
     use loadBalance
     
@@ -440,6 +441,7 @@ module voltapp_mpi
         call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
         call vApp%ionoApp%AdvanceModel(0.0_rp)
         call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
+        call updateVoltPotential(vApp)        ! potential_total = potential_base + corotation
         call shellToGamera(vApp)             ! shell -> Gamera BC (model-agnostic)
         call Toc("ReMIX", .true.)
 
