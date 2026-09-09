@@ -483,7 +483,6 @@ module volttypes
         real(rp) :: BSDst=0.0 !Most recent bsdst calculated
         integer :: ts
         type(voltState_t) :: State
-        type(precip_t) :: precip
 
         !Voltron output/restart info
         type (IOClock_T) :: IO

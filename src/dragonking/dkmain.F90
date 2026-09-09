@@ -25,15 +25,15 @@ module dkmain
         if (dkApp%IO%time<=0) doModel = .false.
 
         if (doModel) then
-            dkApp%conductance%const_sigma = dkApp%params%const_sigma
+            dkApp%conductance%const_sigma = dkApp%model%const_sigma
         else
             dkApp%conductance%const_sigma = .true.
         end if
 
         call Tic("DK-COND")
-        call conductance_euv(dkApp%conductance,dkApp%grid,dkApp%vars,dkApp%params)
-        call precipitation_total(dkApp%aurora,dkApp%grid,dkApp%vars,dkApp%conductance,dkApp%params) !to adapt?
-        call conductance_total(dkApp%conductance,dkApp%grid,dkApp%vars,dkApp%params)
+        call conductance_euv(dkApp%conductance,dkApp%grid,dkApp%vars,dkApp%model)
+        call precipitation_total(dkApp%aurora,dkApp%grid,dkApp%vars,dkApp%conductance,dkApp%model) !to adapt?
+        call conductance_total(dkApp%conductance,dkApp%grid,dkApp%vars,dkApp%model)
         call Toc("DK-COND")
     end subroutine DKcompute
 

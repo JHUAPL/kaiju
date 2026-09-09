@@ -76,7 +76,7 @@ submodule (volttypes) remixCplTypesSub
             call f107%initTS("f10.7", doLoudO=.false.)
             maxF107 = f107%getMax()
             call updateF107(App%mixApp%ion, maxF107)
-            vApp%dkApp%params%f107 = maxF107
+            vApp%dkApp%model%f107 = maxF107
             if (vApp%isLoud) write(*,*) 'Using F10.7 = ', maxF107
         endif
 

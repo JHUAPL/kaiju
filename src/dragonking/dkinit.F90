@@ -26,8 +26,8 @@ module dkinit
    !      dkApp%grid(h) = I(h)%G
    !    end do
 
-   !    dkApp%params%R = I(1)%P%R
-   !    dkApp%params%RinMHD = I(1)%P%RinMHD
+   !    dkApp%model%R = I(1)%P%R
+   !    dkApp%model%RinMHD = I(1)%P%RinMHD
 
    !  end subroutine initDKmesh
 
@@ -35,14 +35,14 @@ module dkinit
       type(dkApp_T), intent(inout) :: dkApp
       type(XML_Input_T), intent(in) :: inpXML
       
-      call initDKparams(dkApp%params, inpXML)
+      call initDKparams(dkApp%model, inpXML)
       call initDKvars(dkApp%aurora, dkApp%conductance, dkApp%vars, dkApp%grid)
 
       ! Cold-start for the conductance EMA: begin from the const_sigma reference
-      dkApp%vars%SigmaP%data = dkApp%params%ped0
+      dkApp%vars%SigmaP%data = dkApp%model%ped0
       dkApp%vars%SigmaH%data = 0.0_rp
       dkApp%aurora%alpha_RCM = 1.0/(def_tiote+1.0)
-      dkApp%aurora%beta_RCM = dkApp%params%beta
+      dkApp%aurora%beta_RCM = dkApp%model%beta
       dkApp%aurora%gtype_RCM = 0.0
          
     end subroutine initDK
@@ -99,7 +99,7 @@ module dkinit
 
 
     subroutine initDKparams(params, inpXML)
-      type(dkParameters_T), intent(inout) :: params
+      type(dkModel_T), intent(inout) :: params
       type(XML_Input_T), intent(in) :: inpXML
       character(len=strLen) :: tmpStr
       logical :: doSuicide
@@ -120,7 +120,7 @@ module dkinit
       call xmlInp%Set_Val(tmpStr,"conductance/euv_model_type","LOMPE")
       select case (tmpSTR)
          case ("LOMPE")
-            params%euv_model_type = DKModel%LOMPE
+            params%euv_model_type = DKOpts%LOMPE
          case default 
             stop "The EUV model type entered is not supported."              
       end select
@@ -129,11 +129,11 @@ module dkinit
       call xmlInp%Set_Val(tmpStr,"conductance/et_model_type","NONE")
       select case (tmpSTR)
          case ("NONE")
-            params%et_model_type = DKModel%ET_NONE
+            params%et_model_type = DKOpts%ET_NONE
          case ("ADHOC")
-            params%et_model_type = DKModel%ET_ADHOC
+            params%et_model_type = DKOpts%ET_ADHOC
          case ("CMIT")
-            params%et_model_type = DKModel%ET_CMIT
+            params%et_model_type = DKOpts%ET_CMIT
          case default 
             stop "The ET model type entered is not supported."              
       end select
@@ -142,9 +142,9 @@ module dkinit
       call xmlInp%Set_Val(tmpStr,"conductance/sigma_model_type","KAE23")
       select case (tmpSTR)
          case ("KAE23")
-            params%sigma_model_type = DKModel%KAE23
+            params%sigma_model_type = DKOpts%KAE23
          case ("ROB87")
-            params%sigma_model_type = DKModel%ROB87
+            params%sigma_model_type = DKOpts%ROB87
          case default
             stop "The SIGMA model type entered is not supported."
       end select
@@ -153,11 +153,11 @@ module dkinit
       call xmlInp%Set_Val(tmpStr,"precipitation/aurora_model_type","FEDDER")
       select case (tmpSTR)
          case ("FEDDER")
-            params%aurora_model_type = DKModel%FEDDER
+            params%aurora_model_type = DKOpts%FEDDER
          case ("SUNNY")
-            params%aurora_model_type = DKModel%SUNNY
+            params%aurora_model_type = DKOpts%SUNNY
          case ("LINMRG")
-            params%aurora_model_type = DKModel%LINMRG
+            params%aurora_model_type = DKOpts%LINMRG
          case default 
             stop "The auroral model type entered is not supported (Available options: FEDDER, SUNNY, LINMRG)."
       end select
@@ -275,7 +275,7 @@ module dkinit
       call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Npsp)
       call initShellVar(grid%ShellGrid_T, SHGR_CC, vars%Im_Eavg)
 
-      vars%Aur_Type%data = DKModel%AT_NoPre
+      vars%Aur_Type%data = DKOpts%AT_NoPre
 
       vars%SigmaP%data = 0.0_rp
       vars%SigmaH%data = 0.0_rp

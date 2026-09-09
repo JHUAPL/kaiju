@@ -293,8 +293,8 @@ module voltapp
             ! if we aren't using "deep" parts such as RCM, we need a
             !    precipitation model that doesn't rely on them. Precipitation is
             !    computed by DragonKing, so query DK's model (not the ionosphere).
-            if(vApp%dkApp%params%aurora_model_type /= DKModel%FEDDER .and. &
-               vApp%dkApp%params%aurora_model_type /= DKModel%SUNNY) then
+            if(vApp%dkApp%model%aurora_model_type /= DKOpts%FEDDER .and. &
+               vApp%dkApp%model%aurora_model_type /= DKOpts%SUNNY) then
                 write(*,*) 'The FEDDER or SUNNY precipitation model MUST be used when deep coupling is disabled.'
                 write(*,*) 'Please either enable the "voltron/coupling/doDeep" option, or'
                 write(*,*) ' set the DragonKing "precipitation/aurora_model_type" to "FEDDER" or "SUNNY".'
@@ -429,7 +429,7 @@ module voltapp
         !DragonKing-on-shell: DK grid from the voltron shell, then model init
         call initDKgrid(vApp%dkApp, vApp%shGrid)
         ! Fedder R default from the Gamera resolution
-        vApp%dkApp%params%R = fedderR0default(gApp%Grid%Nkp)
+        vApp%dkApp%model%R = fedderR0default(gApp%Grid%Nkp)
         call vApp%dkApp%InitModel(xmlInp)
         if (vApp%writeFiles) call vApp%dkApp%InitIO(xmlInp)
         call init_imag2shell(vApp%imag2shell, vApp%shGrid)   ! IMAG precip staging on the shell
@@ -823,55 +823,5 @@ module voltapp
         call GenShellGrid(vApp%shGrid, theta_global, phi, "VOLTRON", nGhosts, sh_radius)
 
     end subroutine genVoltShellGrid
-
-    ! ! Get conductance/conductivity from GCM/DK/etc for Remix/GPS
-    ! subroutine getConductance(I,mixIOobj,gcm)
-    !     type(mixIon_T),dimension(:),intent(inout) :: I
-    !     type(mixIO_T), intent(in) :: mixIOobj  
-    !     type(gcm_T),optional,intent(inout) :: gcm
-
-    !     logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
-    !     integer :: h,NumH
-
-    !     ! here we should check if Remix or GPS
-    !     NumH = size(I)
-
-    !     if (present(gcm)) then
-    !         doModel = .true.
-    !     else
-    !         call mix_transform_grid(I)
-    !         if (mixIOobj%time<=0) then
-    !             doModel = .false.
-    !         end if
-    !     end if
-
-    !     do h=1,NumH
-    !         if (I(h)%St%hemisphere.eq.NORTH) then
-    !             I(h)%St%tilt = mixIOobj%tilt
-    !         else
-    !             I(h)%St%tilt = -mixIOobj%tilt
-    !         end if
-
-    !         if (doModel) then
-    !             I(h)%conductance%const_sigma = I(h)%P%const_sigma         
-    !         else
-    !             I(h)%conductance%const_sigma = .true.            
-    !         end if
-
-    !         call Tic("MIX-COND")
-    !         call conductance_euv(I(h)%conductance,I(h)%G,I(h)%St)
-    !         call dragonking_total(I(h)%aurora,I(h)%G,I(h)%St,I(h)%conductance)
-
-    !         if (present(gcm)) then
-    !             call conductance_total(I(h)%conductance,I(h)%G,I(h)%St,gcm,h)
-    !         else
-    !             call conductance_total(I(h)%conductance,I(h)%G,I(h)%St)
-    !         end if
-    !         call Toc("MIX-COND")
-    !     end do
-
-    ! end subroutine getConductance
-
-    !----------
 
 end module voltapp

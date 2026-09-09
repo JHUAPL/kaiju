@@ -5,18 +5,8 @@ module dktypes
 
   implicit none
 
-  ! === DragonKing model / output codes (formerly module dkdefs) ===
-  ! Namespaced as components of a PARAMETER-qualified derived type so that
-  ! `use dktypes` exports only DKModel, instead of ~13 bare constants
-  ! (NONE, FEDDER, LINMRG, ...). A generic name like NONE leaking into every
-  ! importing module (including REMIX) is a namespace-collision hazard;
-  ! qualifying access (DKModel%ET_NONE) removes it.
-  !
-  ! A structure component of a named constant is itself a constant
-  ! expression, so DKModel%FEDDER etc. are valid select-case labels.
-  ! Values are unchanged from the previous enum, so h5 output/restarts
-  ! remain bit-compatible.
-  type :: dkModel_T
+  ! === DragonKing model / output codes (formerly module dkdefs)
+  type :: dkOpts_T
      ! precipitation/aurora_model_type
      integer :: FEDDER = 1, LINMRG = 2, SUNNY = 3
      ! conductance/euv_model_type
@@ -30,8 +20,8 @@ module dktypes
      ! 2: Precipitation with finite mono acceleration but not producing stronger conductance than diffuse; 
      ! 3: Mono-energetic precipitation.
      integer :: AT_NoPre = 0, AT_RMnoE = 1, AT_RMfnE = 2, AT_RMono = 3
-  end type dkModel_T
-  type(dkModel_T), parameter :: DKModel = dkModel_T()
+  end type dkOpts_T
+  type(dkOpts_T), parameter :: DKOpts = dkOpts_T()
 
   real(rp), parameter :: eTINY = 1.D-8 ! Floor of average energy [keV]
 
@@ -64,8 +54,8 @@ module dktypes
     real(rp) :: tilt=0.
   end type dkVariables_T
   
-  ! used to store an entire instance of MIX (e.g., one per hemisphere)
-  type dkParameters_T
+  ! DragonKing run configuration
+  type dkModel_T
     ! aurora type parameters
     integer  :: aurora_model_type
     real(rp) :: alpha, beta, R, RinMHD, beta_inp, gamma
@@ -75,7 +65,7 @@ module dktypes
     integer :: euv_model_type, et_model_type, sigma_model_type
     real(rp) :: F107, pedmin, hallmin, sigma_ratio, ped0
     logical :: const_sigma, doStarlight, apply_cap, doEMA, doET
-  end type dkParameters_T
+  end type dkModel_T
 
   type dkIO_T
     ! IO parameters
@@ -100,7 +90,7 @@ module dktypes
     type(dkAurora_T)        :: aurora
     type(dkConductance_T)   :: conductance
     type(dkVariables_T)     :: vars
-    type(dkParameters_T)    :: params
+    type(dkModel_T)         :: model
     type(dkIO_T)            :: IO
     
     contains
@@ -163,11 +153,6 @@ module dktypes
     end subroutine dkCleanup
 
   end interface
-
-  type precip_t  
-      integer :: nVars
-      type(ShellGridVar_T), allocatable :: data(:)
-  end type precip_T
 
 end module dktypes
 

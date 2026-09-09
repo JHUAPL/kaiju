@@ -42,14 +42,14 @@ module dkaurora
       type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
       type(dkConductance_T), intent(inout) :: conductance
-      type(dkParameters_T), intent(in) :: params
+      type(dkModel_T), intent(in) :: params
 
       select case ( params%aurora_model_type )
-        case (DKModel%FEDDER)
+        case (DKOpts%FEDDER)
           call dragonking_fedder95(aurora,grid,vars,conductance,params)
-        case (DKModel%SUNNY)
+        case (DKOpts%SUNNY)
           call dragonking_sunny(vars)
-        case (DKModel%LINMRG)
+        case (DKOpts%LINMRG)
           call dragonking_linmrg(aurora,grid,vars,params)
         case default
           stop "The auroral precipitation model type entered is not supported."
@@ -69,7 +69,7 @@ module dkaurora
       type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
       type(dkConductance_T), intent(inout) :: conductance
-      type(dkParameters_T), intent(in) :: params
+      type(dkModel_T), intent(in) :: params
 
       real(rp) :: sgnJ(grid%Nt)
       real(rp) :: Rout = 6.D0, Rin = 1.2D0
@@ -79,7 +79,7 @@ module dkaurora
       integer :: i,j
 
       !Default to no precip (diffuse conductance branch)
-      vars%Aur_Type%data = DKModel%AT_NoPre
+      vars%Aur_Type%data = DKOpts%AT_NoPre
 
       ! fills in rampFactor
       if (params%doRamp) then
@@ -142,7 +142,7 @@ module dkaurora
       type(dkVariables_T), intent(inout) :: vars
 
       ! Make sure zero Eavg/Nflux does not cause issues in conductance calculation.
-      vars%Aur_Type%data = DKModel%AT_NoPre
+      vars%Aur_Type%data = DKOpts%AT_NoPre
       vars%Avg_Eng%data = 0.D0
       vars%Num_Flux%data = 0.D0
       vars%DeltaE%data = 0.D0
@@ -155,7 +155,7 @@ module dkaurora
       type(dkAurora_T), intent(inout) :: aurora
       type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
-      type(dkParameters_T), intent(in) :: params
+      type(dkModel_T), intent(in) :: params
 
       integer :: i,j
       real(rp) :: wRCM,wMHD
@@ -204,7 +204,7 @@ module dkaurora
             if(isMono) then
                vars%Num_Flux%data(j,i) = mhd_nflx
                vars%Avg_Eng%data(j,i)  = mhd_eavg
-               vars%Aur_Type%data(j,i) = DKModel%AT_RMono
+               vars%Aur_Type%data(j,i) = DKOpts%AT_RMono
                if(isIMAG) then
                   ! Set auroral type to mono if mono is above Gussenhove threshold and gives higher Robinson L2.
                   ! Else set diffuse or no precipitation depending on rcm values relative to the threshold.
@@ -213,7 +213,7 @@ module dkaurora
                   if(mhd_SigPH<rcm_SigPH) then
                      vars%Num_Flux%data(j,i) = rcm_nflx
                      vars%Avg_Eng%data(j,i)  = rcm_eavg
-                     vars%Aur_Type%data(j,i) = DKModel%AT_RMfnE
+                     vars%Aur_Type%data(j,i) = DKOpts%AT_RMfnE
                   endif
                endif
             else
@@ -225,10 +225,10 @@ module dkaurora
                vars%Num_Flux%data(j,i) = mix_nflx
                if(mix_nflx>GuABNF) then
                   vars%Avg_Eng%data(j,i) = (wMHD*mhd_eflx+wRCM*rcm_eflx)/(mix_nflx*kev2erg)
-                  vars%Aur_Type%data(j,i)= DKModel%AT_RMnoE
+                  vars%Aur_Type%data(j,i)= DKOpts%AT_RMnoE
                else
                   vars%Avg_Eng%data(j,i) = eTINY
-                  vars%Aur_Type%data(j,i)= DKModel%AT_NoPre
+                  vars%Aur_Type%data(j,i)= DKOpts%AT_NoPre
                endif
             endif
          enddo
@@ -241,7 +241,7 @@ module dkaurora
       type(dkAurora_T), intent(inout) :: aurora
       type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
-      type(dkParameters_T), intent(in) :: params
+      type(dkModel_T), intent(in) :: params
       
       real(rp) :: sgnJ(grid%Nt)
       integer :: i,j
@@ -356,7 +356,7 @@ module dkaurora
       type(dkAurora_T), intent(in) :: aurora
       type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
-      type(dkParameters_T), intent(in) :: params
+      type(dkModel_T), intent(in) :: params
       real(rp) :: eavg,nflx,eavgMR,nflxMR
       integer :: i,j
 
@@ -476,7 +476,7 @@ module dkaurora
       type(dkAurora_T), intent(inout) :: aurora
       type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
-      type(dkParameters_T), intent(in) :: params
+      type(dkModel_T), intent(in) :: params
 
       logical :: isAncB(grid%Nt,grid%Np),isAncG(grid%Nt,grid%Np)
       real(rp) :: phi0_rcm

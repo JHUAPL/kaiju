@@ -15,7 +15,7 @@ module dkconductance
       type(dkConductance_T), intent(inout) :: conductance
       type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
-      type(dkParameters_T), intent(in) :: params
+      type(dkModel_T), intent(in) :: params
 
       real(rp), dimension(:,:), allocatable :: SigH0,SigP0,MagE !Old values of SigH/SigP
       real(rp) :: dT,upTau,dnTau,wAvgU,wAvgD
@@ -107,7 +107,7 @@ module dkconductance
       type(dkConductance_T), intent(inout) :: conductance
       type(dkGrid_T), intent(in)         :: grid
       type(dkVariables_T), intent(inout) :: vars
-      type(dkParameters_T), intent(in)   :: params
+      type(dkModel_T), intent(in)   :: params
 
       integer :: i_euv
       real(rp) :: cosTilt, sinTilt
@@ -123,7 +123,7 @@ module dkconductance
       conductance%zenith = acos(conductance%coszen)
 
       select case ( params%euv_model_type )
-         case (DKModel%LOMPE)
+         case (DKOpts%LOMPE)
             conductance%euvSigmaP = SigP_EUV_LOMPE(conductance%zenith,params%f107)
             conductance%euvSigmaH = SigH_EUV_LOMPE(conductance%zenith,params%f107)
 
@@ -154,7 +154,7 @@ module dkconductance
       type(dkConductance_T), intent(inout) :: conductance
       type(dkGrid_T), intent(in) :: grid
       type(dkVariables_T), intent(inout) :: vars
-      type(dkParameters_T), intent(in) :: params
+      type(dkModel_T), intent(in) :: params
 
       integer :: i,j
       real(rp) :: eavg,eflux,dE
@@ -164,7 +164,7 @@ module dkconductance
 
       ! The model choice selected once outside the loop
       select case ( params%sigma_model_type )
-         case (DKModel%KAE23)
+         case (DKOpts%KAE23)
             ! Kaeppler et al. [2023] model
             !$OMP PARALLEL DO default(shared) &
             !$OMP private(i,j,eflux,eavg,dE)
@@ -172,7 +172,7 @@ module dkconductance
                do j=1,grid%Nt
                   eavg  = vars%Avg_Eng%data(j,i) ! Average energy in keV
                   eflux = kev2erg*eavg*vars%Num_Flux%data(j,i)  ! Energy flux in ergs/cm^2/s
-                  if (vars%Aur_Type%data(j,i) == DKModel%AT_RMono) then
+                  if (vars%Aur_Type%data(j,i) == DKOpts%AT_RMono) then
                      dE = vars%DeltaE%data(j,i) ! Energy width in keV
                   else
                      dE = 0.0_rp
@@ -182,7 +182,7 @@ module dkconductance
                enddo
             enddo
 
-         case (DKModel%ROB87)
+         case (DKOpts%ROB87)
             ! Robinson formula
             !$OMP PARALLEL DO default(shared) &
             !$OMP private(i,j,eflux,eavg)
