@@ -20,7 +20,20 @@ module dkaurora
   real(rp), parameter, private :: GuABNF = 1.e7 ! Gussenhoven+[1983] Auroral Boundary Number Flux in [#/cm^s/s].
   ! real(rp), private :: RinMHD = 0.0 !Rin of MHD grid (0 if not running w/ MHD)
 
+  private :: hemiSignJ
+
   contains
+
+    subroutine hemiSignJ(grid,sgnJ)
+      !! Sign convention for the field-aligned current. Precomputed for performance
+      type(dkGrid_T), intent(in) :: grid
+      real(rp), intent(out) :: sgnJ(grid%Nt)
+      integer :: j
+
+      do j=1,grid%Nt
+         sgnJ(j) = -sign(1.0_rp, cos(grid%thc(j)))
+      enddo
+    end subroutine hemiSignJ
 
     subroutine precipitation_total(aurora,grid,vars,conductance,params)
       ! The main subroutine in module dragonking.
@@ -58,7 +71,7 @@ module dkaurora
       type(dkConductance_T), intent(inout) :: conductance
       type(dkParameters_T), intent(in) :: params
 
-      real(rp) :: signOfJ
+      real(rp) :: sgnJ(grid%Nt)
       real(rp) :: Rout = 6.D0, Rin = 1.2D0
       real(rp) :: rhoFactor = 3.3D-24*0.5D0
       real(rp) :: rPolarBound = 20.0D0*pi/180.D0, rEquatBound = 30.0D0*pi/180.0D0, rLowLimit = 0.02D0
@@ -71,16 +84,16 @@ module dkaurora
       ! fills in rampFactor
       if (params%doRamp) then
          call dragonking_ramp(aurora,grid,rPolarBound,rEquatBound,rLowLimit)
-      else 
+      else
          aurora%rampFactor = 1.0D0
       endif
-      
-      !$OMP PARALLEL DO default(shared) &
-      !$OMP private(i,j,D,Cs,dE,phi0,E0,aRes,dEc,signOfJ)
-      do j=1,grid%Nt
-         do i=1,grid%Np
 
-            signOfJ = -sign(1.0_rp, cos(grid%thc(j)))
+      call hemiSignJ(grid,sgnJ)
+
+      !$OMP PARALLEL DO default(shared) &
+      !$OMP private(i,j,D,Cs,dE,phi0,E0,aRes,dEc)
+      do i=1,grid%Np
+         do j=1,grid%Nt
 
             if (params%doChill) then
                ! MHD density replaced with gallagher where it's lower
@@ -100,7 +113,7 @@ module dkaurora
 
             ! resistence out of the ionosphere is 2*rout resistence into the
             ! ionosphere is 2*rin outward current is positive
-            if( signOfJ*vars%FAC%data(j,i) >=0. ) then
+            if( sgnJ(j)*vars%FAC%data(j,i) >=0. ) then
               aRes = 2.D0*Rout
             else
               aRes = 2.D0*Rin
@@ -108,7 +121,7 @@ module dkaurora
 
             ! Density floor to limit characteristic energy.  See Wiltberger et al. 2009 for details.
             D = min(D,rhoFactor*conductance%euvSigmaP(j,i))
-            dE = (heFrac*Mp_cgs)**1.5D0/eCharge*1.D-4*sqrt(erg2kev)*params%R*aRes*signOfJ*(vars%FAC%data(j,i)*1.D-6)*sqrt(E0)/D
+            dE = (heFrac*Mp_cgs)**1.5D0/eCharge*1.D-4*sqrt(erg2kev)*params%R*aRes*sgnJ(j)*(vars%FAC%data(j,i)*1.D-6)*sqrt(E0)/D
             aurora%deltaE(j,i) = dE
             dEc = min(dE,maxDrop)
 
@@ -119,8 +132,8 @@ module dkaurora
               vars%Num_Flux%data(j,i) = phi0*exp(dEc/E0)
             endif
             vars%DeltaE%data(j,i) = aurora%deltaE(j,i) ! [kV]
-         enddo ! i
-      enddo ! j
+         enddo ! j (theta)
+      enddo ! i (phi)
 
     end subroutine dragonking_fedder95
 
@@ -165,8 +178,8 @@ module dkaurora
       !$OMP private(mhd_nflx,mhd_eflx,mhd_eavg) &
       !$OMP private(rcm_nflx,rcm_eflx,rcm_eavg) &
       !$OMP private(mix_nflx,mhd_SigPH,rcm_SigPH)
-      do j=1,grid%Nt
-         do i=1,grid%Np
+      do i=1,grid%Np
+         do j=1,grid%Nt
             !Start by figuring out where we are
 !            isPSP = vars%Im_Npsp%data(j,i)>=Ne_psp .or. aurora%beta_RCM(j,i)<=0.01
             isIMAG = vars%Im_Gtype%data(j,i)>=0.5 ! defined in raiCplTypesSub.F90: "-1=Inactive, 0=Buffer, 1=Active" -> 0, 0.5, and 1.0.
@@ -230,7 +243,7 @@ module dkaurora
       type(dkVariables_T), intent(inout) :: vars
       type(dkParameters_T), intent(in) :: params
       
-      real(rp) :: signOfJ
+      real(rp) :: sgnJ(grid%Nt)
       integer :: i,j
       real(rp) :: D,Cs,Pe,Ne,J2eF0,eV2kT,dE,phi0,kT
       real(rp) :: Pe_mhd,Ne_mhd,kT_mhd,phi0_mhd
@@ -242,14 +255,16 @@ module dkaurora
 
       gamma_loc = params%gamma
 
+      call hemiSignJ(grid,sgnJ)
+
       !$OMP PARALLEL DO default(shared) &
       !$OMP private(i,j,D,Cs,Pe,Ne,J2eF0,eV2kT,dE,phi0,kT) &
       !$OMP private(Pe_mhd,Ne_mhd,kT_mhd,phi0_mhd) &
       !$OMP private(Pe_rcm,Ne_rcm,kT_rcm,phi0_rcm) &
-      !$OMP private(wMHD, wRCM, hasMono, signOfJ) &
+      !$OMP private(wMHD, wRCM, hasMono) &
       !$OMP private(alpha_loc,beta_loc,dens_loc,csnd_loc,d0_loc)
-      do j=1,grid%Nt
-         do i=1,grid%Np
+      do i=1,grid%Np
+         do j=1,grid%Nt
             ! Copy struct fields to local scalars to force consistent
             ! FP evaluation order across module structure changes
             alpha_loc = aurora%alpha_RCM(j,i)
@@ -257,8 +272,6 @@ module dkaurora
             dens_loc  = vars%Density%data(j,i)
             csnd_loc  = vars%Sound_Speed%data(j,i)
             d0_loc    = grid%D0(j,i)
-
-            signOfJ = -sign(1.0_rp, cos(grid%thc(j)))
 
             if (params%doChill) then
                ! MHD density replaced with gallagher where it's lower
@@ -304,7 +317,7 @@ module dkaurora
             aurora%phi0(j,i) = phi0
             ! phi0 = 0 in the polar cap; guard the divide
             if (phi0 > TINY) then
-               J2eF0 = signOfJ*(vars%FAC%data(j,i)*1.0D-6)/(eCharge*phi0*1.0D4)
+               J2eF0 = sgnJ(j)*(vars%FAC%data(j,i)*1.0D-6)/(eCharge*phi0*1.0D4)
                ! Linearize the Fridman-Lemaire relation:
                ! eV = kB*Te*(RM-1)*ln((RM-1)/(RM-J/e/F0)) when 1<=J/e/F0<=RM.
                ! eV ~ kB*Te*(J/e/F0-1) when RM>>J/e/F0
@@ -327,8 +340,8 @@ module dkaurora
             vars%Avg_Eng%data(j,i)  = max(vars%Z_Eavg%data(j,i),eTINY)   ! [keV]
             vars%Num_Flux%data(j,i) = vars%Z_Nflux%data(j,i)  ! [#/cm^2/s]
 
-         enddo ! i
-      enddo ! j
+         enddo ! j (theta)
+      enddo ! i (phi)
     end subroutine dragonking_linmono
 
     subroutine dragonking_mr(aurora,grid,vars,params)
@@ -349,8 +362,8 @@ module dkaurora
 
       !$OMP PARALLEL DO default(shared) &
       !$OMP private(i,j,eavg,nflx,eavgMR,nflxMR)
-      do j=1,grid%Nt
-        do i=1,grid%Np
+      do i=1,grid%Np
+        do j=1,grid%Nt
           if(aurora%deltaE(j,i)<=0.0) then
             ! Only modify diffuse precipitation. May modify mono precipitation when a formula is available.
             eavg = vars%Avg_Eng%data(j,i)
@@ -422,8 +435,8 @@ module dkaurora
 
       !$OMP PARALLEL DO default(shared) collapse(2) &
       !$OMP private(i,j)
-      do j=1,grid%Nt
-        do i=1,grid%Np
+      do i=1,grid%Np
+        do j=1,grid%Nt
           ! SmoothOperator55(Q,isGO)
           vars%Num_Flux%data(j,i)=SmoothOperator55(tmpF(j:j+4,i:i+4))
           if(smthE==1) then
@@ -471,20 +484,14 @@ module dkaurora
 
       ! Initialize IM_BETA with xml input value.
       ! IM_GTYPE is interpolated from RCM: 1=RCM and 0=MHD.
-      !$OMP PARALLEL DO default(shared) &
-      !$OMP private(i,j)
-      do j=1,grid%Nt
-         do i=1,grid%Np
-            vars%Im_Beta%data(j,i) = params%beta_inp
-         enddo
-      enddo
+      vars%Im_Beta%data = params%beta_inp
       isAncB = .false. ! beta is smoothed everywhere.
       isAncG = .false.
 
       !$OMP PARALLEL DO default(shared) &
       !$OMP private(i,j,phi0_rcm)
-      do j=1,grid%Nt
-         do i=1,grid%Np
+      do i=1,grid%Np
+         do j=1,grid%Nt
             ! Set grids outside RCM as anchors that won't be smoothed.
             if(vars%Im_Gtype%data(j,i)<=0.01) then
                isAncG(j,i) = .true.
@@ -509,42 +516,18 @@ module dkaurora
       enddo
 
       ! Smooth IM_BETA and save in aurora%beta_RCM
-      !$OMP PARALLEL DO default(shared) &
-      !$OMP private(i,j)
-      do j=1,grid%Nt
-         do i=1,grid%Np
-            aurora%beta_RCM(j,i) = vars%Im_Beta%data(j,i)
-         enddo
-      enddo
+      aurora%beta_RCM = vars%Im_Beta%data
       call dragonking_smooth(grid,aurora%beta_RCM,isAncB)
-      !$OMP PARALLEL DO default(shared) &
-      !$OMP private(i,j)
-      do j=1,grid%Nt
-         do i=1,grid%Np
-            vars%Im_Beta%data(j,i) = aurora%beta_RCM(j,i)
-            if(aurora%beta_RCM(j,i)>1.D0) aurora%beta_RCM(j,i) = 1.D0
-            if(aurora%beta_RCM(j,i)<0.D0) aurora%beta_RCM(j,i) = 0.D0
-         enddo
-      enddo
+      ! IM_BETA keeps the unclamped smoothed value; beta_RCM is clamped to [0,1]
+      vars%Im_Beta%data = aurora%beta_RCM
+      aurora%beta_RCM  = min(max(aurora%beta_RCM,0.D0),1.D0)
 
       ! Smooth IM_GTYPE and save in gtype_RCM
-      !$OMP PARALLEL DO default(shared) &
-      !$OMP private(i,j)
-      do j=1,grid%Nt
-         do i=1,grid%Np
-            aurora%gtype_RCM(j,i) = vars%Im_Gtype%data(j,i)
-         enddo
-      enddo
+      aurora%gtype_RCM = vars%Im_Gtype%data
       call dragonking_smooth(grid,aurora%gtype_RCM,isAncG)
-      !$OMP PARALLEL DO default(shared) &
-      !$OMP private(i,j)
-      do j=1,grid%Nt
-         do i=1,grid%Np
-            vars%Im_Gtype%data(j,i) = aurora%gtype_RCM(j,i)
-            if(aurora%gtype_RCM(j,i)>1.D0) aurora%gtype_RCM(j,i) = 1.D0
-            if(aurora%gtype_RCM(j,i)<0.D0) aurora%gtype_RCM(j,i) = 0.D0
-         enddo
-      enddo
+      ! IM_GTYPE keeps the unclamped smoothed value; gtype_RCM is clamped to [0,1]
+      vars%Im_Gtype%data = aurora%gtype_RCM
+      aurora%gtype_RCM  = min(max(aurora%gtype_RCM,0.D0),1.D0)
     end subroutine dragonking_beta_gtype
 
     subroutine dragonking_smooth(grid,Q,isAnchor)
@@ -568,19 +551,19 @@ module dkaurora
         !$OMP PARALLEL DO default(shared) &
         !$OMP private(i,j,jm1,jp1,im1,ip1,Ttmp,madij) &
         !$OMP reduction(max:mad)
-        do j=1,grid%Nt ! use open BC for lat.
-          do i=1,grid%Np ! use periodic BC for lon.
+        do i=1,grid%Np ! use periodic BC for lon.
+          im1 = i-1
+          ip1 = i+1
+          if (i == 1)       im1 = grid%Np
+          if (i == grid%Np) ip1 = 1
+
+          do j=1,grid%Nt ! use open BC for lat.
             ! Do not smooth anchor points.
             if(.not. isAnchor(j,i)) then
               jm1 = j-1
               jp1 = j+1
               if (j == 1)     jm1 = 1
               if (j == grid%Nt) jp1 = grid%Nt
-
-              im1 = i-1
-              ip1 = i+1
-              if (i == 1)     im1 = grid%Np
-              if (i == grid%Np) ip1 = 1
 
               Ttmp =(temp(jm1,im1)+temp(j,im1)+temp(jp1,im1) &
                    + temp(jm1,i  )+temp(j,i  )+temp(jp1,i  ) &

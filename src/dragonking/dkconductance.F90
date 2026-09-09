@@ -71,8 +71,8 @@ module dkconductance
          !Throttle how fast conductance drops (ie lazy recombination timescale)
          !$OMP PARALLEL DO default(shared) &
          !$OMP private(i,j)
-         do j=1,grid%Nt
-            do i=1,grid%Np
+         do i=1,grid%Np
+            do j=1,grid%Nt
                if(vars%SigmaP%data(j,i) < SigP0(j,i)) then
                   !Local conductance dropping
                   vars%SigmaP%data(j,i) = wAvgD*vars%SigmaP%data(j,i) + (1-wAvgD)*SigP0(j,i)
@@ -109,11 +109,16 @@ module dkconductance
       type(dkVariables_T), intent(inout) :: vars
       type(dkParameters_T), intent(in)   :: params
 
-      integer :: j_euv
-      ! cos(zenith) = x*cos(tilt) + z*sin(tilt); z must be SIGNED cos(theta) on the full sphere
-      do j_euv = 1, grid%Nt
-        conductance%coszen(j_euv,:) = grid%x(j_euv,:)*cos(vars%tilt) + &
-            cos(grid%thc(j_euv))*sin(vars%tilt)
+      integer :: i_euv
+      real(rp) :: cosTilt, sinTilt
+      real(rp) :: zTerm(grid%Nt)
+
+      ! cos(zenith) = x*cos(tilt) + z*sin(tilt); z must be SIGNED cos(theta) on the full sphere.
+      cosTilt = cos(vars%tilt)
+      sinTilt = sin(vars%tilt)
+      zTerm   = cos(grid%thc)*sinTilt
+      do i_euv = 1, grid%Np
+        conductance%coszen(:,i_euv) = grid%x(:,i_euv)*cosTilt + zTerm
       end do
       conductance%zenith = acos(conductance%coszen)
 
@@ -157,32 +162,42 @@ module dkconductance
 !      allocate(engFlux(G%Np,G%Nt))
 !      engFlux = kev2erg*St%Vars(:,:,AVG_ENG)*St%Vars(:,:,NUM_FLUX)  ! Energy flux in ergs/cm^2/s
 
-      !$OMP PARALLEL DO default(shared) &
-      !$OMP private(i,j,eflux,eavg,dE)
-      do j=1,grid%Nt
-         do i=1,grid%Np
-            eflux = kev2erg*vars%Avg_Eng%data(j,i)*vars%Num_Flux%data(j,i)  ! Energy flux in ergs/cm^2/s
-            eavg  = vars%Avg_Eng%data(j,i) ! Average energy in keV
-            if (vars%Aur_Type%data(j,i) == DKModel%AT_RMono) then
-               dE = vars%DeltaE%data(j,i) ! Energy width in keV
-            else
-               dE = 0.0_rp
-            endif
-
-            select case ( params%sigma_model_type )
-               case (DKModel%KAE23)
-                  ! Kaeppler et al. [2023] model, mono/diffuse specific parameters.
+      ! The model choice selected once outside the loop
+      select case ( params%sigma_model_type )
+         case (DKModel%KAE23)
+            ! Kaeppler et al. [2023] model
+            !$OMP PARALLEL DO default(shared) &
+            !$OMP private(i,j,eflux,eavg,dE)
+            do i=1,grid%Np
+               do j=1,grid%Nt
+                  eavg  = vars%Avg_Eng%data(j,i) ! Average energy in keV
+                  eflux = kev2erg*eavg*vars%Num_Flux%data(j,i)  ! Energy flux in ergs/cm^2/s
+                  if (vars%Aur_Type%data(j,i) == DKModel%AT_RMono) then
+                     dE = vars%DeltaE%data(j,i) ! Energy width in keV
+                  else
+                     dE = 0.0_rp
+                  endif
                   conductance%deltaSigmaP(j,i) = SigmaP_Kaep23(eavg,eflux,dE)
                   conductance%deltaSigmaH(j,i) = SigmaH_Kaep23(eavg,eflux,dE)
-               case (DKModel%ROB87)
-                  ! Robinson formula
+               enddo
+            enddo
+
+         case (DKModel%ROB87)
+            ! Robinson formula
+            !$OMP PARALLEL DO default(shared) &
+            !$OMP private(i,j,eflux,eavg)
+            do i=1,grid%Np
+               do j=1,grid%Nt
+                  eavg  = vars%Avg_Eng%data(j,i) ! Average energy in keV
+                  eflux = kev2erg*eavg*vars%Num_Flux%data(j,i)  ! Energy flux in ergs/cm^2/s
                   conductance%deltaSigmaP(j,i) = SigmaP_Robinson(eavg,eflux)
                   conductance%deltaSigmaH(j,i) = SigmaH_Robinson(eavg,eflux)
-               case default
-                  stop "The SIGMA model type entered is not supported."
-            end select
-         enddo
-      enddo
+               enddo
+            enddo
+
+         case default
+            stop "The SIGMA model type entered is not supported."
+      end select
 
     end subroutine conductance_aurora
     
