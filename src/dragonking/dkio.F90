@@ -29,35 +29,9 @@ module dkio
     character(len=*), parameter :: DK_ZNFL = "MHD number flux"
     character(len=*), parameter :: DK_BETA = "RCM beta"
 
-    ! Number of dkVariables_T arrays in the restart.
-    integer, parameter, private :: NDKRESVAR = 6
-
     public :: initDKIO, writeDKRestart, readDKRestart, writeDKFileOutput
 
     contains
-
-    ! Only SigmaP/SigmaH are genuinely stateful
-    ! Others are recomputed but restart state is read instead of zeros.
-    subroutine dkResVarRef(dkApp, n, name, uStr, dat)
-        class(dkApp_T), target, intent(inout) :: dkApp
-        integer,               intent(in)  :: n
-        character(len=strLen), intent(out) :: name, uStr
-        real(rp), pointer,     intent(out) :: dat(:,:)
-
-        select case (n)
-        ! --- conductance ---
-        case ( 1); name = DK_SIGP; uStr = "S";           dat => dkApp%vars%SigmaP%data
-        case ( 2); name = DK_SIGH; uStr = "S";           dat => dkApp%vars%SigmaH%data
-        ! --- precipitation outputs ---
-        case ( 3); name = DK_EAVG; uStr = "keV";         dat => dkApp%vars%Avg_Eng%data
-        case ( 4); name = DK_NFLX; uStr = "1/cm2/s";     dat => dkApp%vars%Num_Flux%data
-        case ( 5); name = DK_ATYP; uStr = "";            dat => dkApp%vars%Aur_Type%data
-        case ( 6); name = DK_DELE; uStr = "kV";          dat => dkApp%vars%DeltaE%data
-        case default
-            write(*,*) "dkResVarRef: index out of range: ", n
-            stop
-        end select
-    end subroutine dkResVarRef
 
     ! Initialize DK IO: cache the output filename/run tag
     subroutine initDKIO(dkApp, RunID, isRestart, nRes)
@@ -96,13 +70,10 @@ module dkio
 
     ! Persist the DK conductance EMA state to <RunID>.dk.Res.<nRes>.h5.
     subroutine writeDKRestart(dkApp, nRes)
-        class(dkApp_T), target, intent(inout) :: dkApp
+        class(dkApp_T), intent(inout) :: dkApp
         integer,        intent(in)    :: nRes
 
         character(len=strLen) :: h5Str, lnStr, nStr
-        character(len=strLen) :: vName, vUnit
-        real(rp), pointer     :: dat(:,:)
-        integer               :: n
 
         if (nRes == -1) then
             write(*,*) 'nRes is -1 in writeDKRestart, now die'
@@ -114,10 +85,12 @@ module dkio
         call CheckAndKill(h5Str)
 
         call ClearIO(IOVars)
-        do n=1,NDKRESVAR
-            call dkResVarRef(dkApp, n, vName, vUnit, dat)
-            call AddOutVar(IOVars, trim(vName), dat, uStr=trim(vUnit))
-        enddo
+        call AddOutVar(IOVars, DK_SIGP, dkApp%vars%SigmaP%data,   uStr="S")
+        call AddOutVar(IOVars, DK_SIGH, dkApp%vars%SigmaH%data,   uStr="S")
+        call AddOutVar(IOVars, DK_EAVG, dkApp%vars%Avg_Eng%data,  uStr="keV")
+        call AddOutVar(IOVars, DK_NFLX, dkApp%vars%Num_Flux%data, uStr="1/cm2/s")
+        call AddOutVar(IOVars, DK_ATYP, dkApp%vars%Aur_Type%data, uStr="")
+        call AddOutVar(IOVars, DK_DELE, dkApp%vars%DeltaE%data,   uStr="kV")
         call AddOutVar(IOVars, "nRes", nRes)
         call AddOutVar(IOVars, "time", dkApp%IO%time)
         call AddOutVar(IOVars, "MJD",  dkApp%IO%mjd)
@@ -131,18 +104,16 @@ module dkio
     end subroutine writeDKRestart
 
 
-    ! Restore the dkResVarRef variables from <resId>.dk.Res.<nRes>.h5. If the file
-    ! is absent leave vars as initialized and warn; then cold-start as before.
+    ! Restore DK state from <resId>.dk.Res.<nRes>.h5. If the file is absent
+    ! leave vars as initialized and warn; then cold-start as before.
     subroutine readDKRestart(dkApp, resId, nRes)
-        class(dkApp_T),   target, intent(inout) :: dkApp
+        class(dkApp_T),   intent(inout) :: dkApp
         character(len=*), intent(in)    :: resId
         integer,          intent(in)    :: nRes
 
         character(len=strLen) :: h5Str, nStr
-        character(len=strLen) :: vName, vUnit
-        real(rp), pointer     :: dat(:,:)
         logical :: fExist
-        integer :: n0, n, nMiss
+        integer :: n0
 
         if (nRes == -1) then
             nStr = "XXXXX"
@@ -159,27 +130,28 @@ module dkio
         write(*,*) "DK restarting from: ", trim(h5Str)
 
         call ClearIO(IOVars)
-        do n=1,NDKRESVAR
-            call dkResVarRef(dkApp, n, vName, vUnit, dat)
-            call AddInVar(IOVars, trim(vName))
-        enddo
+        call AddInVar(IOVars, DK_SIGP)
+        call AddInVar(IOVars, DK_SIGH)
+        call AddInVar(IOVars, DK_EAVG)
+        call AddInVar(IOVars, DK_NFLX)
+        call AddInVar(IOVars, DK_ATYP)
+        call AddInVar(IOVars, DK_DELE)
         call ReadVars(IOVars, .false., h5Str)
 
-        ! Restart written before a variable was added keeps its initialized value
-        nMiss = 0
-        do n=1,NDKRESVAR
-            call dkResVarRef(dkApp, n, vName, vUnit, dat)
-            n0 = FindIO(IOVars, trim(vName))
-            if (n0 > 0) then
-                if (IOVars(n0)%isDone) then
-                    call IOArray2DFill(IOVars, trim(vName), dat)
-                else
-                    nMiss = nMiss + 1
-                endif
-            endif
-        enddo
-        if (nMiss > 0) write(*,*) "DK restart: ", nMiss, &
-            " of ", NDKRESVAR, " variables absent (older restart file); they will be recomputed."
+        ! isDone is false for datasets absent from an older restart file; those
+        ! vars keep their initialized value and DKcompute recomputes them.
+        n0 = FindIO(IOVars, DK_SIGP)
+        if (IOVars(n0)%isDone) call IOArray2DFill(IOVars, DK_SIGP, dkApp%vars%SigmaP%data)
+        n0 = FindIO(IOVars, DK_SIGH)
+        if (IOVars(n0)%isDone) call IOArray2DFill(IOVars, DK_SIGH, dkApp%vars%SigmaH%data)
+        n0 = FindIO(IOVars, DK_EAVG)
+        if (IOVars(n0)%isDone) call IOArray2DFill(IOVars, DK_EAVG, dkApp%vars%Avg_Eng%data)
+        n0 = FindIO(IOVars, DK_NFLX)
+        if (IOVars(n0)%isDone) call IOArray2DFill(IOVars, DK_NFLX, dkApp%vars%Num_Flux%data)
+        n0 = FindIO(IOVars, DK_ATYP)
+        if (IOVars(n0)%isDone) call IOArray2DFill(IOVars, DK_ATYP, dkApp%vars%Aur_Type%data)
+        n0 = FindIO(IOVars, DK_DELE)
+        if (IOVars(n0)%isDone) call IOArray2DFill(IOVars, DK_DELE, dkApp%vars%DeltaE%data)
 
         write(*,*) "Done readDKRestart"
     end subroutine readDKRestart
