@@ -32,6 +32,10 @@ module voltappHelper
             call initShellVar(sh, SHGR_CC, State%Avg_Eng)
             call initShellVar(sh, SHGR_CC, State%Aur_Type)
 
+            ! Conductance (potential solver output)
+            call initShellVar(sh, SHGR_CORNER, State%SigmaP)
+            call initShellVar(sh, SHGR_CORNER, State%SigmaH)
+
             ! Default values
             call initMagVars(sh, vApp%planet, State)
         end associate 

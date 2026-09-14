@@ -458,6 +458,12 @@ module volttypes
         type(ShellGridVar_T) :: Aur_Type
             !! (CC) DK auroral type code (0=NoPre,1=RCM diffuse,2=mono->diffuse,3=mono)
 
+        type(ShellGridVar_T) :: SigmaP
+            !! (CORNER) [S] Pedersen conductance the ionosphere solve actually used
+        type(ShellGridVar_T) :: SigmaH
+            !! (CORNER) [S] Hall conductance the ionosphere solve actually used
+            !! DK conductance (outputted in DK) computed on CC, GCM on corners
+
     end type voltState_t
     ! IMAG precipitation moments staged on the voltron shell (filled by imagApp%toShell,
     ! consumed by shellDK)

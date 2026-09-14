@@ -487,6 +487,12 @@ module voltio
         call AddOutSGV(IOVars, "Auroral type", vApp%State%Aur_Type, &
                         uStr="", dStr="DK auroral type", &
                         outBndsO=(/is,ie,js,je/), doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Pedersen conductance", vApp%State%SigmaP, &
+                        uStr="S", dStr="Pedersen conductance", &
+                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Hall conductance", vApp%State%SigmaH, &
+                        uStr="S", dStr="Hall conductance", &
+                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
         call WriteVars(IOVars,.true.,vh5File,gStr)
         write(gStr,'(A,A)') trim(gStr), "/TubeShell"
         call writeTubeShell(vApp%shGrid, vApp%State%tubeShell, vh5File, gStrO=gStr, doGhostsO=doGhosts,doFatO=doFat)
