@@ -517,14 +517,16 @@ module dkaurora
 
       ! Smooth IM_BETA and save in aurora%beta_RCM
       aurora%beta_RCM = vars%Im_Beta%data
-      call dragonking_smooth(grid,aurora%beta_RCM,isAncB)
+      ! Removing smoothing
+      !call dragonking_smooth(grid,aurora%beta_RCM,isAncB)
       ! IM_BETA keeps the unclamped smoothed value; beta_RCM is clamped to [0,1]
       vars%Im_Beta%data = aurora%beta_RCM
       aurora%beta_RCM  = min(max(aurora%beta_RCM,0.D0),1.D0)
 
       ! Smooth IM_GTYPE and save in gtype_RCM
       aurora%gtype_RCM = vars%Im_Gtype%data
-      call dragonking_smooth(grid,aurora%gtype_RCM,isAncG)
+      ! Removing smoothing
+      !call dragonking_smooth(grid,aurora%gtype_RCM,isAncG)
       ! IM_GTYPE keeps the unclamped smoothed value; gtype_RCM is clamped to [0,1]
       vars%Im_Gtype%data = aurora%gtype_RCM
       aurora%gtype_RCM  = min(max(aurora%gtype_RCM,0.D0),1.D0)
