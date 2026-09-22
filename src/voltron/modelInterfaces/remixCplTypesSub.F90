@@ -387,7 +387,8 @@ submodule (volttypes) remixCplTypesSub
         type(gcm_grid_T), intent(inout) :: gcmGrid
         class(mixApp_T),  intent(inout) :: mixApp
 
-        integer :: v, h, mixVar
+        integer  :: v, h, mixVar
+        real(rp) :: meanVal
 
         if (gcmGrid%gcm2mix_nvar == 0) return
 
@@ -402,6 +403,16 @@ submodule (volttypes) remixCplTypesSub
                 write(*,*) "MIXCPL WARNING: Unknown GCM inlist variable: ", trim(gcmGrid%inlist(v))
                 cycle
             end select
+
+            ! If the incoming GCM buffer is still at its zero-initialized state
+            ! (e.g. before the first GCM<->MIX exchange completes), skip the
+            ! overwrite and retain whatever DK already put in mixApp%ion(h)%St%Vars.
+            meanVal = sum(gcmGrid%gcmInput(v)%data) / real(size(gcmGrid%gcmInput(v)%data), rp)
+            if (meanVal < TINY) then
+                write(*,*) "MIXCPL WARNING: GCM variable ", trim(gcmGrid%inlist(v)), &
+                            " appears uninitialized (mean = ", meanVal, "); retaining DK conductance."
+                cycle
+            end if
 
             call mapShellVarToMix(gcmGrid%grid, gcmGrid%gcmInput(v), mixApp%ion, mixVar)
             do h = NORTH, SOUTH
