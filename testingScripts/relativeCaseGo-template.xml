@@ -33,10 +33,10 @@
     <domain dtype="MAGE"/>
     <tracer epsds="0.05"/>
   </CHIMP>
-  <REMIX>
+  <DRAGONKING>
     <conductance doStarlight="T" doRamp="F"/>
     <precipitation aurora_model_type="LINMRG" alpha="0.2" beta="0.4" doAuroralSmooth="F"/>
-  </REMIX>
+  </DRAGONKING>
    <RAIJU>
     <output loudConsole="T" doFat="F" doLossExtras="F" doDebug="F" writeGhosts="F"/>
     <grid gType="SHGRID" ThetaL="15" ThetaU="50"/>
