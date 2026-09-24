@@ -1,5 +1,6 @@
 submodule (raijutypes) raijuTypesSub
 
+    use kdefs, only : kaiStop
     use raijuStarter
     use raijuGrids
     use raijuIO
@@ -119,26 +120,22 @@ submodule (raijutypes) raijuTypesSub
         logical, optional, intent(in) :: dieAfterWrite
 
         logical :: doDieAfterWrite
-        logical :: shouldStop
 
         doDieAfterWrite = .true.
         if (present(dieAfterWrite)) doDieAfterWrite = dieAfterWrite
-
-        shouldStop = .false.
 
         !$OMP CRITICAL(raiju_blackbox_write)
         if (.not. App%blackBoxHasBeenCalled) then
             App%blackBoxHasBeenCalled = .true.
             call WriteRaijuBlackBox(App)
             if (doDieAfterWrite) then
-                shouldStop = .true.
+                ! Hold the lock through teardown so other failing threads cannot return early.
+                call kaiStop("RAIJU black box written; terminating run")
             else
                 App%blackBoxHasBeenCalled = .false.
             endif
         endif
         !$OMP END CRITICAL(raiju_blackbox_write)
-
-        if (shouldStop) stop
 
     end subroutine raiWriteBlackBox
 

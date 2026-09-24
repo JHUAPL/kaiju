@@ -145,6 +145,40 @@ character(ANSILEN), parameter :: &
 
     contains
 
+    subroutine kaiStop(msgO)
+#ifdef KAIJU_MPI
+        use mpi_f08
+#endif
+
+        character(len=*), optional, intent(in) :: msgO
+
+#ifdef KAIJU_MPI
+        integer :: ierr
+        logical :: mpiIsInitialized, mpiIsFinalized
+        integer, parameter :: mpiAbortGraceSeconds = 30
+#endif
+
+        if (present(msgO)) then
+            write(*,*) trim(msgO)
+        endif
+
+#ifdef KAIJU_MPI
+        call MPI_Initialized(mpiIsInitialized, ierr)
+        if (ierr == MPI_SUCCESS .and. mpiIsInitialized) then
+            call MPI_Finalized(mpiIsFinalized, ierr)
+            if (ierr == MPI_SUCCESS .and. .not. mpiIsFinalized) then
+                write(*,*) "kaiStop: aborting MPI job in ", mpiAbortGraceSeconds, " seconds ..."
+                call flush(output_unit)
+                call sleep(mpiAbortGraceSeconds)
+                call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+            endif
+        endif
+#endif
+
+        stop
+    end subroutine kaiStop
+
+
     !Dump contents of /proc/self/status to output
     subroutine printProcessInfo()
         logical :: fileEnd

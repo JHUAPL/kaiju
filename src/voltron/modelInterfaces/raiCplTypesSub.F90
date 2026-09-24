@@ -320,7 +320,7 @@ submodule (volttypes) raijuCplTypesSub
         integer :: i0, j0  ! i,j cell that provided th,ph are in
         real(rp) :: tScl, rampC
 
-        integer :: i,j,k
+        integer :: k
         integer :: is, ie, js, je, ks, ke
         integer :: idx_proton
         real(rp) :: d_cold, d_hot, p_hot, dn_flux, de_flux
@@ -386,12 +386,15 @@ submodule (volttypes) raijuCplTypesSub
                         call InterpShellVar_TSC_pnt(sh, State%precipEFlux(k), th, ph, de_flux)
                         imP(RAI_EFLUX) = imP(RAI_EFLUX) + de_flux ! uStr="erg/cm^2/s"
                         if (isnan(imP(RAI_ENFLX)) .or. isnan(imP(RAI_EFLUX))) then
+                            ! Only one failing thread may write the black box and terminate.
+                            !$OMP CRITICAL(imag_precip_failure)
                             write(*,*) "ERROR in getMomentsPrecipRAIJU: Flux has a NaN"
-                            write(*,*)"i,j,k=",i,j,k
+                            write(*,*)"i,j,k=",i0,j0,k
                             write(*,*)"nflux, eFlux=",imP(RAI_ENFLX),imP(RAI_EFLUX)
                             call State%myRaiApp%WriteBlackBox()
                             write(*,*)"Goodbye"
                             stop
+                            !$OMP END CRITICAL(imag_precip_failure)
                         endif
                     enddo
 
@@ -530,10 +533,13 @@ submodule (volttypes) raijuCplTypesSub
         sinLon = lonConj;  sinLon%data = sin(lonConj%data)
         cosLon = lonConj;  cosLon%data = cos(lonConj%data)
 
-        do it = shGrid%is, shGrid%ie
-            th = shGrid%thc(it)
-            do ip = shGrid%js, shGrid%je
-                ph = shGrid%phc(ip)
+        ! Each point reads RAIJU state and writes only its own shell cell.
+        !$OMP PARALLEL DO default(shared) &
+        !$OMP private(it,ip,th,ph,lat_conj,ph_conj,s,c,imP,isTasty)
+        do ip = shGrid%js, shGrid%je
+            ph = shGrid%phc(ip)
+            do it = shGrid%is, shGrid%ie
+                th = shGrid%thc(it)
                 imP = 0.0_rp
                 isTasty = .false.   ! invalid until getMomentsPrecip says otherwise (SH open lines skip the call)
                 if (th <= PI/2.0_rp) then
@@ -562,6 +568,7 @@ submodule (volttypes) raijuCplTypesSub
                 endif
             enddo
         enddo
+        !$OMP END PARALLEL DO
 
     end subroutine imagToShellRAIJU
 
