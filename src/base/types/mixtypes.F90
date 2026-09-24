@@ -10,27 +10,13 @@ module mixtypes
   type mixParams_T
     ! constants to be read from XML input file
 
-    real(rp) :: alphaZ
-    real(rp) :: betaZ
-    real(rp) :: alpha
-    real(rp) :: beta
-    real(rp) :: gamma
-    real(rp) :: r
-    real(rp) :: f107
-    real(rp) :: pedmin 
+    ! DK reads now the conductance/precipitation section
+    real(rp) :: pedmin
+        !! Floor applied to GCM Pedersen conductance in mapOneGCMGridToMix
     real(rp) :: hallmin
-    real(rp) :: sigma_ratio
-    real(rp) :: ped0
-    logical  :: const_sigma
-    logical  :: doRamp
-    logical  :: doChill
-    logical  :: doStarlight
-    logical  :: doMR
-    logical  :: doAuroralSmooth
-    logical  :: apply_cap
+        !! Floor applied to GCM Hall conductance in mapOneGCMGridToMix
     logical  :: doSWF107
-    logical  :: doEMA
-    logical  :: doET
+        !! Take F107 from the solar wind file rather than the input deck
 
     ! solver
     integer :: maxitr
@@ -102,16 +88,6 @@ module mixtypes
     real(rp),dimension(:),allocatable :: solution
   end type Solver_T
 
-  type mixConductance_T
-    real(rp) :: F107, pedmin, hallmin, sigma_ratio, ped0
-    logical :: const_sigma, doStarlight, apply_cap, doEMA, doET
-
-    ! arrays on the grid
-    real(rp), dimension(:,:), allocatable :: zenith, coszen
-    real(rp), dimension(:,:), allocatable :: euvSigmaP, euvSigmaH
-    real(rp), dimension(:,:), allocatable :: deltaSigmaP, deltaSigmaH
-  end type mixConductance_T
-
 !   type mixModel_T
 !      type(mixParams_T)      :: P
 !      type(dkParams_T)       :: aurora
@@ -146,7 +122,6 @@ module mixtypes
     type(mixParams_T)      :: P
     type(Solver_T)         :: S
     ! type(dkAurora_T)       :: aurora
-    type(mixConductance_T) :: conductance
     real(rp)               :: rad_iono_m   ! Ionosphere radius in meters
     real(rp)               :: rad_planet_m ! Planet     radius in meters
   end type mixIon_T

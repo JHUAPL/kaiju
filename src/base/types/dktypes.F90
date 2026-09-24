@@ -65,6 +65,7 @@ module dktypes
     integer :: euv_model_type, et_model_type, sigma_model_type
     real(rp) :: F107, pedmin, hallmin, sigma_ratio, ped0
     logical :: const_sigma, doStarlight, apply_cap, doEMA, doET
+    logical :: doSWF107     !Take F107 from the SW instead of XML
   end type dkModel_T
 
   type dkIO_T

@@ -10,7 +10,6 @@ submodule (volttypes) remixCplTypesSub
     use mix2shell_interface,  only: mapMixToShell
     use voltappHelper
     use kai2geo
-    use mixmain,   only: updateF107
     use shellutils,   only: wrapJ_SGV
     use planethelper, only: DP2Cs
     use kdefs,        only: Mp_cgs, TINY, PI
@@ -54,6 +53,11 @@ submodule (volttypes) remixCplTypesSub
         App%mixApp%ion%rad_iono_m   = vApp%planet%ri_m
         App%mixApp%ion%rad_planet_m = vApp%planet%rp_m
 
+        ! DragonKing owns the conductance parameters, Remix gets a copy
+        App%mixApp%ion%P%pedmin   = vApp%dkApp%model%pedmin    ! GCM conductance floor
+        App%mixApp%ion%P%hallmin  = vApp%dkApp%model%hallmin   ! GCM conductance floor
+        App%mixApp%ion%P%doSWF107 = vApp%dkApp%model%doSWF107  ! F107 from solar wind?
+
         ! Ensure remix and voltron restart numbers match
         if (isRestart .and. vApp%IO%nRes /= App%mixApp%ion(1)%P%nRes) then
             write(*,*) "Voltron and Remix disagree on restart number, you should sort that out."
@@ -62,20 +66,10 @@ submodule (volttypes) remixCplTypesSub
             write(*,*) "   Remix   nRes = ", App%mixApp%ion(1)%P%nRes
             stop
         endif
-
-        if (App%mixApp%ion(NORTH)%P%doSWF107 .neqv. App%mixApp%ion(SOUTH)%P%doSWF107) then
-            write(*,*) 'Something is wrong. doSWf107 is set differently for the two hemispheres.'
-            write(*,*) 'Exiting ...'
-            stop
-        endif
-
-        ! read f107 from the SW file and overwrite what's been read from .xml above (in init_mix)
-        ! note, only checking for NORTH, because both hemispheres read the same xml file
         if (App%mixApp%ion(NORTH)%P%doSWF107) then
             f107%wID = vApp%tilt%wID
             call f107%initTS("f10.7", doLoudO=.false.)
             maxF107 = f107%getMax()
-            call updateF107(App%mixApp%ion, maxF107)
             vApp%dkApp%model%f107 = maxF107
             if (vApp%isLoud) write(*,*) 'Using F10.7 = ', maxF107
         endif

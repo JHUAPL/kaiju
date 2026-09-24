@@ -79,34 +79,8 @@ module mixparams
       ! Create new XML reader w/ REMIX as root
       xmlInp = New_XML_Input(trim(tmpStr),'Kaiju/REMIX',.true.)
 
-      ! NOTE: precipitation (auroral) and EUV/ET/SIGMA conductance model
-      !       selection now live in DragonKing only; the mix-side copies were
-      !       unused and have been removed.
-
-      ! =========== CONDUCTANCE MODEL PARAMETERS =================== !
-      call xmlInp%Set_Val(Params%alpha,"precipitation/alpha",1.0332467_rp)
-      call xmlInp%Set_Val(Params%beta,"precipitation/beta",0.4362323_rp)
-      call xmlInp%Set_Val(Params%R,"precipitation/R",MixGrid0%R0)
-      call xmlInp%Set_Val(Params%doAuroralSmooth,"precipitation/doAuroralSmooth",.false.)        
-      call xmlInp%Set_Val(Params%F107,"conductance/F107",120._rp)
-      call xmlInp%Set_Val(Params%pedmin,"conductance/pedmin",2.0_rp)
-      call xmlInp%Set_Val(Params%hallmin,"conductance/hallmin",1.0_rp)
-      call xmlInp%Set_Val(Params%sigma_ratio,"conductance/sigma_ratio",6.0_rp)
-      call xmlInp%Set_Val(Params%ped0,"conductance/ped0",10.0_rp)
-      call xmlInp%Set_Val(Params%const_sigma,"conductance/const_sigma",.false.)
-      call xmlInp%Set_Val(Params%doRamp,"conductance/doRamp",.true.)
-      call xmlInp%Set_Val(Params%doChill,"conductance/doChill",.false.)
-      call xmlInp%Set_Val(Params%doStarlight,"conductance/doStarlight",.false.)        
-      call xmlInp%Set_Val(Params%doMR,"conductance/doMR",.false.)        
-      call xmlInp%Set_Val(Params%apply_cap,"conductance/apply_cap",.true.)
-      call xmlInp%Set_Val(Params%gamma,"precipitation/gamma",5.0/3.0)
-      call xmlInp%Set_Val(Params%doEMA,"conductance/doEMA",.true.)
-      call xmlInp%Set_Val(Params%doET,"conductance/doET",.false.)
-
-      ! if this is on, Params%F107 read from xml file above will be overwritten
-      ! and F107 will be set from the SW file (i.e., from OMNI data)
-      call xmlInp%Set_Val(Params%doSWF107,"conductance/doSWF107",.true.)
-      ! =========== CONDUCTANCE MODEL PARAMETERS =================== !
+      ! NOTE: precipitation/* and conductance/* are read by DragonKing from its own
+      !       <DRAGONKING> section (initDKparams).
 
       ! =========== SOLVER PARAMETERS =================== !
       call xmlInp%Set_Val(Params%maxitr,"solver/maxitr",400)
