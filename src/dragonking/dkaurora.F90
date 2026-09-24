@@ -517,14 +517,16 @@ module dkaurora
 
       ! Smooth IM_BETA and save in aurora%beta_RCM
       aurora%beta_RCM = vars%Im_Beta%data
-      call dragonking_smooth(grid,aurora%beta_RCM,isAncB)
+      ! Removing smoothing
+      !call dragonking_smooth(grid,aurora%beta_RCM,isAncB)
       ! IM_BETA keeps the unclamped smoothed value; beta_RCM is clamped to [0,1]
       vars%Im_Beta%data = aurora%beta_RCM
       aurora%beta_RCM  = min(max(aurora%beta_RCM,0.D0),1.D0)
 
       ! Smooth IM_GTYPE and save in gtype_RCM
       aurora%gtype_RCM = vars%Im_Gtype%data
-      call dragonking_smooth(grid,aurora%gtype_RCM,isAncG)
+      ! Removing smoothing
+      !call dragonking_smooth(grid,aurora%gtype_RCM,isAncG)
       ! IM_GTYPE keeps the unclamped smoothed value; gtype_RCM is clamped to [0,1]
       vars%Im_Gtype%data = aurora%gtype_RCM
       aurora%gtype_RCM  = min(max(aurora%gtype_RCM,0.D0),1.D0)
@@ -536,38 +538,34 @@ module dkaurora
       type(dkGrid_T), intent(in) :: grid
       real(rp), intent(inout) :: Q(grid%Nt,grid%Np)
       logical, intent(in) :: isAnchor(grid%Nt,grid%Np)
-      real(rp) :: temp(grid%Nt,grid%Np)
+      real(rp) :: temp(grid%Nt+4,grid%Np+4)
+        !Haloed copy of Q: cross-pole in theta, periodic in phi
       real(rp) :: thres,mad,Ttmp,madij
-      integer :: i,j,it,im1,ip1,jm1,jp1,MaxIter
+      integer :: i,j,ih,jh,it,MaxIter
 
       thres = 0.025
       MaxIter = 15
-      call FixPole(grid,Q)
 
       do it=1,MaxIter
         mad = 0.D0 ! max abs difference from last iteration.
-        temp = Q
+        ! dragonking_margin supplies both BCs the stencil needs.
+        ! On a cell-centered grid the neighbour across the pole is the same
+        ! near-pole ring at antipodal longitude
+        call dragonking_margin(grid,Q,temp)
 
         !$OMP PARALLEL DO default(shared) &
-        !$OMP private(i,j,jm1,jp1,im1,ip1,Ttmp,madij) &
+        !$OMP private(i,j,ih,jh,Ttmp,madij) &
         !$OMP reduction(max:mad)
-        do i=1,grid%Np ! use periodic BC for lon.
-          im1 = i-1
-          ip1 = i+1
-          if (i == 1)       im1 = grid%Np
-          if (i == grid%Np) ip1 = 1
-
-          do j=1,grid%Nt ! use open BC for lat.
+        do i=1,grid%Np
+          ih = i+2   ! interior of the haloed array starts at index 3
+          do j=1,grid%Nt
             ! Do not smooth anchor points.
             if(.not. isAnchor(j,i)) then
-              jm1 = j-1
-              jp1 = j+1
-              if (j == 1)     jm1 = 1
-              if (j == grid%Nt) jp1 = grid%Nt
+              jh = j+2
 
-              Ttmp =(temp(jm1,im1)+temp(j,im1)+temp(jp1,im1) &
-                   + temp(jm1,i  )+temp(j,i  )+temp(jp1,i  ) &
-                   + temp(jm1,ip1)+temp(j,ip1)+temp(jp1,ip1))/9.D0
+              Ttmp =(temp(jh-1,ih-1)+temp(jh,ih-1)+temp(jh+1,ih-1) &
+                   + temp(jh-1,ih  )+temp(jh,ih  )+temp(jh+1,ih  ) &
+                   + temp(jh-1,ih+1)+temp(jh,ih+1)+temp(jh+1,ih+1))/9.D0
               madij = abs(Q(j,i)-Ttmp)
               Q(j,i) = Ttmp
             else
@@ -576,25 +574,21 @@ module dkaurora
             mad = max(mad,madij)
           enddo
         enddo
-        call FixPole(grid,Q)
         if(mad<thres) exit
       enddo
     end subroutine dragonking_smooth
-
-    !Enforce pole condition that all values at the same point are equal
-    subroutine FixPole(grid,Q)
-      type(dkGrid_T), intent(in)    :: grid
-      real(rp)      , intent(inout) :: Q(grid%Nt,grid%Np)
-
-      Q(1,:)         = sum(Q(2,:))/grid%Np         ! north pole
-      Q(grid%Nt,:)   = sum(Q(grid%Nt-1,:))/grid%Np ! south pole
-    end subroutine FixPole
 
     subroutine dragonking_margin(grid,array,arraymar)
       ! Conductance boundary processing.
       type(dkGrid_T), intent(in) :: grid
       real(rp),dimension(grid%Nt,grid%Np), intent(in) :: array
       real(rp),dimension(grid%Nt+4,grid%Np+4), intent(out) :: arraymar
+
+      if (mod(grid%Np,2) /= 0) then
+         write(*,*) "dragonking_margin: cross-pole BC needs even Np, got ", grid%Np
+         stop
+      endif
+
       arraymar(3:grid%Nt+2,3:grid%Np+2) = array
       ! Cross-pole lat BC: neighbor is the near-pole cell at antipodal lon
       arraymar(2,3:grid%Np+2)         = cshift(array(1,:),         grid%Np/2)

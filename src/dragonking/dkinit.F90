@@ -61,6 +61,15 @@ module dkinit
       Nt = ie - is + 1   ! active theta cells
       Np = je - js + 1   ! active phi cells
 
+      ! The cross-pole BC (dragonking_margin) pairs each near-pole cell with the
+      ! one at antipodal longitude, a shift of Np/2 cells. That only lands on a
+      ! cell center for even Np. Voltron builds an even Np, so this guards against
+      ! a future grid change rather than an expected failure.
+      if (mod(Np,2) /= 0) then
+         write(*,*) "initDKgrid: DK needs an even number of phi cells, got Np = ", Np
+         stop
+      endif
+
       ! DK grid ghost-free
       tmp = dkApp%grid%phc(js:je);   call move_alloc(tmp, dkApp%grid%phc)
       tmp = dkApp%grid%ph (js:je+1); call move_alloc(tmp, dkApp%grid%ph)
