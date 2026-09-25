@@ -141,8 +141,6 @@ module mixtypes
     type(mixGrid_T)        :: G       ! G - primary MIX grid used for the solver. 
     type(mixGrid_T)        :: mixGfpd ! mixGfpd - flipped grid for mapping from MHD, moved from mhd2mix type.  
     type(ShellGrid_T)      :: shGr    ! ShellGrid representation of grid
-    type(mixGrid_T)        :: Ggeo    ! Ggeo - G grid converted to geo updated every coupling step
-    type(mixGrid_T)        :: Gapx    ! Gapx - G grid converted to apex updated every coupling step
     type(mixParams_T)      :: P
     type(Solver_T)         :: S
     ! type(dkAurora_T)       :: aurora
