@@ -95,8 +95,8 @@ module voltCplHelper
 
             allocate(isDipT(sh%is:sh%ie+1,sh%js:sh%je+1))
 
-            ! Do field line tracing, populate ijTubes
-            !$OMP PARALLEL DO default(shared) &
+            ! Share individual tubes across threads even for narrow helper j-slabs.
+            !$OMP PARALLEL DO default(shared) collapse(2) &
             !$OMP schedule(dynamic) &
             !$OMP private(i,j,eqR,magLine,doSH,doNH,xyz0)
             do j=sh%js,sh%je+1

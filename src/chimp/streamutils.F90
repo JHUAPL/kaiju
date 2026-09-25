@@ -512,8 +512,12 @@ module streamutils
         logical, intent(out) :: isIn
         integer, intent(inout) :: ijkG(NDIM)
         real(rp), dimension(NDIM) :: B
+        integer :: ijkGuess(NDIM)
 
-        call locate(xyz,ijkG,Model,ebState%ebGr,isIn,ijkG)
+        ! The locator initializes its output before inspecting the guess.
+        ! Keep the previous cell separate so the output cannot overwrite it.
+        ijkGuess = ijkG
+        call locate(xyz,ijkG,Model,ebState%ebGr,isIn,ijkGuess)
         B = fldInterp(xyz,t,Model,ebState,BFLD,isIn,ijkG)
     end function FastMag
 
