@@ -320,8 +320,6 @@ submodule (volttypes) raijuCplTypesSub
         integer :: i0, j0  ! i,j cell that provided th,ph are in
         real(rp) :: tScl, rampC
 
-        integer :: k
-        integer :: is, ie, js, je, ks, ke
         integer :: idx_proton
         real(rp) :: d_cold, d_hot, p_hot, dn_flux, de_flux
         real(rp) :: d_ion, p_ion, pie_frac, pe_kT, pe_eflux, pe_nflux
@@ -363,8 +361,6 @@ submodule (volttypes) raijuCplTypesSub
             isEdible = .true.
 
             do s=1, Model%nSpc
-                ks = spcList(s)%kStart
-                ke = spcList(s)%kEnd
                 if (spcList(s)%flav == F_PSPH) then
                     !call InterpShellVar_TSC_pnt(sh, State%Den(s), th, ph, d_cold)
                     !imW(IM_D_COLD) = d_cold  ! [#/cc]
@@ -380,23 +376,21 @@ submodule (volttypes) raijuCplTypesSub
                     
                     imP(RAI_EDEN ) = imP(RAI_EDEN ) + d_hot*1.0e6 ! uStr="#/cc" -> /m^3 , dStr="Density from RAIJU flavors"
                     imP(RAI_EPRE ) = imP(RAI_EPRE ) + p_hot*1.0e-9 ! uStr="nPa" -> Pa , dStr="Pressure from RAIJU flavors"
-                    do k=ks,ke
-                        call InterpShellVar_TSC_pnt(sh, State%precipNFlux_Nk(k), th, ph, dn_flux)
-                        imP(RAI_ENFLX) = imP(RAI_ENFLX) + dn_flux ! uStr="#/cm^2/s"
-                        call InterpShellVar_TSC_pnt(sh, State%precipEFlux_Nk(k), th, ph, de_flux)
-                        imP(RAI_EFLUX) = imP(RAI_EFLUX) + de_flux ! uStr="erg/cm^2/s"
-                        if (isnan(imP(RAI_ENFLX)) .or. isnan(imP(RAI_EFLUX))) then
-                            ! Only one failing thread may write the black box and terminate.
-                            !$OMP CRITICAL(imag_precip_failure)
-                            write(*,*) "ERROR in getMomentsPrecipRAIJU: Flux has a NaN"
-                            write(*,*)"i,j,k=",i0,j0,k
-                            write(*,*)"nflux, eFlux=",imP(RAI_ENFLX),imP(RAI_EFLUX)
-                            call State%myRaiApp%WriteBlackBox()
-                            write(*,*)"Goodbye"
-                            stop
-                            !$OMP END CRITICAL(imag_precip_failure)
-                        endif
-                    enddo
+                    call InterpShellVar_TSC_pnt(sh, State%precipNFlux_Nspc(s), th, ph, dn_flux)
+                    call InterpShellVar_TSC_pnt(sh, State%precipEFlux_Nspc(s), th, ph, de_flux)
+                    imP(RAI_ENFLX) = imP(RAI_ENFLX) + dn_flux  ! uStr="#/cm^2/s"
+                    imP(RAI_EFLUX) = imP(RAI_EFLUX) + de_flux  ! uStr="erg/cm^2/s"
+                    if (isnan(imP(RAI_ENFLX)) .or. isnan(imP(RAI_EFLUX))) then
+                        ! Only one failing thread may write the black box and terminate.
+                        !$OMP CRITICAL(imag_precip_failure)
+                        write(*,*) "ERROR in getMomentsPrecipRAIJU: Flux has a NaN"
+                        write(*,*)"i,j,spc=",i0,j0,s
+                        write(*,*)"nflux, eFlux=",imP(RAI_ENFLX),imP(RAI_EFLUX)
+                        call State%myRaiApp%WriteBlackBox()
+                        write(*,*)"Goodbye"
+                        stop
+                        !$OMP END CRITICAL(imag_precip_failure)
+                    endif
 
                     if (Model%doExtraElePrecipFromProtons) then
                         ! Mock up cold electrons balancing hot protons and see if it produces meaningful flux
