@@ -43,22 +43,18 @@ module raijuAdvancer
 
         ! Step
         call Tic("AdvanceState",.true.)
-        call AdvanceState(Model, Grid, State)
+        call raijuAdvanceState(Model, Grid, State)
         call Toc("AdvanceState",.true.)
 
-        ! etas back to moments
-        call Tic("Moments Eval",.true.)
-        call EvalMoments(Grid, State)
-        call EvalMoments(Grid, State, doAvgO=.true.)
-        call Toc("Moments Eval",.true.)
+        call Tic("Post-Advance",.true.)
+        call raijuPostAdvanceState(Model, Grid, State)
+        call Toc("Post-Advance",.true.)
 
-        ! Do various checks to make sure everything went okay
-        call raijuPostAdvanceChecks(Model, Grid, State)
 
     end subroutine raijuAdvance
 
 
-    subroutine AdvanceState(Model, Grid, State)
+    subroutine raijuAdvanceState(Model, Grid, State)
         type(raijuModel_T), intent(in) :: Model
         type(raijuGrid_T), intent(in) :: Grid
         type(raijuState_T), intent(inout) :: State
@@ -77,7 +73,7 @@ module raijuAdvancer
         ! Save current active domain to active_last
         State%active_last = State%active
         State%eta_last = State%eta  ! Also happens in AdvanceLambda, but we do it again here just to be sure
-    end subroutine AdvanceState
+    end subroutine raijuAdvanceState
 
 
     subroutine AdvanceLambda(Model, Grid, State, k)
@@ -190,8 +186,8 @@ module raijuAdvancer
             if (Model%doLosses) then
                 ! Divide losses and precip fluxes by big dt to turn them into proper rates
                 ! Quantities going into the ionosphere divided by 2 for per-hemisphere output
-                State%precipNFlux(k)%data = State%precipNFlux(k)%data/State%dt/2.0_rp
-                State%precipEFlux(k)%data = State%precipEFlux(k)%data/State%dt/2.0_rp
+                State%precipNFlux_Nk(k)%data = State%precipNFlux_Nk(k)%data/State%dt/2.0_rp
+                State%precipEFlux_Nk(k)%data = State%precipEFlux_Nk(k)%data/State%dt/2.0_rp
                 State%CCHeatFlux(:,:,k)  = State%CCHeatFlux (:,:,k)/State%dt/2.0_rp
                 State%dEta_dt(:,:,k)     = State%dEta_dt    (:,:,k)/State%dt
             endif

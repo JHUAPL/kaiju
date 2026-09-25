@@ -6,12 +6,32 @@ module raijuPostAdvancer
     use raijutypes
     use raijuSpeciesHelper
     use raijuetautils
+    use raijulosses, only : raijuEvalPrecipMoments
 
     use, intrinsic :: ieee_arithmetic
 
     implicit none
 
     contains
+
+    subroutine raijuPostAdvanceState(Model, Grid, State)
+        type(raijuModel_T), intent(in) :: Model
+        type(raijuGrid_T ), intent(in) :: Grid
+        type(raijuState_T), intent(inout) :: State
+
+        ! etas back to moments
+        call Tic("Moments Eval",.true.)
+        call EvalMoments(Grid, State)
+        call EvalMoments(Grid, State, doAvgO=.true.)
+        call Toc("Moments Eval",.true.)
+
+        ! Lambda-resolved into per-species integrated precip fluxes
+        call raijuEvalPrecipMoments(Model, Grid, State)
+
+        ! Do various checks to make sure everything went okay
+        call raijuPostAdvanceChecks(Model, Grid, State)
+
+    end subroutine raijuPostAdvanceState
 
 
     subroutine raijuPostAdvanceChecks(Model, Grid, State)
@@ -20,13 +40,41 @@ module raijuPostAdvancer
         type(raijuState_T), intent(in) :: State
 
         integer :: s
+        character(len=strLen) :: errorMsg
         ! NaN checks
-        if (any(ieee_is_nan(State%eta_avg       ))) call handleRaiPostCheckFailed("NaNs in RAIJU's eta_avg. Writing black box and exiting")
+        ! Size Nk
+        do s=1,Grid%Nk
+            if (any(ieee_is_nan(State%eta_avg(:,:,s)))) then
+                write(errorMsg, '(A,I0,A)') "NaNs in k index", s, "in RAIJU's eta_avg. Writing black box and exiting"
+                call handleRaiPostCheckFailed(errorMsg)
+            endif
+            if (any(ieee_is_nan(State%precipEFlux_Nk(s)%data))) then
+                write(errorMsg, '(A,I0,A)') "NaNs in k index", s, "in RAIJU's precipEFlux_Nk. Writing black box and exiting"
+                call handleRaiPostCheckFailed(errorMsg)
+            endif
+            if (any(ieee_is_nan(State%precipNFlux_Nk(s)%data))) then
+                write(errorMsg, '(A,I0,A)') "NaNs in k index", s, "in RAIJU's precipNFlux_Nk. Writing black box and exiting"
+                call handleRaiPostCheckFailed(errorMsg)
+            endif
+        enddo
+        ! Size Nspc
         do s=1,Model%nSpc
-            if (any(ieee_is_nan(State%Press_avg  (s)%data))) call handleRaiPostCheckFailed("NaNs in RAIJU's Press_avg. Writing black box and exiting")
-            if (any(ieee_is_nan(State%Den_avg    (s)%data))) call handleRaiPostCheckFailed("NaNs in RAIJU's Den_avg. Writing black box and exiting")
-            if (any(ieee_is_nan(State%precipEFlux(s)%data))) call handleRaiPostCheckFailed("NaNs in RAIJU's precipEFlux. Writing black box and exiting")
-            if (any(ieee_is_nan(State%precipNFlux(s)%data))) call handleRaiPostCheckFailed("NaNs in RAIJU's precipNFlux. Writing black box and exiting")
+            if (any(ieee_is_nan(State%Press_avg  (s)%data))) then
+                write(errorMsg, '(A,I0,A)') "NaNs in spc index", s, "in RAIJU's Press_avg. Writing black box and exiting"
+                call handleRaiPostCheckFailed(errorMsg)
+            endif
+            if (any(ieee_is_nan(State%Den_avg    (s)%data))) then
+                write(errorMsg, '(A,I0,A)') "NaNs in spc index", s, "in RAIJU's Den_avg. Writing black box and exiting"
+                call handleRaiPostCheckFailed(errorMsg)
+            endif
+            if (any(ieee_is_nan(State%precipEFlux_NSpc(s)%data))) then
+                write(errorMsg, '(A,I0,A)') "NaNs in spc index", s, "in RAIJU's precipEFlux_NSpc. Writing black box and exiting"
+                call handleRaiPostCheckFailed(errorMsg)
+            endif
+            if (any(ieee_is_nan(State%precipNFlux_NSpc(s)%data))) then
+                write(errorMsg, '(A,I0,A)') "NaNs in spc index", s, "in RAIJU's precipNFlux_NSpc. Writing black box and exiting"
+                call handleRaiPostCheckFailed(errorMsg)
+            endif
         enddo
 
         contains

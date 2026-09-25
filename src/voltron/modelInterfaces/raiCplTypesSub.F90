@@ -381,9 +381,9 @@ submodule (volttypes) raijuCplTypesSub
                     imP(RAI_EDEN ) = imP(RAI_EDEN ) + d_hot*1.0e6 ! uStr="#/cc" -> /m^3 , dStr="Density from RAIJU flavors"
                     imP(RAI_EPRE ) = imP(RAI_EPRE ) + p_hot*1.0e-9 ! uStr="nPa" -> Pa , dStr="Pressure from RAIJU flavors"
                     do k=ks,ke
-                        call InterpShellVar_TSC_pnt(sh, State%precipNFlux(k), th, ph, dn_flux)
+                        call InterpShellVar_TSC_pnt(sh, State%precipNFlux_Nk(k), th, ph, dn_flux)
                         imP(RAI_ENFLX) = imP(RAI_ENFLX) + dn_flux ! uStr="#/cm^2/s"
-                        call InterpShellVar_TSC_pnt(sh, State%precipEFlux(k), th, ph, de_flux)
+                        call InterpShellVar_TSC_pnt(sh, State%precipEFlux_Nk(k), th, ph, de_flux)
                         imP(RAI_EFLUX) = imP(RAI_EFLUX) + de_flux ! uStr="erg/cm^2/s"
                         if (isnan(imP(RAI_ENFLX)) .or. isnan(imP(RAI_EFLUX))) then
                             ! Only one failing thread may write the black box and terminate.

@@ -513,12 +513,14 @@ module raijutypes
             !! (Ngi, Ngj, Nk) [1/s] Loss rates that result in precipitation. Should be <= lossRates
         real(rp), dimension(:,:,:), allocatable :: precipType_ele
             !! (Ngi, Ngj, Nk) Prepication type used for electrons
-        !real(rp), dimension(:,:,:), allocatable :: precipNFlux
-        type(ShellGridVar_T), dimension(:), allocatable :: precipNFlux
-            !! (Ngi, Ngj, Nk) [#/cm^2/s] Precipitation number fluxes
-        !real(rp), dimension(:,:,:), allocatable :: precipEFlux
-        type(ShellGridVar_T), dimension(:), allocatable :: precipEFlux
-            !! (Ngi, Ngj, Nk) [erg/cm^2/s] Precipitation energy fluxes
+        type(ShellGridVar_T), dimension(:), allocatable :: precipNFlux_Nk
+            !! (Ngi, Ngj, Nk) [#/cm^2/s] Energy-resolved precipitation number fluxes
+        type(ShellGridVar_T), dimension(:), allocatable :: precipEFlux_Nk
+            !! (Ngi, Ngj, Nk) [erg/cm^2/s] Energy-resolved precipitation energy fluxes
+        type(ShellGridVar_T), dimension(:), allocatable :: precipNFlux_Nspc
+            !! (Ngi, Ngj, Nspc) [#/cm^2/s] Per-species energy-integrated precipitation number fluxes
+        type(ShellGridVar_T), dimension(:), allocatable :: precipEFlux_Nspc
+            !! (Ngi, Ngj, Nspc) [erg/cm^2/s] Per-species energy-integrated precipitation energy fluxes
         real(rp), dimension(:,:,:), allocatable :: dEta_dt
             !! (Ngi, Ngj, Nk) [eta units/s] Average 
         real(rp), dimension(:,:,:), allocatable :: CCHeatFlux
@@ -761,6 +763,4 @@ module raijutypes
     end subroutine raiAppOverride_setVal
 
 end module raijutypes
-
-
 
