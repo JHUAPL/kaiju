@@ -538,7 +538,7 @@ module raijuetautils
         
         
         k0 = Grid%spc(spcIdx(Grid, F_PSPH))%kStart !plasmasphere index
-        NowKp = State%KpTS%evalAt(State%t)
+        NowKp = evalTimeSeriesAt(State%KpTS,State%t)
         call SetKp0(NowKp) !Update state of Gallagher
         
         !$OMP PARALLEL DO default(shared) &

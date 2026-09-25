@@ -81,16 +81,16 @@ module imaghelper
     		write(*,*) "Attempting to update uninitialized TM03 model, bailing ..."
     		stop
     	endif
-    	D  = TM03%tsD %evalAt(t0)        !#/cc
-    	Vx = TM03%tsVx%evalAt(t0)*1.0e-3 !km/s
-    	Vy = TM03%tsVy%evalAt(t0)*1.0e-3 !km/s
-    	Vz = TM03%tsVz%evalAt(t0)*1.0e-3 !km/s
-    	Bx = TM03%tsBx%evalAt(t0)        !nT
-    	By = TM03%tsBy%evalAt(t0)        !nT
-    	Bz = TM03%tsBz%evalAt(t0)        !nT
-    	T  = TM03%tsTemp%evalAt(t0)      !K
+    	D  = evalTimeSeriesAt(TM03%tsD,t0)        !#/cc
+    	Vx = evalTimeSeriesAt(TM03%tsVx,t0)*1.0e-3 !km/s
+    	Vy = evalTimeSeriesAt(TM03%tsVy,t0)*1.0e-3 !km/s
+    	Vz = evalTimeSeriesAt(TM03%tsVz,t0)*1.0e-3 !km/s
+    	Bx = evalTimeSeriesAt(TM03%tsBx,t0)        !nT
+    	By = evalTimeSeriesAt(TM03%tsBy,t0)        !nT
+    	Bz = evalTimeSeriesAt(TM03%tsBz,t0)        !nT
+    	T  = evalTimeSeriesAt(TM03%tsTemp,t0)      !K
 
-    	TM03%MJD0 = TM03%tsMJD%evalAt(t0)
+    	TM03%MJD0 = evalTimeSeriesAt(TM03%tsMJD,t0)
         !Start storing, want GSM
         TM03%dSW  = D
         TM03%vSW  = norm2([Vx,Vy,Vz])

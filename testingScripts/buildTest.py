@@ -207,6 +207,40 @@ def main():
     if debug:
         print(f"executable_list = {executable_list}")
 
+    # For each target, grep the list of sources to see if any are
+    # deprecated or underdev (under development)
+    refined_executable_list = []
+    for executable in executable_list:
+        cmd = f"grep -oE '[^ ]+\\.(f90|F90)' CMakeFiles/{executable}.dir/build.make"
+        if debug:
+            print(f"cmd = {cmd}")
+        try:
+            # NOTE: stdout and stderr combined into stdout
+            cproc = subprocess.run(cmd, shell=True, check=True,
+                                text=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            path = os.path.join(
+                EXECUTABLE_LIST_BUILD_DIRECTORY, 'grep_sources.out'
+            )
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(e.stdout)
+            print(
+                f'ERROR: greping sources for {executable} failed.\n'
+                f"e.cmd = {e.cmd}\n"
+                f"e.returncode = {e.returncode}\n"
+                f"See {path} for output from grep.\n"
+                'Unable to get sources for executable.',
+                file=sys.stderr
+            )
+            raise
+        upperStdOut = cproc.stdout.upper()
+        if 'DEPRECATED' not in upperStdOut and 'UNDERDEV' not in upperStdOut:
+            refined_executable_list.append(executable)
+    executable_list = refined_executable_list
+    if debug:
+        print(f"executable_list = {executable_list}")
+
     # Create the make command to build the executable list.
     make_cmd = f"make {' '.join(executable_list)}"
     if debug:

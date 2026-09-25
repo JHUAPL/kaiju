@@ -67,7 +67,7 @@ module voltio
         character(len=strLen) :: utStr
         real(rp) :: BSDst0,AvgBSDst,DPSDst,symh,BSSMRs(4)
 
-        dpT = vApp%tilt%evalAt(vApp%time)*180.0/PI
+        dpT = evalTimeSeriesAt(vApp%tilt,vApp%time)*180.0/PI
 
         !Figure out some perfromance info
         cMJD = T2MJD(vApp%time,MJD0) !Current MJD
@@ -121,7 +121,7 @@ module voltio
         call getCPCP(vApp%gApp%mixOutput,cpcp)
         
         !Get symh from input time series
-        symh = vApp%symh%evalAt(vApp%time)
+        symh = evalTimeSeriesAt(vApp%symh,vApp%time)
 
         if (vApp%isLoud) then
             write(*,*) ANSIBLUE
@@ -427,7 +427,7 @@ module voltio
         endif
 
         !Get symh from input time series
-        symh = vApp%symh%evalAt(vApp%time)
+        symh = evalTimeSeriesAt(vApp%symh,vApp%time)
 
         outSGVBnds_corner = (/is,ie+1,js,je+1/)
 

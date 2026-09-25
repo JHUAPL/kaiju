@@ -300,7 +300,9 @@ module raijuAdvancer
         if (spc%flav == F_PSPH) then
             ! Plasmasphere ghosts represent real lower-L shells, so reset each
             ! ghost row from Gallagher at its own mapped equatorial location.
-            nowKp = State%KpTS%evalAt(State%t)
+
+            ! must use non polymorphic routine with threads
+            nowKp = evalTimeSeriesAt(State%KpTS, State%t)
             do j=sh%js, sh%je
                 do i=sh%ie+1, sh%ieg
                     xeq = State%xyzMincc(i,j,XDIR)

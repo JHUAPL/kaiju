@@ -216,8 +216,8 @@ module voltapp
             !Use MJD from time series
             tsMJD%wID = vApp%tilt%wID
             call tsMJD%initTS("MJD",doLoudO=.false.)
-            vApp%MJD = T2MJD(vApp%time,tsMJD%evalAt(0.0_rp))
-            vApp%gApp%Model%MJD0 = tsMJD%evalAt(0.0_rp)
+            vApp%MJD = T2MJD(vApp%time,evalTimeSeriesAt(tsMJD,0.0_rp))
+            vApp%gApp%Model%MJD0 = evalTimeSeriesAt(tsMJD,0.0_rp)
             !Set first deep coupling (defaulting to coupling immediately)
             call xmlInp%Set_Val(vApp%DeepT, "coupling/tCouple", vApp%time)
             vApp%IO%tCon = vApp%time
