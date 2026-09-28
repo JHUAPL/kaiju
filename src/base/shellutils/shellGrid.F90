@@ -126,7 +126,7 @@ module shellGrid
         integer :: i,j
         integer :: phiLo, phiHi
         logical :: addGhosts
-        real(rp) :: delta, L
+        real(rp) :: delta, L, phiUniformTol
         real(rp), dimension(:), allocatable :: dphi
         real(rp), dimension(3) :: xyz
 
@@ -270,7 +270,9 @@ module shellGrid
         if (allocated(dphi)) deallocate(dphi)
         allocate(dphi(shGr%Np))   ! helper
         dphi = Phi(2:shGr%Np+1) - Phi(1:shGr%Np)
-        if ( all( dphi - dphi(1) <= TINY ) ) then
+        ! Restart/output phi coordinates may be quantized at IO precision.
+        phiUniformTol = max(TINY, 10.0_rp*real(epsilon(real(1.0, kind=iop)), rp)*max(1.0_rp, maxval(abs(Phi))))
+        if ( all( abs(dphi - dphi(1)) <= phiUniformTol ) ) then
             shGr%isPhiUniform = .true.
         else 
             shGr%isPhiUniform = .false.

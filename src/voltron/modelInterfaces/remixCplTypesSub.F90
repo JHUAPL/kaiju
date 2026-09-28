@@ -2,6 +2,7 @@
 
 submodule (volttypes) remixCplTypesSub
 
+    use clocks
     use mixtypes
     use mixdefs
     use mhd2mix_interface
@@ -101,18 +102,26 @@ submodule (volttypes) remixCplTypesSub
 
         call MJDRecalc(vApp%MJD)
 
+        call Tic("PackInputs")
         call App%packInputs(vApp)
+        call Toc("PackInputs")
 
         call vApp%tilt%getValue(vApp%time, curTilt)
         App%mixApp%IO%tilt = curTilt
         App%mixApp%IO%time = vApp%time
         App%mixApp%IO%mjd  = vApp%MJD
 
+        call Tic("DK2Mix")
         call mapDKToMix(vApp%shGrid, vApp%dkApp%vars, App%mixApp)
+        call Toc("DK2Mix")
+        call Tic("NonDK2Mix")
         if (vApp%doDeep .and. (vApp%time > 0)) call mapNonDKToMix(vApp, App%mixApp)
+        call Toc("NonDK2Mix")
 
         ! GCM conductance overwrites DK when enabled
+        call Tic("MapGCM2Mix")
         if (vApp%doGCM) call mapGCMToMix(vApp%gcm, App%mixApp)
+        call Toc("MapGCM2Mix")
 
     end subroutine remixCpl_toIono
 

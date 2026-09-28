@@ -246,34 +246,6 @@ contains
              IOVars(n0)%unitStr = uStr
           endif
        enddo
-      ! add geographic latgeo and longeo
-      vstr = trim("Latitude (Geographic)") // " "//trim(hStr)
-      ustr = trim("radians")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%t,uStr)
-      vstr = trim("Longitude (Geographic)") // " "//trim(hStr)
-      ustr = trim("radians")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%p,uStr)
-      ! add apex lat and lon
-      vstr = trim("Latitude (Apex)") // " "//trim(hStr)
-      ustr = trim("radians")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%t,uStr)
-      vstr = trim("Longitude (Apex)") // " "//trim(hStr)
-      ustr = trim("radians")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%p,uStr)
-      ! add geographic X and Y
-      vstr = trim("X (Geographic)") // " "//trim(hStr)
-      ustr = trim("Ri")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%x,uStr)
-      vstr = trim("Y (Geographic)") // " "//trim(hStr)
-      ustr = trim("Ri")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%y,uStr)
-      ! add Apex X and Y
-      vstr = trim("X (Apex)") // " "//trim(hStr)
-      ustr = trim("Ri")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%x,uStr)
-      vstr = trim("Y (Apex)") // " "//trim(hStr)
-      ustr = trim("Ri")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%y,uStr)
     enddo
 
     ! now add time

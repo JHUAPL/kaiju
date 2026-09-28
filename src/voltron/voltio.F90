@@ -495,7 +495,8 @@ module voltio
                         outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
         call WriteVars(IOVars,.true.,vh5File,gStr)
         write(gStr,'(A,A)') trim(gStr), "/TubeShell"
-        call writeTubeShell(vApp%shGrid, vApp%State%tubeShell, vh5File, gStrO=gStr, doGhostsO=doGhosts,doFatO=doFat)
+        call writeTubeShell(vApp%shGrid, vApp%State%tubeShell, vh5File, gStrO=gStr, &
+                            doGhostsO=doGhosts, doFatO=doFat, nSpcO=gApp%Model%nSpc)
 
 
     end subroutine WriteVolt

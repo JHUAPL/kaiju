@@ -4,6 +4,7 @@ module mixinterfaceutils
     use mixdefs
     use volttypes
     use shellInterp
+    use shellUtils, only : wrapJ_SGV
 
     implicit none
 
@@ -146,6 +147,7 @@ module mixinterfaceutils
 
       ! Add both hemis together to get final global potential
       varOut%data = tmpN%data + tmpS%data
+      call wrapJ_SGV(voltGrid,varOut)
 
    end subroutine mixVarToVoltron
 

@@ -434,15 +434,25 @@ module voltapp_mpi
         endif
         ! Run ionosphere coupler
         call Tic("ReMIX", .true.)
+        call Tic("Imag2Shell")
         if (vApp%doDeep .and. (vApp%time > 0)) &
             call vApp%imagApp%toShell(vApp%imag2shell, vApp%shGrid, &
                                       vApp%State%tubeShell%latc, vApp%State%tubeShell%lonc)
+        call Toc("Imag2Shell")
+        call Tic("DK")
         call shellDK(vApp)                    ! DK conductance on the shell (before toIono maps it)
+        call Toc("DK")
+        call Tic("ToIono")
         call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
+        call Toc("ToIono")
+        call Tic("IonoAdvance")
         call vApp%ionoApp%AdvanceModel(0.0_rp)
+        call Toc("IonoAdvance")
         call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
         call updateVoltPotential(vApp)        ! potential_total = potential_base + corotation
+        call Tic("Shell2Gam")
         call shellToGamera(vApp)             ! shell -> Gamera BC (model-agnostic)
+        call Toc("Shell2Gam")
         call Toc("ReMIX", .true.)
 
         ! only do imag after spinup

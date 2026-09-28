@@ -548,7 +548,7 @@ module tubehelper
         call fillArray(tubeShell%J11i%mask, .true.)
     end subroutine tubes2Shell
 
-    subroutine writeTubeShell(shGr, tubeShell, outF, gStrO, doGhostsO,doFatO)
+    subroutine writeTubeShell(shGr, tubeShell, outF, gStrO, doGhostsO,doFatO,nSpcO)
         type(ShellGrid_T), intent(in) :: shGr
         type(TubeShell_T), intent(in) :: tubeShell
         character(len=strLen), intent(in) :: outF
@@ -556,8 +556,9 @@ module tubehelper
         !! Group name to use instead of 'TubeShell' at root level
         logical, intent(in), optional :: doGhostsO
         logical, intent(in), optional :: doFatO
+        integer, intent(in), optional :: nSpcO
 
-        integer :: is,ie,js,je
+        integer :: is,ie,js,je,nFluidOut
         character(len=strLen) :: gStrOut
         logical :: doWriteMask, isStepOutput, doGhosts,doFat
         integer, dimension(4) :: outSGVBnds_corner
@@ -569,7 +570,7 @@ module tubehelper
             gStrOut = "/TubeShell"
         endif
 
-        isStepOutput = (gStrOut(1:5) == "Step#")
+        isStepOutput = (gStrOut(1:5) == "Step#" .or. gStrOut(1:6) == "/Step#")
 
         if (isStepOutput) then
             doWriteMask = .false.  ! Don't add all the masks to every Step, thats a lot of unnecessary data
@@ -600,6 +601,10 @@ module tubehelper
         else
             doFat = .true.
         endif
+        ! Step output omits static geometry and unused species; restarts retain the full layout.
+        if (isStepOutput) doFat = .false.
+        nFluidOut = MAXTUBEFLUIDS
+        if (isStepOutput .and. present(nSpcO)) nFluidOut = min(max(nSpcO,0),MAXTUBEFLUIDS)
         outSGVBnds_corner = (/is,ie+1,js,je+1/)
 
         call AddOutSGV(IOVars,"X_bmin"   ,tubeShell%X_bmin   , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="Rp")
@@ -608,7 +613,7 @@ module tubehelper
         call AddOutSGV(IOVars,"lonc"     ,tubeShell%lonc     , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="deg")
         call AddOutSGV(IOVars,"J11i"     ,tubeShell%J11i     , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="muA/m^2")
         
-        call AddOutSGV(IOVars,"topo"     ,tubeShell%topo     , outBndsO=outSGVBnds_corner, doWriteMaskO=.true.     , uStr="enum")
+        call AddOutSGV(IOVars,"topo"     ,tubeShell%topo     , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="enum")
         call AddOutSGV(IOVars,"bmin"     ,tubeShell%bmin     , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="nT")
         call AddOutSGV(IOVars,"Jxyz_iono",tubeShell%Jxyz_iono, outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="muA/m^2")
         call AddOutSGV(IOVars,"Bxyz_iono",tubeShell%Bxyz_iono, outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="nT")
@@ -618,12 +623,18 @@ module tubehelper
         call AddOutSGV(IOVars,"wMAG"     ,tubeShell%wMAG     , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="normalized")
         call AddOutSGV(IOVars,"rCurv"    ,tubeShell%rCurv    , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="Rp")
         call AddOutSGV(IOVars,"avgBeta"  ,tubeShell%avgBeta  , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="normalized")
-        call AddOutSGV(IOVars,"avgP"     ,tubeShell%avgP     , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="nPa")
-        call AddOutSGV(IOVars,"avgN"     ,tubeShell%avgN     , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="#/cc")
-        call AddOutSGV(IOVars,"stdP"     ,tubeShell%stdP     , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="nPa")
-        call AddOutSGV(IOVars,"stdN"     ,tubeShell%stdN     , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="#/cc")
-        call AddOutSGV(IOVars, "bcP"     ,tubeShell%bcP      , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="nPa")
-        call AddOutSGV(IOVars, "bcN"     ,tubeShell%bcN      , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="#/cc")
+        call AddOutSGV(IOVars,"avgP"     ,tubeShell%avgP(0:nFluidOut), &
+            outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="nPa")
+        call AddOutSGV(IOVars,"avgN"     ,tubeShell%avgN(0:nFluidOut), &
+            outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="#/cc")
+        call AddOutSGV(IOVars,"stdP"     ,tubeShell%stdP(0:nFluidOut), &
+            outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="nPa")
+        call AddOutSGV(IOVars,"stdN"     ,tubeShell%stdN(0:nFluidOut), &
+            outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="#/cc")
+        call AddOutSGV(IOVars, "bcP"     ,tubeShell%bcP(0:nFluidOut), &
+            outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="nPa")
+        call AddOutSGV(IOVars, "bcN"     ,tubeShell%bcN(0:nFluidOut), &
+            outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="#/cc")
         
         call AddOutSGV(IOVars,"losscone" ,tubeShell%losscone , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="rad")
         call AddOutSGV(IOVars,"lossconec",tubeShell%lossconec, outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="rad")
@@ -637,7 +648,7 @@ module tubehelper
             call AddOutSGV(IOVars,"invlat"   ,tubeShell%invlat   , outBndsO=outSGVBnds_corner, doWriteMaskO=doWriteMask, uStr="deg")
         endif
         if (present(gStrO)) then
-            call WriteVars(IOVars, .false., outF, trim(gStrO))
+            call WriteVars(IOVars, isStepOutput, outF, trim(gStrO))
         else
             call WriteVars(IOVars, .false., outF, '/TubeShell')
         endif

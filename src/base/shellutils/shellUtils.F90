@@ -47,20 +47,27 @@ module shellUtils
             return
         endif
 
-        associate(Q => sgVar%data)
+        associate(Q => sgVar%data, M => sgVar%mask)
 
         ! Theta faces are cell-centered w.r.t. j direction
         !! TODO: Catch for zero ghosts in j direction
         if (sgVar%loc == SHGR_CC .or. sgVar%loc == SHGR_FACE_THETA) then
             ! Starting ghost cells
             Q(:, sh%jsg:sh%js-1) = Q(:, sh%je-sh%Nge+1:sh%je)
+            M(:, sh%jsg:sh%js-1) = M(:, sh%je-sh%Nge+1:sh%je)
             ! Ending ghosts cells
             Q(:, sh%je+1:sh%jeg) = Q(:, sh%js:sh%js+sh%Ngw-1)
+            M(:, sh%je+1:sh%jeg) = M(:, sh%js:sh%js+sh%Ngw-1)
         elseif (sgVar%loc==SHGR_CORNER .or. sgVar%loc == SHGR_FACE_PHI) then
-            ! Starting ghost cells
-            Q(:, sh%jsg:sh%js) = Q(:, sh%je-sh%Nge+1:sh%je+1)
-            ! Ending ghosts cells
-            Q(:, sh%je+1:sh%jeg+1) = Q(:, sh%js:sh%js+sh%Ngw)
+            ! Starting ghost corners
+            Q(:, sh%jsg:sh%js-1) = Q(:, sh%je-sh%Nge+1:sh%je)
+            M(:, sh%jsg:sh%js-1) = M(:, sh%je-sh%Nge+1:sh%je)
+            ! Copy the first physical corner to the periodic duplicate.
+            Q(:, sh%je+1) = Q(:, sh%js)
+            M(:, sh%je+1) = M(:, sh%js)
+            ! Ending ghost corners
+            Q(:, sh%je+2:sh%jeg+1) = Q(:, sh%js+1:sh%js+sh%Ngw)
+            M(:, sh%je+2:sh%jeg+1) = M(:, sh%js+1:sh%js+sh%Ngw)
         endif
 
         end associate

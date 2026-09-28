@@ -496,8 +496,6 @@ module raijustarter
             call fillArray(State%precipType_ele, 0.0_rp)
             allocate( State%lossRatesPrecip(sh%isg:sh%ieg, sh%jsg:sh%jeg, Grid%Nk) )
             call fillArray(State%lossRatesPrecip, 0.0_rp)
-            !allocate( State%precipNFlux    (sh%isg:sh%ieg, sh%jsg:sh%jeg, Grid%Nk) )
-            !allocate( State%precipEFlux    (sh%isg:sh%ieg, sh%jsg:sh%jeg, Grid%Nk) )
             allocate( State%dEta_dt        (sh%isg:sh%ieg, sh%jsg:sh%jeg, Grid%Nk) )
             call fillArray(State%dEta_dt, 0.0_rp)
             allocate( State%CCHeatFlux     (sh%isg:sh%ieg, sh%jsg:sh%jeg, Grid%Nk) )
@@ -522,15 +520,25 @@ module raijustarter
                 State%Den_avg  (s)%mask = .false.
                 State%Press_avg(s)%mask = .false.
             enddo
-            allocate(State%precipNFlux(Grid%Nk))
-            allocate(State%precipEFlux(Grid%Nk))
+            allocate(State%precipNFlux_Nk(Grid%Nk))
+            allocate(State%precipEFlux_Nk(Grid%Nk))
             do s=1,Grid%Nk
-                call initShellVar(Grid%shGrid, SHGR_CC, State%precipNFlux(s))
-                call initShellVar(Grid%shGrid, SHGR_CC, State%precipEFlux(s))
-                State%precipNFlux(s)%data = 0.0
-                State%precipEFlux(s)%data = 0.0
-                State%precipNFlux(s)%mask = .false.
-                State%precipEFlux(s)%mask = .false.
+                call initShellVar(Grid%shGrid, SHGR_CC, State%precipNFlux_Nk(s))
+                call initShellVar(Grid%shGrid, SHGR_CC, State%precipEFlux_Nk(s))
+                State%precipNFlux_Nk(s)%data = 0.0
+                State%precipEFlux_Nk(s)%data = 0.0
+                State%precipNFlux_Nk(s)%mask = .false.
+                State%precipEFlux_Nk(s)%mask = .false.
+            enddo
+            allocate(State%precipNFlux_NSpc(Grid%nSpc))
+            allocate(State%precipEFlux_NSpc(Grid%nSpc))
+            do s=1,Grid%Nspc
+                call initShellVar(Grid%shGrid, SHGR_CC, State%precipNFlux_Nspc(s))
+                call initShellVar(Grid%shGrid, SHGR_CC, State%precipEFlux_Nspc(s))
+                State%precipNFlux_NSpc(s)%data = 0.0
+                State%precipEFlux_NSpc(s)%data = 0.0
+                State%precipNFlux_NSpc(s)%mask = .false.
+                State%precipEFlux_NSpc(s)%mask = .false.
             enddo
 
             ! Only bother allocating persistent versions of debug stuff if we need them

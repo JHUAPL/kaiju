@@ -370,9 +370,14 @@ module shellInterp
                 ipnt = i0+di
                 jpnt = j0+dj
                 
-                ! Wrap around boundary
-                if (jpnt<1)           jpnt = sgSource%Np
-                if (jpnt>sgSource%Np) jpnt = 1
+                ! Wrap only outside the variable bounds. Corner/phi-face
+                ! variables have a valid duplicate seam point at je+1.
+                do while (jpnt < sgVar%jsv)
+                    jpnt = jpnt + sgSource%Np
+                enddo
+                do while (jpnt > sgVar%jev)
+                    jpnt = jpnt - sgSource%Np
+                enddo
 
                 ! Do zero-grad for theta
                 if (ipnt<sgVar%isv)   ipnt = sgVar%isv

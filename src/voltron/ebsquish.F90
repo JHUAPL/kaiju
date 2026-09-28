@@ -150,7 +150,8 @@ module ebsquish
 
         if (ebModel%doDip) write(*,*) "Using fake projection for testing!"
 
-        !$OMP PARALLEL DO default(shared) collapse(2) &
+        ! Projection cost varies by cell; distribute the full iteration space.
+        !$OMP PARALLEL DO default(shared) collapse(3) &
         !$OMP schedule(dynamic) &
         !$OMP private(i,j,k,xyz,x1,x2,isGoodIJK)
         do k=ksB,keB,nSkp
