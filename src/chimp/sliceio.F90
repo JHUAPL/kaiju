@@ -293,7 +293,7 @@ module sliceio
         endif
         !$OMP PARALLEL DO default(shared) collapse(2) &
         !$OMP schedule(dynamic) &
-        !$OMP private(i,j,xp,xm,Bp,Bm,Ep,Em,dB,Qij,gcFieldsP,gcFieldsM,jB,MagB,MagJ,B,SrcijkP,SrcijkM)
+        !$OMP private(i,j,xp,xm,Bp,Bm,Ep,Em,dB,Qij,gcFieldsP,gcFieldsM,jB,MagB,MagJ,B,SrcijkP,SrcijkM,Eeq,Beq,gcFieldsEq)
         do j=1,Nx2
             do i=1,Nx1
                 !Straddle slice plane

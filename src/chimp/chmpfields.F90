@@ -208,6 +208,7 @@ module chmpfields
                   ! note, using an ugly way to access B and L scaling by using in2G and L0 (globals from chmpunits)
                   ! FIXME: make chimp unit treatment more elegant, like gamera
                   jScl = in2G*1.e-5/(L0*Mu0)*1.0e-9   ! 1.e-5 to convert from G to nT and 1.e-9 to convert the result from nA to A
+                  write(*,*) "WARNING: Only code units of current density specified (probably an old run), trying sensible values. Fingers crossed :)"
                else
                   !Not (yet) supported units
                   write(*,*) "------------------------"
@@ -219,6 +220,12 @@ module chmpfields
                   write(*,*) "------------------------"
                   stop
              end if
+            case default
+                write(*,*) "------------------------"
+                write(*,*) "Error, no units of current density specified. Bailing ..."
+                write(*,*) "Consult https://wompwompwomp.com"
+                write(*,*) "------------------------"
+                stop
             end select
         endif
 
