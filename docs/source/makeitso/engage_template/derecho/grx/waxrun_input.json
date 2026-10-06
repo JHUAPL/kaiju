@@ -1,0 +1,8 @@
+{
+    "simulation": {
+        "srcroot": "<YOUR_CAM_TREE_HERE>"
+    },
+    "ic": {
+        "start_file_dir": "/glade/campaign/hao/itmodel/liuh/csm/waccmx_ne30_2004_cmip6/rest"
+    }
+}

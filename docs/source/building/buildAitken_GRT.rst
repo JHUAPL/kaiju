@@ -1,19 +1,19 @@
-Building the ``kaiju`` software on ``pleiades`` for MAGE - With TIEGCM (GTR)
+Building the ``kaiju`` software on ``aitken`` for MAGE - With TIEGCM (GRT)
 ==============================================================================================
 
 Introduction
 ------------
 
 This page provides instructions for building the ``kaiju`` software on the
-``pleiades`` supercomputer. These instructions assume that you have cloned the
+``aitken`` supercomputer. These instructions assume that you have cloned the
 ``kaiju`` repository.
 
 Prepare your software environment
 ---------------------------------
 
-Like most HPC systems, ``pleiades`` uses the ``module`` system to manage the
+Like most HPC systems, ``aitken`` uses the ``module`` system to manage the
 versions of software packages available to the user. When you log in to
-``pleiades``, no modules are loaded by default:
+``aitken``, no modules are loaded by default:
 
 .. code-block:: bash
 
@@ -21,15 +21,17 @@ versions of software packages available to the user. When you log in to
    No Modulefiles Currently Loaded.
 
 Start by purging any currently-loaded modules, then loading the following
-module set for MAGE runs coupled with TIEGCM (known as "GTR"):
+module set for MAGE runs coupled with TIEGCM (known as "GRT"):
 
 .. warning::
 
-    The GTR currently required custom built NetCDF and ESMF modules on ``pleiades``. If you need to
-    run GTR, you will need access to ``/home7/nrao3/local3`` and ``/nobackup/nrao3/tiegcm/tiegcm3.0/data``,
+    Coupled GRT runs on ``aitken`` are experimental. They currently require custom built NetCDF
+    and ESMF libraries, which the commands below expect in ``$HOME/local_aitken`` (the script
+    ``$TIEGCMHOME/scripts/Build.netcdf_esmf_at.sh`` builds them there), and access to
+    ``/nobackup/nrao3/tiegcm/tiegcm3.0/data``. If you need to run GRT on ``aitken``,
     please reach out to ``nikhilr@ucar.edu`` with the following:
     
-        - Your Pleiades username
+        - Your aitken username
         - Your Name
         - Your Institution
 
@@ -50,7 +52,7 @@ module set for MAGE runs coupled with TIEGCM (known as "GTR"):
     export CC=mpicc
     export CXX=mpicxx
 
-    export PREFIX=/home7/nrao3/local3
+    export PREFIX=$HOME/local_aitken
     export LIBRARY_PATH=${LIBRARY_PATH}:$PREFIX/lib
     export LD_LIBRARY_PATH=$LIBRARY_PATH
     export CPATH=$PREFIX/include
@@ -68,7 +70,7 @@ Build the ``kaiju`` software
 ----------------------------
 
 These instructions show how to build the MPI version of the ``kaiju``
-software. The GTR version is built in the subdirectory ``build_gtr``
+software. The GRT version is built in the subdirectory ``build_grt``
 under the ``kaiju`` source code directory. In practice, you can place the
 build directory in any convenient location.
 
@@ -77,9 +79,9 @@ build directory in any convenient location.
     # Move to your kaiju clone.
     cd /path/to/kaiju
 
-    # Create the GTR build directory and enter it.
-    mkdir build_gtr
-    cd build_gtr
+    # Create the GRT build directory and enter it.
+    mkdir build_grt
+    cd build_grt
 
     # Run cmake to create the Makefile, saving output.
     # NOTE: The FC definition is *required* for proper cmake operation.
@@ -98,7 +100,7 @@ build directory in any convenient location.
 
 .. warning::
 
-    Pleiades faces issues while loading the ``hdf5/1.12.3_mpt`` module at times.
+    aitken faces issues while loading the ``hdf5/1.12.3_mpt`` module at times.
     If you aren't able to build ``kaiju`` with the above module set, unload 
     the ``hdf5/1.12.3_mpt`` module and load it again:
 
@@ -143,18 +145,18 @@ For example:
 .. note::
 
     The ``TIEGCMHOME`` and ``TIEGCMDATA`` environment variables are required
-    for running the GTR model. They should point to the TIEGCM source code
+    for running the GRT model. They should point to the TIEGCM source code
     directory and the TIEGCM data directory, respectively.
 
     The TIEGCMDATA directory is located in the following locations:
         - On ``derecho``: ``/glade/campaign/hao/itmodel/tiegcm3.0/new_data``
-        - On ``pleiades``: ``/nobackup/nrao3/tiegcm/tiegcm3.0/data``
+        - On ``aitken``: ``/nobackup/nrao3/tiegcm/tiegcm3.0/data``
         - The required data files can be downloaded from the NCAR Globus endpoint using the following link: `TIEGCM Data Files <https://app.globus.org/file-manager?origin_id=b2502c58-c3eb-470f-86d4-cbdcd0aeb6c8&origin_path=%2F>`_
 
 
 Resolution guide for TIEGCM
 ************************************************
-Two TIEGCM executables are required for running the GTR model:
+Two TIEGCM executables are required for running the GRT model:
 
     - TIEGCM Standalone
         This is the TIEGCM code that runs independently and is used for initialization of the model.
@@ -187,9 +189,13 @@ Build guide for TIEGCM code for a ``Q`` run:
 #########################################################################################
 
 We will use ``tiegcmrun`` script to build the code which requires the minimum amount
-of input from the user. At each prompt, you can either type in a value, or hit 
-the :kbd:`Return` key to accept the default value (shown in square brackets at 
-the end of the prompt).
+of input from the user. ``tiegcmrun.py`` opens an arrow-key wizard that asks the
+questions one at a time: type a value or press :kbd:`Enter` to accept the default
+and go to the next one. The keys are listed at the bottom of the screen:
+``↑ back   ↓/Enter next   Ctrl-S finish   Ctrl-R reset   Ctrl-C cancel``. This is the recommended way to run ``tiegcmrun.py``.
+Each session below is shown, for reference, as the plain prompts that
+``--no-tui`` prints (the fallback when your terminal cannot show the wizard;
+the tool also falls back by itself).
 
 1. First we will create a directory for the "Q" TIEGCM build in the TIEGCMHOME directory.
 
@@ -213,6 +219,11 @@ the end of the prompt).
 .. code-block:: bash
 
     $TIEGCMHOME/tiegcmrun/tiegcmrun.py -oc
+
+The questions, as plain prompts:
+
+.. code-block:: bash
+
     Instructions:
     -> Default Selected input parameter is given in GREEN
     -> Warnings and Information are given in YELLOW
@@ -228,8 +239,8 @@ the end of the prompt).
     Coupling = False
 
 
-    Name of HPC system (derecho|pleiades|linux) [pleiades]: 
-    Standalone Executable [/glade/derecho/scratch/nikhilr/tiegcm_build_Q/exec/tiegcm.exe]: 
+    Name of HPC system (derecho|aitken|linux|perlmutter) [aitken]: 
+    Standalone Executable [./exec/tiegcm.exe]: 
     Horizontal Resolution (Deg) (5.0|2.5|1.25|0.625) [2.5]: 
     Vertical Resolution (Scale Height) (1/2|1/4|1/8|1/16) [1/4]: 
     Magnetic grid resolution (Degree) (2|1|0.5) [2]: 
@@ -240,8 +251,8 @@ After these inputs, the script will compile the TIEGCM code and create the stand
 
     ..
     .. 
-    gmake[1]: Leaving directory '/nobackup/nrao3/tiegcm/tiegcm_build_Q/exec'    
-    Executable copied from /nobackup/nrao3/tiegcm/tiegcm_build_Q/exec/tiegcm.exe to /nobackup/nrao3/tiegcm/tiegcm_build_Q/stdout
+    gmake[1]: Leaving directory '<YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/exec'    
+    Executable copied from <YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/exec/tiegcm.exe to <YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/stdout
 
 3. Next, we will build the coupled TIEGCM executable by running the ``tiegcmrun.py`` script with the ``-oc`` and ``-co`` options.
 
@@ -257,6 +268,11 @@ After these inputs, the script will compile the TIEGCM code and create the stand
 .. code-block:: bash
 
     $TIEGCMHOME/tiegcmrun/tiegcmrun.py -oc -co
+
+The questions, as plain prompts:
+
+.. code-block:: bash
+
     Instructions:
     -> Default Selected input parameter is given in GREEN
     -> Warnings and Information are given in YELLOW
@@ -270,8 +286,8 @@ After these inputs, the script will compile the TIEGCM code and create the stand
     Execute = False
     Coupling = True
 
-    Name of HPC system (derecho|pleiades|linux) [pleiades]: 
-    Coupled Executable [/glade/derecho/scratch/nikhilr/tiegcm_build/exec/tiegcm.x]: 
+    Name of HPC system (derecho|aitken|linux|perlmutter) [aitken]: 
+    Coupled Executable [./exec/tiegcm.x]: 
     Horizontal Resolution (Deg) (5.0|2.5|1.25|0.625) [2.5]: 1.25
     Vertical Resolution (Scale Height) (1/2|1/4|1/8|1/16) [1/8]: 
     Magnetic grid resolution (Degree) (2|1|0.5) [1]: 
@@ -282,8 +298,8 @@ After these inputs, the script will compile the TIEGCM code and create the coupl
 
     ..
     ..
-    gmake[1]: Leaving directory '/nobackup/nrao3/tiegcm/tiegcm_build_Q/exec'    
-    Executable copied from /nobackup/nrao3/tiegcm/tiegcm_build_Q/exec/tiegcm.x to /nobackup/nrao3/tiegcm/tiegcm_build_Q/stdout
+    gmake[1]: Leaving directory '<YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/exec'    
+    Executable copied from <YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/exec/tiegcm.x to <YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/stdout
 
 4. You should now see the following files in your run directory:
 
@@ -299,7 +315,7 @@ The executables are located in the ``stdout`` directory, and the stdout files
     ls stdout
     defs.h  tiegcm.exe  tiegcm.x
 
-Build guide for TIEGCM code for a ``D`` run on ``derecho``:
+Build guide for TIEGCM code for a ``D`` run on ``aitken``:
 #########################################################################################
 
 1. First we will create a directory for the "D" TIEGCM build in the TIEGCMHOME directory.
@@ -346,10 +362,11 @@ Build guide for TIEGCM code for a ``D`` run on ``derecho``:
     defs.h  tiegcm.exe  tiegcm.x
 
 
-Build guide for TIEGCM code for a ``O`` run on ``derecho``:
+Build guide for TIEGCM code for a ``O`` run on ``aitken``:
 #########################################################################################
 
-1. First we will create a directory for the "D" TIEGCM build in the TIEGCMHOME directory.
+1. First we will create a directory for the "O" TIEGCM build in the TIEGCMHOME directory.
+
 .. code-block:: bash
 
     cd $TIEGCMHOME

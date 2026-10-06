@@ -5,7 +5,7 @@ Running the ``kaiju`` software
 Before you begin
 ----------------
 
-These instructions use the ``makeitso.py``, ``engage.py`` and
+These instructions use the ``engage.py``, ``makeitso.py`` and
 ``makeitso-gamhelio.py`` tools, all belonging to the family of scripts
 we call ``makeitso``,
 to simplify the process of configuring and running the ``kaiju`` code. These
@@ -42,5 +42,6 @@ Running Guides
     :maxdepth: 1
 
     geoGRQuickStart
-    geoGTRQuickStart
+    geoGRTQuickStart
+    geoGRXQuickStart
     helioQuickStart
