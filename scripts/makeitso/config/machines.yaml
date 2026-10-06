@@ -1,0 +1,99 @@
+# Machines for makeitso (MAGE) job scripts. stacks: module sets per run type (gr, grt).
+# `mpirun` is the full launcher prefix ({total_tasks} = the job's MPI ranks).
+# rates: wall-clock h per simulated h of a GR segment, {gr: {<grid>: {'*': {rate, basis}}}}.
+machines:
+
+  derecho:
+    nodename_regex: "derecho|^dec[0-9]"
+    scheduler: pbs
+    shell: bash
+    cores_per_node: 128
+    account_default: null
+    account_groups: true                    # ... but the prompt offers the user's project codes
+    account_required: true
+    queue_default: "main"
+    job_priorities: [premium, regular, economy]   # PBS job_priority values (every tool's valids)
+    # ncpus_max from `qstat -Qf`; the walltime caps are NCAR policy
+    queues:
+      # develop is shared (default 10gb per chunk): ask for a node's memory or be OOM-killed
+      develop: { ncpus_max: 256,    walltime_max: "06:00:00", mem_per_chunk: "235GB" }
+      main:    { ncpus_max: 323712, walltime_max: "12:00:00" }
+    # slowest measured GR warm-up segment on derecho; O and H are estimates
+    rates:
+      gr:
+        D: { "*": { rate: 0.80, basis: measured } }
+        Q: { "*": { rate: 0.80, basis: measured } }
+        O: { "*": { rate: 3.0, basis: estimate } }
+        H: { "*": { rate: 12.0, basis: estimate } }
+    walltime_default: "12:00:00"
+    mpirun: "mpiexec pinCpuCores.sh"        # placer wrapper; no -np (ranks come from select)
+    module_purge: "module purge"
+    stacks:
+      gr:
+        # as in docs/source/building/buildDerecho_GR.rst
+        module_purge: "module --force purge"
+        modules: [ncarenv/23.06, cmake/3.26.3, craype/2.7.20, intel/2023.0.0,
+                  ncarcompilers/1.0.0, cray-mpich/8.1.25, hdf5-mpi/1.12.2, conda/latest]
+      grt:
+        # GR spinup/warm-up jobs of a coupled GRT run (same as engage's stacks.grt)
+        modules: [ncarenv/23.09, cmake/3.26.3, craype/2.7.31, intel-classic/2023.2.1,
+                  cray-mpich/8.1.27, ncarcompilers/1.0.0, mkl/2023.2.0, hdf5-mpi/1.12.2,
+                  netcdf-mpi/4.9.2, esmf/8.6.0, conda]
+    env: {}
+    job_priority_default: "economy"
+    pbs_prompt_extra: [job_priority]        # which optional PBS directive fields to prompt
+
+  aitken:                                   # NAS Aitken (untested); several node types (:model=...)
+    nodename_regex: "pfe|aitken|^afe[0-9]|\\bnas\\b"
+    scheduler: pbs
+    shell: bash
+    account_default: "$USER"                # -A <login name>, as the aitken jobs always carried
+    account_required: true
+    queue_default: "normal"
+    queues: [low, normal, long, debug, devel]     # (no limits recorded)
+    walltime_default: "08:00:00"
+    mpirun: "mpiexec correctOMPenvironment.sh $nodefile omplace"
+    module_purge: "module purge"
+    stacks:
+      gr:
+        modules: [nas, pkgsrc/2022Q1-rome, comp-intel/2020.4.304, "mpi-hpe/mpt.2.23",
+                  hdf5/1.8.18_mpt]
+      grt:
+        module_use: [/nasa/modulefiles/testing, /swbuild/analytix/tools/modulefiles]
+        modules: [comp-intel/2020.4.304, "mpi-hpe/mpt.2.30", szip/2.1.1, hdf5/1.12.3_mpt,
+                  miniconda3/v4]
+    cores_per_node: 128                     # fallback if no node type chosen
+    node_type_default: milan                # simulation.node_type default (historical :model=mil_ait)
+    node_types:                             # -> rendered as :model=<model> in the select chunk
+      milan:   { model: mil_ait, cores_per_node: 128 }
+      rome:    { model: rom_ait, cores_per_node: 128 }
+      cascade: { model: cas_ait, cores_per_node: 40 }
+    pbs_prompt_extra: [group_list, local_modules]   # NAS group + local module setup lines
+
+  linux:
+    nodename_regex: ".*"                     # fallback (matches anything not matched above)
+    scheduler: none
+    shell: bash
+    cores_per_node: 8
+    mpirun: "mpiexec -n {total_tasks}"       # no scheduler: the job's MPI ranks, explicitly
+    module_purge: ""
+    modules: []
+    pbs_prompt_extra: []
+
+  # perlmutter: experimental, untested
+  perlmutter:
+    nodename_regex: "^nid[0-9]|perlmutter|^login[0-9]"
+    scheduler: slurm
+    shell: bash
+    cores_per_node: 128
+    account_default: null                   # the NERSC project (mNNNN): per user
+    account_required: true
+    queue_default: "regular"                # the NERSC QOS (#SBATCH --qos=)
+    queues: [regular, debug, premium]
+    constraint: cpu                         # #SBATCH --constraint=cpu (CPU nodes)
+    walltime_default: "12:00:00"
+    # one srun spans both components of the heterogeneous job (GAMERA, voltron/helpers)
+    mpirun: "srun --het-group=0,1"
+    module_purge: "module purge"
+    modules: [PrgEnv-intel, cray-hdf5-parallel, cray-netcdf-hdf5parallel, cray-mpich]
+    pbs_prompt_extra: []                    # the QOS is the queue (no separate job priority)

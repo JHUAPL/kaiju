@@ -1,0 +1,40 @@
+{
+  "_doc": "Resource model, PBS policy (derecho only) and pinned inputs for nudge_solver.gen_job, which writes a PBS wrapper around scripts/waxrun/nudge_gen.py (a Python port of the NCL Gen_Data_ne30 generator with identical output). Every wrapper ends with the validator, so a bad generation fails the job and the spinup that waits on it is held.",
+  "_measured": "nudge_gen.py on Derecho: 11 s per 3-hour slot at --workers 1, 1.6 GB RSS per worker; the per-slot cost grows under concurrency (13.5 s at --workers 4), hence margin 2.0. ESMF_RegridWeightGen (--weights auto, cold cache) took 2.6 s; weights_gen_s is a generous allowance.",
+  "script": "nudge_gen.py",
+  "rda_template": "{YYYY}/MERRA2_0.9x1.25_{YYYYMMDD}.nc",
+  "resources": {
+    "per_slot_s": 11,
+    "per_worker_mem_gb": 2.0,
+    "base_mem_gb": 2,
+    "fixed_s": 120,
+    "margin": 2.0,
+    "round_up_s": 60,
+    "workers": 8,
+    "weights_gen_s": 300
+  },
+  "inputs": {
+    "inputdir": "/glade/campaign/collections/rda/data/d313003/0.9x1.25",
+    "grid_info": "/glade/campaign/hao/itmodel/liuh/csm/waccmx_UIbench_Jan2016/rest/2016-01-22-00000/waccmx_UIbench_Jan2016.cam.i.2016-01-22-00000.nc",
+    "topo": "/glade/campaign/cesm/cesmdata/cseg/inputdata/atm/cam/topo/se/ne30pg3_nc3000_Co060_Fi001_PF_nullRR_Nsw042_20171014.nc",
+    "dst_scrip": "/glade/campaign/cesm/cesmdata/cseg/inputdata/share/scripgrids/ne30pg3_scrip_170417.nc",
+    "esmf_rwg": "/glade/u/apps/derecho/23.09/spack/opt/spack/esmf/8.0.1/gcc/7.5.0/jr5q/bin/ESMF_RegridWeightGen",
+    "case": "MERRA2_ne30_L145",
+    "times_per_day": 8
+  },
+  "pbs": {
+    "queue": "develop",
+    "job_priority": true,
+    "max_walltime_s": 3600,
+    "max_ncpus": 128,
+    "max_mem_gb": 235,
+    "submit": "qsub",
+    "modules": [],
+    "tmpdir": "/glade/derecho/scratch/{USER}/tmp"
+  },
+  "_limits": "pbs.max_ncpus is the per-node core count (it refuses an over-large nudging.gen_workers); pbs.max_walltime_s is the generator job's walltime cap and decides how many days one chunk covers; pbs.max_mem_gb is a derecho node's usable memory.",
+  "_job_priority": "pbs.job_priority true: the generator job carries the run's '-l job_priority=' (as CIME's case jobs on every derecho queue do); false for a queue that does not take it.",
+  "_tmpdir": "{USER} is expanded at generation time, not by the job's shell: PBS exports LOGNAME, not USER, and $USER under set -u would abort the job.",
+  "_esmf": "inputs.esmf_rwg is pinned and passed as --esmf-bin with --strict-esmf: ESMF 8.6.0 produces a slightly different weight set (223078 vs 223082 weights), which changes the outputs in the last float32 bit.",
+  "_modules": "Empty: nudge_gen.py runs through the absolute interpreter baked into the wrapper and the pinned ESMF_RegridWeightGen, neither needs a module. Do not add esmf (another version changes the weights). A system whose interpreter is not self-contained can list modules here."
+}

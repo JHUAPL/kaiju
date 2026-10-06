@@ -1,0 +1,9 @@
+{
+  "ne30pg3_ne30pg3_mg17": {
+    "ncol": 48600,
+    "ncol_d": 48602,
+    "lev": 145,
+    "ilev": 146,
+    "attrs": {"ne": 30, "np": 4, "fv_nphys": 3}
+  }
+}

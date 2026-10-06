@@ -16,4 +16,4 @@ ROOT_DIR="$(echo "$SCRIPT_DIR" | sed 's:/scripts$::')"
 # using only export= and not export+= to work with bash and zsh
 export KAIJUHOME="$ROOT_DIR"
 
-export PATH="$PATH:$KAIJUHOME/scripts:$KAIJUHOME/scripts/preproc:$KAIJUHOME/scripts/makeitso:$KAIJUHOME/scripts/makeitso-gamhelio"
+export PATH="$PATH:$KAIJUHOME/scripts:$KAIJUHOME/scripts/preproc:$KAIJUHOME/scripts/makeitso:$KAIJUHOME/scripts/makeitso-gamhelio:$KAIJUHOME/scripts/engage"

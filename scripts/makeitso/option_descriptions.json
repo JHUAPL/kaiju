@@ -1,134 +1,186 @@
 {
     "version": "0.0.0",
-
     "simulation": {
         "job_name": {
             "LEVEL": "BASIC",
             "prompt": "Name to use for PBS job(s)",
-            "default": "geospace"
+            "default": "geospace",
+            "type": "name"
         },
         "bcwind_available": {
             "LEVEL": "BASIC",
             "prompt": "Do you have an existing solar wind file to use?",
             "default": "N",
-            "valids": ["Y", "y", "N", "n"]
+            "valids": [
+                "Y",
+                "y",
+                "N",
+                "n"
+            ],
+            "type": "yn"
         },
         "bcwind_file": {
             "LEVEL": "BASIC",
             "prompt": "Name of solar wind file to use",
-            "default": "bcwind.h5"
+            "default": "bcwind.h5",
+            "type": "file"
         },
         "start_date": {
             "LEVEL": "BASIC",
             "prompt": "Start date for simulation (yyyy-mm-ddThh:mm:ss)",
-            "default": "2001-06-01T23:00:00"
+            "default": "2001-06-01T23:00:00",
+            "type": "iso"
         },
         "stop_date": {
             "LEVEL": "BASIC",
             "prompt": "Stop date for simulation (yyyy-mm-ddThh:mm:ss)",
-            "default": "2001-06-02T01:00:00"
+            "default": "2001-06-02T01:00:00",
+            "type": "iso"
         },
         "use_segments": {
             "LEVEL": "BASIC",
             "prompt": "Do you want to split your job into multiple segments?",
             "default": "N",
-            "valids": ["Y", "y", "N", "n"]
+            "valids": [
+                "Y",
+                "y",
+                "N",
+                "n"
+            ],
+            "type": "yn"
         },
         "segment_duration": {
             "LEVEL": "BASIC",
-            "prompt": "Segment length in simulated seconds"
+            "prompt": "Segment length in simulated seconds",
+            "NOTE": "Asked after the machine, queue and walltime. Standalone: each segment has to fit the walltime at the machine's rate (config/machines.yaml rates.gr, with a safety margin); the default is the largest whole-hour length that fits, at most the run length. Under engage the coupled segment is engage's, asked there in seconds (whole hours).",
+            "type": "float",
+            "min": 0,
+            "exclusive_min": true
         },
         "gamera_grid_type": {
             "LEVEL": "BASIC",
             "prompt": "GAMERA grid type",
             "default": "Q",
-            "valids": ["D", "Q", "O", "H"]
+            "valids": [
+                "D",
+                "Q",
+                "O",
+                "H"
+            ],
+            "type": "str"
         },
         "gamera_grid_inner_radius": {
             "LEVEL": "INTERMEDIATE",
             "prompt": "GAMERA grid inner radius (in Earth radii)",
-            "default": "2.0"
+            "default": "2.0",
+            "type": "float",
+            "min": 0,
+            "exclusive_min": true
         },
         "gamera_grid_outer_radius": {
             "LEVEL": "INTERMEDIATE",
             "prompt": "GAMERA sunward outer radius (in Earth radii)",
-            "default": "30.0"
+            "default": "30.0",
+            "type": "float",
+            "min": 0,
+            "exclusive_min": true
         },
         "hpc_system": {
             "LEVEL": "BASIC",
             "prompt": "Name of HPC system",
-            "default": "aitken",
-            "valids": ["derecho", "aitken"]
+            "NOTE": "valids = the machines in config/machines.yaml; the default is the machine this host resolves to. derecho is tested; aitken is untested; perlmutter is experimental and untested; linux is a plain host without a scheduler.",
+            "default": "derecho",
+            "valids": [
+                "derecho",
+                "aitken",
+                "linux",
+                "perlmutter"
+            ],
+            "type": "str"
+        },
+        "node_type": {
+            "LEVEL": "INTERMEDIATE",
+            "prompt": "Compute node type",
+            "NOTE": "Asked only on a machine with several node types (config/machines.yaml node_types, e.g. aitken milan|rome|cascade); valids and default come from machines.yaml. Sets the job's node model and cores per node.",
+            "default": null,
+            "type": "str"
         }
     },
-
     "pbs": {
         "_common": {
             "account_name": {
                 "LEVEL": "BASIC",
-                "prompt": "PBS account name"
+                "prompt": "PBS account name",
+                "NOTE": "No shared default (the account is per user). Required on a machine whose machines.yaml sets account_required (derecho): a blank answer is asked again and a replayed JSON without it is refused. Not asked on a machine that takes no account line (aitken charges by group_list).",
+                "type": "name"
             },
             "run_directory": {
                 "LEVEL": "BASIC",
                 "prompt": "Run directory",
-                "default": "."
+                "default": ".",
+                "type": "path",
+                "NOTE": "The run segments' decks, jobs, logs, output and restarts are in the run directory; the GR spin-up / warm-up (<job>-SPINUP, <job>-WARMUP-NN) runs in its gr_spinup/ subdirectory and reads the grid, wind and RAIJU files through relative links (../<file>). <job>_pbs.sh submits every job from its own directory; segment 01 hard-links the lead-in's restart set from gr_spinup/ first. Paths inside the run directory are relative; the kaiju install / build, a user wind file and each lead-in job's cd to gr_spinup/ are absolute. makeitso_parameters.json records run_directory '.', read relative to the JSON's own directory: after moving a run directory, regenerate from inside it with makeitso.py --clobber -o makeitso_parameters.json."
             },
             "kaiju_install_directory": {
                 "LEVEL": "BASIC",
-                "prompt": "Path to kaiju installation"
+                "prompt": "Path to kaiju installation",
+                "type": "path"
             },
             "kaiju_build_directory": {
                 "LEVEL": "BASIC",
-                "prompt": "Path to kaiju build directory"
+                "prompt": "Path to kaiju build directory",
+                "type": "path"
             },
             "num_segments": {
                 "LEVEL": "EXPERT",
-                "prompt": "Number of sequential PBS jobs to submit for the run",
-                "default": "1"
+                "NOTE": "Derived from the run length and segment_duration; never asked.",
+                "prompt": null,
+                "default": "1",
+                "type": "int",
+                "min": 1
             }
         },
-        "derecho": {
+        "_machine": {
             "queue": {
                 "LEVEL": "BASIC",
                 "prompt": "PBS queue name",
                 "default": "main",
-                "valids": ["develop", "main", "preempt"]
+                "valids": [
+                    "develop",
+                    "main"
+                ],
+                "type": "str"
             },
             "job_priority": {
                 "LEVEL": "BASIC",
                 "prompt": "Job priority",
                 "default": "economy",
-                "valids": ["regular", "economy"]
+                "valids": [
+                    "regular",
+                    "economy"
+                ],
+                "type": "str"
             },
             "walltime": {
                 "LEVEL": "BASIC",
-                "prompt": "WARNING: You are responsible for ensuring that the wall time is sufficient to run a segment of your simulation!\nRequested wall time for each PBS job segment (HH:MM:SS)",
-                "default": "01:00:00"
-            },
-            "select": {
-                "LEVEL": "EXPERT",
-                "prompt": "Number of nodes to request",
-                "default": {
-                    "D": "2",
-                    "Q": "8",
-                    "O": "32",
-                    "H": "128"
-                }
-            },
-            "ncpus": {
-                "LEVEL": "EXPERT",
-                "prompt": "Number of cores per node",
-                "default": "128"
+                "prompt": "Requested wall time for each PBS job segment (HH:MM:SS)",
+                "default": "01:00:00",
+                "type": "hms"
             },
             "mpiprocs": {
                 "LEVEL": "EXPERT",
                 "prompt": "Number of MPI ranks per node",
-                "default": "2"
+                "default": "2",
+                "type": "int",
+                "min": 1
             },
             "ompthreads": {
                 "LEVEL": "EXPERT",
                 "prompt": "Number of OMP threads per MPI rank",
-                "default": "64"
+                "default": "64",
+                "type": "int",
+                "min": 1,
+                "NOTE": "Default: the node type's cores per node / mpiprocs (config/machines.yaml)"
             },
             "num_helpers": {
                 "LEVEL": "EXPERT",
@@ -138,196 +190,111 @@
                     "Q": "2",
                     "O": "4",
                     "H": "8"
-                }
+                },
+                "type": "int",
+                "min": 0
             },
             "helper_mpiprocs": {
                 "LEVEL": "EXPERT",
                 "prompt": "Number of MPI ranks per helper node",
-                "default": "1"
+                "default": "1",
+                "type": "int",
+                "min": 1
             },
             "helper_ompthreads": {
                 "LEVEL": "EXPERT",
                 "prompt": "Number of OMP threads per helper node",
-                "default": "128"
+                "default": "128",
+                "type": "int",
+                "min": 1,
+                "NOTE": "Default: the node type's cores per node / helper_mpiprocs (config/machines.yaml)"
             },
-            "other": {
-                "LEVEL": "EXPERT",
-                "prompt": "Additional options for PBS -l",
-                "default": ""
-            },
-            "modules": {
-                "LEVEL": "EXPERT",
-                "prompt": "Modules to load",
-                "default": [
-                    "ncarenv/23.06",
-                    "cmake/3.26.3",
-                    "craype/2.7.20",
-                    "intel/2023.0.0",
-                    "geos/3.9.1",
-                    "ncarcompilers/1.0.0",
-                    "cray-mpich/8.1.25",
-                    "hdf5/1.12.2",
-                    "mkl/2023.0.0"
-                ]
-            },
-            "environment_variables": {
-                "LEVEL": "EXPERT",
-                "prompt": "Additional environment variable settings",
-                "default": null
-            },
-            "mpiexec_command": {
-                "LEVEL": "EXPERT",
-                "prompt": "MPI command to launch run",
-                "default": "mpiexec pinCpuCores.sh"
-            }
-        },
-        "aitken": {
             "group_list": {
                 "LEVEL": "BASIC",
                 "prompt": "PBS group list",
-                "default": null
-            },
-            "queue": {
-                "LEVEL": "BASIC",
-                "prompt": "PBS queue name",
-                "default": "normal",
-                "valids": ["low", "normal", "long", "debug", "devel"]
-            },
-            "walltime": {
-                "LEVEL": "BASIC",
-                "prompt": "WARNING: You are responsible for ensuring that the wall time is sufficient to run a segment of your simulation!\nRequested wall time for each PBS job segment (HH:MM:SS)",
-                "default": "01:00:00"
-            },
-            "select": {
-                "LEVEL": "EXPERT",
-                "prompt": "Number of nodes to request",
-                "default": {
-                    "D": "2",
-                    "Q": "8",
-                    "O": "32",
-                    "H": "128"
-                }
-            },
-            "ncpus": {
-                "LEVEL": "EXPERT",
-                "prompt": "Number of cores per node",
-                "default": "128"
-            },
-            "mpiprocs": {
-                "LEVEL": "EXPERT",
-                "prompt": "Number of MPI ranks per node",
-                "default": "2"
-            },
-            "ompthreads": {
-                "LEVEL": "EXPERT",
-                "prompt": "Number of OMP threads per MPI rank",
-                "default": "64"
-            },
-            "num_helpers": {
-                "LEVEL": "EXPERT",
-                "prompt": "Number of helper nodes",
-                "default": {
-                    "D": "0",
-                    "Q": "2",
-                    "O": "4",
-                    "H": "8"
-                }
-            },
-            "helper_mpiprocs": {
-                "LEVEL": "EXPERT",
-                "prompt": "Number of MPI ranks per helper node",
-                "default": "1"
-            },
-            "helper_ompthreads": {
-                "LEVEL": "EXPERT",
-                "prompt": "Number of OMP threads per helper node",
-                "default": "128"
-            },
-            "other": {
-                "LEVEL": "EXPERT",
-                "prompt": "Additional options for PBS -l",
-                "default": ":model=mil_ait"
-            },
-            "modules": {
-                "LEVEL": "EXPERT",
-                "prompt": "Modules to load",
-                "default": [
-                    "nas",
-                    "pkgsrc/2022Q1-rome",
-                    "comp-intel/2020.4.304",
-                    "mpi-hpe/mpt.2.23",
-                    "hdf5/1.8.18_mpt"
-                ]
-            },
-            "moduledir": {
-                "LEVEL": "EXPERT",
-                "prompt": "Module directory",
-                "default": [null]
+                "default": null,
+                "type": "name"
             },
             "local_modules": {
                 "LEVEL": "EXPERT",
                 "prompt": "Commands to add local module PATH",
-                "default": [null]
-            },
-            "environment_variables": {
-                "LEVEL": "EXPERT",
-                "prompt": "Additional environment variable settings",
-                "default": null
-            },
-            "mpiexec_command": {
-                "LEVEL": "EXPERT",
-                "prompt": "MPI command to launch run",
-                "default": "mpiexec correctOMPenvironment.sh $nodefile omplace"
+                "default": [
+                    null
+                ],
+                "type": "lines"
             }
         }
     },
-
     "gamera": {
         "sim": {
             "H5Grid": {
                 "LEVEL": "INTERMEDIATE",
-                "prompt": "(GAMERA) Relative path to LFM grid file"
+                "prompt": "(GAMERA) Relative path to LFM grid file",
+                "type": "name"
             },
             "doH5g": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(GAMERA) Use an existing HDF5 LFM grid file",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "icType": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(GAMERA) Initial condition type",
                 "default": "user",
-                "valids": ["user"]
+                "valids": [
+                    "user"
+                ],
+                "type": "str"
             },
             "runid": {
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) Run ID for simulation",
                 "default": "geospace",
+                "type": "name",
                 "source": "src/voltron/rcmimag.F90"
             },
             "pdmb": {
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) Partial donor method limit (0+-1)",
-                "default": "0.75"
+                "default": "0.75",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true,
+                "max": 1
             },
             "rmeth": {
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) Reconstruction methodology",
                 "default": "8C",
-                "valids": ["7UP", "8C", "8CENT"]
+                "valids": [
+                    "7UP",
+                    "8C",
+                    "8CENT"
+                ],
+                "type": "str"
             }
         },
         "floors": {
             "dFloor": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(GAMERA) Lowest allowable density in MHD domain (cm**-3)",
-                "default": "1.0e-4"
+                "default": "1.0e-4",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true
             },
             "pFloor": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(GAMERA) Lowest allowable pressure in MHD domain (nPa)",
-                "default": "1.0e-6"
+                "default": "1.0e-6",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true
             }
         },
         "timestep": {
@@ -335,30 +302,39 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) Handle minor timestep issues",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "limCPR": {
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) Pass entire MHD variable state to CHIMP, etc.",
-                "default": "0.20"
+                "default": "0.20",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true
             }
         },
         "restart": {
             "doRes": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(GAMERA) Restart from a saved state",
+                "NOTE": "T: the run starts from the restarts <runid>.{gam,volt,gamCpl,mix,raiju,raiCpl,dk}.Res.<nRes>.h5 in the run directory (resID = runid). A segmented run sets this per deck: the GR spin-up / warm-up writes its restarts in gr_spinup/, and segment 01 links them into the run directory before it starts.",
                 "default": "F",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "nRes": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(GAMERA) Index of restart file to use (-1 for latest (XXXXX-symlink) restart file)",
-                "default": "-1"
-            },
-            "resID": {
-                "LEVEL": "INTERMEDIATE",
-                "prompt": "(GAMERA) Run ID for restart step",
-                "default": "geospace"
+                "default": "-1",
+                "type": "int",
+                "min": -1
             }
         },
         "physics": {
@@ -366,18 +342,29 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) Apply Boris correction",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "Ca": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(GAMERA) Maximum value of light speed (10**5 m/s)",
-                "default": "10.0"
+                "default": "10.0",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true
             },
             "doMHD": {
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) Pass entire MHD variable state to CHIMP, etc.",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         },
         "ring": {
@@ -385,19 +372,29 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) Apply ring averaging around axis",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "gid": {
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) Grid type for ring averaging",
-                "default": "lfm"
+                "default": "lfm",
+                "valids": [
+                    "lfm",
+                    "cyl"
+                ],
+                "type": "str"
             }
         },
         "wind": {
             "tsfile": {
                 "LEVEL": "BASIC",
                 "prompt": "(GAMERA) Relative path to HDF5 file containing solar wind data",
-                "default": "bcwind.h5"
+                "default": "bcwind.h5",
+                "type": "name"
             }
         },
         "source": {
@@ -405,27 +402,11 @@
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(GAMERA) Ingest inner magnetosphere model moments into MHD model",
                 "default": "T",
-                "valids": ["T", "F"]
-            },
-            "doBounceDT": {
-                "LEVEL": "EXPERT",
-                "prompt": "(GAMERA) Use Alfven bounce-time weighting for inner magnetosphere ingest",
-                "default": "T",
-                "valids": ["T", "F"],
-                "source": "src/voltron/rcmimag.F90"
-            },
-            "nBounce": {
-                "LEVEL": "EXPERT",
-                "prompt": "(GAMERA) Number of Alfven bounce timescales for weighting",
-                "default": "1.0",
-                "source": "src/voltron/rcmimag.F90"
-            },
-            "doWolfLim": {
-                "LEVEL": "INTERMEDIATE",
-                "prompt": "(GAMERA) Use plasma beta to limit pressure ingested from RCM to MHD",
-                "default": "T",
-                "valids": ["T", "F"],
-                "source": "src/voltron/rcmimag.F90"
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         },
         "iPdir": {
@@ -437,13 +418,19 @@
                     "Q": "4",
                     "O": "8",
                     "H": "16"
-                }
+                },
+                "type": "int",
+                "min": 1
             },
             "bcPeriodic": {
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) True if boundary conditions are periodic",
                 "default": "F",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         },
         "jPdir": {
@@ -455,13 +442,19 @@
                     "Q": "4",
                     "O": "8",
                     "H": "16"
-                }
+                },
+                "type": "int",
+                "min": 1
             },
             "bcPeriodic": {
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) True if boundary conditions are periodic",
                 "default": "F",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         },
         "kPdir": {
@@ -473,13 +466,19 @@
                     "Q": "1",
                     "O": "1",
                     "H": "1"
-                }
+                },
+                "type": "int",
+                "min": 1
             },
             "bcPeriodic": {
                 "LEVEL": "EXPERT",
                 "prompt": "(GAMERA) True if boundary conditions are periodic",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         },
         "coupling": {
@@ -488,19 +487,26 @@
                 "prompt": "(GAMERA) Block halo MPI",
                 "default": {
                     "derecho": "T",
-                    "aitken": "F"
+                    "aitken": "F",
+                    "generic": "T"
                 },
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         }
     },
-
     "voltron": {
         "time": {
             "tFin": {
                 "LEVEL": "EXPERT",
                 "prompt": "(VOLTRON) Final simulated time (seconds)",
-                "default": "64800.0"
+                "default": "64800.0",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true
             }
         },
         "spinup": {
@@ -508,29 +514,37 @@
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(VOLTRON) Set to 'T' to perform a spinup period",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "tSpin": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(VOLTRON) Number of simulated seconds for hydrodynamic spinup",
-                "default": "7200.0"
-            },
-            "tIO": {
-                "LEVEL": "EXPERT",
-                "prompt": "(VOLTRON) Simulation time to begin variable and restart dumps",
-                "default": "0.0"
+                "default": "7200.0",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true
             }
         },
         "output": {
             "dtOut": {
                 "LEVEL": "BASIC",
                 "prompt": "(VOLTRON) File output cadence in simulated seconds",
-                "default": "60.0"
+                "default": "60.0",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true
             },
             "dtCon": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(VOLTRON) Cadence for status updates on screen in simulated seconds",
-                "default": "300.0"
+                "default": "300.0",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true
             }
         },
         "coupling": {
@@ -538,52 +552,70 @@
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(VOLTRON) Use stride for field line tracing for RCM ingestion into gamera",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "doGCM": {
                 "LEVEL": "INTERMEDIATE",
-                "prompt": "(VOLTRON) Run in GCM mode",
+                "prompt": null,
+                "NOTE": "Never asked: F standalone; engage sets it per deck.",
                 "default": "F",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "qkSquishStride": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(VOLTRON) Set stride for field line tracing for RCM ingestion into gamera (must be integer power of 2)",
                 "default": "2",
-                "NOTE": "Should be computed based on grid resolution."
+                "type": "int",
+                "min": 1
             },
             "dtCouple": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(VOLTRON) Interval in simulated seconds between component coupling",
-                "default": "5.0"
-            },
-            "doDeep": {
-                "LEVEL": "INTERMEDIATE",
-                "prompt": "(VOLTRON) Use an inner magnetosphere model?",
-                "default": "T",
-                "valids": ["T", "F"]
+                "default": "5.0",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true
             },
             "imType": {
                 "LEVEL": "EXPERT",
                 "prompt": "(VOLTRON) Inner magnetosphere model to use",
                 "default": "RAIJU",
-                "valids": ["RAIJU"]
+                "valids": [
+                    "RAIJU"
+                ],
+                "type": "str"
             },
             "doAsyncCoupling": {
                 "LEVEL": "EXPERT",
                 "prompt": "(VOLTRON) Perform asynchronous model coupling",
                 "default": {
                     "derecho": "F",
-                    "aitken": "T"
+                    "aitken": "T",
+                    "generic": "F"
                 },
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         },
         "restart": {
             "dtRes": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(VOLTRON) Cadence for restart file generation in simulated seconds",
-                "default": "1800.0"
+                "default": "1800.0",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true
             }
         },
         "imag": {
@@ -591,48 +623,76 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(VOLTRON) Initialize inner magnetosphere model",
                 "default": "T",
-                "valids": ["T", "F"],
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf",
                 "source": "src/voltron/rcmimag.F90"
             }
         },
         "helpers": {
             "numHelpers": {
                 "LEVEL": "INTERMEDIATE",
-                "prompt": "(VOLTRON) Number of helper nodes",
+                "prompt": null,
                 "default": null,
-                "NOTE": "Will be computed"
+                "type": "int",
+                "min": 0
             },
             "useHelpers": {
                 "LEVEL": "EXPERT",
-                "prompt": "(VOLTRON) Set to T to use helper nodes for coupling with RCM",
+                "prompt": null,
                 "default": "T",
-                "valids": ["T", "F"],
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf",
                 "SOURCE": "src/drivers/voltron_mpix.F90"
             },
             "doSquishHelp": {
                 "LEVEL": "EXPERT",
                 "prompt": "(VOLTRON) Override default number of squish blocks",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         }
     },
-
     "chimp": {
         "units": {
             "uid": {
                 "LEVEL": "EXPERT",
                 "prompt": "(CHIMP) Name of units system for GAMERA inputs to CHIMP",
                 "default": "EARTHCODE",
-                "valids": ["EARTH", "EARTHCODE", "JUPITER", "JUPITERCODE", "SATURN", "SATURNCODE", "HELIO", "LFM", "LFMJUPITER" ]
+                "valids": [
+                    "EARTH",
+                    "EARTHCODE",
+                    "JUPITER",
+                    "JUPITERCODE",
+                    "SATURN",
+                    "SATURNCODE",
+                    "HELIO",
+                    "LFM",
+                    "LFMJUPITER"
+                ],
+                "type": "str"
             }
         },
         "fields": {
-           "grType": {
+            "grType": {
                 "LEVEL": "EXPERT",
                 "prompt": "(CHIMP) NExpected grid type for GAMERA output",
                 "default": "lfm",
-                "valids": ["lfm", "egg", "sph"]
+                "valids": [
+                    "lfm",
+                    "egg",
+                    "sph"
+                ],
+                "type": "str"
             }
         },
         "domain": {
@@ -640,37 +700,59 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(CHIMP) NDomain over which to perform CHIMP calculations",
                 "default": "MAGE",
-                "valids": ["SPH", "LFM", "LFMCYL", "MAGE", "EGG", "ELL"]
+                "valids": [
+                    "SPH",
+                    "LFM",
+                    "LFMCYL",
+                    "MAGE",
+                    "EGG",
+                    "ELL"
+                ],
+                "type": "str"
             }
         },
         "tracer": {
             "epsds": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(CHIMP) NTolerance level for field-line tracer integration",
-                "default": "0.05"
+                "default": "0.05",
+                "type": "float",
+                "min": 0,
+                "exclusive_min": true
             }
         }
     },
-
     "remix": {
         "conductance": {
             "doStarlight": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(REMIX) Compute starlight contribution to conductance",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "apply_cap": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(REMIX) Apply cap to Hall conductance based on Pedersen conductance",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "const_sigma": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(REMIX) Use constant conductance",
                 "default": "F",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         },
         "precipitation": {
@@ -678,29 +760,43 @@
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(REMIX) Name of auroral precipitation model to use",
                 "default": "LINMRG",
-                "valids": ["FEDDER", "ZHANG", "RCMHD", "RCMONO", "RCMFED", "LINMRG"]
+                "valids": [
+                    "FEDDER",
+                    "SUNNY",
+                    "LINMRG"
+                ],
+                "type": "str"
             },
             "beta": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(REMIX) Loss cone filling fraction",
-                "default": "0.2"
+                "default": "0.2",
+                "type": "float",
+                "min": 0
             },
             "doAuroralSmooth": {
                 "LEVEL": "INTERMEDIATE",
                 "prompt": "(REMIX) Enable Auroral Smoothing",
                 "default": "F",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         }
     },
-
     "raiju": {
         "output": {
             "loudConsole": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) loudConsole",
                 "default": "F",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         },
         "grid": {
@@ -708,13 +804,19 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) gType",
                 "default": "SHGRID",
-                "valids": ["SHGRID"]
+                "valids": [
+                    "SHGRID"
+                ],
+                "type": "str"
             },
             "ThetaL": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) ThetaL",
                 "default": "15",
-                "valids": ["15"]
+                "valids": [
+                    "15"
+                ],
+                "type": "str"
             }
         },
         "domain": {
@@ -722,25 +824,37 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) tail_buffer",
                 "default": "15.0",
-                "valids": ["15.0"]
+                "valids": [
+                    "15.0"
+                ],
+                "type": "str"
             },
             "sun_buffer": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) sun_buffer",
                 "default": "15.0",
-                "valids": ["15.0"]
+                "valids": [
+                    "15.0"
+                ],
+                "type": "str"
             },
             "tail_active": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) tail_active",
                 "default": "12.0",
-                "valids": ["12.0"]
+                "valids": [
+                    "12.0"
+                ],
+                "type": "str"
             },
             "sun_active": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) sun_active",
                 "default": "12.0",
-                "valids": ["12.0"]
+                "valids": [
+                    "12.0"
+                ],
+                "type": "str"
             }
         },
         "config": {
@@ -748,7 +862,10 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) fname",
                 "default": "raijuconfig.h5",
-                "valids": ["raijuconfig.h5"]
+                "valids": [
+                    "raijuconfig.h5"
+                ],
+                "type": "name"
             }
         },
         "plasmasphere": {
@@ -756,13 +873,11 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) doPsphere",
                 "default": "T",
-                "valids": ["T", "F"]
-            },
-            "doExcessMap": {
-                "LEVEL": "EXPERT",
-                "prompt": "(RAIJU) doExcessMap",
-                "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         },
         "losses": {
@@ -770,31 +885,50 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) doLosses",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "doCX": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) doCX",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "doCC": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) doCC",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "doEWM": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) doEWM",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             },
             "ewmType": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) ewmType",
                 "default": "SS",
-                "valids": ["SS"]
+                "valids": [
+                    "SS"
+                ],
+                "type": "str"
             }
         },
         "cpl": {
@@ -802,13 +936,19 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) nFluidsIn",
                 "default": "1",
-                "valids": ["1"]
+                "valids": [
+                    "1"
+                ],
+                "type": "str"
             },
             "startupTscl": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) startupTscl",
                 "default": "7200.0",
-                "valids": ["7200.0"]
+                "valids": [
+                    "7200.0"
+                ],
+                "type": "str"
             }
         },
         "fluidIn1": {
@@ -816,21 +956,30 @@
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) imhd",
                 "default": "0",
-                "valids": ["0"]
+                "valids": [
+                    "0"
+                ],
+                "type": "str"
             },
             "flav": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) flav",
                 "default": "2",
-                "valids": ["2"]
+                "valids": [
+                    "2"
+                ],
+                "type": "str"
             },
             "excessToPsph": {
                 "LEVEL": "EXPERT",
                 "prompt": "(RAIJU) excessToPsph",
                 "default": "T",
-                "valids": ["T", "F"]
+                "valids": [
+                    "T",
+                    "F"
+                ],
+                "type": "tf"
             }
         }
     }
-
 }

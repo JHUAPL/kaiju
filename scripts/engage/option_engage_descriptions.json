@@ -1,0 +1,49 @@
+{
+"version": "0.0.0",
+    "coupling": {
+        "gr_warm_up_time": {
+            "LEVEL": "INTERMEDIATE",
+            "prompt": "GR warmup time in simulated seconds",
+            "default": "14400",
+            "type": "float",
+            "min": 0,
+            "NOTE": "The GR spin-up and warm-up (<job>-SPINUP / <job>-WARMUP-NN) run in <run>/gr_spinup/; the first coupled segment hard-links their last restart set into the run directory."
+        },
+        "gcm_spin_up_time": {
+            "LEVEL": "INTERMEDIATE",
+            "prompt": "GCM spin-up time in simulated seconds (GRX: a target; the nearest restart sets the real length)",
+            "default": "604800",
+            "type": "float",
+            "min": 0
+        },
+        "conda_env": {
+            "LEVEL": "BASIC",
+            "prompt": "Conda environment to use for the simulation",
+            "default": null,
+            "type": "str"
+        },
+        "tfin_delta": {
+            "LEVEL": "BASIC",
+            "prompt": "Extend TFIN by dtCouple - 1 seconds",
+            "default": "T",
+            "valids": ["T", "F"],
+            "type": "tf"
+        }
+    },
+    "pbs": {
+        "derecho": {},
+        "linux": {},
+        "perlmutter": {},
+        "aitken": {
+            "local_modules": {
+                "LEVEL": "EXPERT",
+                "prompt": "Commands to add local module PATH",
+                "default": [
+                    null
+                ],
+                "type": "lines",
+                "NOTE": "Default: lines exporting config/machines.yaml local_prefix (PREFIX; $PREFIX/lib prepended to LIBRARY_PATH and LD_LIBRARY_PATH, $PREFIX/include to CPATH, $PREFIX/bin appended to PATH), the bash form of tiegcmrun's aitken lines. No local_prefix: no lines."
+            }
+        }
+    }
+}
