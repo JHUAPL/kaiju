@@ -29,10 +29,10 @@
     <kPdir N="1" bcPeriodic="T" />
     <coupling blockHalo="T" />
   </Gamera>
-  <REMIX>
+  <DRAGONKING>
     <conductance doRamp="F" doStarlight="T" />
     <precipitation alpha="0.2" aurora_model_type="LINMRG" beta="0.4" />
-  </REMIX>
+  </DRAGONKING>
    <RAIJU>
     <output loudConsole="T" doFat="F" doLossExtras="F" doDebug="F" writeGhosts="F"/>
     <grid gType="SHGRID" ThetaL="15" ThetaU="50"/>

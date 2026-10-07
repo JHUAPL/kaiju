@@ -29,9 +29,11 @@
 <!-- Remix -->
   <REMIX>
     <grid Np="360" Nt="55" LowLatBoundary="55.0"/>
+  </REMIX>
+  <DRAGONKING>
     <conductance doStarlight="T" doRamp="F" doMR="T"/>
     <precipitation aurora_model_type="LINMRG" alpha="0.2" beta="0.4" doAuroralSmooth="T"/>
-  </REMIX>
+  </DRAGONKING>
   <CHIMP>
     <units uid="EARTHCODE"/>
     <fields grType="LFM"/>
