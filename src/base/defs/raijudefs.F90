@@ -69,16 +69,16 @@ module raijudefs
     real(rp), parameter :: def_pdmb = 0.75
     real(rp), parameter :: def_cfl  = 0.3
     real(rp), parameter :: cflMax = 0.3
-    logical, parameter :: def_doUseVelLRs = .true.
-    logical, parameter :: def_doSmoothGrads = .true.
 
     ! Domain limits
     ! Buffer not allowed beyond min of maxTail and maxSun
     real(rp), parameter :: def_maxTail_buffer = 15.0  ! [Rp]
-    real(rp), parameter :: def_maxSun_buffer  = 10.0  ! [Rp]
+    real(rp), parameter :: def_maxSun_buffer  = 15.0  ! [Rp]
     ! Active not allowed beyond min of maxTail and maxSun
-    real(rp), parameter :: def_maxTail_active = 10.0  ! [Rp]
-    real(rp), parameter :: def_maxSun_active  = 10.0  ! [Rp]
+    real(rp), parameter :: def_maxTail_active = 12.0  ! [Rp]
+    real(rp), parameter :: def_maxSun_active  = 12.0  ! [Rp]
+    ! 8-ball active region not allowed beyond this flux-tube max radius
+    real(rp), parameter :: def_maxActiveRad   = 15.0  ! [Rp]
     ! Active is forced below activeDomRad
     real(rp), parameter :: def_activeDomRad = 3.0  ! [Rp]
 
@@ -102,7 +102,7 @@ module raijudefs
         !! [deg] Max allowable angle between any two normals surrounding a cell corner
     real(rp), parameter :: def_bminThresh   = 1.0  
         !! [nT] default allowable bmin strencgh
-    real(rp), parameter :: def_nBounce   = 3.0
+    real(rp), parameter :: def_nBounce   = 2.0
         !! Number of Alfven bounces (Tb) required to be considered a "good" flux tube for coupling
 
 

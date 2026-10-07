@@ -40,25 +40,65 @@ module shellUtils
         type(ShellGrid_T), intent(in) :: sh
         type(ShellGridVar_T), intent(inout) :: sgVar
 
-        associate(Q => sgVar%data)
+        if (.not. sh%isPeriodic) then
+            write(*,*) "WARNING in wrapJ_SGV: called on non-periodic shell grid. Returning without wrapping."
+            write(*,*) " Caller should check sh%isPeriodic before calling wrapJ_SGV."
+            write(*,*) " Grid name:", trim(sh%name)
+            return
+        endif
+
+        associate(Q => sgVar%data, M => sgVar%mask)
 
         ! Theta faces are cell-centered w.r.t. j direction
         !! TODO: Catch for zero ghosts in j direction
         if (sgVar%loc == SHGR_CC .or. sgVar%loc == SHGR_FACE_THETA) then
             ! Starting ghost cells
-            Q(:, sh%jsg:sh%js-1) = Q(:, sh%je-sh%Ngw+1:sh%je)
+            Q(:, sh%jsg:sh%js-1) = Q(:, sh%je-sh%Nge+1:sh%je)
+            M(:, sh%jsg:sh%js-1) = M(:, sh%je-sh%Nge+1:sh%je)
             ! Ending ghosts cells
-            Q(:, sh%je+1:sh%jeg) = Q(:, sh%js:sh%js+sh%Nge-1)
+            Q(:, sh%je+1:sh%jeg) = Q(:, sh%js:sh%js+sh%Ngw-1)
+            M(:, sh%je+1:sh%jeg) = M(:, sh%js:sh%js+sh%Ngw-1)
         elseif (sgVar%loc==SHGR_CORNER .or. sgVar%loc == SHGR_FACE_PHI) then
-            ! Starting ghost cells
-            Q(:, sh%jsg:sh%js) = Q(:, sh%je-sh%Ngw+1:sh%je+1)
-            ! Ending ghosts cells
-            Q(:, sh%je+1:sh%jeg+1) = Q(:, sh%js:sh%js+sh%Nge)
+            ! Starting ghost corners
+            Q(:, sh%jsg:sh%js-1) = Q(:, sh%je-sh%Nge+1:sh%je)
+            M(:, sh%jsg:sh%js-1) = M(:, sh%je-sh%Nge+1:sh%je)
+            ! Copy the first physical corner to the periodic duplicate.
+            Q(:, sh%je+1) = Q(:, sh%js)
+            M(:, sh%je+1) = M(:, sh%js)
+            ! Ending ghost corners
+            Q(:, sh%je+2:sh%jeg+1) = Q(:, sh%js+1:sh%js+sh%Ngw)
+            M(:, sh%je+2:sh%jeg+1) = M(:, sh%js+1:sh%js+sh%Ngw)
         endif
 
         end associate
 
     end subroutine wrapJ_SGV
+
+
+    function getSGJ_periodic(sh, j) result(jWrap)
+        !! Get j index with periodic boundary applied to make sure we are always in the active domain
+        type(ShellGrid_T), intent(in) :: sh
+        integer, intent(in) :: j
+
+        integer :: jWrap
+
+        if (.not. sh%isPeriodic) then
+            write(*,*)"ERROR: getSGJ_periodic called for a non-periodic shell grid"
+            write(*,*)"ShGr name: shGr%name"
+            stop
+        endif
+
+        jWrap = j
+        ! Catch for j > Np
+        do while (jWrap > sh%je)
+            jWrap = jWrap - sh%Np
+        enddo
+        ! Catch for j < Np
+        do while (jWrap < sh%js)
+            jWrap = jWrap + sh%Np
+        enddo
+
+    end function getSGJ_periodic
 
 
     subroutine getSGCellILoc(shGr, t, iLoc, tLocO)
@@ -71,22 +111,41 @@ module shellUtils
         real(rp) :: tLoc, dTheta
 
         !! Variable is defined at center w.r.t. theta direction
-        if ( (t>shGr%maxGTheta) ) then                
+
+        ! Catch for essentially exactly on the edge
+        if (abs(t - shGr%maxGTheta) < TINY) then
+            iLoc = shGr%ieg
+            tLoc = shGr%thc(shGr%ieg)
+        else if (abs(t - shGr%minGTheta) < TINY) then
+            iLoc = shGr%isg
+            tLoc = shGr%thc(shGr%isg)
+        ! Next handle grid overshoot
+        else if ( (t>shGr%maxGTheta) ) then                
             iLoc = shGr%ieg+ceiling((t-shGr%maxGTheta)/(shGr%th(shGr%ieg+1)-shGr%th(shGr%ieg)))
             dTheta = shGr%thc(shGr%ieg) - shGr%thc(shGr%ieg-1)
             tLoc = shGr%thc(shGr%ieg) + dTheta*(iLoc - shGr%ieg)
-            !write(*,*)"theta going out of max bounds",t,shGr%maxGTheta
+            !write(*,*)"getSGCellILoc: Changed my mind, no going out of bounds"
+            !write(*,*)"shGr%name=",shGr%name
+            !write(*,*)"th=",shGr%th
+            !write(*,*)"t,iLoc,tLoc=",t,iLoc,tLoc
+            !stop
         else if ( (t<shGr%minGTheta) ) then
             iLoc = shGr%isg-ceiling((shGr%minGTheta-t)/(shGr%th(shGr%isg+1)-shGr%th(shGr%isg)))
             dTheta = shGr%thc(shGr%isg+1) - shGr%thc(shGr%isg)
             tLoc = shGr%thc(shGr%isg) - dTheta*(shGr%isg - iLoc)
-            !write(*,*)"theta going out of min bounds",t,shGr%minGTheta
+            !write(*,*)"getSGCellILoc: Changed my mind, no going out of bounds"
+            !write(*,*)"shGr%name=",shGr%name
+            !write(*,*)"th=",shGr%th
+            !write(*,*)"t,iLoc,tLoc=",t,iLoc,tLoc
+            !stop
         else
-            ! If still here then the lat bounds are okay, find closest lat cell center
-            iLoc = shGr%isg
-            do while (t > shGr%th(iLoc+1))
-                iLoc = iLoc + 1
-            enddo
+        ! If still here then the lat bounds are okay, find closest lat cell center
+            
+#if defined __INTEL_COMPILER && __INTEL_COMPILER >= 1800
+            iLoc = findloc(t < shGr%th,.true.,dim=1) - 1 + shGr%isg - 1 !Extra -1 to revert one cell
+#else
+            iLoc = minloc( abs(shGr%thc-t),dim=1 ) - 1 + shGr%isg
+#endif
             tLoc = shGr%thc(iLoc)
         endif
 
@@ -101,6 +160,7 @@ module shellUtils
         real(rp), intent(in) :: pin
         integer, intent(out) :: jLoc
         real(rp), optional, intent(out) :: pLocO
+
 
         real(rp) :: p, deltap, dJ
 
@@ -118,10 +178,10 @@ module shellUtils
         if (shGr%isPhiUniform) then
             ! note this is faster, thus preferred
             deltap = shGr%phc(2)-shGr%phc(1)
-            dJ = p/deltap
-            jLoc = floor(dJ) + 1
+            dJ = (p - shGr%ph(shGr%js))/deltap
+            jLoc = floor(dJ) + shGr%js
         else
-            jLoc = shGr%jsg
+            jLoc = shGr%js
             do while (p > shGr%ph(jLoc+1))
                 jLoc = jLoc + 1
             enddo

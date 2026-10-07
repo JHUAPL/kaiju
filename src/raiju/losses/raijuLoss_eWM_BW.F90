@@ -216,7 +216,7 @@ module raijuLoss_eWM_BW
         ! Things that aren't i,j,k-dependent
         psphIdx = spcIdx(Grid, F_PSPH)
         eleIdx = spcIdx(Grid, F_HOTE)
-        Kp = this%KpTS%evalAt(State%t)
+        Kp = evalTimeSeriesAt(this%KpTS,State%t)
 
         associate(sh=>Grid%shGrid, spc=>Grid%spc(eleIdx))
 
@@ -229,7 +229,7 @@ module raijuLoss_eWM_BW
                         cycle
                     endif
 
-                    L = sqrt(State%xyzMincc(i,j,1)**2 + State%xyzMincc(i,j,2)**2)  ! [Re]
+                    L = State%radMax_cc(i,j)  ! [Re]
                     MLT = atan2(State%xyzMincc(i,j,2),State%xyzMincc(i,j,1))/pi*12.D0+12.D0
 
                     NpsphPnt = State%Den(psphIdx)%data(i,j)  ! [#/cc]

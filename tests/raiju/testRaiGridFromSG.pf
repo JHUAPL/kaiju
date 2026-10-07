@@ -1,0 +1,259 @@
+module testRaiGridFromSG
+
+    use testHelper
+    use kdefs, only : rp, PI, deg2rad, rad2deg, strLen, TINY
+
+    use shellGrid
+    use raijugrids
+    use raijutypes
+    use raijudefs, only : RAI_SG_NAME
+    use xml_input
+
+    implicit none
+
+    ! NOTE: Currently many of the tests have hard-coded values that do certain stuff relative to these specific values
+    ! If you change these, you gotta update the tests too
+    ! TODO: We can make the tests fully dynamic to these values, but currently we defer to future us
+    integer, parameter :: parentNt = 39
+    integer, parameter :: parentNp = 24
+    integer, parameter :: raiNg = 4
+    integer, dimension(4), parameter :: globalParentGhosts = (/0, 0, raiNg, raiNg/)
+    integer, dimension(4), parameter :: raiChildGhosts = (/raiNg, raiNg, raiNg, raiNg/)
+    real(rp), parameter :: testTol = 1.0e-12_rp
+
+    type(ShellGrid_T) :: parentSG
+    type(XML_Input_T) :: raiXML
+    real(rp) :: safeThetaL
+    real(rp) :: safeThetaL_deg
+    integer :: firstSouthEqCorner
+    character(len=strLen) :: checkMessage
+
+contains
+
+    @before
+    subroutine setup()
+        real(rp), dimension(parentNt+1) :: theta
+        real(rp), dimension(parentNp+1) :: phi
+        integer :: i
+
+        do i=1,parentNt+1
+            theta(i) = PI*(i-1)/parentNt
+        enddo
+
+        do i=1,parentNp+1
+            phi(i) = 2.0_rp*PI*(i-1)/parentNp
+        enddo
+
+        call GenShellGrid(parentSG, theta, phi, "voltParentSG", nGhosts=globalParentGhosts, radO=1.1_rp)
+        safeThetaL = 0.5_rp*(parentSG%th(parentSG%is + raiNg + 1) + parentSG%th(parentSG%is + raiNg + 2))
+        safeThetaL_deg = safeThetaL*rad2deg
+        firstSouthEqCorner = minloc(parentSG%th, dim=1, mask=parentSG%th > PI/2.0_rp - TINY)
+        raiXML = New_XML_Input("raiShGridTest.xml", "Kaiju/RAIJU", .true.)
+    end subroutine setup
+
+
+    @after
+    subroutine teardown()
+        call deallocShellGrid(parentSG)
+    end subroutine teardown
+
+
+    @test
+    subroutine testRaijuGridFromShGrid_validChildCoverage()
+        type(ShellGrid_T) :: raiSG
+        type(raijuOptions_T) :: opts
+        logical :: ok, expOk
+        character(len=strLen) :: errMsg
+        integer :: expIs, expIe
+        integer :: iEquatorCorner, iValidLowCell, iValidHighCell
+        real(rp) :: thetaL, thetaU
+
+        iEquatorCorner = parentSG%Nt/2 + 1
+        iValidLowCell = iEquatorCorner - raiNg - 2
+        iValidHighCell = max(parentSG%is + 2, iValidLowCell - 6)
+        ! Use cell midpoints so the requested bounds stay tied to the parent-grid geometry.
+        ! For the current fixture these are about 48.46 deg and 62.31 deg, respectively.
+        thetaL = 0.5_rp*(parentSG%th(iValidHighCell) + parentSG%th(iValidHighCell+1))
+        thetaU = 0.5_rp*(parentSG%th(iValidLowCell) + parentSG%th(iValidLowCell+1))
+        call opts%thetaL%set(thetaL*rad2deg)
+        call opts%thetaU%set(thetaU*rad2deg)
+
+        call raijuGenGridFromShGrid(raiSG, parentSG, raiXML, opts, okO=ok, errMsgO=errMsg)
+        call expectedBounds(parentSG, thetaL, thetaU, raiNg, expIs, expIe, expOk)
+
+        @assertTrue(expOk, "Expected-bounds helper should succeed for valid grid case")
+        @assertTrue(ok, "raijuGenGridFromShGrid should succeed for valid child-grid case")
+        @assertEqual("", trim(errMsg), "Unexpected error message for valid child-grid case")
+
+        @assertTrue(raiSG%isChild, "RAIJU grid should be marked as a child ShellGrid")
+        @assertTrue(raiSG%isPeriodic, "RAIJU child grid should preserve full-phi periodicity")
+        @assertEqual(trim(parentSG%name), trim(raiSG%parentName), "RAIJU child grid parentName mismatch")
+        @assertEqual(expIs, raiSG%bndis, "RAIJU child grid active upper theta bound mismatch")
+        @assertEqual(expIe, raiSG%bndie, "RAIJU child grid active lower theta bound mismatch")
+        @assertEqual(parentSG%js, raiSG%bndjs, "RAIJU child grid should span full parent phi range")
+        @assertEqual(parentSG%je, raiSG%bndje, "RAIJU child grid should span full parent phi range")
+        @assertEqual(parentSG%Np, raiSG%Np, "RAIJU child grid should retain full parent phi resolution")
+
+        @assertLessThanOrEqual(abs(raiSG%ph(raiSG%js) - parentSG%ph(parentSG%js)), testTol, "RAIJU child grid phi lower bound mismatch")
+        @assertLessThanOrEqual(abs(raiSG%ph(raiSG%je+1) - parentSG%ph(parentSG%je+1)), testTol, "RAIJU child grid phi upper bound mismatch")
+
+        @assertTrue(all(raiSG%th(raiSG%ie+1:raiSG%ieg+1) < PI/2.0_rp - TINY), "RAIJU full theta range should remain strictly above the equator")
+        @assertTrue(raiSG%th(raiSG%is) <= thetaL + testTol, "RAIJU first active theta corner should remain poleward of requested thetaL")
+        @assertTrue(raiSG%th(raiSG%is+1) >= thetaL - testTol, "RAIJU first active theta cell should bound requested thetaL")
+        @assertTrue(raiSG%th(raiSG%ie+1) >= thetaU - testTol, "RAIJU active low-lat boundary should cover requested thetaU")
+        @assertTrue(raiSG%th(raiSG%ie) <= thetaU + testTol, "RAIJU last active theta cell should bound requested thetaU")
+        @assertTrue(parentSG%th(raiSG%bndie) < thetaU + testTol, "RAIJU active low-lat boundary should be the closest valid parent corner above requested thetaU")
+
+        call deallocShellGrid(raiSG)
+    end subroutine testRaijuGridFromShGrid_validChildCoverage
+
+
+    @test
+    subroutine testRaijuGridFromShGrid_thetaLBelowParentFails()
+        type(ShellGrid_T) :: raiSG
+        type(raijuOptions_T) :: opts
+        logical :: ok
+        character(len=strLen) :: errMsg
+
+        call opts%thetaL%set(-1.0_rp)
+        call opts%thetaU%set(77.0_rp)
+
+        call raijuGenGridFromShGrid(raiSG, parentSG, raiXML, opts, okO=ok, errMsgO=errMsg)
+
+        @assertFalse(ok, "thetaL below parent grid should fail")
+        @assertEqual("Error in raijuGenGridFromShGrid: lower theta bound outside of parent grid", trim(errMsg), "Unexpected thetaL failure message")
+    end subroutine testRaijuGridFromShGrid_thetaLBelowParentFails
+
+
+    @test
+    subroutine testRaijuGridFromShGrid_thetaUAboveParentFails()
+        type(ShellGrid_T) :: raiSG
+        type(raijuOptions_T) :: opts
+        logical :: ok
+        character(len=strLen) :: errMsg
+
+        call opts%thetaL%set(safeThetaL_deg)
+        call opts%thetaU%set(181.0_rp)
+
+        call raijuGenGridFromShGrid(raiSG, parentSG, raiXML, opts, okO=ok, errMsgO=errMsg)
+
+        @assertFalse(ok, "thetaU above parent grid should fail")
+        @assertEqual("Error in raijuGenGridFromShGrid: upper theta bound outside of parent grid", trim(errMsg), "Unexpected thetaU failure message")
+    end subroutine testRaijuGridFromShGrid_thetaUAboveParentFails
+
+
+    @test
+    subroutine testRaijuGridFromShGrid_narrowBandFails()
+        type(ShellGrid_T) :: raiSG
+        type(raijuOptions_T) :: opts
+        logical :: ok
+        character(len=strLen) :: errMsg
+
+        call opts%thetaL%set(77.0_rp)
+        call opts%thetaU%set(77.0_rp)
+
+        call raijuGenGridFromShGrid(raiSG, parentSG, raiXML, opts, okO=ok, errMsgO=errMsg)
+
+        @assertFalse(ok, "Narrow/degenerate theta band should fail")
+        @assertEqual("Error in raijuGenGridFromShGrid: no valid active theta band remains after applying requested theta bounds", trim(errMsg), "Unexpected narrow-band failure message")
+    end subroutine testRaijuGridFromShGrid_narrowBandFails
+
+
+    @test
+    subroutine testRaijuGridFromShGrid_lowLatCoverageImpossibleFails()
+        type(ShellGrid_T) :: raiSG
+        type(raijuOptions_T) :: opts
+        logical :: ok
+        character(len=strLen) :: errMsg
+        integer :: iFailCell
+        real(rp) :: thetaU_fail_deg
+
+        call opts%thetaL%set(safeThetaL_deg)
+        iFailCell = firstSouthEqCorner - raiNg - 1
+        ! Midpoint of the first active theta cell whose Ng-cell southern reach reaches/crosses the equator.
+        ! For the current fixture this is about 71.54 deg, but it is derived from the grid so it tracks
+        ! future changes in parent resolution or Rai ghost count.
+        thetaU_fail_deg = 0.5_rp*(parentSG%th(iFailCell) + parentSG%th(iFailCell+1))*rad2deg
+        call opts%thetaU%set(thetaU_fail_deg)
+
+        call raijuGenGridFromShGrid(raiSG, parentSG, raiXML, opts, okO=ok, errMsgO=errMsg)
+
+        @assertFalse(ok, "Coverage requests that force equator-reaching ghosts should fail")
+        @assertEqual("Error in raijuGenGridFromShGrid: requested low-lat coverage would force RAIJU ghost cells to reach or cross the equator", trim(errMsg), "Unexpected low-lat coverage failure message")
+    end subroutine testRaijuGridFromShGrid_lowLatCoverageImpossibleFails
+
+
+    @test
+    subroutine testValidateRaijuChildShGrid_thetaLBoundFails()
+        type(ShellGrid_T) :: badRaiSG
+        logical :: ok
+        character(len=strLen) :: errMsg
+
+        call GenChildShellGrid(parentSG, badRaiSG, RAI_SG_NAME, raiChildGhosts, sub_is=7, sub_ie=14, ghostsOnParentGridO=.true.)
+        call validateRaijuChildShGrid(badRaiSG, thetaL=safeThetaL, thetaU=77.0_rp*deg2rad, okO=ok, errMsgO=errMsg)
+
+        @assertFalse(ok, "Child grid whose first active theta cell does not include thetaL should fail validation")
+        @assertEqual("ERROR in validateRaijuChildShGrid: first active theta cell does not bound requested thetaL", trim(errMsg), "Unexpected thetaL-validation failure message")
+
+        call deallocShellGrid(badRaiSG)
+    end subroutine testValidateRaijuChildShGrid_thetaLBoundFails
+
+
+    @test
+    subroutine testValidateRaijuChildShGrid_thetaUBoundFails()
+        type(ShellGrid_T) :: badRaiSG
+        logical :: ok
+        character(len=strLen) :: errMsg
+
+        call GenChildShellGrid(parentSG, badRaiSG, RAI_SG_NAME, raiChildGhosts, sub_is=6, sub_ie=14, ghostsOnParentGridO=.true.)
+        call validateRaijuChildShGrid(badRaiSG, thetaL=safeThetaL, thetaU=77.0_rp*deg2rad, okO=ok, errMsgO=errMsg)
+
+        @assertFalse(ok, "Child grid whose last active theta cell does not include thetaU should fail validation")
+        @assertEqual("ERROR in validateRaijuChildShGrid: last active theta cell does not bound requested thetaU", trim(errMsg), "Unexpected thetaU-validation failure message")
+
+        call deallocShellGrid(badRaiSG)
+    end subroutine testValidateRaijuChildShGrid_thetaUBoundFails
+
+
+    @test
+    subroutine testValidateRaijuChildShGrid_equatorViolationFails()
+        type(ShellGrid_T) :: badRaiSG
+        logical :: ok
+        character(len=strLen) :: errMsg
+
+        call GenChildShellGrid(parentSG, badRaiSG, RAI_SG_NAME, raiChildGhosts, sub_is=6, sub_ie=16, ghostsOnParentGridO=.true.)
+        call validateRaijuChildShGrid(badRaiSG, okO=ok, errMsgO=errMsg)
+
+        @assertFalse(ok, "Child grid with full theta range reaching the equator should fail validation")
+        @assertEqual("ERROR in validateRaijuChildShGrid: RAIJU ghost cells reach or cross the equator", trim(errMsg), "Unexpected equator-validation failure message")
+
+        call deallocShellGrid(badRaiSG)
+    end subroutine testValidateRaijuChildShGrid_equatorViolationFails
+
+
+    subroutine expectedBounds(sh, thetaL, thetaU, Ng, iStart, iEnd, ok)
+        type(ShellGrid_T), intent(in) :: sh
+        real(rp), intent(in) :: thetaL, thetaU
+        integer, intent(in) :: Ng
+        integer, intent(out) :: iStart, iEnd
+        logical, intent(out) :: ok
+
+        iStart = 1
+        do while (sh%th(iStart+1) < thetaL)
+            iStart = iStart + 1
+        enddo
+
+        iEnd = iStart
+        do while (iEnd < sh%Nt .and. sh%th(iEnd+1) < thetaU - TINY)
+            iEnd = iEnd + 1
+        enddo
+
+        ok = .true.
+        if (iStart >= iEnd) ok = .false.
+        if (iEnd + Ng > sh%Nt) ok = .false.
+        if (ok) then
+            if (sh%th(iEnd+Ng+1) > PI/2.0_rp - TINY) ok = .false.
+        endif
+    end subroutine expectedBounds
+
+end module testRaiGridFromSG

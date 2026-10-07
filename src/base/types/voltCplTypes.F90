@@ -6,11 +6,17 @@ module voltCplTypes
     use kdefs
     use shellGrid
     use ebtypes
+    use basetypes
+    use raijudefs, ONLY : def_tiote
 
     implicit none
 
     integer, parameter :: MAXTUBEFLUIDS = 5
     integer, parameter :: TUBE_CLOSED=2,TUBE_OPEN=1,TUBE_UNDEF=-1,TUBE_DISASTER=-666
+
+!------
+! Flux tubes
+!------
 
     !New tube type for global Voltron grid
     type Tube_T
@@ -20,10 +26,20 @@ module voltCplTypes
         !! Lat/lon of tube footpoint and invariant latitude [rad]
         real(rp) :: latc,lonc
         !! Lat/lon of conjugate point [rad] if topo=TUBE_CLOSED
+        real(rp) :: J11i
+        !! Field-aligned current calculated at inner MHD boundary and mapped (preserving J/B) to ionosphere, [micro A/m^2]
+
         integer :: topo
         !! topo = TUBE_CLOSED,OPEN,UNDEF
         real(rp) :: bmin, X_bmin(NDIM)
         !! Minimum B along field line [nT] and coordinates [Rx]
+        real(rp) :: X_maxRad(NDIM)
+        !! xyz coords of max point along field line
+        real(rp) :: Jxyz_iono(NDIM)
+        !! NDIM current just above ionosphere boundary
+        !! Note: magnitude is from sampled point, same location as Bxyz_iono
+        real(rp) :: Bxyz_iono(NDIM)
+        !! NDIM magnetic field just above ionosphere boundary
         real(rp) :: bVol
         !! Flux-tube volume [Rx/nT]
         real(rp) :: Lb
@@ -41,6 +57,8 @@ module voltCplTypes
         !! Flux-tube volume-weighted average beta
         real(rp), dimension(0:MAXTUBEFLUIDS) :: avgP,avgN,stdP,stdN
         !! Average and standard deviation of pressure [nPa] and number density [#/cc] on field line
+        real(rp), dimension(0:MAXTUBEFLUIDS) :: bcN,bcP
+        !! Density (#/cc) and pressure (nPa) near inner MHD boundary on this field line
         real(rp) :: losscone,lossconec
         !! Size of losscone [RAD] at footpoint and conjugate (if CLOSED)
         real(rp) :: TioTe0
@@ -56,6 +74,8 @@ module voltCplTypes
             !! Lat/lon of tube footpoint and invariant latitude [rad]
         type(ShellGridVar_T) :: latc, lonc
             !! Conjugate lat/lon
+        type(ShellGridVar_T) :: J11i
+            !! Ionospheric FAC [muA/m2]
         type(ShellGridVar_T) :: topo
             !! topo = TUBE_CLOSED,OPEN,UNDEF
             !! Note: integer data cast to real precision
@@ -63,6 +83,13 @@ module voltCplTypes
             !! Magnitude B at bmin location
         type(ShellGridVar_T), dimension(NDIM) :: X_bmin
             !! (NDIM) xyz-SM location of bmin surface
+        type(ShellGridVar_T), dimension(NDIM) :: X_maxRad
+            !! (NDIM) xyz-SM location of max radius along field line
+        type(ShellGridVar_T), dimension(NDIM) :: Jxyz_iono
+            !! NDIM current just above ionosphere boundary
+            !! Note: magnitude is from sampled point, same location as Bxyz_iono
+        type(ShellGridVar_T), dimension(NDIM) :: Bxyz_iono
+            !! NDIM magnetic field just above ionosphere boundary
         type(ShellGridVar_T) :: bVol
             !! Flux tube volume [Rx/nT]
         type(ShellGridVar_T) :: Lb
@@ -84,6 +111,10 @@ module voltCplTypes
             !! (N_MHDspc) Standard deviation of pressure along field line
         type(ShellGridVar_T), dimension(0:MAXTUBEFLUIDS) :: stdN
             !! (N_MHDspc) Standard deviation of density along field line
+        type(ShellGridVar_T), dimension(0:MAXTUBEFLUIDS) :: bcN
+            !! (N_MHDspc) Near-BC density (#/cc)
+        type(ShellGridVar_T), dimension(0:MAXTUBEFLUIDS) :: bcP
+            !! (N_MHDspc) Near-BC pressure (nPa)
         type(ShellGridVar_T) :: losscone
             !! Size of losscone [RAD] at footpoint (if CLOSED)
         type(ShellGridVar_T) :: lossconec
@@ -109,5 +140,19 @@ module voltCplTypes
         real(rp) :: losscone,rCurv,wIMAG,TioTe0=4.0_rp
         real(rp) :: Veb  ! [km/s]
     end type IMAGTube_T
+
+
+    ! =========================================================
+    ! ionoCoupler_T — abstract ionosphere coupler interface
+    ! Mirrors imagCoupler_T / raijuCoupler_T pattern.
+    ! Any ionospheric model (REMIX, SMITE, ...) extends this.
+    ! =========================================================
+
+    type, extends(BaseOptions_T) :: ionoOptions_T
+        type(ShellGrid_T) :: voltGrid
+            !! Copy of Voltron ShellGrid passed during init
+
+        contains
+    end type ionoOptions_T
 
 end module voltCplTypes

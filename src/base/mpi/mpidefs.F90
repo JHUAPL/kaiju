@@ -35,6 +35,8 @@ module mpidefs
     integer, parameter :: hidraNId = 54
     integer, parameter :: hidraSId = 59
     integer, parameter :: mageId   = 26
+    integer, parameter :: wcmxId   = 67
+    integer, parameter :: sami3Id  = 42
 
 contains
 

@@ -35,7 +35,7 @@ module dyncoupling
         !Loop over 15min increments -1/+1 hour, find max Kp
         do n=-4,+4
             t = t0 + 15.0*60.0*n
-            KpMax = max(KpMax,KpTS%evalAt(t))
+            KpMax = max(KpMax,evalTimeSeriesAt(KpTS,t))
         enddo
 
         KpI = nint(KpMax) !Cast to integer
@@ -55,7 +55,7 @@ module dyncoupling
                 newAlert = REDALERT
             case default
                 dynDT = 15.0
-
+                newAlert = NULLALERT
         end select
 
         !Whether to reset current Kp default

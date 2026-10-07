@@ -112,15 +112,21 @@ module raijulosses
         ! Prep for accumulation this coupling step
         State%dEta_dt = 0.0
         State%precipType_ele = 0.0
-        !State%precipNFlux = 0.0
-        !State%precipEFlux = 0.0
+        !State%precipNFlux_Nk = 0.0
+        !State%precipEFlux_Nk = 0.0
         State%CCHeatFlux = 0.0
         ! initialize all precip fluxes to zero and masks to false.
         do k=1,Grid%Nk
-            State%precipNFlux(k)%data = 0.0
-            State%precipEFlux(k)%data = 0.0
-            State%precipNFlux(k)%mask = isGood
-            State%precipEFlux(k)%mask = isGood
+            State%precipNFlux_Nk(k)%data = 0.0
+            State%precipEFlux_Nk(k)%data = 0.0
+            State%precipNFlux_Nk(k)%mask = isGood
+            State%precipEFlux_Nk(k)%mask = isGood
+        enddo
+        do k=1,Grid%Nspc
+            State%precipNFlux_Nspc(k)%data = 0.0
+            State%precipEFlux_Nspc(k)%data = 0.0
+            State%precipNFlux_Nspc(k)%mask = isGood
+            State%precipEFlux_Nspc(k)%mask = isGood
         enddo
     end subroutine updateRaiLosses
 
@@ -237,8 +243,8 @@ module raijulosses
                 deleta = eta0*(1.0-exp(-dt*State%lossRatesPrecip(i,j,k)))
                 pNFlux = deleta2NFlux(deleta, Model%planet%rp_m, Grid%Brcc(i,j), dt)
                 ! Just accumulate total #/cm2 and erg/cm2, we divide by coupling dt at the end of advance
-                State%precipNFlux(k)%data(i,j) = State%precipNFlux(k)%data(i,j) + dt*pNFlux
-                State%precipEFlux(k)%data(i,j) = State%precipEFlux(k)%data(i,j) + dt*nFlux2EFlux(pNFlux, Grid%alamc(k), State%bVol_cc(i,j))
+                State%precipNFlux_Nk(k)%data(i,j) = State%precipNFlux_Nk(k)%data(i,j) + dt*pNFlux
+                State%precipEFlux_Nk(k)%data(i,j) = State%precipEFlux_Nk(k)%data(i,j) + dt*nFlux2EFlux(pNFlux, Grid%alamc(k), State%bVol_cc(i,j))
 
                 isValid = .false.
                 if (Model%doCC) isValid = State%lps(State%lp_cc_idx)%p%isValidSpc(Grid%spc(Grid%k2spc(k)))
@@ -257,7 +263,6 @@ module raijulosses
             enddo
         enddo
 
-        
 
     end subroutine applyLosses
 
@@ -288,6 +293,24 @@ module raijulosses
     end function nFlux2EFlux
 
 
+    subroutine raijuEvalPrecipMoments(Model, Grid, State)
+        type(raijuModel_T), intent(in) :: Model
+        type(raijuGrid_T) , intent(in) :: Grid
+        type(raijuState_T), intent(inout) :: State
+
+        integer :: s,k
+
+        do s=1,Grid%nSpc
+            ! First, make sure accumulation arrays are zero'ed
+            State%precipEFlux_NSpc(s)%data = 0.0
+            State%precipNFlux_NSpc(s)%data = 0.0
+            ! Then accumulate over species's energy channels
+            do k=Grid%spc(s)%kStart,Grid%spc(s)%kEnd
+                State%precipEFlux_NSpc(s)%data = State%precipEFlux_NSpc(s)%data + State%precipEFlux_Nk(k)%data
+                State%precipNFlux_NSpc(s)%data = State%precipNFlux_NSpc(s)%data + State%precipNFlux_Nk(k)%data
+            enddo
+        enddo
+    end subroutine raijuEvalPrecipMoments
 
 
 !    subroutine calcElectronLossRate(Model, Grid, State, k)

@@ -3,6 +3,7 @@
 
 module voltapp_mpi
     use volttypes_mpi
+    use gcmCouple_mpi
     use gamcouple_mpi_V2G
     use couplingHelpers
     use mpi_f08
@@ -10,7 +11,9 @@ module voltapp_mpi
     use, intrinsic :: ieee_arithmetic, only: IEEE_VALUE, IEEE_SIGNALING_NAN, IEEE_QUIET_NAN
     use volthelpers_mpi
     use voltapp
-    use gcm_mpi
+    use dkcplhelper, only : shellDK    ! volt -> DK coupling hop (modelInterfaces)
+    use voltappHelper, only : updateVoltPotential
+    use voltCplHelper, only : genVoltTubesSpinup
     use loadBalance
     
     implicit none
@@ -40,7 +43,7 @@ module voltapp_mpi
         type(MPI_Comm) :: allVoltComm
         character(len=strLen) :: inpXML
         type(XML_Input_T) :: xmlInp
-        integer :: commSize, ierr, numCells, length, ic, b
+        integer :: commSize, ierr, numCells, length, ic, b, poolRank, splitKey
         integer, allocatable, dimension(:) :: neighborRanks, inData, outData
         integer :: nHelpers, gamNRES, commId
         character( len = MPI_MAX_ERROR_STRING) :: message
@@ -73,7 +76,10 @@ module voltapp_mpi
         vApp%vHelpComm = MPI_COMM_NULL
         vApp%vHelpWin = MPI_WIN_NULL
 
-        call voltronSplitWithApp(vApp%vOptionsMpi%couplingPoolComm, helperId, 0, allVoltComm)
+        ! Force Voltron to rank 0 in allVoltComm so existing helper logic stays valid.
+        call MPI_Comm_rank(vApp%vOptionsMpi%couplingPoolComm, poolRank, ierr)
+        splitKey = 0
+        call voltronSplitWithApp(vApp%vOptionsMpi%couplingPoolComm, helperId, splitKey, allVoltComm)
 
         ! get info about voltron-only mpi communicator
         call MPI_Comm_rank(allVoltComm, vApp%vHelpRank, ierr)
@@ -122,21 +128,14 @@ module voltapp_mpi
         call xmlInp%Set_Val(vApp%doSerialMHD,"coupling/doSerial",.false.)
 
         ! now initialize basic voltron structures from gamera data
-        if(vApp%gcmCplRank /= -1) then
-          call init_gcm_mix_mpi(vApp%gcm,vApp%mageCplComm,vApp%gcmCplRank)
+        if(vApp%doGCM) then
+          call vApp%gcm%InitCouplers(vApp, xmlInp)
         endif
         if(present(optFilename)) then
             call initVoltron(vApp, optFilename)
         else
             call initVoltron(vApp)
         endif
-
-        if ( ( vApp%doGCM ) .and. (vApp%gcmCplRank /= -1) ) then
-            write(*,*) "Initializing GCM ..."
-            call init_gcm_mpi(vApp%gcm,vApp%remixApp%ion,vApp%gApp%Model%isRestart)
-            ! Perform one initial coupling for TIEGCM
-            !call coupleGCM2MIX(vApp%gcm,vApp%remixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank)
-        end if
 
         if(vApp%useHelpers) then
             if(vApp%doSquishHelp) then
@@ -230,7 +229,7 @@ module voltapp_mpi
         type(MPI_Comm) :: allVoltComm
         character(len=strLen) :: inpXML
         type(XML_Input_T) :: xmlInp
-        integer :: commSize, ierr, numCells, length, ic
+        integer :: commSize, ierr, numCells, length, ic, poolRank, splitKey
         integer :: nHelpers, gamNRES, commId
         character( len = MPI_MAX_ERROR_STRING) :: message
         logical :: reorder, wasWeighted
@@ -253,7 +252,10 @@ module voltapp_mpi
         vApp%vHelpComm = MPI_COMM_NULL
         vApp%vHelpWin = MPI_WIN_NULL
 
-        call appWaitForVoltronSplit(vApp%vOptionsMpi%couplingPoolComm, helperId, 0, allVoltComm)
+        ! Rank helpers after Voltron in allVoltComm (Voltron rank 0, helpers rank 1..N).
+        call MPI_Comm_rank(vApp%vOptionsMpi%couplingPoolComm, poolRank, ierr)
+        splitKey = poolRank + 1
+        call appWaitForVoltronSplit(vApp%vOptionsMpi%couplingPoolComm, helperId, splitKey, allVoltComm)
 
         ! get info about voltron-only mpi communicator
         call MPI_Comm_rank(allVoltComm, vApp%vHelpRank, ierr)
@@ -378,16 +380,13 @@ module voltapp_mpi
     subroutine startDeep(vApp)
         type(voltAppMpi_T), intent(inout) :: vApp
 
-        ! convert gamera data to mixInput
-        call Tic("G2R")
-        call convertGameraToRemix(vApp%mhd2mix, vApp%gApp, vApp%remixApp)
-        call Toc("G2R")
-
         call MJDRecalc(vApp%MJD)
-
+        
+        ! GCM coupling (REMIX-specific)
         if (vApp%doGCM .and. vApp%time >=0 .and. vApp%gcmCplRank /= -1) then
             call Tic("GCM2MIX")
-            call coupleGCM2MIX(vApp%gcm,vApp%remixApp%ion,vApp%MJD,vApp%time,vApp%mageCplComm,vApp%gcmCplRank)
+            call vApp%gcm%toIono(vApp)
+            call vApp%gcm%Coupling(vApp)
             call Toc("GCM2MIX")
         end if
 
@@ -408,29 +407,18 @@ module voltapp_mpi
                 call VhReqTubeStart(vApp)
                 call Toc("VoltTubes",.true.)
             endif
+        elseif(vApp%doDeep) then
+            !Spinup: refresh CHIMP fields for the seed-projection feed
+            call Tic("G2C")
+            call convertGameraToChimp(vApp%mhd2chmp,vApp%gApp,vApp%ebTrcApp)
+            call Toc("G2C")
         endif
 
-        ! run remix
-        call Tic("ReMIX", .true.)
-        call runRemix(vApp)
-        call Toc("ReMIX", .true.)
-
-        ! Update potential on voltron's grid
-        call updateVoltPotential(vApp)
-
-        call Tic("R2G")
-        call CouplePotentialToMhd(vApp)
-        call Toc("R2G")
-
-        ! only do imag after spinup
+        ! Finalize tube tracing into tubeShell BEFORE toIono (packInputs reads J11i/bcN/bcP).
         if(vApp%doDeep .and. vApp%time >= 0) then
-            ! instead of PreDeep, use Tube Helpers and replicate other calls
-
             call Tic("VoltTubes",.true.)
             if(vApp%useHelpers .and. vApp%doTubeHelp) then
-                ! Tubes were started earlier
                 call vhReqTubeEnd(vApp)
-                ! Now pack into tubeShell
                 call Tic("Tube2Shell")
                 call tubes2Shell(vApp%shGrid, vApp%State%ijTubes, vApp%State%tubeShell)
                 call Toc("Tube2Shell")
@@ -438,6 +426,38 @@ module voltapp_mpi
                 call genVoltTubes(vApp)
             endif
             call Toc("VoltTubes",.true.)
+        elseif(vApp%doDeep) then
+            !Spinup: seed-projection feed (same sampling tracing uses; deep products stay zero)
+            call Tic("VoltTubes",.true.)
+            call genVoltTubesSpinup(vApp)
+            call Toc("VoltTubes",.true.)
+        endif
+        ! Run ionosphere coupler
+        call Tic("ReMIX", .true.)
+        call Tic("Imag2Shell")
+        if (vApp%doDeep .and. (vApp%time > 0)) &
+            call vApp%imagApp%toShell(vApp%imag2shell, vApp%shGrid, &
+                                      vApp%State%tubeShell%latc, vApp%State%tubeShell%lonc)
+        call Toc("Imag2Shell")
+        call Tic("DK")
+        call shellDK(vApp)                    ! DK conductance on the shell (before toIono maps it)
+        call Toc("DK")
+        call Tic("ToIono")
+        call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
+        call Toc("ToIono")
+        call Tic("IonoAdvance")
+        call vApp%ionoApp%AdvanceModel(0.0_rp)
+        call Toc("IonoAdvance")
+        call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
+        call updateVoltPotential(vApp)        ! potential_total = potential_base + corotation
+        call Tic("Shell2Gam")
+        call shellToGamera(vApp)             ! shell -> Gamera BC (model-agnostic)
+        call Toc("Shell2Gam")
+        call Toc("ReMIX", .true.)
+
+        ! only do imag after spinup
+        if(vApp%doDeep .and. vApp%time >= 0) then
+            ! instead of PreDeep, use Tube Helpers and replicate other calls
 
             call SquishStart(vApp)
 
@@ -579,5 +599,77 @@ module voltapp_mpi
 
     end subroutine
 
-end module voltapp_mpi
+    
+    subroutine init_coupling_comms(vApp, splittingComm)
+        type(voltAppMpi_T), intent(inout) :: vApp
+        type(MPI_Comm), intent(inout) :: splittingComm
+        integer :: ierror, length, i
+        character(len=MPI_MAX_ERROR_STRING) :: message
 
+        call voltronSplitWithApp(splittingComm, mageId, 0, vApp%mageCplComm)
+        call MPI_Comm_Rank(vApp%mageCplComm, vApp%voltCplRank, ierror)
+        call MPI_Comm_Size(vApp%mageCplComm, vApp%CplSize, ierror)
+        
+        if(vApp%mageCplComm /= MPI_COMM_NULL) then
+            print *,'VOLTRON has created an mageCplComm with ', vApp%CplSize-1, ' other app(s)'
+            print *,'VOLTRON using mageCplComm tag ', mageId
+            write(*,*) "VOLTRON CPLCOMM: ",vApp%mageCplComm,vApp%voltCplRank
+
+           ! Tell everyone who I am
+            if (.not.allocated(vApp%IAm)) allocate(vApp%IAm(vApp%CplSize))
+            vApp%IAm(vApp%voltCplRank+1) = voltId
+            do i=1,vApp%CplSize
+                call MPI_Bcast(vApp%IAm(i),1,MPI_INTEGER,i-1,vApp%mageCplComm,ierror)
+            enddo
+
+            ! === TIEGCM ===
+            call getCplRanks(vApp%IAm, vApp%cplSize, tgcmId, vApp%gcmCplRank, vApp%gcmNumRanks, vApp%gcmRankList)
+            if (vApp%gcmNumRanks .ne. 0) then
+                write(*,*) "V coupling to ", vApp%gcmNumRanks," ranks of T"
+                vApp%doGCM = .true.
+                allocate(gcmCoupler_mpi_T :: vApp%gcm)
+            endif
+
+            ! === WACCM-X ===
+            ! Check for waccm-x coupling only if we're not coupling tiegcm
+            if (vApp%gcmNumRanks == 0) then
+                call getCplRanks(vApp%IAm, vApp%cplSize, wcmxId, vApp%gcmCplRank, vApp%gcmNumRanks, vApp%gcmRankList)
+                if (vApp%gcmNumRanks .ne. 0) then
+                    write(*,*) "V coupling to ", vApp%gcmNumRanks," ranks of W"
+                    vApp%doGCM = .true.
+                    allocate(gcmCoupler_mpi_T :: vApp%gcm)
+                    vApp%gcm%isWACCMX = .true.
+                    vApp%gcm%nWACCMX = vApp%gcmNumRanks
+                endif
+            endif
+            
+            ! === HIDRA-N ===
+            call getCplRanks(vApp%IAm, vApp%cplSize, hidraNId, vApp%hidraNCplRank, vApp%hidraNNumRanks, vApp%hidraNRankList)
+            if (vApp%hidraNNumRanks .ne. 0) then
+                write(*,*) "V coupling to ", vApp%hidraNNumRanks," ranks of H-N"
+            endif
+            
+            ! === HIDRA-S ===
+            call getCplRanks(vApp%IAm, vApp%cplSize, hidraSId, vApp%hidraSCplRank, vApp%hidraSNumRanks, vApp%hidraSRankList)
+            if (vApp%hidraSNumRanks .ne. 0) then
+                write(*,*) "V coupling to ", vApp%hidraSNumRanks," ranks of H-S"
+            endif
+        endif
+        if(vApp%CplSize == 1 ) then
+            write(*,*) "VOLTRON: We're not coupling to anything"
+            call mpi_comm_free(vApp%mageCplComm, ierror)
+            if(ierror /= MPI_Success) then
+                call MPI_Error_string( ierror, message, length, ierror)
+                print *,message(1:length)
+                call mpi_Abort(MPI_COMM_WORLD, 1, ierror)
+            end if
+            vApp%mageCplComm = MPI_COMM_NULL
+        endif
+        if (vApp%CplSize == 1 .and. vApp%doGCM) then
+            write(*,*) "VOLTRON: Coupling to GCM Failed."
+            call mpi_Abort(MPI_COMM_WORLD, 1, ierror)
+        endif
+
+    end subroutine init_coupling_comms
+
+end module voltapp_mpi

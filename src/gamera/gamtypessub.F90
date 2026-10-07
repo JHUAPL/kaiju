@@ -1,5 +1,9 @@
 submodule (gamtypes) gamtypessub
-    use gamapp
+    !Import only what's needed: a blanket "use gamapp" also re-imports gamtypes'
+    !own separate module procedure names (gamapp uses gamtypes), which ifx then
+    !treats as shadowing the interface bodies this submodule implements (#6115).
+    use gamapp, only: initGamera, initGamIO, resOutput, getRestart, &
+                      readH5Restart, consoleOutput, fOutput, stepGamera
 
     implicit none
 

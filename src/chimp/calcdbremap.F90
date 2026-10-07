@@ -74,9 +74,7 @@ module calcdbremap
                 associate(ebGr=>ebState%ebGr)
                 allocate(Jxyz(ebGr%isg:ebGr%ieg,ebGr%jsg:ebGr%jeg,ebGr%ksg:ebGr%keg,NDIM))
                 call GetTWgts(Model,ebState,t,w1,w2)
-                !$OMP PARALLEL WORKSHARE
                 Jxyz = w1*ebState%eb1%Jxyz + w2*ebState%eb2%Jxyz
-                !$OMP END PARALLEL WORKSHARE
                 
             !Now do remap and store into BSGrid
                 !$OMP PARALLEL DO default(shared) collapse(2) &

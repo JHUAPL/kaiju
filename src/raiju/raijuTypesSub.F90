@@ -1,5 +1,6 @@
 submodule (raijutypes) raijuTypesSub
 
+    use kdefs, only : kaiStop
     use raijuStarter
     use raijuGrids
     use raijuIO
@@ -112,5 +113,30 @@ submodule (raijutypes) raijuTypesSub
         write(*,*) "RAIJU doing nothing for cleanup, idk what to do here yet"
 
     end subroutine raiCleanup
+
+
+    module subroutine raiWriteBlackBox(App, dieAfterWrite)
+        class(raijuApp_T), intent(inout) :: App
+        logical, optional, intent(in) :: dieAfterWrite
+
+        logical :: doDieAfterWrite
+
+        doDieAfterWrite = .true.
+        if (present(dieAfterWrite)) doDieAfterWrite = dieAfterWrite
+
+        !$OMP CRITICAL(raiju_blackbox_write)
+        if (.not. App%blackBoxHasBeenCalled) then
+            App%blackBoxHasBeenCalled = .true.
+            call WriteRaijuBlackBox(App)
+            if (doDieAfterWrite) then
+                ! Hold the lock through teardown so other failing threads cannot return early.
+                call kaiStop("RAIJU black box written; terminating run")
+            else
+                App%blackBoxHasBeenCalled = .false.
+            endif
+        endif
+        !$OMP END CRITICAL(raiju_blackbox_write)
+
+    end subroutine raiWriteBlackBox
 
 end submodule raijuTypesSub

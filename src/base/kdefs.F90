@@ -67,6 +67,8 @@ module kdefs
     real(rp), parameter :: REarth = Re_cgs*1.0D-2 !m
 
     real(rp), parameter :: RionE  = 6.5_rp    ! Earth Ionosphere radius in 1000 km
+
+    real(rp), parameter :: altmax = 140.0_rp  !! [km] altitude max for APEX
     ! Earth corotation potential
     !real(rp), parameter :: EarthPsi0 = 92.4 ! !!OUTDATED, based on LFM magntic field strength
     !real(rp), parameter :: EarthPsi0 = 87.62  ! Calculated using B = 0.2961737 Gauss
@@ -142,6 +144,40 @@ character(ANSILEN), parameter :: &
 #endif
 
     contains
+
+    subroutine kaiStop(msgO)
+#ifdef KAIJU_MPI
+        use mpi_f08
+#endif
+
+        character(len=*), optional, intent(in) :: msgO
+
+#ifdef KAIJU_MPI
+        integer :: ierr
+        logical :: mpiIsInitialized, mpiIsFinalized
+        integer, parameter :: mpiAbortGraceSeconds = 30
+#endif
+
+        if (present(msgO)) then
+            write(*,*) trim(msgO)
+        endif
+
+#ifdef KAIJU_MPI
+        call MPI_Initialized(mpiIsInitialized, ierr)
+        if (ierr == MPI_SUCCESS .and. mpiIsInitialized) then
+            call MPI_Finalized(mpiIsFinalized, ierr)
+            if (ierr == MPI_SUCCESS .and. .not. mpiIsFinalized) then
+                write(*,*) "kaiStop: aborting MPI job in ", mpiAbortGraceSeconds, " seconds ..."
+                call flush(output_unit)
+                call sleep(mpiAbortGraceSeconds)
+                call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+            endif
+        endif
+#endif
+
+        stop
+    end subroutine kaiStop
+
 
     !Dump contents of /proc/self/status to output
     subroutine printProcessInfo()

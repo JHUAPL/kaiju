@@ -15,7 +15,7 @@ module calcdbio
 	implicit none
 
     character(len=strLen), private :: dbOutF
-    integer, parameter, private :: MAXDBVS = 40
+    integer, parameter, private :: MAXDBVS = 80
     integer, parameter, private :: RDIR=1,TDIR=2,PDIR=3
     real(rp), private :: dzGG = 10.0 !Default height spacing [km]
     real(rp), private :: z0 = 0.0 !Starting height [km]
@@ -406,9 +406,7 @@ module calcdbio
         allocate(dbRTP(gGr%NLat,gGr%NLon,gGr%Nz,NDIM))
         allocate(dbJ  (gGr%NLat,gGr%NLon,gGr%Nz))
 
-        !$OMP PARALLEL WORKSHARE
         dbRTP = gGr%dbMAG_rtp + gGr%dbION_rtp + gGr%dbFAC_rtp
-        !$OMP END PARALLEL WORKSHARE
 
         !Write output data
         call ClearIO(IOVars)

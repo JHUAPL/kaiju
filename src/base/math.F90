@@ -586,7 +586,18 @@ module math
             Qs = 0.0
         endif
         
-    end function SmoothOperator33 
+    end function SmoothOperator33
+
+    !Soft floor (smooth max)
+    elemental function SoftFloor(X,XMin) result(sX)
+        real(rp), intent(in) :: X, XMin
+        real(rp), parameter  :: f = 0.1_rp
+
+        real(rp) :: sX
+
+        sX = 0.5_rp * ( X + XMin + &
+             sqrt( (X - XMin)**2.0_rp + (f*XMin)**2.0_rp ) )
+    end function SoftFloor
 
     function isAscending(A) result(isAsc)
       real(rp), dimension(:), intent(in) :: A

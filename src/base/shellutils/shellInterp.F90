@@ -3,9 +3,11 @@
 ! TODO: Add routine to take list of scattered points and interpolate to ShellGrid_T
 module shellInterp
     use kdefs
+    use kai2geo
     use math
     use shellgrid
     use shellutils
+    use, intrinsic :: ieee_arithmetic
 
     implicit none
 
@@ -45,7 +47,7 @@ module shellInterp
         type(ShellGrid_T)   , intent(in) :: sgDest
             !! The destination grid
         type(ShellGridVar_T), intent(inout) :: varOut
-            !! sgVar interpolated ontp sgDest
+            !! sgVar interpolated onto sgDest
         real(rp), dimension(:), optional, intent(in) :: dThetaO
             !! Cell width in theta direction
         real(rp), dimension(:), optional, intent(in) :: dPhiO
@@ -55,14 +57,16 @@ module shellInterp
 
 
         integer :: extraPnt
-        integer :: i,j
+        integer :: i,j,imap
         real(rp), dimension(:), allocatable :: dTheta
         real(rp), dimension(:), allocatable :: dPhi
         logical :: goodInterp
 
+        call get_coord_mapping(sgSource%coord, sgDest%coord, imap)
+
         if ( present(dThetaO) ) then
             ! First, make sure they are the same shape
-            if (size(dTheta) .ne. sgVar%Ni) then
+            if (size(dThetaO) .ne. sgVar%Ni) then
                 write(*,*) "WARNING: InterpShellVar_TSC_SG got a mismatched dThetaO shape. Dying."
                 stop
             endif
@@ -105,7 +109,6 @@ module shellInterp
         select case(varOut%loc)
             case(SHGR_CC)
                 !$OMP PARALLEL DO default(shared) &
-                !$OMP schedule(dynamic) &
                 !$OMP private(i,j,goodInterp)
                 do j=sgDest%jsg,sgDest%jeg
                     do i=sgDest%isg,sgDest%ieg
@@ -117,14 +120,13 @@ module shellInterp
                                 sgDest%thc(i), sgDest%phc(j),\
                                 varOut%data(i,j), \
                                 dThetaO=dTheta, dPhiO=dPhi,\
-                                srcMaskO=srcMaskO, goodInterpO=goodInterp)
+                                srcMaskO=srcMaskO, goodInterpO=goodInterp, imap_in=imap)
                         ! TODO: Handle case where goodInterp is false here
                         ! Probably will be model dependent. Maybe we return a 2D goodInterp array if an optional array is provided to us
                     enddo
                 enddo
             case(SHGR_CORNER)
                 !$OMP PARALLEL DO default(shared) &
-                !$OMP schedule(dynamic) &
                 !$OMP private(i,j,goodinterp)
                 do j=sgDest%jsg,sgDest%jeg+1
                     do i=sgDest%isg,sgDest%ieg+1
@@ -136,12 +138,11 @@ module shellInterp
                                 sgDest%th(i), sgDest%ph(j),\
                                 varOut%data(i,j), \
                                 dThetaO=dTheta, dPhiO=dPhi,\
-                                srcMaskO=srcMaskO, goodInterpO=goodInterp)
+                                srcMaskO=srcMaskO, goodInterpO=goodInterp, imap_in=imap)
                     enddo
                 enddo
             case(SHGR_FACE_THETA)
                 !$OMP PARALLEL DO default(shared) &
-                !$OMP schedule(dynamic) &
                 !$OMP private(i,j,goodInterp)
                 do j=sgDest%jsg,sgDest%jeg
                     do i=sgDest%isg,sgDest%ieg+1
@@ -153,12 +154,11 @@ module shellInterp
                                 sgDest%th(i), sgDest%phc(j),\
                                 varOut%data(i,j), \
                                 dThetaO=dTheta, dPhiO=dPhi,\
-                                srcMaskO=srcMaskO, goodInterpO=goodInterp)
+                                srcMaskO=srcMaskO, goodInterpO=goodInterp, imap_in=imap)
                     enddo
                 enddo
             case(SHGR_FACE_PHI)
                 !$OMP PARALLEL DO default(shared) &
-                !$OMP schedule(dynamic) &
                 !$OMP private(i,j,goodInterp)
                 do j=sgDest%jsg,sgDest%jeg+1
                     do i=sgDest%isg,sgDest%ieg
@@ -170,25 +170,27 @@ module shellInterp
                                 sgDest%thc(i), sgDest%ph(j),\
                                 varOut%data(i,j), \
                                 dThetaO=dTheta, dPhiO=dPhi,\
-                                srcMaskO=srcMaskO, goodInterpO=goodInterp)
+                                srcMaskO=srcMaskO, goodInterpO=goodInterp, imap_in=imap)
                     enddo
                 enddo
         end select
 
-        ! Fill j ghosts with active cell data
-        call wrapJ_SGV(sgDest, varOut)
+        ! Fill j ghosts with active cell data on periodic destination grids.
+        if (sgDest%isPeriodic) then
+            call wrapJ_SGV(sgDest, varOut)
+        endif
         
 
     end subroutine InterpShellVar_TSC_SG
 
 
-    subroutine InterpShellVar_TSC_pnt(sgSource, sgVar, th, pin, Qinterp, dThetaO, dPhiO, srcMaskO, goodInterpO)
+    subroutine InterpShellVar_TSC_pnt(sgSource, sgVar, thin, pin, Qinterp, dThetaO, dPhiO, srcMaskO, goodInterpO, imap_in)
         !! Given the source information, interpolate sgVar to point (t,pin) and return as Qout
         type(ShellGrid_T   ), intent(in) :: sgSource
             !! Source ShellGrid
         type(ShellGridVar_T), intent(in) :: sgVar
             !! Variable relative to provided ShellGrid
-        real(rp), intent(in) :: th
+        real(rp), intent(in) :: thin
             !! Theta coordinate with respect to source grid
         real(rp), intent(in) :: pin
             !! Phi coordinate with respect to source grid
@@ -202,9 +204,12 @@ module shellInterp
             !! If provided, we use this to mask the source variable instead of its mask
         logical, optional, intent(inout) :: goodInterpO
             !! True if we are returning a meaningful interpolated value
+        integer, optional, intent(in) :: imap_in
+            !! If provided, we use this to transform the destination grid's theta and phi to the source grid's coordinate system. 0 = no transformation, 1 = SM to GEO, 2 = GEO to SM
 
-        
-        real(rp) :: ph
+        integer :: imap
+            !! Coordinate mapping flag
+        real(rp) :: ph,th
             !! Cleaned-up phi location we actually use
         integer :: i0_cell, j0_cell
             !! i and j locations of the cell containing point t,p, irrespective of scVar%loc
@@ -220,17 +225,31 @@ module shellInterp
         real(rp), dimension(NumTSC) :: Ws,Qs
         logical , dimension(NumTSC) :: isGs
         integer :: ipnt,jpnt,n,di,dj
+        integer, dimension(NumTSC) :: iQs, jQs
 
         ! Default return values
         Qinterp = 0.0
         if (present(goodInterpO)) goodInterpO = .false.
 
-        ! Check bounds
-        ph = modulo(pin,2*PI)
+        imap = 0
+        if (present(imap_in)) imap = imap_in
 
+        ! Defaults to doing nothing if imap_in not present
+        call transform_TP(thin,pin,th,ph,imap)
+
+        ! Check bounds
+        ph = modulo(ph,2*PI)
+
+        !if (th > PI) then
+        !    th = th - PI
+        !    Qinterp = HUGE
+        !    if (present(goodInterpO)) goodInterpO = .true.
+        !endif
         ! Also make sure the requested theta is in bounds
         if ( (th<0.).or.(th>PI) ) then
             write(*,*) "ERROR in InterpShellVar_TSC_pnt: Theta should be in the range [0,PI]. Quitting..."
+            write(*,*)"theta=",th
+            write(*,*)"sourceGrid name=",trim(sgSource%name)
             stop
         end if
 
@@ -257,13 +276,16 @@ module shellInterp
             return
         endif
 
-        ! Make sure data is good at this point
+        ! Make sure the center point is valid in both the intrinsic mask
+        ! and any additional caller-provided source mask.
         if (.not. sgVar%mask(i0,j0)) then
             return
         endif
-
-        ! If still here we're gonna do something, so we can tell our caller we are returning a valid value
-        if (present(goodInterpO)) goodInterpO = .true.
+        if (present(srcMaskO)) then
+            if (.not. srcMaskO(i0,j0)) then
+                return
+            endif
+        endif
 
         ! Determine dTheta and dPhi for this ij point
         if (present(dThetaO)) then
@@ -306,6 +328,7 @@ module shellInterp
         if (sgSource%doNP .and. (i0_cell==sgSource%is)) then
             ! Handle north pole and return
             call interpPole(sgSource,sgVar,th,ph,Qinterp)
+            if (present(goodInterpO)) goodInterpO = .true.
             return
         endif
 
@@ -313,6 +336,7 @@ module shellInterp
         if (sgSource%doSP .and. (i0_cell==sgSource%ie)) then
             ! Handle south pole and return
             call interpPole(sgSource,sgVar,th,ph,Qinterp)
+            if (present(goodInterpO)) goodInterpO = .true.
             return
         endif
 
@@ -346,9 +370,14 @@ module shellInterp
                 ipnt = i0+di
                 jpnt = j0+dj
                 
-                ! Wrap around boundary
-                if (jpnt<1)           jpnt = sgSource%Np
-                if (jpnt>sgSource%Np) jpnt = 1
+                ! Wrap only outside the variable bounds. Corner/phi-face
+                ! variables have a valid duplicate seam point at je+1.
+                do while (jpnt < sgVar%jsv)
+                    jpnt = jpnt + sgSource%Np
+                enddo
+                do while (jpnt > sgVar%jev)
+                    jpnt = jpnt - sgSource%Np
+                enddo
 
                 ! Do zero-grad for theta
                 if (ipnt<sgVar%isv)   ipnt = sgVar%isv
@@ -356,23 +385,72 @@ module shellInterp
 
                 Qs(n) = sgVar%data(ipnt,jpnt)
                 Ws(n) = wE(di)*wZ(dj)
+                isGs(n) = sgVar%mask(ipnt,jpnt)
+                iQs(n) = ipnt
+                jQs(n) = jpnt
                 if(present(srcMaskO)) then
-                    isGs(n) = srcMaskO(ipnt,jpnt)
-                else
-                    isGs(n) = sgVar%mask(ipnt,jpnt)
+                    isGs(n) = isGs(n) .and. srcMaskO(ipnt,jpnt)
                 endif
 
-                if (.not. isGs(n)) Ws(n) = 0.0
+                if (.not. isGs(n)) then
+                    Ws(n) = 0.0_rp
+                    Qs(n) = 0.0_rp
+                endif
 
                 n = n + 1
             enddo
         enddo
 
-        ! Renormalize
+        if (any(.not. ieee_is_finite(Ws))) then
+            !$OMP CRITICAL
+            write(*,*)"ERROR in InterpShellVar_TSC_pnt: We have a bad interpolation weight!"
+            write(*,*)"ShellGrid name:",trim(sgSource%name)
+            write(*,*)"th, ph: ",th, ph
+            write(*,*)"i0, j0:",i0,j0
+            write(*,*)"Qs:",Qs
+            write(*,*)"Ws:",Ws
+            write(*,*)"isGs:",isGs
+            !$OMP END CRITICAL
+            stop
+            
+        endif
+        if (any((.not. ieee_is_finite(Qs)) .and. isGs)) then
+            !$OMP CRITICAL
+            write(*,*)"ERROR in InterpShellVar_TSC_pnt: We have a bad source value in active stencil!"
+            write(*,*)"ShellGrid name:",trim(sgSource%name)
+            write(*,*)"th, ph: ",th, ph
+            write(*,*)"i0, j0:",i0,j0
+            write(*,*)"stencil i:",iQs
+            write(*,*)"stencil j:",jQs
+            write(*,*)"Qs:",Qs
+            write(*,*)"Ws:",Ws
+            write(*,*)"isGs:",isGs
+            !$OMP END CRITICAL
+            stop
+        endif
+        ! Renormalize only if some stencil weight survived masking.
+        if (sum(Ws) <= TINY) then
+            return
+        endif
         Ws = Ws/sum(Ws)
 
         ! Get final value
         Qinterp = dot_product(Qs,Ws)
+        if (.not. ieee_is_finite(Qinterp)) then
+            !$OMP CRITICAL
+            write(*,*)"ERROR in InterpShellVar_TSC_pnt: Interpolated value is not finite!"
+            write(*,*)"ShellGrid name:",trim(sgSource%name)
+            write(*,*)"th, ph: ",th, ph
+            write(*,*)"i0, j0:",i0,j0
+            write(*,*)"stencil i:",iQs
+            write(*,*)"stencil j:",jQs
+            write(*,*)"Qs:",Qs
+            write(*,*)"Ws:",Ws
+            write(*,*)"isGs:",isGs
+            !$OMP END CRITICAL
+            stop
+        endif
+        if (present(goodInterpO)) goodInterpO = .true.
 
         ! Have some internal functions
         contains
@@ -401,15 +479,120 @@ module shellInterp
     end subroutine InterpShellVar_TSC_pnt
 
 
-    subroutine InterpShellVar_ParentToChild(srcGrid, srcVar, destGrid, destVar)
+    subroutine InterpShellVar_NN_pnt(sgSource, sgVar, thin, pin, Qinterp, goodInterpO, imap_in)
+        !! Nearest-neighbour sample of sgVar at point (thin,pin)
+        !! fractionalCell location logic mirrors InterpShellVar_TSC_pnt
+        type(ShellGrid_T   ), intent(in) :: sgSource
+        type(ShellGridVar_T), intent(in) :: sgVar
+        real(rp), intent(in)  :: thin, pin
+        real(rp), intent(out) :: Qinterp
+        logical, optional, intent(inout) :: goodInterpO
+        integer, optional, intent(in) :: imap_in
+
+        integer  :: imap, i0_cell, j0_cell, i0, j0
+        real(rp) :: th, ph, t0, p0
+
+        Qinterp = 0.0
+        if (present(goodInterpO)) goodInterpO = .false.
+
+        imap = 0
+        call transform_TP(thin, pin, th, ph, imap)
+        ph = modulo(ph, 2*PI)
+        if ( (th<0.).or.(th>PI) ) then
+            write(*,*) "ERROR in InterpShellVar_NN_pnt: Theta should be in [0,PI]. Quitting..."
+            write(*,*) "theta=", th, " sourceGrid=", trim(sgSource%name)
+            stop
+        end if
+
+        call getSGCellILoc(sgSource, th, i0_cell, t0)
+        if (sgVar%loc == SHGR_CORNER .or. sgVar%loc == SHGR_FACE_THETA) then
+            call iLocCC2Corner(sgSource, th, i0_cell, iLocCornerO=i0, tLocO=t0)
+        else
+            i0 = i0_cell
+        endif
+        call getSGCellJLoc(sgSource, ph, j0_cell, p0)
+        if (sgVar%loc == SHGR_CORNER .or. sgVar%loc == SHGR_FACE_PHI) then
+            call jLocCC2Corner(sgSource, ph, j0_cell, jLocCornerO=j0, pLocO=p0)
+        else
+            j0 = j0_cell
+        endif
+
+        ! Out of the variable's active range -> no data
+        if (i0 > sgVar%iev .or. i0 < sgVar%isv) return
+        if (j0 > sgVar%jev .or. j0 < sgVar%jsv) return
+        ! Respect the source mask (matches TSC's center-cell mask check)
+        if (.not. sgVar%mask(i0,j0)) return
+
+        Qinterp = sgVar%data(i0,j0)
+        if (present(goodInterpO)) goodInterpO = .true.
+
+    end subroutine InterpShellVar_NN_pnt
+
+
+    subroutine InterpShellVar_ParentToChild_Corner2CC(srcGrid, srcVar, destGrid, destVar, srcMaskO)
         type(ShellGrid_T   ), intent(in) :: srcGrid
         type(ShellGridVar_T), intent(in) :: srcVar
         type(ShellGrid_T   ), intent(in) :: destGrid
         type(ShellGridVar_T), intent(inout) :: destVar
+        logical, dimension(srcVar%isv:srcVar%iev, srcVar%jsv:srcVar%jev), optional, intent(in) :: srcMaskO
 
         integer :: subis, subie, subjs, subje, iExtra, jExtra
-        type(ShellGridVar_T) :: src2destVar
-            !! srcVar chopped down to dest grid's domain 
+        integer :: i, j, srcI, srcJ
+        logical :: isGood
+
+        if (srcVar%loc /= SHGR_CORNER .or. destVar%loc /= SHGR_CC) then
+            write(*,*) "ERROR in InterpShellVar_ParentToChild_Corner2CC: invalid loc pairing"
+            write(*,*) " Source loc:", srcVar%loc, " Dest loc:", destVar%loc
+            stop
+        endif
+
+        call ijExtra_SGV(srcVar%loc, iExtra, jExtra)
+
+        subis = destGrid%is + destGrid%bndis-1 - destGrid%Ngn
+        subie = destGrid%is + destGrid%bndie-1 + destGrid%Ngs + iExtra
+        subjs = destGrid%js + destGrid%bndjs-1 - destGrid%Nge
+        subje = destGrid%js + destGrid%bndje-1 + destGrid%Ngw + jExtra
+
+        if (subis < srcVar%isv .or. subie > srcVar%iev .or. subjs < srcVar%jsv .or. subje > srcVar%jev) then
+            write(*,*) "ERROR in InterpShellVar_ParentToChild_Corner2CC: source subset out of bounds"
+            write(*,*) " Source grid:", trim(srcGrid%name), " Dest grid:", trim(destGrid%name)
+            stop
+        endif
+
+        destVar%data = 0.0_rp
+        destVar%mask = .false.
+
+        do j=destVar%jsv,destVar%jev
+            srcJ = subjs + (j - destVar%jsv)
+            do i=destVar%isv,destVar%iev
+                srcI = subis + (i - destVar%isv)
+                isGood = all(srcVar%mask(srcI:srcI+1, srcJ:srcJ+1))
+                if (present(srcMaskO)) then
+                    isGood = isGood .and. all(srcMaskO(srcI:srcI+1, srcJ:srcJ+1))
+                endif
+
+                destVar%mask(i,j) = isGood
+                if (isGood) then
+                    destVar%data(i,j) = 0.25_rp * sum(srcVar%data(srcI:srcI+1, srcJ:srcJ+1))
+                else
+                    destVar%data(i,j) = 0.0_rp
+                endif
+            enddo
+        enddo
+    end subroutine InterpShellVar_ParentToChild_Corner2CC
+
+
+    subroutine InterpShellVar_ParentToChild(srcGrid, srcVar, destGrid, destVar, srcMaskO, doAllowTSCO)
+        type(ShellGrid_T   ), intent(in) :: srcGrid
+        type(ShellGridVar_T), intent(in) :: srcVar
+        type(ShellGrid_T   ), intent(in) :: destGrid
+        type(ShellGridVar_T), intent(inout) :: destVar
+        logical, dimension(srcVar%isv:srcVar%iev, srcVar%jsv:srcVar%jev), optional, intent(in) :: srcMaskO
+            !! If provided, use this source mask alongside srcVar%mask
+        logical, optional, intent(in) :: doAllowTSCO
+
+        integer :: subis, subie, subjs, subje, iExtra, jExtra
+        logical :: allowTSC
 
         ! Are you actually my parent or do I need to call the police?
         if (trim(destGrid%parentName) == def_noParentName .or. trim(srcGrid%name) .ne. trim(destGrid%parentName)) then
@@ -418,24 +601,37 @@ module shellInterp
             stop
         endif
 
+        allowTSC = .false.
+        if (present(doAllowTSCO)) allowTSC = doAllowTSCO
+
+        destVar%data = 0.0_rp
+
         ! Determine SGV bounds of source var that map to destination grid's bounds
         call ijExtra_SGV(srcVar%loc, iExtra, jExtra)
 
         subis = destGrid%is + destGrid%bndis-1 - destGrid%Ngn
         subie = destGrid%is + destGrid%bndie-1 + destGrid%Ngs + iExtra
-        subjs = destGrid%js + destGrid%bndjs-1 - destGrid%Ngw
-        subje = destGrid%js + destGrid%bndje-1 + destGrid%Nge + jExtra
+        subjs = destGrid%js + destGrid%bndjs-1 - destGrid%Nge
+        subje = destGrid%js + destGrid%bndje-1 + destGrid%Ngw + jExtra
 
         ! Now fill in destination variable
         if (srcVar%loc == destVar%loc) then
             destVar%data(:,:) = srcVar%data(subis:subie, subjs:subje)
-            destVar%mask(:,:) = srcVar%mask(subis:subie, subjs:subje)
-        else  ! Need to interpolate
-            ! Chop srcVar into destination grid size
-            call initShellVar(destGrid, srcVar%loc, src2destVar)
-            src2destVar%data(:,:) = srcVar%data(subis:subie, subjs:subje)
-            src2destVar%mask(:,:) = srcVar%mask(subis:subie, subjs:subje)
-            call InterpShellVar_TSC_SG(destGrid, src2destVar, destGrid, destVar)
+            if (present(srcMaskO)) then
+                destVar%mask(:,:) = srcVar%mask(subis:subie, subjs:subje) .and. srcMaskO(subis:subie, subjs:subje)
+            else
+                destVar%mask(:,:) = srcVar%mask(subis:subie, subjs:subje)
+            endif
+        else if (srcVar%loc == SHGR_CORNER .and. destVar%loc == SHGR_CC) then
+            call InterpShellVar_ParentToChild_Corner2CC(srcGrid, srcVar, destGrid, destVar, srcMaskO=srcMaskO)
+        else if (allowTSC) then
+            call InterpShellVar_TSC_SG(srcGrid, srcVar, destGrid, destVar, srcMaskO=srcMaskO)
+            ! Note: We are not touching destVar%mask here! Its gonna be whatever it came in as. Do with that what you will
+        else
+            write(*,*) "ERROR in InterpShellVar_ParentToChild: unsupported loc mismatch without TSC opt-in"
+            write(*,*) " Source grid:", trim(srcGrid%name), " var loc:", srcVar%loc
+            write(*,*) " Dest grid:", trim(destGrid%name), " var loc:", destVar%loc
+            stop
         endif
 
     end subroutine InterpShellVar_ParentToChild
@@ -452,11 +648,11 @@ module shellInterp
         real(rp) :: tfactor,Qtemp
 
         ! Find out which pole we're at
-        if ( (tin.ge.shGr%th(shGr%is)).and.(tin.le.shGr%th(shGr%is+1)) ) then
+        if ( (tin.ge.shGr%th(shGr%is)-TINY).and.(tin.le.shGr%th(shGr%is+1)+TINY) ) then
             ! note, shGr%th(shGr%is) is within TINY of 0 since we are at the pole
             pole = NORTH
             iinterp = shGr%is
-        else if ( (tin.le.shGr%th(shGr%ie+1)).and.(tin.ge.shGr%th(shGr%ie)) ) then
+        else if ( (tin.le.shGr%th(shGr%ie+1)+TINY).and.(tin.ge.shGr%th(shGr%ie)-TINY) ) then
             ! note, shGr%th(shGr%ie+1) is within TINY of PI since we are at the pole
             pole = SOUTH
             iinterp = shGr%ie

@@ -9,11 +9,13 @@ module chopio
     use ebinterp
     use files
     use streamline
+
+    use volttypes
     
     implicit none
 
     character(len=strLen) :: eb3DOutF
-    integer, parameter :: MAXEBVS = 50
+    integer, parameter :: MAXEBVS = 80
     
     integer  :: Nx1 = 64, Nx2 = 64, Nx3 = 64
     real(rp) :: originOff = 0.0 !Default origin offset
@@ -265,10 +267,11 @@ module chopio
 
         type(IOVAR_T), dimension(MAXEBVS) :: IOVars
 
-        real(rp), dimension(:,:,:,:)  , allocatable :: B,E,J3
+        real(rp), dimension(:,:,:,:)  , allocatable :: B,E,J3,Src
         real(rp), dimension(:,:,:,:,:), allocatable :: Q
         real(rp), dimension(NVARMHD,0:Model%nSpc) :: Qijk
         real(rp), dimension(NDIM) :: Bijk,Eijk,xyz
+        real(rp), dimension(NVARVOLTSRC) :: Srcijk
         type(gcFields_T) :: gcFields
         real(rp), dimension(NDIM,NDIM) :: jB
         integer :: i,j,k,s
@@ -283,6 +286,7 @@ module chopio
         allocate(E (Nx1,Nx2,Nx3,NDIM))
         allocate(J3(Nx1,Nx2,Nx3,NDIM))
         allocate(Q (Nx1,Nx2,Nx3,NVARMHD,0:Model%nSpc))
+        if (Model%doReadSrc) allocate(Src(Nx1,Nx2,Nx3,NVARVOLTSRC))
 
         if (Model%doTrc) then
             !Create an ebTrc for each point on slice
@@ -295,13 +299,18 @@ module chopio
         Q = 0.0
 
         !$OMP PARALLEL DO default(shared) collapse(2) &
-        !$OMP private(i,j,k,xyz,Bijk,Eijk,Qijk,gcFields,jB)
+        !$OMP private(i,j,k,xyz,Bijk,Eijk,Qijk,gcFields,Srcijk,jB)
         do k=1,Nx3
             do j=1,Nx2
                 do i=1,Nx1
                     xyz = [xxc(i,j,k),yyc(i,j,k),zzc(i,j,k)]
 
-                    call ebFields(xyz,Model%t,Model,ebState,Eijk,Bijk,gcFields=gcFields)
+                    if (Model%doReadSrc) then
+                        call ebFields(xyz,Model%t,Model,ebState,Eijk,Bijk,gcFields=gcFields,src=Srcijk)
+                        Src(i,j,k,:) = Srcijk
+                    else
+                        call ebFields(xyz,Model%t,Model,ebState,Eijk,Bijk,gcFields=gcFields)
+                    endif
                     B(i,j,k,:) = Bijk
                     E(i,j,k,:) = Eijk
 
@@ -392,6 +401,19 @@ module chopio
             call AddOutVar(IOVars,"yM",ebTrcIJK(:,:,:)%xEPm(YDIR))
             call AddOutVar(IOVars,"zM",ebTrcIJK(:,:,:)%xEPm(ZDIR))
 
+        endif
+
+        if (Model%doReadSrc) then
+            call AddOutVar(IOVars, "SrcX1"    , Src(:,:,:,PROJLAT  ))
+            call AddOutVar(IOVars, "SrcX2"    , Src(:,:,:,PROJLON  ))
+            call AddOutVar(IOVars, "SrcIONEx" , Src(:,:,:,IONEX    ))
+            call AddOutVar(IOVars, "SrcIONEy" , Src(:,:,:,IONEY    ))
+            call AddOutVar(IOVars, "SrcIONEz" , Src(:,:,:,IONEZ    ))
+            call AddOutVar(IOVars, "SrcD_RING", Src(:,:,:,IM_D_RING))
+            call AddOutVar(IOVars, "SrcP_RING", Src(:,:,:,IM_P_RING))
+            call AddOutVar(IOVars, "SrcD_COLD", Src(:,:,:,IM_D_COLD))
+            call AddOutVar(IOVars, "SrcP_COLD", Src(:,:,:,IM_P_COLD))
+            call AddOutVar(IOVars, "SrcDT"    , Src(:,:,:,IM_TSCL  ))
         endif
 
         call WriteVars(IOVars,.true.,eb3DOutF,gStr)

@@ -346,8 +346,10 @@ module raijuColdStartHelper
         do j=Grid%shGrid%jsg,Grid%shGrid%jeg
             do i=Grid%shGrid%isg,Grid%shGrid%ieg
                 do k = spc%kStart,spc%kEnd
-                    tau = lossCX%calcTau(Model, Grid, State, i, j, k)
-                    etaCS(i,j,k) = etaCS(i,j,k)*exp(-tCX/tau)
+                    if (State%active(i,j) .ne. RAIJUINACTIVE) then
+                        tau = lossCX%calcTau(Model, Grid, State, i, j, k)
+                        etaCS(i,j,k) = etaCS(i,j,k)*exp(-tCX/tau)
+                    endif
                 enddo
             enddo
         enddo
@@ -409,7 +411,7 @@ module raijuColdStartHelper
         type(TimeSeries_T) :: tsQ
         tsQ%wID = trim(fID)
         call tsQ%initTS(trim(vID),doLoudO=.false.)
-        qSW = tsQ%evalAt(t)
+        qSW = evalTimeSeriesAt(tsQ,t)
     end function GetSWVal
 
 end module raijuColdStartHelper

@@ -104,11 +104,12 @@ module gamtypes
         !Boris correction information
         logical :: doBoris,doHogs
         real(rp) :: cHogH,cHogM !Coefficients for HOGS terms
-        real(rp) :: Ca !Max speed for Boris correction
+        real(rp) :: Ca = 0.0 !Max speed for Boris correction
         
         !Information for static source term
         logical :: doSource = .false.
         integer :: nvSrc = NVAR !Number of variables in Gas0 array if being used
+        integer :: nvInExyz = NVAR !Number of variables in inExyz coupling array if being used
 
         !Ring average information
         logical :: doRing = .false.

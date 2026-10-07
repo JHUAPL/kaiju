@@ -77,7 +77,7 @@ module raijuRecon
         real(rp), intent(in) :: q1, q2, q3
         real(rp) :: qi
 
-        qi = q1*C5Up(1) + q2*C5Up(2) + q3*C5Up(3)
+        qi = q1*C3Up(1) + q2*C3Up(2) + q3*C3Up(3)
     end function Upwind3
 
 
@@ -435,13 +435,10 @@ module raijuRecon
         
         real(rp), dimension(Grid%shGrid%isg:Grid%shGrid%ieg+1, &
                             Grid%shGrid%jsg:Grid%shGrid%jeg+1, 2) :: QfaceL, QfaceR
-        real(rp) :: QfluxL, QfluxR
         integer :: i,j
         
         QfaceL = 0.0
         QfaceR = 0.0
-        QfluxL = 0.0
-        QfluxR = 0.0
         Qflux  = 0.0
         
         ! ReconFaces(Model, Grid, isG, Qcc, QfaceL, QfaceR, QreconLO, QreconRO)
@@ -451,38 +448,23 @@ module raijuRecon
             call ReconFaces(Model, Grid, isGoodRecon, Qcc, QfaceL, QfaceR)
         endif
 
-        if (Model%doUseVelLRs) then
-            do j=Grid%shGrid%js,Grid%shGrid%je+1
-                do i=Grid%shGrid%is,Grid%shGrid%ie+1
-                    ! Only allow velocities passing through the interface
-                    QfluxL = QfaceL(i,j,RAI_TH)*max(0.0, State%iVelL(i,j,k,RAI_TH))
-                    QfluxR = QfaceR(i,j,RAI_TH)*min(0.0, State%iVelR(i,j,k,RAI_TH))
-                    Qflux(i,j,RAI_TH) = QfluxL + QfluxR
+        ! Since we know the velocity at the interface, the upwind state is
+        ! selected from the sign of the single face velocity.
+        do j=Grid%shGrid%js,Grid%shGrid%je+1
+            do i=Grid%shGrid%is,Grid%shGrid%ie+1
+                if (State%iVel(i,j,k,RAI_TH) > 0.0) then
+                    Qflux(i,j,RAI_TH) = QfaceL(i,j,RAI_TH)*State%iVel(i,j,k,RAI_TH)
+                else
+                    Qflux(i,j,RAI_TH) = QfaceR(i,j,RAI_TH)*State%iVel(i,j,k,RAI_TH)
+                endif
 
-                    QfluxL = QfaceL(i,j,RAI_PH)*max(0.0, State%iVelL(i,j,k,RAI_PH))
-                    QfluxR = QfaceR(i,j,RAI_PH)*min(0.0, State%iVelR(i,j,k,RAI_PH))
-                    Qflux(i,j,RAI_PH) = QfluxL + QfluxR
-                enddo
+                if (State%iVel(i,j,k,RAI_PH) > 0.0) then
+                    Qflux(i,j,RAI_PH) = QfaceL(i,j,RAI_PH)*State%iVel(i,j,k,RAI_PH)
+                else
+                    Qflux(i,j,RAI_PH) = QfaceR(i,j,RAI_PH)*State%iVel(i,j,k,RAI_PH)
+                endif
             enddo
-        else
-            ! Since we know the exact velocity at the interface, 
-            ! our final flux is QL*v if stuff is leaving the cell, or QR*v if stuff is entering the cell
-            do j=Grid%shGrid%js,Grid%shGrid%je+1
-                do i=Grid%shGrid%is,Grid%shGrid%ie+1
-                    if (State%iVel(i,j,k,RAI_TH) > 0.0) then
-                        Qflux(i,j,RAI_TH) = QfaceL(i,j,RAI_TH)*State%iVel(i,j,k,RAI_TH)
-                    else
-                        Qflux(i,j,RAI_TH) = QfaceR(i,j,RAI_TH)*State%iVel(i,j,k,RAI_TH)
-                    endif
-
-                    if (State%iVel(i,j,k,RAI_PH) > 0.0) then
-                        Qflux(i,j,RAI_PH) = QfaceL(i,j,RAI_PH)*State%iVel(i,j,k,RAI_PH)
-                    else
-                        Qflux(i,j,RAI_PH) = QfaceR(i,j,RAI_PH)*State%iVel(i,j,k,RAI_PH)
-                    endif
-                enddo
-            enddo
-        endif
+        enddo
         !Qflux = merge(QfaceL*State%iVel(:,:,k,:), QfaceR*State%iVel(:,:,k,:), State%iVel(:,:,k,:) > 0.0)  ! [Q * m/s]
         Qflux = Qflux * Grid%BrFace / Model%planet%rp_m  ! [Q * nT * Rp/s]
 

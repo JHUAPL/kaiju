@@ -10,6 +10,10 @@ module kai2geo
 
     logical, parameter, private :: doSpyro = .false. !Whether to sneak spyro
 
+    enum, bind(C)
+      enumerator :: iSMtoGEO=1,iGEOtoSM,iSMtoGSM,iGSMtoSM,iGEOtoGSM,iGSMtoGEO,iAPEXtoSM,iSMtoAPEX,iAPEXtoGEO,iGEOtoAPEX
+    end enum
+
     contains
     
     !Returns SM-theta,phi of rotation axis
@@ -150,88 +154,8 @@ module kai2geo
         RM = norm2( IGRF_SM(xyzIon) )/norm2( IGRF_SM (xyzMir) )
     end function IGRFMirrorRatio
 
-    subroutine transform_grid(G1,G2,transform,hemisphere,ym1,ym2)
-      use gcmtypes
-      use mixdefs
-      type(mixGrid_T), intent(in)  :: G1
-      type(mixGrid_T), intent(out) :: G2
-      integer, intent(in) :: transform,hemisphere
-      real(rp) :: r,tempt,tempp,ymod1,ymod2
-      real(rp),dimension(NDIM) :: indim
-      real(rp),dimension(:,:),allocatable :: tempz
-      integer,optional :: ym1, ym2
-      integer :: i,j
-      
-      if (present(ym1)) then; ymod1 = ym1; else; ymod1 = 1; endif
-      if (present(ym2)) then; ymod2 = ym2; else; ymod2 = 1; endif
-      ! Calculate radius of ionosphere in km
-      r =  (RionE*1.0e+6)/REarth
-      ! Copy grid info from G1 to G2
-      G2%Nt = G1%Nt; G2%Np = G1%Np
-      if (.not.allocated(G2%x)) allocate(G2%x(G2%Np,G2%Nt))
-      if (.not.allocated(G2%y)) allocate(G2%y(G2%Np,G2%Nt))
-      if (.not.allocated(G2%t)) allocate(G2%t(G2%Np,G2%Nt))
-      if (.not.allocated(G2%p)) allocate(G2%p(G2%Np,G2%Nt))
-      if (.not.allocated(tempz)) allocate(tempz(G2%Np,G2%Nt))
-      ! interpolant
-      ! True size (Np,Nt-1) (note, we include the cell between Np and 1 for periodic; 
-      ! otherwise, it's unused and interpolant set to 0. below)      
-      if (.not.allocated(G2%Interpolant)) allocate(G2%Interpolant(G2%Np,G2%Nt,4,4)) 
-      ! Reset interpolant because we're changing grid
-      G2%Interpolant = 0.0
-      
-      do j = 1,G2%Np
-        do i=1,G2%Nt
-          if (hemisphere == NORTH) then
-            tempt = pi/2.-G1%t(j,i) ! temporarily convert to lat
-          elseif (hemisphere == SOUTH) then
-            ! Check if it's a funky mapped colat
-            if (G1%t(j,i) < pi/2) then
-              tempt = G1%t(j,i)-pi/2
-            else
-              tempt = pi/2-G1%t(j,i)
-            endif
-          endif
-          tempp = G1%p(j,i)*ymod1       ! use temp values everywhere for consistency
-          indim(XDIR) = r*cos(tempt)*cos(tempp)
-          indim(YDIR) = r*cos(tempt)*sin(tempp)
-          indim(ZDIR) = r*sin(tempt)
-          select case (transform)
-            case (iGEOtoSM)
-              call GEO2SM(indim(XDIR),indim(YDIR),indim(ZDIR),G2%x(j,i),G2%y(j,i),tempz(j,i))
-            case (iSMtoGEO)
-              call SM2GEO(indim(XDIR),indim(YDIR),indim(ZDIR),G2%x(j,i),G2%y(j,i),tempz(j,i))
-            !case (iMAGtoSM) ! This is used for WACCMX. Disabling for now.
-            !  call MAG2SM(indim(XDIR),indim(YDIR),indim(ZDIR),G2%x(j,i),G2%y(j,i),tempz(j,i))
-            !case (iSMtoMAG)
-            !  call SM2MAG(indim(XDIR),indim(YDIR),indim(ZDIR),G2%x(j,i),G2%y(j,i),tempz(j,i))
-            case (iSMtoAPEX)
-              call SM2APEX(indim(XDIR),indim(YDIR),indim(ZDIR),G2%x(j,i),G2%y(j,i),tempz(j,i))
-            case (iAPEXtoSM)
-              call APEX2SM(indim(XDIR),indim(YDIR),indim(ZDIR),G2%x(j,i),G2%y(j,i),tempz(j,i))
-            case default
-              ! No transform
-              G2%x(j,i) = indim(XDIR)
-              G2%y(j,i) = indim(YDIR)
-              tempz(j,i) = indim(ZDIR)
-          end select
-        end do
-      end do
-      
-      G2%y = G2%y*ymod2
-      ! Convert back to colatitude
-      if (hemisphere == NORTH) then
-        G2%t = acos(tempz/r) ! convert back to standard colatitude
-      else if (hemisphere == SOUTH) then
-        G2%t = pi-acos(tempz/r)   ! convert to funky remix colatitude
-      endif
-      G2%p = modulo((atan2(G2%y,G2%x)+2*pi),(2*pi)) 
-      if (allocated(tempz)) deallocate(tempz)
-    end subroutine transform_grid
-
     subroutine transform_TP(incolat,inlon,outcolat,outlon,transform,hemisphere)
       use geopack
-      use mixdefs
       real(rp), intent(in) :: incolat,inlon
       real(rp), intent(out) :: outcolat,outlon
       integer, intent(in) :: transform
@@ -256,6 +180,15 @@ module kai2geo
       indim(ZDIR) = r*sin(tempt)
       ! Do transform
       select case (transform)
+        case (0)
+          ! No transform
+          outdim(XDIR) = indim(XDIR)
+          outdim(YDIR) = indim(YDIR)
+          outdim(ZDIR) = indim(ZDIR)
+        case (iSMtoAPEX)
+          call SM2APEX(indim(XDIR),indim(YDIR),indim(ZDIR),outdim(XDIR),outdim(YDIR),outdim(ZDIR))
+        case (iAPEXtoSM)
+          call APEX2SM(indim(XDIR),indim(YDIR),indim(ZDIR),outdim(XDIR),outdim(YDIR),outdim(ZDIR))
         case (iGEOtoSM)
           call GEO2SM(indim(XDIR),indim(YDIR),indim(ZDIR),outdim(XDIR),outdim(YDIR),outdim(ZDIR))
         case (iSMtoGEO)
@@ -340,5 +273,121 @@ module kai2geo
       call GEO2SM(XGEO,YGEO,ZGEO,XSM,YSM,ZSM)
 
     end subroutine APEX2SM
+
+    subroutine GEO2APEX(XGEO,YGEO,ZGEO,XAPX,YAPX,ZAPX)
+      real(rp), intent(in) :: XGEO,YGEO,ZGEO
+      real(rp), intent(out) :: XAPX,YAPX,ZAPX
+
+      real(rp) :: ionalt, r, tempt,tempp ,qdlon ,malat ,qdlat
+
+      ! Non-scalar arguments returned by APXMALL:
+      real(rp) :: b0,si,vmp,w,d,be3,sim,f, &
+          b(3),bhat(3), &
+          d1(3),d2(3),d3(3), &
+          e1(3),e2(3),e3(3), &
+          f1(3),f2(3),f3(3), &
+          g1(3),g2(3),g3(3)
+      integer :: ist
+
+      ! Calculate radius of ionosphere in km
+      r =  (RionE*1.0e+6)/REarth
+      ! Calculate altitude of ionosphere in km
+      ionalt = (RIonE*1.e+3 - REarth*1.e-3)
+
+      tempt = asin(ZGEO/r)*rad2deg
+      tempp = atan2(YGEO,XGEO) *rad2deg
+
+      call apex_mall (tempt,tempp,ionalt,ionalt, &
+             b,bhat,b0,si,qdlon, &
+             malat,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
+             qdlat,f,f1,f2,f3,g1,g2,g3,ist)
+      if (ist /= 0) stop 'apex_mall error'
+
+      tempt = malat *deg2rad
+      tempp = qdlon *deg2rad
+
+      XAPX = r*cos(tempt)*cos(tempp)
+      YAPX = r*cos(tempt)*sin(tempp)
+      ZAPX = r*sin(tempt)
+
+    end subroutine GEO2APEX
+
+    subroutine APEX2GEO(XAPX,YAPX,ZAPX,XGEO,YGEO,ZGEO)
+      real(rp), intent(in) :: XAPX,YAPX,ZAPX
+      real(rp), intent(out) :: XGEO,YGEO,ZGEO
+
+      real(rp) :: r, ionalt, tempt, tempp
+      real(rp) :: geolat,geolon
+
+      integer :: ist
+
+      ! Calculate radius of ionosphere in km
+      r =  (RionE*1.0e+6)/REarth
+      ! Calculate altitude of ionosphere in km
+      ionalt = (RIonE*1.e+3 - REarth*1.e-3)
+
+      tempt = asin(ZAPX/r)*rad2deg
+      tempp = atan2(YAPX,XAPX) *rad2deg
+
+      call apex_q2g(tempt,tempp,ionalt,geolat,geolon,ist)
+      if (ist /= 0) stop 'apex_q2g error'
+
+      geolon = geolon*deg2rad
+      geolat = geolat*deg2rad
+      XGEO = r*cos(geolat)*cos(geolon)
+      YGEO = r*cos(geolat)*sin(geolon)
+      ZGEO = r*sin(geolat)
+
+    end subroutine APEX2GEO
+
+    ! Given a coordinate string original and destination
+    ! This will return the appropriate mapping variable to use in the transform routines
+    subroutine get_coord_mapping(sgCoord, sgDest, imap)
+        character(len=*), intent(in) :: sgCoord, sgDest
+
+        integer, intent(out) :: imap
+
+        ! Check if coordinate systems match
+        if (trim(sgCoord) == trim(sgDest)) then
+            imap = 0  ! No mapping needed (placeholder value)
+        else
+            select case (trim(sgCoord))
+            case ('GEO')
+                select case (trim(sgDest))
+                case ('SM')
+                    imap = iSMtoGEO
+                case ('APEX')
+                    imap = iAPEXtoGEO
+                case default
+                    imap = 999
+                    write(*,*) "Unsupported coordinate system Dest: ", trim(sgDest)
+                end select
+            case ('SM')
+                select case (trim(sgDest))
+                case ('GEO')
+                    imap = iGEOtoSM
+                case ('APEX')
+                    imap = iAPEXtoSM
+                case default
+                    imap = 999
+                    write(*,*) "Unsupported coordinate system Dest: ", trim(sgDest)
+                end select
+            case ('APEX')
+                select case (trim(sgDest))
+                case ('GEO')
+                    imap = iGEOtoAPEX
+                case ('SM')
+                    imap = iSMtoAPEX
+                case default
+                    imap = 999
+                    write(*,*) "Unsupported coordinate system Dest: ", trim(sgDest)
+                end select
+            case default
+                imap = 999
+                write(*,*) "Unsupported coordinate system Source: ", trim(sgCoord)
+            end select
+        end if
+
+      end subroutine get_coord_mapping
 
 end module kai2geo

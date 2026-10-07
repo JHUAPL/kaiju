@@ -68,7 +68,7 @@ module gridloc
     !KLMNO
     !                                                            1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  G  H  I  J  K  L  M  N  O
     integer, dimension(NSnake), parameter, private :: dsI = [ 0,+1,+1, 0,-1,-1,-1, 0,+1,+2,+2,+2,+2,+1, 0,-1,-2,-2,-2,-2,-2,-1, 0,+1,+2]
-    integer, dimension(NSnake), parameter, private :: dsJ = [ 0, 0,+1,+1,+1,-1,-1,-1,-1,-1, 0,+1,+2,+2,+2,+2,+2,+1, 0,-1,-2,-2,-2,-2,-2]
+    integer, dimension(NSnake), parameter, private :: dsJ = [ 0, 0,+1,+1,+1, 0,-1,-1,-1,-1, 0,+1,+2,+2,+2,+2,+2,+1, 0,-1,-2,-2,-2,-2,-2]
     
     contains
 
@@ -107,7 +107,7 @@ module gridloc
                 gapDefStr = "LFM"
 
                 ! Set Gap radius from sunward line
-                buffR = ebGr%xyz(ebGr%is+2,ebGr%js,ebGr%ks,XDIR)
+                buffR = ebGr%xyz(ebGr%is+1,ebGr%js,ebGr%ks,XDIR)
 
                 ! Setting Rin to be the ionosphere
                 DomR(1) = (RionE*1.0e+6)/REarth !Ionospheric radius in units of Re, ~1.01880

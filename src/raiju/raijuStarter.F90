@@ -30,11 +30,12 @@ module raijustarter
 ! Main Initialization Routines
 !------
 
-    subroutine raijuInit(app, inpXML, shGridO)
+    subroutine raijuInit(app, inpXML, shGridO, doVerbXMLO)
         class(raijuApp_T), intent(inout) :: app
         type(XML_Input_T), intent(in) :: inpXML
         type(ShellGrid_T), intent(in), optional :: shGridO 
             !! If provided, and xml arg is set, we make a child grid for ourselves off of this one
+        logical, intent(in), optional :: doVerbXMLO
 
         type(XML_Input_T) :: iXML, iXML_volt
         character(len=strLen) :: tmpStr
@@ -42,7 +43,11 @@ module raijustarter
         ! Make sure root is Kaiju/raiju
         call inpXML%GetFileStr(tmpStr)
         ! Create new XML reader w/ RAIJU as root
-        iXML = New_XML_Input(trim(tmpStr),'Kaiju/RAIJU',.true.)
+        if (present(doVerbXMLO)) then
+            iXML = New_XML_Input(trim(tmpStr),'Kaiju/RAIJU',doVerbXMLO)
+        else
+            iXML = New_XML_Input(trim(tmpStr),'Kaiju/RAIJU',.true.)
+        endif
         
         ! Init model, grid, state
         call raijuInitModel(app%Model, iXML)
@@ -53,7 +58,7 @@ module raijustarter
             call raijuInitGrid(app%Model, app%Grid, app%opt, iXML)
         endif
 
-        call raijuInitState(app%Model,app%Grid,app%State,iXML)
+        call raijuInitState(app,app%Model,app%Grid,app%State,iXML)
 
         ! Do losses after everything else has been set, just in case they need something from it
         call initRaiLosses(app%Model, app%Grid, app%State, iXML)
@@ -175,8 +180,6 @@ module raijustarter
         Model%activeDomRad   = abs(Model%activeDomRad)
 
         !---Solver ---!
-        call iXML%Set_Val(Model%doSmoothGrads,'sim/doSmoothGrads',def_doSmoothGrads)
-        call iXML%Set_Val(Model%doUseVelLRs,'sim/useVelLRs',def_doUseVelLRs)
         call iXML%Set_Val(Model%maxItersPerSec,'sim/maxIter',def_maxItersPerSec)
         call iXML%Set_Val(Model%maxOrder,'sim/maxOrder',7)
         if (Model%maxOrder > maxOrderSupported) then
@@ -204,15 +207,15 @@ module raijustarter
         call iXML%Set_Val(Model%doActiveShell, "activeShell/doAS",.false.)
         call iXML%Set_Val(Model%worthyFrac, "activeShell/worthyFrac",fracWorthyDef)
 
-        ! Corotation
+        ! Potentials
         if (Model%isSA) then
             call iXML%Set_Val(Model%doOwnCorot, "prob/doCorot",.true.)
         else
             call iXML%Set_Val(Model%doOwnCorot, "prob/doCorot",.false.)
         endif
-        if (Model%doOwnCorot) then
-            call iXML%Set_Val(Model%doGeoCorot, "prob/doGeoCorot",.false.)
-        endif
+        call iXML%Set_Val(Model%doGeoCorot, "prob/doGeoCorot",.false.)
+        call iXML%Set_Val(Model%doSmoothPotentials, "prob/doSmoothPotentials",.false.)
+
 
         ! Lambda channel settings
         call iXML%Set_Val(Model%doDynamicLambdaRanges, "lambdas/dynamicRanges",.false.)
@@ -241,12 +244,14 @@ module raijustarter
         !call iXML%Set_Val(Model%doFLC   , "losses/doFLC",.false.)
         call iXML%Set_Val(Model%doEWM   , "losses/doEWM",.true.)
         call iXML%Set_Val(Model%ewmType , "losses/ewmType","SS")
+        call iXML%Set_Val(Model%doExtraElePrecipFromProtons, "losses/doExtraElePrecip",.false.)
 
         !--- Output ---!
-        call iXML%Set_Val(Model%isLoud           , "output/loudConsole",.false.)
-        call iXML%Set_Val(Model%writeGhosts      , "output/writeGhosts",.false.)
-        call iXML%Set_Val(Model%doOutput_3DLoss  , "output/doLossExtras" ,.false.)  ! Several (Ni,Nj,Nk) arrays
-        call iXML%Set_Val(Model%doOutput_debug   , "output/doDebug"    ,.false.)
+        call iXML%Set_Val(Model%isLoud             , "output/loudConsole" ,.false.)
+        call iXML%Set_Val(Model%writeGhosts        , "output/writeGhosts" ,.false.)
+        call iXML%Set_Val(Model%doOutput_3DLoss    , "output/do3DLosses"  ,.false.)  ! Several (Ni,Nj,Nk) arrays
+        call iXML%Set_Val(Model%doOutput_velocities, "output/doVelocities",.false.)  ! Several (Ni,Nj,Nk,2) arrays
+        call iXML%Set_Val(Model%doOutput_debug     , "output/doDebug"     ,.false.)
 
         ! Model Hax?
         call iXML%Set_Val(Model%doHack_rcmEtaPush, "hax/rcmEtaPush",.false.)
@@ -315,7 +320,7 @@ module raijustarter
         logical :: doHack_constB
 
         ! Set grid params
-        call iXML%Set_Val(Grid%nB, "grid/Nbnd", 4      )  ! Number of cells between open boundary and active domain
+        call iXML%Set_Val(Grid%nBufferCells, "grid/Nbuffer", 4      )  ! Number of cells between open boundary and active domain
 
         ! If we are restarting, use shellGrid from file
         if (Model%isRestart) then
@@ -329,7 +334,7 @@ module raijustarter
         select case(tmpStr)
             case("RESTART")
                 Grid%gType = RAI_G_SHGRID ! Idk, not important right now
-                call GenShellGridFromFile(Grid%shGrid, RAI_SG_NAME, Model%ResF)
+                call GenShellGridFromFile(Grid%shGrid, RAI_SG_NAME, Model%ResF, "Grid/ShellGrid")
             case("UNISPH")
                 Grid%gType = RAI_G_UNISPH
                 ! Generate our own grid from scratch
@@ -379,13 +384,16 @@ module raijustarter
     end subroutine raijuInitGrid
 
 
-    subroutine raijuInitState(Model, Grid, State, iXML)
+    subroutine raijuInitState(raiApp, Model, Grid, State, iXML)
+        class(raijuApp_T), target, intent(in) :: raiApp
         type(raijuModel_T), intent(inout) :: Model
         type(raijuGrid_T) , intent(in)    :: Grid
         type(raijuState_T), intent(inout) :: State
         type(XML_Input_T), intent(in)   :: iXML
 
         integer :: s
+
+        State%myRaiApp => raiApp
 
         ! Allocate arrays
 
@@ -412,31 +420,14 @@ module raijustarter
             ! I shells shat should be evolved for each k
             allocate( State%activeShells (sh%isg:sh%ieg, Grid%Nk) )
             State%activeShells = .false.
-            ! Effective potential (used for output only)
-            allocate( State%pEff(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk) )
-            call fillArray(State%pEff, 0.0_rp)
-            ! Gradient of ionspheric potential
-            allocate( State%gradPotE     (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, 2) )
-            call fillArray(State%gradPotE, 0.0_rp)
-            ! Gradient of corotation potential
-            allocate( State%gradPotCorot (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, 2) )
-            call fillArray(State%gradPotCorot, 0.0_rp)
-            ! Gradient of (flux tube volume ^ -2/3)
-            allocate( State%gradVM      (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, 2) )
-            call fillArray(State%gradVM, 0.0_rp)
+            ! Effective potential pieces
+            allocate( State%pot_eb (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1) )
+            call fillArray(State%pot_eb, 0.0_rp)
+            allocate( State%pot_ftv(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1) )
+            call fillArray(State%pot_ftv, 0.0_rp)
             ! Interface and cell velocities
-            allocate( State%gradPotE_cc    (sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
-            call fillArray(State%gradPotE_cc, 0.0_rp)
-            allocate( State%gradPotCorot_cc(sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
-            call fillArray(State%gradPotCorot_cc, 0.0_rp)
-            allocate( State%gradVM_cc      (sh%isg:sh%ieg, sh%jsg:sh%jeg, 2) )
-            call fillArray(State%gradVM_cc, 0.0_rp)
             allocate( State%iVel (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk, 2) )
             call fillArray(State%iVel, 0.0_rp)
-            allocate( State%iVelL(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk, 2) )
-            call fillArray(State%iVelL, 0.0_rp)
-            allocate( State%iVelR(sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1, Grid%Nk, 2) )
-            call fillArray(State%iVelR, 0.0_rp)
             allocate( State%cVel (sh%isg:sh%ieg  , sh%jsg:sh%jeg  , Grid%Nk, 2) )
             call fillArray(State%cVel, 0.0_rp)
             
@@ -453,7 +444,7 @@ module raijustarter
             call fillArray(State%domWeights, 0.0_rp)
             allocate( State%tiote(sh%isg:sh%ieg  , sh%jsg:sh%jeg) )
             call fillArray(State%tiote, 0.0_rp)
-            call initShellVar(Grid%shGrid, SHGR_CC, State%Tb)
+            call initShellVar(Grid%shGrid, SHGR_CORNER, State%Tb)
             State%Tb%data = 0.0
             State%Tb%mask = .false.
             ! Bmin surface
@@ -463,6 +454,10 @@ module raijustarter
             call fillArray(State%xyzMin, 0.0_rp)
             allocate( State%xyzMincc(sh%isg:sh%ieg  , sh%jsg:sh%jeg  , 3 ) )
             call fillArray(State%xyzMincc, 0.0_rp)
+            allocate( State%radMax  (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1    ) )
+            call fillArray(State%radMax, 0.0_rp)
+            allocate( State%radMax_cc(sh%isg:sh%ieg  , sh%jsg:sh%jeg      ) )
+            call fillArray(State%radMax_cc, 0.0_rp)
             allocate( State%thcon   (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1    ) )
             call fillArray(State%thcon, 0.0_rp)
             allocate( State%phcon   (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1    ) )
@@ -478,11 +473,15 @@ module raijustarter
             call fillArray(State%bvol, 0.0_rp)
             allocate( State%bvol_cc  (sh%isg:sh%ieg  , sh%jsg:sh%jeg  ) )
             call fillArray(State%bvol_cc, 0.0_rp)
+            allocate( State%rCurv    (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1) )
+            call fillArray(State%rCurv, 0.0_rp)
             allocate( State%vaFrac   (sh%isg:sh%ieg+1, sh%jsg:sh%jeg+1) )
             call fillArray(State%vaFrac, 0.0_rp)
             ! 1D cell-centered quantities
             allocate( State%bndLoc(sh%jsg:sh%jeg) )
             call fillArray(State%bndLoc, 0)
+            allocate( State%activeLoc(sh%jsg:sh%jeg) )
+            call fillArray(State%activeLoc, 0)
             ! 2D cell-centered quantities
             allocate( State%active      (sh%isg:sh%ieg, sh%jsg:sh%jeg) )
             call fillArray(State%active, 0)
@@ -497,8 +496,6 @@ module raijustarter
             call fillArray(State%precipType_ele, 0.0_rp)
             allocate( State%lossRatesPrecip(sh%isg:sh%ieg, sh%jsg:sh%jeg, Grid%Nk) )
             call fillArray(State%lossRatesPrecip, 0.0_rp)
-            !allocate( State%precipNFlux    (sh%isg:sh%ieg, sh%jsg:sh%jeg, Grid%Nk) )
-            !allocate( State%precipEFlux    (sh%isg:sh%ieg, sh%jsg:sh%jeg, Grid%Nk) )
             allocate( State%dEta_dt        (sh%isg:sh%ieg, sh%jsg:sh%jeg, Grid%Nk) )
             call fillArray(State%dEta_dt, 0.0_rp)
             allocate( State%CCHeatFlux     (sh%isg:sh%ieg, sh%jsg:sh%jeg, Grid%Nk) )
@@ -523,15 +520,25 @@ module raijustarter
                 State%Den_avg  (s)%mask = .false.
                 State%Press_avg(s)%mask = .false.
             enddo
-            allocate(State%precipNFlux(Grid%Nk))
-            allocate(State%precipEFlux(Grid%Nk))
+            allocate(State%precipNFlux_Nk(Grid%Nk))
+            allocate(State%precipEFlux_Nk(Grid%Nk))
             do s=1,Grid%Nk
-                call initShellVar(Grid%shGrid, SHGR_CC, State%precipNFlux(s))
-                call initShellVar(Grid%shGrid, SHGR_CC, State%precipEFlux(s))
-                State%precipNFlux(s)%data = 0.0
-                State%precipEFlux(s)%data = 0.0
-                State%precipNFlux(s)%mask = .false.
-                State%precipEFlux(s)%mask = .false.
+                call initShellVar(Grid%shGrid, SHGR_CC, State%precipNFlux_Nk(s))
+                call initShellVar(Grid%shGrid, SHGR_CC, State%precipEFlux_Nk(s))
+                State%precipNFlux_Nk(s)%data = 0.0
+                State%precipEFlux_Nk(s)%data = 0.0
+                State%precipNFlux_Nk(s)%mask = .false.
+                State%precipEFlux_Nk(s)%mask = .false.
+            enddo
+            allocate(State%precipNFlux_NSpc(Grid%nSpc))
+            allocate(State%precipEFlux_NSpc(Grid%nSpc))
+            do s=1,Grid%Nspc
+                call initShellVar(Grid%shGrid, SHGR_CC, State%precipNFlux_Nspc(s))
+                call initShellVar(Grid%shGrid, SHGR_CC, State%precipEFlux_Nspc(s))
+                State%precipNFlux_NSpc(s)%data = 0.0
+                State%precipEFlux_NSpc(s)%data = 0.0
+                State%precipNFlux_NSpc(s)%mask = .false.
+                State%precipEFlux_NSpc(s)%mask = .false.
             enddo
 
             ! Only bother allocating persistent versions of debug stuff if we need them

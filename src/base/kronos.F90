@@ -28,7 +28,6 @@ module kronos
         procedure :: initTS
         procedure :: getValue
         procedure :: getMax
-        procedure :: evalAt
         
     end type TimeSeries_T
 
@@ -151,13 +150,13 @@ module kronos
     end subroutine getValue
 
     !Function to return value (just wraps getValue)
-    function evalAt(varTS,t) result(tVal)
-        class(TimeSeries_T), intent(in) :: varTS
+    function evalTimeSeriesAt(varTS,t) result(tVal)
+        type(TimeSeries_T), intent(in) :: varTS
         real(rp), intent(in) :: t
         real(rp) :: tVal
 
         call varTS%getValue(t,tVal)
-    end function evalAt
+    end function evalTimeSeriesAt
 
     !Return maximum value of time series
     function getMax(varTS) result(tsMax)
@@ -167,4 +166,5 @@ module kronos
         tsMax = maxval(varTS%Q)
 
     end function getMax
+
 end module kronos

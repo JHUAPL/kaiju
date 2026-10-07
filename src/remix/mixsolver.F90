@@ -199,11 +199,12 @@ module mixsolver
     ! end low lat boundary
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    subroutine run_solver(P,G,St,S)
+    subroutine run_solver(P,G,St,S,isGoodSolveO)
       type(mixParams_T), intent(in) :: P
       type(mixGrid_T),   intent(in) :: G
       type(mixState_T),  intent(in) :: St
       type(Solver_T),    intent(inout) :: S
+      logical, optional, intent(inout) :: isGoodSolveO
 
       ! low latitude boundary condition
       S%LLBC = P%llbc_value
@@ -228,7 +229,7 @@ module mixsolver
 
 #ifdef USEMKL
       !Call MKL-Pardiso solver
-      call MKLSolve(P,G,St,S)
+      call MKLSolve(P,G,St,S,isGoodSolveO=isGoodSolveO)
 #else
       ! could drop tolerances by a factor of 100 each (from default 1.d-6)
       ! -- still same result
@@ -243,16 +244,17 @@ module mixsolver
            P%maxitr,&
            P%mr,&
            P%tol_abs,&
-           P%tol_rel)
+           P%tol_rel,isGoodSolveO=isGoodSolveO)
 #endif
     end subroutine run_solver
 
 #ifdef USEMKL
-    subroutine MKLSolve(P,G,St,S)
+    subroutine MKLSolve(P,G,St,S,isGoodSolveO)
       type(mixParams_T), intent(in) :: P
       type(mixGrid_T),   intent(in) :: G
       type(mixState_T),  intent(in) :: St
       type(Solver_T),    intent(inout) :: S
+      logical, optional, intent(inout) :: isGoodSolveO
 
       integer :: Npt
       TYPE(MKL_PARDISO_HANDLE) :: pt(64)
@@ -274,12 +276,15 @@ module mixsolver
       Npt = G%Np*G%Nt
       allocate(perm(Npt))
 
-      iparm(1)  = 0  ! all default parameters
-      iparm(27) = 0  ! Matrix checker
-      !Options added by K
-      iparm(2)  = 3
-      iparm(24) = 1
-      !iparm(28) =0; iparm (6) =0;
+      ! pardisoinit supplies the baseline parameter table.  Set iparm(1)=1
+      ! so that PARDISO actually honors the overrides below; with zero here,
+      ! it silently replaces the table with its internal defaults.
+      iparm(1)  = 1   ! Use the initialized and explicitly modified parameters
+      iparm(2)  = 2   ! Serial nested-dissection ordering
+      iparm(11) = 1   ! Scale the matrix before factorization
+      iparm(13) = 0   ! Disable weighted matching
+      iparm(24) = 10  ! Improved two-level factorization for nonsymmetric matrices
+      iparm(27) = 0   ! Disable the matrix checker
       
       maxfct = 1
       mnum   = 1
@@ -297,7 +302,12 @@ module mixsolver
 
       if (error < 0) then
         write(*,*) 'MKL-Pardiso error, you should deal with that'
-        stop
+        if (present(isGoodSolveO)) then
+          isGoodSolveO = .false.
+          return
+        else
+          stop
+        endif
       endif
       call Toc("MKL-Solve")
 
@@ -309,6 +319,8 @@ module mixsolver
                    nrhs,iparm,msglvl, &
                    S%RHS,S%solution,error)
       call Toc("MKL-Fin")
+
+      if (present(isGoodSolveO)) isGoodSolveO = .true.
 
     end subroutine MKLSolve
 

@@ -12,22 +12,6 @@ endif()
 #Set hostname & configuration defaults before going to compilers.cmake
 cmake_host_system_information(RESULT HOST QUERY HOSTNAME)
 
-#Get the current working branch
-execute_process(COMMAND git rev-parse --abbrev-ref HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-	OUTPUT_VARIABLE GIT_BRANCH
-	OUTPUT_STRIP_TRAILING_WHITESPACE)
-execute_process(COMMAND git log -1 --format=%h WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-	OUTPUT_VARIABLE GIT_COMMIT_HASH
-	OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-# Generate git_info.F90 with GITBRANCH value
-set(GIT_INFO_FILE "${CMAKE_SOURCE_DIR}/src/base/git_info.F90")
-file(WRITE ${GIT_INFO_FILE} "module git_info\n")
-file(APPEND ${GIT_INFO_FILE} "    implicit none\n")
-file(APPEND ${GIT_INFO_FILE} "    character(len=*), parameter :: gitB = '${GIT_BRANCH}'\n")
-file(APPEND ${GIT_INFO_FILE} "    character(len=*), parameter :: gitH = '${GIT_COMMIT_HASH}'\n")
-file(APPEND ${GIT_INFO_FILE} "end module git_info\n")
-
 #Set some configuration defaults
 option(ENABLE_OMP "Enable OMP parallelization" ON )
 option(ENABLE_MPI "Enable MPI parallelization" OFF)
@@ -71,6 +55,7 @@ set(GAMHELIC ${GAMHELICDEF} CACHE FILEPATH "Gamera Helio IC file")
 include(cmake/user.cmake OPTIONAL)
 
 if(ENABLE_MPI)
+    add_compile_definitions(KAIJU_MPI)
     if(MPI_BASE_ADDR_SIZE)
         add_compile_definitions(MPI_BASE_ADDR_SIZE=${MPI_BASE_ADDR_SIZE})
         message("Over-riding default MPI Address Size with new value of ${MPI_BASE_ADDR_SIZE} for basic MPI functions")
@@ -194,16 +179,13 @@ message("\tIC file is ${RAIJUIC}")
 add_subdirectory(src/raiju)
 add_custom_target(raiju ALL)
 
-# disabling raijuSA.x for now until it is completed
 message("\tAdding executable raijuSA.x")
-#add_executable(raijuSA.x src/drivers/raijuSAx.F90 ${RAIJUIC})
 add_executable(raijuSA.x src/drivers/raijuSAx.F90)
 target_link_libraries(raijuSA.x baselib raijulib)
 add_dependencies(raiju raijuSA.x)
 
 message("\tAdding executable raijuOWD.x")
-#add_executable(raijuOWD.x src/drivers/raijuOWDx.F90 ${RAIJUIC})
-add_executable(raijuOWD.x src/drivers/raijuOWDx.F90)
+add_executable(raijuOWD.x src/drivers/deprecated/raijuOWDx.F90)
 target_link_libraries(raijuOWD.x baselib voltlib gamlib remixlib chimplib raijulib)
 add_dependencies(raiju raijuOWD.x)
 

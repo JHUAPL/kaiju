@@ -63,7 +63,7 @@ module raijuLoss_CX
         real(rp) :: tau
 
         real(rp) :: energy, rLoc, Ngeo, cxSig, M, V
-        real(rp) :: tauEq, tauBA
+        real(rp) :: tauEq, tauBA, vm
 
         associate(spc => Grid%spc(Grid%k2spc(k)))
 
@@ -72,12 +72,23 @@ module raijuLoss_CX
             return
         endif
 
+        if (State%bvol_cc(i,j) < TINY) then
+            write(*,*) "ERROR in CXLossCalcTau: bVol for requested point is below TINY!"
+            write(*,*)State%bvol_cc(i,j)
+            write(*,*)"i,j,k=",i,j,k
+            call State%myRaiApp%WriteBlackBox()
+            write(*,*)"Goodbye"
+            stop
+        else
+            vm = State%bvol_cc(i,j)**(-2./3.)
+        endif
+
         ! Neutral
-        rLoc = norm2(State%xyzMincc(i,j,:))  ! [Rp]
+        rLoc = State%radMax_cc(i,j) ! [Rp]
         Ngeo = OstgaardGeocorona(rLoc)  ! [#/cc]
 
         ! Ion
-        energy = abs(Grid%alamc(k))*State%bvol_cc(i,j)**(-2./3.) * 1D-3  ! keV
+        energy = abs(Grid%alamc(k))*vm * 1D-3  ! keV
         if (spc%spcType .eq. RAIJUHPLUS) then
             call ClampValue(energy,this%kevBnd_H(1),this%kevBnd_H(2))
         elseif (spc%spcType .eq. RAIJUOPLUS) then

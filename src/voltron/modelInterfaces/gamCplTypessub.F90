@@ -49,16 +49,10 @@ submodule (volttypes) gamCplTypessub
     module subroutine gamCplWriteConsoleOutput(App)
         class(gamCoupler_T), intent(inout) :: App
 
-        real(rp) :: cpcp(2) = 0.0
-
         ! write parent's console info
         call gamWriteConsoleOutput(App)
 
-        ! then my own
-        if(App%Model%isLoud) then
-            call getCPCP(App%mixOutput,cpcp)
-             write (*, '(a,2f8.3,a)')             '      CPCP = ' , cpcp(NORTH), cpcp(SOUTH), ' [kV, N/S]'
-        endif
+        ! nothing of my own to write
 
     end subroutine
 
@@ -92,7 +86,7 @@ submodule (volttypes) gamCplTypessub
         ! over-ride some Gamera parameters with Voltron values
         tsMJD%wID = voltApp%tilt%wID
         call tsMJD%initTS("MJD",doLoudO=.false.)
-        App%Model%MJD0 = tsMJD%evalAt(0.0_rp) !Evaluate at T=0
+        App%Model%MJD0 = evalTimeSeriesAt(tsMJD,0.0_rp) !Evaluate at T=0
 
         call ioSync(voltApp%IO, App%Model%IO, 1.0_rp/App%Model%Units%gT0)
         App%Model%IO%nRes = voltApp%IO%nRes

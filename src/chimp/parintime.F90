@@ -44,13 +44,9 @@ module parintime
             enddo
 
             !Pick the range that this block is responsible for
-            dn = floor( 1.0*NumO/NumB ) !Size per chunk
-
-            !Bounds for this dude
-            i0 = dn*(Model%Nblk-1) + 1
-            i1 = i0 + dn - 1
-
-            if (Model%Nblk == NumB) i1 = NumO !Make sure last dude picks up the slack
+            !Proportional split, block sizes differ by at most 1
+            i0 = ((Model%Nblk-1)*NumO)/NumB + 1
+            i1 = ( Model%Nblk   *NumO)/NumB
             Model%T0 = dtOuts(i0)
             Model%tFin = dtOuts(i1) + 0.01*Model%dtOut !Add a smidge to the end to make sure it gets output
 
