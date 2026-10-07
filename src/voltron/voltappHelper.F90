@@ -21,10 +21,20 @@ module voltappHelper
             call init_TubeShell(sh, State%tubeShell)
             call initShellVar(sh, SHGR_CORNER, State%potential_total)
             call initShellVar(sh, SHGR_CORNER, State%potential_corot)
+            call initShellVar(sh, SHGR_CORNER, State%potential_base)
             call initShellVar(sh, SHGR_CORNER, State%pot_drop)
 
             call initShellVar(sh, SHGR_CC, State%bIonoMag)
             call initShellVar(sh, SHGR_CC, State%bIonoRad)
+
+            ! DK precipitation outputs, mirrored from dkApp each step (shellDK)
+            call initShellVar(sh, SHGR_CC, State%Num_Flux)
+            call initShellVar(sh, SHGR_CC, State%Avg_Eng)
+            call initShellVar(sh, SHGR_CC, State%Aur_Type)
+
+            ! Conductance (potential solver output)
+            call initShellVar(sh, SHGR_CORNER, State%SigmaP)
+            call initShellVar(sh, SHGR_CORNER, State%SigmaH)
 
             ! Default values
             call initMagVars(sh, vApp%planet, State)
@@ -61,25 +71,6 @@ module voltappHelper
         
     end subroutine initVoltState
 
-    subroutine updateVoltPotential(vApp)
-        class(voltApp_T), intent(inout) :: vApp
-
-        type(ShellGridVar_T) :: iono_var
-            !! We hand this to mixVarToVoltron to give us back the remix potential on the voltron ShellGrid
-
-        ! Get ionospheric potential from remix, add to coration to get total potential in SM coordinates
-        call initShellVar(vApp%shGrid, SHGR_CORNER, iono_var)
-        call calcCorotPotential(vApp%planet, vApp%shGrid, vApp%State%potential_corot,doGeoCorotO=vApp%doGeoCorot)
-        call mixVarToVoltron(vApp%remixApp, POT, vApp%shGrid, iono_var)
-        ! Combine iono and corotation potential to form total potential in SM frame
-        vApp%State%potential_total%data = iono_var%data + vApp%State%potential_corot%data
-        vApp%State%potential_total%mask = .true.
-
-        ! Diagnostics
-        !call calcPotDrop(vApp)
-
-    end subroutine updateVoltPotential
-
     subroutine calcCorotPotential(planet, sh, pCorot,doGeoCorotO)
         ! Calculate corotation potential to store on voltron ShellGrid
         type(planet_T), intent(in) :: planet
@@ -113,12 +104,22 @@ module voltappHelper
             endif
         endif
 
-        ! IfdoGeoCorotO was not provided, or it was false, we default to corotation on aligned dipole and rotational axis
+        ! Default: corotation for an aligned dipole + rotation axis
         do j=sh%jsg,sh%jeg+1
             pCorot%data(:,j) = -planet%psiCorot*(planet%rp_m/planet%ri_m)*sin(sh%th)**2  ! [kV]
         enddo
 
     end subroutine calcCorotPotential
+
+    !Voltron-owned total potential: the iono model's potential_base + corotation
+    subroutine updateVoltPotential(vApp)
+        class(voltApp_T), intent(inout) :: vApp
+
+        call calcCorotPotential(vApp%planet, vApp%shGrid, vApp%State%potential_corot, &
+                                doGeoCorotO=vApp%doGeoCorot)
+        vApp%State%potential_total%data = vApp%State%potential_base%data + vApp%State%potential_corot%data
+        vApp%State%potential_total%mask = .true.
+    end subroutine updateVoltPotential
 
 
     subroutine calcPotDrop(vApp)

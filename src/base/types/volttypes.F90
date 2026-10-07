@@ -5,6 +5,7 @@ module volttypes
     use cmidefs
     use kronos
     use ioclock
+    use dktypes
     use mixtypes
     use ebtypes
     use gcmtypes
@@ -164,7 +165,8 @@ module volttypes
         ! Routines to help get stuff out of IMAG
         procedure(getMomentsIMAG_T), deferred :: getMoments
         procedure(getMomentsPrecipIMAG_T), deferred :: getMomentsPrecip
-        
+        procedure(toShell_T), deferred :: toShell   ! IMAG precip -> voltron shell (imag2shell)
+
         !procedure :: InitModel           => baseInitImag
         !procedure :: InitIO              => baseInitIOImag
         !procedure :: WriteRestart        => baseWriteRestartImag
@@ -270,7 +272,8 @@ module volttypes
         procedure :: toIMAG => volt2RAIJU
         procedure :: getMoments => getMomentsRAIJU
         procedure :: getMomentsPrecip => getMomentsPrecipRAIJU
-        
+        procedure :: toShell => imagToShellRAIJU
+
         procedure :: InitModel           => raiCplInitModel
         procedure :: InitIO              => raiCplInitIO
         procedure :: WriteRestart        => raiCplWriteRestart
@@ -285,6 +288,90 @@ module volttypes
 
 
     integer, parameter :: mix2mhd_varn = 1  ! for now just the potential is sent back
+    type, abstract, extends(BaseApp_T) :: ionoCoupler_T
+
+        class(ionoOptions_T), allocatable :: opt
+
+        contains
+
+        ! Transfer Gamera/IMAG data (via vApp) into the iono model
+        procedure(toIono_T),   deferred :: toIono
+        ! Map solved iono potential back onto vApp%State%potential_total
+        procedure(fromIono_T), deferred :: fromIono
+        ! Pack voltron ShellGrid data onto the coupler's own staging grid
+        procedure(toIono_T),   deferred :: packInputs
+        ! Per-model init behind the contract (restart/IO/maps); driver calls polymorphically
+        procedure(initCouplers_T), deferred :: InitCouplers
+
+    end type ionoCoupler_T
+    type, extends(ionoCoupler_T) :: remixCoupler_T
+
+        type(mixApp_T) :: mixApp
+            !! Embedded REMIX model
+
+        real(rp) :: mhd_Rin = 0.0_rp
+            !! [Rion units] mean MHD inner-boundary radius for the equatorward
+            !! forward-feed mask; set once in initializeFromGamera
+
+        contains
+
+        procedure :: toIono       => remixCpl_toIono
+        procedure :: fromIono     => remixCpl_fromIono
+        procedure :: packInputs   => remix_packInputs
+        procedure :: InitCouplers => remixCpl_InitCouplers
+
+        procedure :: InitModel           => remixCplInitModel
+        procedure :: InitIO              => remixCplInitIO
+        procedure :: WriteRestart        => remixCplWriteRestart
+        procedure :: ReadRestart         => remixCplReadRestart
+        procedure :: WriteConsoleOutput  => remixCplWriteConsoleOutput
+        procedure :: WriteFileOutput     => remixCplWriteFileOutput
+        procedure :: WriteSlimFileOutput => remixCplWriteSlimFileOutput
+        procedure :: AdvanceModel        => remixCplAdvanceModel
+        procedure :: Cleanup             => remixCplCleanup
+
+    end type remixCoupler_T
+
+    
+    ! =========================================================
+    ! gcmCoupler_T — GCM coupler (TIEGCM / WACCM-X)
+    ! Extends ionoCoupler_T so it participates in the standard
+    ! Voltron iono cycle and can live in vApp%ionoApp.
+    ! =========================================================
+    type, extends(ionoCoupler_T) :: gcmCoupler_T
+
+        ! Grid data for GEO (geographic) and APEX coordinate systems
+        type(gcm_grid_T) :: GEO, APEX
+
+        ! Control/state flags
+        logical :: isRestart = .false.
+        logical :: isWACCMX = .false.
+        integer :: gcmId = -1
+        integer :: nWACCMX = 0
+
+        ! Physical parameters
+        real(rp) :: ionalt = 0.0_rp    !! [km] ionosphere altitude
+
+        contains
+
+        procedure :: toIono       => gcmCpl_toIono
+        procedure :: fromIono     => gcmCpl_fromIono
+        procedure :: InitCouplers => gcmCpl_InitCouplers
+        procedure :: Coupling     => gcmCpl_Coupling
+
+        procedure :: packInputs   => gcmCpl_packInputs
+
+        procedure :: InitModel           => gcmCplInitModel
+        procedure :: InitIO              => gcmCplInitIO
+        procedure :: WriteRestart        => gcmCplWriteRestart
+        procedure :: ReadRestart         => gcmCplReadRestart
+        procedure :: WriteConsoleOutput  => gcmCplWriteConsoleOutput
+        procedure :: WriteFileOutput     => gcmCplWriteFileOutput
+        procedure :: WriteSlimFileOutput => gcmCplWriteSlimFileOutput
+        procedure :: AdvanceModel        => gcmCplAdvanceModel
+        procedure :: Cleanup             => gcmCplCleanup
+
+    end type gcmCoupler_T
 
     type, extends(gamApp_T) :: gamCoupler_T
 
@@ -354,6 +441,8 @@ module volttypes
             !! (Corners) [kV] Ionospheric ExB and corotation potential
         type(ShellGridVar_T) :: potential_corot
             !! (Corners) [kV] Corotation potential
+        type(ShellGridVar_T) :: potential_base
+            !! (Corners) [kV] Original potential without corotation
         type(ShellGridVar_T) :: pot_drop
             !! (Corners) [kV] potential drop along field line
 
@@ -362,7 +451,28 @@ module volttypes
         type(ShellGridVar_T) :: bIonoRad
             !! [nT] Radial component of the magnetic field at grid's ionosphere location
 
+        type(ShellGridVar_T) :: Num_Flux
+            !! (CC) [1/cm2/s] DK precipitation number flux (mirrored from dkApp each step)
+        type(ShellGridVar_T) :: Avg_Eng
+            !! (CC) [keV] DK precipitation mean energy (mirrored from dkApp each step)
+        type(ShellGridVar_T) :: Aur_Type
+            !! (CC) DK auroral type code (0=NoPre,1=RCM diffuse,2=mono->diffuse,3=mono)
+
+        type(ShellGridVar_T) :: SigmaP
+            !! (CORNER) [S] Pedersen conductance the ionosphere solve actually used
+        type(ShellGridVar_T) :: SigmaH
+            !! (CORNER) [S] Hall conductance the ionosphere solve actually used
+            !! DK conductance (outputted in DK) computed on CC, GCM on corners
+
     end type voltState_t
+    ! IMAG precipitation moments staged on the voltron shell (filled by imagApp%toShell,
+    ! consumed by shellDK)
+    type imag2shell_T
+        type(ShellGridVar_T) :: Im_Eflux, Im_Enflx
+        type(ShellGridVar_T) :: Im_Eden,  Im_Epre, Im_Npsp
+        type(ShellGridVar_T) :: Im_Gtype
+    end type imag2shell_T
+
     type :: voltApp_T
 
         !Planet information
@@ -386,7 +496,8 @@ module volttypes
         logical :: writeFiles = .true. !File output
 
         !Apps
-        type(mixApp_T) :: remixApp
+        class(ionoCoupler_T), allocatable :: ionoApp
+            !! Ionosphere coupler (e.g. remixCoupler_T, smiteCoupler_T)
         type(mhd2Mix_T) :: mhd2mix
 
         type(ebTrcApp_T)  :: ebTrcApp
@@ -394,10 +505,14 @@ module volttypes
         type(chmp2Mhd_T)  :: chmp2mhd
         type(imag2Mix_T)  :: imag2mix
 
-        type(gcm_T) :: gcm
+        class(gcmCoupler_T), allocatable :: gcm
 
         !class(innerMagBase_T), allocatable :: imagApp
         class(imagCoupler_T), allocatable :: imagApp
+
+        ! DragonKing-on-shell (model-agnostic, full-sphere)
+        type(dkApp_T)        :: dkApp
+        type(imag2shell_T)   :: imag2shell   !! IMAG precip staged on the voltron shell
 
         !Deep coupling information
         real(rp) :: DeepT ! Time of next deep coupling
@@ -435,6 +550,30 @@ module volttypes
 
     end type voltApp_T
 
+    abstract interface
+        subroutine toIono_T(App, vApp)
+            import ionoCoupler_T
+            import voltApp_T
+            class(ionoCoupler_T), intent(inout) :: App
+            class(voltApp_T),     intent(inout) :: vApp
+        end subroutine toIono_T
+
+        subroutine fromIono_T(App, vApp)
+            import ionoCoupler_T
+            import voltApp_T
+            class(ionoCoupler_T), intent(inout) :: App
+            class(voltApp_T),     intent(inout) :: vApp
+        end subroutine fromIono_T
+
+        subroutine initCouplers_T(App, vApp, xml)
+            import ionoCoupler_T
+            import voltApp_T
+            import XML_Input_T
+            class(ionoCoupler_T), intent(inout) :: App
+            class(voltApp_T),     intent(inout) :: vApp
+            type(XML_Input_T),    intent(inout) :: xml
+        end subroutine initCouplers_T
+    end interface
 
     abstract interface
         subroutine toIMAG_T(App, vApp)
@@ -462,6 +601,16 @@ module volttypes
             real(rp), intent(out) :: imP(nVars_imag2mix)
             logical, intent(out) :: isEdible
         end subroutine getMomentsPrecipIMAG_T
+
+        subroutine toShell_T(App, i2s, shGrid, latConj, lonConj)
+            import imagCoupler_T
+            import imag2shell_T
+            import ShellGrid_T, ShellGridVar_T
+            class(imagCoupler_T), intent(inout) :: App
+            type(imag2shell_T),   intent(inout) :: i2s
+            type(ShellGrid_T),    intent(in)    :: shGrid
+            type(ShellGridVar_T), intent(in)    :: latConj, lonConj
+        end subroutine toShell_T
     end interface
 
 
@@ -610,6 +759,13 @@ module volttypes
             logical, intent(out) :: isEdible
         end subroutine getMomentsPrecipRAIJU
 
+        module subroutine imagToShellRAIJU(App, i2s, shGrid, latConj, lonConj)
+            class(raijuCoupler_T), intent(inout) :: App
+            type(imag2shell_T),    intent(inout) :: i2s
+            type(ShellGrid_T),     intent(in)    :: shGrid
+            type(ShellGridVar_T),  intent(in)    :: latConj, lonConj
+        end subroutine imagToShellRAIJU
+
         module subroutine raiCplInitModel(App, xml)
             class(raijuCoupler_T), intent(inout) :: App
             type(XML_Input_T), intent(inout) :: Xml
@@ -653,7 +809,150 @@ module volttypes
         module subroutine raiCplCleanup(App)
             class(raijuCoupler_T), intent(inout) :: App
         end subroutine
-        
+
+    end interface
+
+    ! remixCoupler_T
+    interface
+        module subroutine remixCpl_toIono(App, vApp)
+            class(remixCoupler_T), intent(inout) :: App
+            class(voltApp_T),      intent(inout) :: vApp
+        end subroutine
+
+        module subroutine remixCpl_fromIono(App, vApp)
+            class(remixCoupler_T), intent(inout) :: App
+            class(voltApp_T),      intent(inout) :: vApp
+        end subroutine
+
+        module subroutine remix_packInputs(App, vApp)
+            class(remixCoupler_T), intent(inout) :: App
+            class(voltApp_T),      intent(inout) :: vApp
+        end subroutine
+
+        module subroutine remixCpl_InitCouplers(App, vApp, xml)
+            class(remixCoupler_T), intent(inout) :: App
+            class(voltApp_T),      intent(inout) :: vApp
+            type(XML_Input_T),     intent(inout) :: xml
+        end subroutine
+
+        module subroutine remixCplInitModel(App, xml)
+            class(remixCoupler_T), intent(inout) :: App
+            type(XML_Input_T),     intent(inout) :: xml
+        end subroutine
+
+        module subroutine remixCplInitIO(App, xml)
+            class(remixCoupler_T), intent(inout) :: App
+            type(XML_Input_T),     intent(inout) :: xml
+        end subroutine
+
+        module subroutine remixCplWriteRestart(App, nRes)
+            class(remixCoupler_T), intent(inout) :: App
+            integer,               intent(in)    :: nRes
+        end subroutine
+
+        module subroutine remixCplReadRestart(App, resId, nRes)
+            class(remixCoupler_T), intent(inout) :: App
+            character(len=*),      intent(in)    :: resId
+            integer,               intent(in)    :: nRes
+        end subroutine
+
+        module subroutine remixCplWriteConsoleOutput(App)
+            class(remixCoupler_T), intent(inout) :: App
+        end subroutine
+
+        module subroutine remixCplWriteFileOutput(App, nStep)
+            class(remixCoupler_T), intent(inout) :: App
+            integer,               intent(in)    :: nStep
+        end subroutine
+
+        module subroutine remixCplWriteSlimFileOutput(App, nStep)
+            class(remixCoupler_T), intent(inout) :: App
+            integer,               intent(in)    :: nStep
+        end subroutine
+
+        module subroutine remixCplAdvanceModel(App, dt)
+            class(remixCoupler_T), intent(inout) :: App
+            real(rp),              intent(in)    :: dt
+        end subroutine
+
+        module subroutine remixCplCleanup(App)
+            class(remixCoupler_T), intent(inout) :: App
+        end subroutine
+
+    end interface
+
+    ! gcmCoupler_T
+    interface
+        module subroutine gcmCpl_toIono(App, vApp)
+            class(gcmCoupler_T), intent(inout) :: App
+            class(voltApp_T),    intent(inout) :: vApp
+        end subroutine
+
+        module subroutine gcmCpl_fromIono(App, vApp)
+            class(gcmCoupler_T), intent(inout) :: App
+            class(voltApp_T),    intent(inout) :: vApp
+        end subroutine
+
+        module subroutine gcmCpl_packInputs(App, vApp)
+            class(gcmCoupler_T), intent(inout) :: App
+            class(voltApp_T),    intent(inout) :: vApp
+        end subroutine
+
+        module subroutine gcmCpl_InitCouplers(App, vApp, xml)
+            class(gcmCoupler_T), intent(inout) :: App
+            class(voltApp_T),    intent(inout) :: vApp
+            type(XML_Input_T),   intent(inout) :: xml
+        end subroutine
+
+        module subroutine gcmCpl_Coupling(App, vApp)
+            class(gcmCoupler_T), intent(inout) :: App
+            class(voltApp_T),    intent(inout) :: vApp
+            ! No-op for base class
+        end subroutine
+
+        module subroutine gcmCplInitModel(App, xml)
+            class(gcmCoupler_T), intent(inout) :: App
+            type(XML_Input_T),   intent(inout) :: xml
+        end subroutine
+
+        module subroutine gcmCplInitIO(App, xml)
+            class(gcmCoupler_T), intent(inout) :: App
+            type(XML_Input_T),   intent(inout) :: xml
+        end subroutine
+
+        module subroutine gcmCplWriteRestart(App, nRes)
+            class(gcmCoupler_T), intent(inout) :: App
+            integer,             intent(in)    :: nRes
+        end subroutine
+
+        module subroutine gcmCplReadRestart(App, resId, nRes)
+            class(gcmCoupler_T), intent(inout) :: App
+            character(len=*),    intent(in)    :: resId
+            integer,             intent(in)    :: nRes
+        end subroutine
+
+        module subroutine gcmCplWriteConsoleOutput(App)
+            class(gcmCoupler_T), intent(inout) :: App
+        end subroutine
+
+        module subroutine gcmCplWriteFileOutput(App, nStep)
+            class(gcmCoupler_T), intent(inout) :: App
+            integer,             intent(in)    :: nStep
+        end subroutine
+
+        module subroutine gcmCplWriteSlimFileOutput(App, nStep)
+            class(gcmCoupler_T), intent(inout) :: App
+            integer,             intent(in)    :: nStep
+        end subroutine
+
+        module subroutine gcmCplAdvanceModel(App, dt)
+            class(gcmCoupler_T), intent(inout) :: App
+            real(rp),            intent(in)    :: dt
+        end subroutine
+
+        module subroutine gcmCplCleanup(App)
+            class(gcmCoupler_T), intent(inout) :: App
+        end subroutine
 
     end interface
 
@@ -750,5 +1049,5 @@ module volttypes
         integer, intent(in) :: nRes
         real(rp), intent(in) :: MJD, time
     end subroutine
-    
+
 end module volttypes

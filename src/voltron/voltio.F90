@@ -2,6 +2,7 @@
 module voltio
     use gamapp
     use volttypes
+    use mixtypes
     use cmiutils
     use mixio
     use clocks
@@ -203,7 +204,10 @@ module voltio
         class(gamApp_T) , intent(inout) :: gApp
 
         if (vApp%writeFiles) then
-            call writeMIXRestart(vApp%remixApp%ion,vApp%IO%nRes,mjd=vApp%MJD,time=vApp%time)
+            ! IO%mjd and IO%time are set in fromIono — no extra setup needed
+            call vApp%ionoApp%WriteRestart(vApp%IO%nRes)
+            !Write DragonKing conductance restart (native DK shell-grid state)
+            call vApp%dkApp%WriteRestart(vApp%IO%nRes)
             !Write inner mag restart
             if (vApp%doDeep) then
                 !call vApp%imagApp%doRestart(vApp%IO%nRes,vApp%MJD,vApp%time)
@@ -238,13 +242,18 @@ module voltio
 
         !Coupling info
         call AddOutVar(IOVars,"CoupleT", vApp%DeepT)
-        call AddOutVar(IOVars,"gBAvg",   vApp%mhd2Mix%gBAvg)
         
         ! State object
         call AddOutSGV(IOVars, "potential_total", vApp%State%potential_total, doWriteMaskO=.true.)
         call AddOutSGV(IOVars, "potential_corot", vApp%State%potential_corot, doWriteMaskO=.true.)
+        call AddOutSGV(IOVars, "potential_base", vApp%State%potential_base, doWriteMaskO=.true.)
         call AddOutSGV(IOVars, "bIonoMag", vApp%State%bIonoMag, doWriteMaskO=.true.)
         call AddOutSGV(IOVars, "bIonoRad", vApp%State%bIonoRad, doWriteMaskO=.true.)
+
+        ! DK precipitation vars
+        call AddOutSGV(IOVars, "Number flux",    vApp%State%Num_Flux, doWriteMaskO=.true.)
+        call AddOutSGV(IOVars, "Average energy", vApp%State%Avg_Eng,  doWriteMaskO=.true.)
+        call AddOutSGV(IOVars, "Auroral type",   vApp%State%Aur_Type, doWriteMaskO=.true.)
 
         call WriteVars(IOVars,.false.,ResF)
 
@@ -294,8 +303,6 @@ module voltio
         !! TODO: Load new voltState vars from restart file
 
         call ClearIO(IOVars)
-        call AddInVar(IOVars,"gBAvg")
-
         call AddInVar(IOVars,"nOut"    ,vTypeO=IOINT)
         call AddInVar(IOVars,"nRes"    ,vTypeO=IOINT)
         call AddInVar(IOVars,"ts"      ,vTypeO=IOINT)
@@ -325,22 +332,20 @@ module voltio
         vApp%time     = GetIOReal(IOVars,"time")
         vApp%DeepT    = GetIOReal(IOVars,"CoupleT")
 
-        !Check to see if gB0 is present
-        n0 = FindIO(IOVars,"gBAvg")
-        if (IOVars(n0)%isDone) then
-            if (.not. allocated(vApp%mhd2Mix%gBAvg)) then
-                !Allocate this if necessary
-                allocate( vApp%mhd2Mix%gBAvg(IOVars(n0)%dims(1),IOVars(n0)%dims(2),IOVars(n0)%dims(3),IOVars(n0)%dims(4)) )
-            endif
-            call IOArray4DFill(IOVars,"gBAvg",vApp%mhd2Mix%gBAvg)
-        else
-            write(*,*) "gBAvg not found in Voltron restart, assuming dipole ..."
-        endif
-
         call ReadInSGV(vApp%State%potential_total, ResF, "potential_total", doIOpO=.false.)
         call ReadInSGV(vApp%State%potential_corot, ResF, "potential_corot", doIOpO=.false.)
+        call ReadInSGV(vApp%State%potential_base, ResF, "potential_base", doIOpO=.false.)
         call ReadInSGV(vApp%State%bIonoMag, ResF, "bIonoMag", doIOpO=.false.)
         call ReadInSGV(vApp%State%bIonoRad, ResF, "bIonoRad", doIOpO=.false.)
+
+        ! DK precipitation vars
+        if (ioExist(ResF, "Number flux")) then
+            call ReadInSGV(vApp%State%Num_Flux, ResF, "Number flux",   doIOpO=.false.)
+            call ReadInSGV(vApp%State%Avg_Eng,  ResF, "Average energy", doIOpO=.false.)
+            call ReadInSGV(vApp%State%Aur_Type, ResF, "Auroral type",   doIOpO=.false.)
+        else
+            write(*,*) "DK precip vars absent from this Voltron restart (older file); they need to be recomputed."
+        endif
 
         ! And all of tubeShell
         call readTubeShellRestart(vApp%State%tubeShell, ResF)
@@ -365,8 +370,11 @@ module voltio
         class(gamApp_T) , intent(inout) :: gApp
         
         if(vApp%writeFiles) then
-            !Write ReMIX data
-            call writeMix(vApp%remixApp%ion,vApp%IO%nOut,mjd=vApp%MJD,time=vApp%time)
+            !Write ionosphere data (REMIX or other iono model)
+            call vApp%ionoApp%WriteFileOutput(vApp%IO%nOut)
+
+            !Write DragonKing conductance/precip on the shell grid
+            call vApp%dkApp%WriteFileOutput(vApp%IO%nOut)
 
             !Write inner mag IO if needed
             if (vApp%doDeep) then
@@ -467,11 +475,28 @@ module voltio
         call AddOutSGV(IOVars, "Potential_corot", vApp%State%potential_corot, &
                         uStr="kV", dStr="Corotation potential", &
                         outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
-        
+        call AddOutSGV(IOVars, "Potential_base", vApp%State%potential_base, &
+                        uStr="kV", dStr="Original potential without corotation", &
+                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Number flux", vApp%State%Num_Flux, &
+                        uStr="1/cm2/s", dStr="DK precipitation number flux", &
+                        outBndsO=(/is,ie,js,je/), doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Average energy", vApp%State%Avg_Eng, &
+                        uStr="keV", dStr="DK precipitation mean average energy", &
+                        outBndsO=(/is,ie,js,je/), doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Auroral type", vApp%State%Aur_Type, &
+                        uStr="", dStr="DK auroral type", &
+                        outBndsO=(/is,ie,js,je/), doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Pedersen conductance", vApp%State%SigmaP, &
+                        uStr="S", dStr="Pedersen conductance", &
+                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "Hall conductance", vApp%State%SigmaH, &
+                        uStr="S", dStr="Hall conductance", &
+                        outBndsO=outSGVBnds_corner, doWriteMaskO=.false.)
         call WriteVars(IOVars,.true.,vh5File,gStr)
-
         write(gStr,'(A,A)') trim(gStr), "/TubeShell"
-        call writeTubeShell(vApp%shGrid, vApp%State%tubeShell, vh5File, gStrO=gStr, doGhostsO=doGhosts,doFatO=doFat)
+        call writeTubeShell(vApp%shGrid, vApp%State%tubeShell, vh5File, gStrO=gStr, &
+                            doGhostsO=doGhosts, doFatO=doFat, nSpcO=gApp%Model%nSpc)
 
 
     end subroutine WriteVolt

@@ -21,7 +21,7 @@ program voltron_mpix
 
     procedure(StateIC_T), pointer :: userInitFunc => initUser
     integer :: ierror, length, provided, worldSize, worldRank, numHelpers, appId
-    type(MPI_Comm) :: appComm, splittingComm
+    type(MPI_Comm) :: appComm, splittingComm, world_dup
     integer :: required=MPI_THREAD_MULTIPLE
     character( len = MPI_MAX_ERROR_STRING) :: message
     character(len=strLen) :: inpXML, helpersBuf
@@ -35,6 +35,9 @@ program voltron_mpix
     logical :: doResetClocks = .false.
 
     ! initialize MPI
+    ! This is in case we want to do duplicate communicator from the start
+    world_dup = MPI_COMM_WORLD
+
     !Set up MPI with or without thread support
 #ifdef _OPENMP
     call MPI_INIT_THREAD(required,provided,ierror)
@@ -51,20 +54,20 @@ program voltron_mpix
     if(ierror /= MPI_Success) then
         call MPI_Error_string( ierror, message, length, ierror)
         print *,message(1:length)
-        call mpi_Abort(MPI_COMM_WORLD, 1, ierror)
+        call mpi_Abort(world_dup, 1, ierror)
     end if
 
-    call MPI_Comm_Size(MPI_COMM_WORLD, worldSize, ierror)
+    call MPI_Comm_Size(world_dup, worldSize, ierror)
     if(ierror /= MPI_Success) then
         call MPI_Error_string( ierror, message, length, ierror)
         print *,message(1:length)
-        call mpi_Abort(MPI_COMM_WORLD, 1, ierror)
+        call mpi_Abort(world_dup, 1, ierror)
     end if
-    call MPI_Comm_Rank(MPI_COMM_WORLD, worldRank, ierror)
+    call MPI_Comm_Rank(world_dup, worldRank, ierror)
     if(ierror /= MPI_Success) then
         call MPI_Error_string( ierror, message, length, ierror)
         print *,message(1:length)
-        call mpi_Abort(MPI_COMM_WORLD, 1, ierror)
+        call mpi_Abort(world_dup, 1, ierror)
     end if
 
     ! initialize mpi data type
@@ -72,7 +75,7 @@ program voltron_mpix
 
     call initClocks()
 
-    call mpi_comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, tagMax, tagSet, ierror)
+    call mpi_comm_get_attr(world_dup, MPI_TAG_UB, tagMax, tagSet, ierror)
     !print *, 'Tag Upper-Bound = ', tagMax
 
     call getIDeckStr(inpXML)
@@ -105,13 +108,13 @@ program voltron_mpix
         endif
     endif
     ! every app splits into their own comunicator
-    call MPI_COMM_SPLIT(MPI_COMM_WORLD, appId, 0, appComm, ierror)
+    call MPI_COMM_SPLIT(world_dup, appId, worldRank, appComm, ierror)
 
     if(appId == helperId) then
         allocate(vApp)
         vApp%vOptions%gamUserInitFunc => initUser
         allocate(vApp%vOptionsMpi%couplingPoolComm)
-        vApp%vOptionsMpi%couplingPoolComm = MPI_COMM_WORLD
+        vApp%vOptionsMpi%couplingPoolComm = world_dup
         call initVoltronHelper_mpi(vApp)
 
         ! do helper loop
@@ -126,71 +129,9 @@ program voltron_mpix
 
         allocate(vApp)
 
-        splittingComm = MPI_COMM_WORLD
-
-        ! *** CALL TGCM comms coupling first
-        ! this should all be moved out of the driver and into TGCM coupling code later on
-        call ReadXmlImmediate(trim(inpXML),'/Kaiju/Voltron/coupling/doGCM',helpersBuf,'F',.false.)
-        read(helpersBuf,*) vApp%doGCM
-        call voltronSplitWithApp(splittingComm, mageId, 0, vApp%mageCplComm)
-        call MPI_Comm_Rank(vApp%mageCplComm, vApp%voltCplRank, ierror)
-        call MPI_Comm_Size(vApp%mageCplComm, vApp%CplSize, ierror)
-        if(vApp%mageCplComm /= MPI_COMM_NULL) then
-            print *,'VOLTRON has created an mageCplComm with ', vApp%CplSize-1, ' other app(s)'
-            print *,'VOLTRON using mageCplComm tag ', mageId
-            write(*,*) "VOLTRON CPLCOMM: ",vApp%mageCplComm,vApp%voltCplRank
-
-            ! Tell everyone who I am
-            if (.not.allocated(vApp%IAm)) allocate(vApp%IAm(vApp%CplSize))
-            vApp%IAm(vApp%voltCplRank+1) = voltId
-            do i=1,vApp%CplSize
-                call MPI_Bcast(vApp%IAm(i),1,MPI_INTEGER,i-1,vApp%mageCplComm,ierror)
-            enddo
-
-            ! IAm array starts at 1, MPI Ranks start at 0
-            do i=1,vApp%CplSize
-                ! Assign rank if match
-                select case (vApp%IAm(i))
-                    case (voltId)
-                        if (i-1 .ne. vApp%voltCplRank) then
-                            write(*,*) "I AM NOT MYSELF:",i-1,vApp%voltCplRank
-                        endif
-                    case (gamId)
-                        write(*,*) "Gam not involved in MAGE2MAGE yet"
-                    case (rcmId)
-                        write(*,*) "RCM not involved in MAGE2MAGE yet"
-                    case (hidraNId)
-                        vApp%hidraNCplRank = i-1
-                        write(*,*) "Volt coupling to hidraN"
-                    case (hidraSId)
-                        vApp%hidraSCplRank = i-1
-                        write(*,*) "Volt coupling to hidraS"
-                    case (hidraId)
-                        vApp%hidraCplRank = i-1
-                        write(*,*) "Volt coupling to hidra"
-                     case (tgcmId)
-                        vApp%gcmCplRank = i-1
-                        write(*,*) "Volt coupling to TIEGCM"
-                    case default
-                        write(*,*) "Volt does not know about this Coupling ID: ", vApp%IAm(i)
-                end select
-            enddo
-        endif
-        if(vApp%CplSize == 1 .and. (.not. vApp%doGCM)) then
-            write(*,*) "VOLTRON: We're not coupling to a GCM"
-            call mpi_comm_free(vApp%mageCplComm, ierror)
-            if(ierror /= MPI_Success) then
-                call MPI_Error_string( ierror, message, length, ierror)
-                print *,message(1:length)
-                call mpi_Abort(MPI_COMM_WORLD, 1, ierror)
-            end if
-            vApp%mageCplComm = MPI_COMM_NULL
-        endif
-        if (vApp%CplSize == 1 .and. vApp%doGCM) then
-            write(*,*) "VOLTRON: Coupling to GCM Failed."
-            call mpi_Abort(MPI_COMM_WORLD, 1, ierror)
-        endif
-        ! *** end TIEGCM coupling code
+        splittingComm = world_dup
+        
+        call init_coupling_comms(vApp, splittingComm)
 
         vApp%vOptions%gamUserInitFunc => initUser
         allocate(vApp%vOptionsMpi%couplingPoolComm)
@@ -252,7 +193,7 @@ program voltron_mpix
         allocate(gApp)
         gApp%gOptionsMpi%gamComm = appComm
 
-        gApp%gOptionsCplMpiG%couplingPoolComm = MPI_COMM_WORLD
+        gApp%gOptionsCplMpiG%couplingPoolComm = world_dup
         gApp%gOptionsMpi%doIO = .false.
         gApp%gOptions%userInitFunc => initUser
 

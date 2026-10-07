@@ -4,8 +4,6 @@ module mixmain
   use mixtypes
   use mixparams
   use mixgeom
-  use dkaurora
-  use mixconductance
   use mixstate
   use mixsolver
   use mixio
@@ -14,49 +12,35 @@ module mixmain
 
   contains
 
-    subroutine init_mix(I,hmsphrs,optFilename,RunID,isRestart,mixIOobj,nRes,optIO)
-      type(mixIon_T),dimension(:),allocatable,intent(inout) :: I ! I for ionosphere (is an array of 1 or 2 elements for north and south) or it can be artibrarily many, e.g., for different solves done in loop
+    subroutine init_mix(I,hmsphrs,inpXML,mixIOobj)
+    ! subroutine init_mix(I,hmsphrs,optFilename,RunID,isRestart,mixIOobj,nRes,optIO)
+    ! subroutine init_mix(mixApp,hmsphrs,inpXML)
+      type(mixIon_T),dimension(:),allocatable,intent(inout) :: I
       integer, dimension(:), intent(in) :: hmsphrs       
-      character(len=*), optional, intent(in) :: optFilename
-      character(len=*),optional, intent(in) :: RunID   ! these two things are needed when we're coupled with Gamera
-      logical,optional, intent(in) :: isRestart
-      type(mixIO_T),optional, intent(in) :: mixIOobj  
-      integer,optional,intent(in) :: nRes
-      logical,optional,intent(in) :: optIO
-      integer :: mixnRes    
-      logical :: doRestart
+      type(XML_Input_T), intent(in) :: inpXML
+      type(mixIO_T), intent(in) :: mixIOobj  
+
       integer :: h
-      logical :: doIO ! do IO initialziaiton
 
       if (.not.allocated(I)) allocate(I(size(hmsphrs)))
-      
+
       I%rad_iono_m = RIonE*1.e+6 ! Default to RIonE. To change, overwrite directly after the init_mix call
       I%rad_planet_m = REarth
-      if (present(isRestart)) doRestart = isRestart
-      if (present(optIO)) then
-          doIO = optIO
-      else
-          doIO = .true. ! IO enabled default
-      endif
 
       do h=1,size(I)
          I(h)%St%hemisphere = hmsphrs(h)
-         if(present(optFilename)) then
-            call initMIXParams(I(h)%P, optFilename)
-         else
-            call initMIXParams(I(h)%P)
-         endif
+         call initMIXParams(I(h)%P, inpXML)
 
-         if (present(mixIOobj)) then
+         if (I(h)%P%init_from_file) then
             call init_grid(I(h),mixIOobj)
             call init_state(I(h)%G,I(h)%St,mixIOobj%vars(:,:,:,h), shGrO=I(h)%shGr) ! passing only the hemisphere variables            
          else
             call init_grid(I(h))
             call init_state(I(h)%G,I(h)%St, shGrO=I(h)%shGr)            
          end if
-         
-         call conductance_init(I(h)%conductance,I(h)%P,I(h)%G)
-         call dragonking_init(I(h)%aurora,I(h)%P,I(h)%G)
+
+        !  call conductance_init(I(h)%conductance,I(h)%P,I(h)%G)
+        !  call dragonking_init(I(h)%aurora,I(h)%P,I(h)%G)
 
          ! check that hemisphere makes sense.
          if ((I(h)%St%hemisphere.ne.NORTH).and.(I(h)%St%hemisphere.ne.SOUTH)) then
@@ -76,22 +60,17 @@ module mixmain
       end do
 
       call initMIXNames() !Just for luck?
-      mixnRes = I(1)%P%nRes
-      !NOTE: mixnres comes from I(1)%P%nRes and is the one that should be used not subroutine argument nRes!
-      !Why is nRes even passed to this function then, you might ask.
-      !Good question hypothetical question person, good question.
 
       ! initialize the mix dump file (AND RESTART)
-      if (present(isRestart) .and. doRestart) then
-        !call xmlInp%Set_Val(mixnRes ,"/Kaiju/gamera/restart/nRes" ,-1)
-        
-        !Just restart here and be done with it
-        call readMIXrestart(trim(RunID),mixnRes,I)
-      endif
+      ! if (doRestart) then        
+      !   ! call readMIXrestart(trim(RunID),mixnRes,I)
+      !   call mixApp%ReadRestart(mixApp,trim(RunID),I(1)%P%nRes)
+      ! endif
 
-      if (doIO) then
-        call initMIXIO(I,RunID,isRestart)
-      endif
+      ! if (doIO) then
+      !   ! call initMIXIO(I,RunID,isRestart)
+      !   call mixApp%InitIO(mixApp,inpXML)
+      ! endif
       
     end subroutine init_mix
 
@@ -113,68 +92,14 @@ module mixmain
       I%St%Vars(:,:,POT) = reshape(I%S%solution,[I%G%Np,I%G%Nt])*(I%rad_iono_m*1.e-6)**2*1.D3 ! in kV
     end subroutine get_potential
 
-    subroutine run_mix(I,tilt,doModelOpt,gcm)
+    subroutine run_mix(I)
       type(mixIon_T),dimension(:),intent(inout) :: I 
-      type(gcm_T),optional,intent(inout) :: gcm
-      real(rp),intent(in) :: tilt
-      logical, optional, intent(in) :: doModelOpt  ! allow to change on the fly whether we use conductance model
-
-      logical :: doModel=.true.   ! always default to xml input deck unless doModelOpt is present and on
-      logical :: isRestart = .false.
       integer :: h,NumH
       logical :: isGoodSolve
 
-      if (present(doModelOpt)) doModel = doModelOpt
-      if (present(gcm)) isRestart = gcm%isRestart
-
       NumH = size(I)
-
-      !Removing OMP loop due to weird runtime errors
+        
       do h=1,NumH
-        if (I(h)%St%hemisphere.eq.NORTH) then
-          I(h)%St%tilt = tilt
-        else
-          I(h)%St%tilt = -tilt
-        end if
-
-        if (doModel) then
-          I(h)%conductance%const_sigma = I(h)%P%const_sigma         
-        else
-          I(h)%conductance%const_sigma = .true.            
-        end if
-
-        if (.not. present(gcm)) then
-          !write(*,*) "GRID TRANSFORM!"
-          if (I(h)%St%hemisphere .eq. NORTH) then
-            call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=1)
-            call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=1)
-          else
-            call transform_grid(I(h)%G,I(h)%Ggeo,iSMtoGEO,h,ym1=-1)
-            call transform_grid(I(h)%G,I(h)%Gapx,iSMtoAPEX,h,ym1=-1)
-          endif
-          !write(*,*) "GRID TRANSFORM!!"
-        end if
-
-        !if (present(gcm) .and. isRestart) then
-        !  !write(*,*) "conductance: restart"
-        !  !we read the conductance from file, so we're going to skip
-        !  gcm%isRestart = .false.
-        !  !write(*,*) "Get rePOT: ", maxval(I(h)%St%Vars(:,:,POT)),minval(I(h)%St%Vars(:,:,POT))
-        !else
-          call Tic("MIX-COND")
-          ! Compute auroral precipitation flux regardless of coupling mode.
-          ! Note conductance_euv is used inside dragonking_total.
-          call conductance_euv(I(h)%conductance,I(h)%G,I(h)%St)
-          call dragonking_total(I(h)%aurora,I(h)%G,I(h)%St,I(h)%conductance)
-
-          if (present(gcm)) then
-            call conductance_total(I(h)%conductance,I(h)%G,I(h)%St,gcm,h)
-          else
-            !write(*,*) "conductance: total"
-            call conductance_total(I(h)%conductance,I(h)%G,I(h)%St)
-          end if
-          call Toc("MIX-COND")
-
           call Tic("MIX-SOLVE")
           call run_solver(I(h)%P,I(h)%G,I(h)%St,I(h)%S,isGoodSolveO=isGoodSolve)
           call Toc("MIX-SOLVE")
@@ -188,9 +113,8 @@ module mixmain
           call Tic("MIX-POT")
           call get_potential(I(h))
           call Toc("MIX-POT")
-        !end if
-
       end do
+
     end subroutine run_mix
 
 end module mixmain

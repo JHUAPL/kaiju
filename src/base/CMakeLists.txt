@@ -1,4 +1,6 @@
 file(GLOB base_srcs *.F90 defs/*.F90 types/*.F90 shellutils/*.F90 3rd-party/*.F90)
+# A stale generated git_info.F90 in the source tree must not shadow the build-dir one
+list(REMOVE_ITEM base_srcs "${CMAKE_CURRENT_SOURCE_DIR}/git_info.F90")
 
 # Generate git_info.F90 at build time
 set(GIT_INFO_FILE "${CMAKE_CURRENT_BINARY_DIR}/git_info.F90")

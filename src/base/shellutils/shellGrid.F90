@@ -3,6 +3,7 @@ module shellGrid
     use kdefs
     use math
     use planethelper
+    use strings, only: toUpper
 
     implicit none
 
@@ -89,6 +90,9 @@ module shellGrid
         logical :: isPhiUniform 
             !! Define this to speed up search for interpolation
 
+        character(len=strLen) :: coord = "SM"
+            !! Coordinate system of the input theta/phi arrays used to generate this grid
+
         !> Subgrid information
         !> ShellGrids that are subgrids of other shellGrids store info about their parent grid
         logical :: isChild = .false.
@@ -105,7 +109,7 @@ module shellGrid
     !> Create a shell grid data structure
     !> Takes Theta and Phi 1D arrays (uniform or not)
     !> Decides if isPeriodic and isPhiUniform based on the Phi array passed in
-    subroutine GenShellGrid(shGr,Theta,Phi,name,nGhosts,radO,TPIncludesGhostsO)
+    subroutine GenShellGrid(shGr,Theta,Phi,name,nGhosts,radO,TPIncludesGhostsO,coord)
         type(ShellGrid_T), intent(inout) :: shGr
         real(rp), dimension(:), intent(in) :: Theta, Phi
         character(len=*) :: name
@@ -116,11 +120,13 @@ module shellGrid
             !! Radius in planetary radii from planet center this grid lives at
             !! WARNING: Will default to Earth's ionospheric altitude if not provided! That should rarely be the case
         logical, optional, intent(in) :: TPIncludesGhostsO
+        character(len=*), optional, intent(in) :: coord
+            !! Coordinate system of input Theta/Phi arrays
         
         integer :: i,j
         integer :: phiLo, phiHi
         logical :: addGhosts
-        real(rp) :: delta, L
+        real(rp) :: delta, L, phiUniformTol
         real(rp), dimension(:), allocatable :: dphi
         real(rp), dimension(3) :: xyz
 
@@ -136,6 +142,13 @@ module shellGrid
             addGhosts = .not. TPIncludesGhostsO
         else
             addGhosts = .true.
+        endif
+
+        ! Default to SM if coord not provided
+        if (present(coord)) then
+            shGr%coord = toUpper(coord)
+        else
+            shGr%coord = "SM"
         endif
 
         ! do some checks first
@@ -257,7 +270,9 @@ module shellGrid
         if (allocated(dphi)) deallocate(dphi)
         allocate(dphi(shGr%Np))   ! helper
         dphi = Phi(2:shGr%Np+1) - Phi(1:shGr%Np)
-        if ( all( dphi - dphi(1) <= TINY ) ) then
+        ! Restart/output phi coordinates may be quantized at IO precision.
+        phiUniformTol = max(TINY, 10.0_rp*real(epsilon(real(1.0, kind=iop)), rp)*max(1.0_rp, maxval(abs(Phi))))
+        if ( all( abs(dphi - dphi(1)) <= phiUniformTol ) ) then
             shGr%isPhiUniform = .true.
         else 
             shGr%isPhiUniform = .false.

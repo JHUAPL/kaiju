@@ -2579,7 +2579,7 @@ subroutine cofrm(date)
   enddo
   gh(ngh) = 0._rp ! not sure why gh is dimensioned with the extra element, so set it to 0.
 
-  if (date < 2025._rp) then ! Update with each IGRF update
+  if (date < 2026._rp) then ! Update with each IGRF update
     t   = 0.2_rp*(date - 1900._rp)
     ll  = t
     one = ll
@@ -2601,8 +2601,8 @@ subroutine cofrm(date)
       tc = -0.2_rp
       t = 0.2_rp
     endif
-  else ! date >= 2025
-    t     = date - 2025.0_rp ! Update with each IGRF update
+  else ! date >= 2026
+    t     = date - 2026.0_rp ! Update with each IGRF update
     tc    = 1.0_rp
     if (isv.eq.1) then
       t = 1.0_rp
@@ -2612,7 +2612,7 @@ subroutine cofrm(date)
     nmx   = 13
     nc    = nmx*(nmx+2)
     kmx   = (nmx+1)*(nmx+2)/2
-  endif ! date < 2025
+  endif ! date < 2026
   r = alt
   l = 1
   m = 1

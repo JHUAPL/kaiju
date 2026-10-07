@@ -12,8 +12,9 @@ module imag2mix_interface
 
     contains
 
-   subroutine CoupleIMagToMix(vApp)
+   subroutine CoupleIMagToMix(vApp, mixApp)
       class(voltApp_T), intent(inout) :: vApp
+      type(mixApp_T),   intent(inout) :: mixApp
       integer :: i,j
       real(rp) :: x1,x2,x1c,x2c
       logical :: isTasty
@@ -22,13 +23,13 @@ module imag2mix_interface
 
       ! Zero out before conditional updates
       do i=1,size(varNames)
-         vApp%remixApp%ion(NORTH)%St%Vars(:,:,varNames(i)) = 0.0
-         vApp%remixApp%ion(SOUTH)%St%Vars(:,:,varNames(i)) = 0.0
+         mixApp%ion(NORTH)%St%Vars(:,:,varNames(i)) = 0.0
+         mixApp%ion(SOUTH)%St%Vars(:,:,varNames(i)) = 0.0
       enddo
-      ! G%t(G%Np,G%Nt), G%p = modulo((atan2(G%y,G%x)+2*pi),(2*pi)) 
+      ! G%t(G%Np,G%Nt), G%p = modulo((atan2(G%y,G%x)+2*pi),(2*pi))
       ! G%x = sin(G%t)*cos(G%p)
       ! G%y = sin(G%t)*sin(G%p)
-      associate(G=>vApp%remixApp%ion(NORTH)%G, ion=>vApp%remixApp%ion)
+      associate(G=>mixApp%ion(NORTH)%G, ion=>mixApp%ion)
          !Loop over and get imag data
          !$OMP PARALLEL DO default(shared) collapse(2) &
          !$OMP private(i,j,x1,x2,x1c,x2c,imP,isTasty)

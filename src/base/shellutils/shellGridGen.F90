@@ -107,6 +107,11 @@ module shellGridGen
             theta(i) = a1 + (a2-a1)*scaleFunc(x, hWgt, nPow)
         enddo
 
+        ! Pin the prescribed bounds before callers mirror a hemispheric grid;
+        ! cancellation in the affine map can otherwise put them just outside.
+        theta(1)    = thetaL_rad
+        theta(Nt+1) = thetaU_rad
+
         do i=1,Np+1
             phi(i) = (i-1)*dPhi
         enddo

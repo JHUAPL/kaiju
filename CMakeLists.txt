@@ -55,6 +55,7 @@ set(GAMHELIC ${GAMHELICDEF} CACHE FILEPATH "Gamera Helio IC file")
 include(cmake/user.cmake OPTIONAL)
 
 if(ENABLE_MPI)
+    add_compile_definitions(KAIJU_MPI)
     if(MPI_BASE_ADDR_SIZE)
         add_compile_definitions(MPI_BASE_ADDR_SIZE=${MPI_BASE_ADDR_SIZE})
         message("Over-riding default MPI Address Size with new value of ${MPI_BASE_ADDR_SIZE} for basic MPI functions")

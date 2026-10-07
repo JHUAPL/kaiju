@@ -320,8 +320,6 @@ submodule (volttypes) raijuCplTypesSub
         integer :: i0, j0  ! i,j cell that provided th,ph are in
         real(rp) :: tScl, rampC
 
-        integer :: i,j,k
-        integer :: is, ie, js, je, ks, ke
         integer :: idx_proton
         real(rp) :: d_cold, d_hot, p_hot, dn_flux, de_flux
         real(rp) :: d_ion, p_ion, pie_frac, pe_kT, pe_eflux, pe_nflux
@@ -363,8 +361,6 @@ submodule (volttypes) raijuCplTypesSub
             isEdible = .true.
 
             do s=1, Model%nSpc
-                ks = spcList(s)%kStart
-                ke = spcList(s)%kEnd
                 if (spcList(s)%flav == F_PSPH) then
                     !call InterpShellVar_TSC_pnt(sh, State%Den(s), th, ph, d_cold)
                     !imW(IM_D_COLD) = d_cold  ! [#/cc]
@@ -380,20 +376,21 @@ submodule (volttypes) raijuCplTypesSub
                     
                     imP(RAI_EDEN ) = imP(RAI_EDEN ) + d_hot*1.0e6 ! uStr="#/cc" -> /m^3 , dStr="Density from RAIJU flavors"
                     imP(RAI_EPRE ) = imP(RAI_EPRE ) + p_hot*1.0e-9 ! uStr="nPa" -> Pa , dStr="Pressure from RAIJU flavors"
-                    do k=ks,ke
-                        call InterpShellVar_TSC_pnt(sh, State%precipNFlux(k), th, ph, dn_flux)
-                        imP(RAI_ENFLX) = imP(RAI_ENFLX) + dn_flux ! uStr="#/cm^2/s"
-                        call InterpShellVar_TSC_pnt(sh, State%precipEFlux(k), th, ph, de_flux)
-                        imP(RAI_EFLUX) = imP(RAI_EFLUX) + de_flux ! uStr="erg/cm^2/s"
-                        if (isnan(imP(RAI_ENFLX)) .or. isnan(imP(RAI_EFLUX))) then
-                            write(*,*) "ERROR in getMomentsPrecipRAIJU: Flux has a NaN"
-                            write(*,*)"i,j,k=",i,j,k
-                            write(*,*)"nflux, eFlux=",imP(RAI_ENFLX),imP(RAI_EFLUX)
-                            call State%myRaiApp%WriteBlackBox()
-                            write(*,*)"Goodbye"
-                            stop
-                        endif
-                    enddo
+                    call InterpShellVar_TSC_pnt(sh, State%precipNFlux_Nspc(s), th, ph, dn_flux)
+                    call InterpShellVar_TSC_pnt(sh, State%precipEFlux_Nspc(s), th, ph, de_flux)
+                    imP(RAI_ENFLX) = imP(RAI_ENFLX) + dn_flux  ! uStr="#/cm^2/s"
+                    imP(RAI_EFLUX) = imP(RAI_EFLUX) + de_flux  ! uStr="erg/cm^2/s"
+                    if (isnan(imP(RAI_ENFLX)) .or. isnan(imP(RAI_EFLUX))) then
+                        ! Only one failing thread may write the black box and terminate.
+                        !$OMP CRITICAL(imag_precip_failure)
+                        write(*,*) "ERROR in getMomentsPrecipRAIJU: Flux has a NaN"
+                        write(*,*)"i,j,spc=",i0,j0,s
+                        write(*,*)"nflux, eFlux=",imP(RAI_ENFLX),imP(RAI_EFLUX)
+                        call State%myRaiApp%WriteBlackBox()
+                        write(*,*)"Goodbye"
+                        stop
+                        !$OMP END CRITICAL(imag_precip_failure)
+                    endif
 
                     if (Model%doExtraElePrecipFromProtons) then
                         ! Mock up cold electrons balancing hot protons and see if it produces meaningful flux
@@ -501,5 +498,72 @@ submodule (volttypes) raijuCplTypesSub
         call App%raiApp%Cleanup()
 
     end subroutine
-    
+
+
+    ! IMAG (RAIJU) precipitation moments -> voltron shell (imag2shell), for DK-on-shell.
+    ! NH: RAIJU/voltron grids coincide. SH: sample the NH conjugate point via the tubeShell
+    ! lat/lon-conjugate maps (open field lines, lat_conj<=0, left at zero).
+    module subroutine imagToShellRAIJU(App, i2s, shGrid, latConj, lonConj)
+        class(raijuCoupler_T), intent(inout) :: App
+        type(imag2shell_T),    intent(inout) :: i2s
+        type(ShellGrid_T),     intent(in)    :: shGrid
+        type(ShellGridVar_T),  intent(in)    :: latConj, lonConj
+        type(ShellGridVar_T) :: sinLon, cosLon
+
+        integer  :: it, ip
+        real(rp) :: th, ph
+        real(rp) :: lat_conj, ph_conj
+        real(rp) :: s, c
+        real(rp) :: imP(nVars_imag2mix)
+        logical  :: isTasty
+
+        i2s%Im_Eflux%data = 0.0_rp
+        i2s%Im_Enflx%data = 0.0_rp
+        i2s%Im_Gtype%data = 0.0_rp
+        i2s%Im_Eden%data  = 0.0_rp
+        i2s%Im_Epre%data  = 0.0_rp
+        i2s%Im_Npsp%data  = 0.0_rp
+
+        sinLon = lonConj;  sinLon%data = sin(lonConj%data)
+        cosLon = lonConj;  cosLon%data = cos(lonConj%data)
+
+        ! Each point reads RAIJU state and writes only its own shell cell.
+        !$OMP PARALLEL DO default(shared) &
+        !$OMP private(it,ip,th,ph,lat_conj,ph_conj,s,c,imP,isTasty)
+        do ip = shGrid%js, shGrid%je
+            ph = shGrid%phc(ip)
+            do it = shGrid%is, shGrid%ie
+                th = shGrid%thc(it)
+                imP = 0.0_rp
+                isTasty = .false.   ! invalid until getMomentsPrecip says otherwise (SH open lines skip the call)
+                if (th <= PI/2.0_rp) then
+                    ! NH: RAIJU and voltron grids coincide, no supersampling needed
+                    call App%getMomentsPrecip(th, ph, imP, isTasty)
+                else
+                    ! SH: find the NH conjugate point via tubeShell mapping
+                    call InterpShellVar_TSC_pnt(shGrid, latConj, th, ph, lat_conj)
+                    if (lat_conj > 0.0_rp) then  ! lat_conj=0 => open field line
+                        ! call InterpShellVar_TSC_pnt(shGrid, lonConj, th, ph, ph_conj)
+                        call InterpShellVar_TSC_pnt(shGrid, sinLon, th, ph, s)
+                        call InterpShellVar_TSC_pnt(shGrid, cosLon, th, ph, c)
+                        ph_conj = atan2(s, c)
+                        if (ph_conj < 0.0_rp) ph_conj = ph_conj + 2.0_rp*PI
+
+                        call App%getMomentsPrecip(PI/2.0_rp - lat_conj, ph_conj, imP, isTasty)
+                    endif
+                endif
+                i2s%Im_Gtype%data(it,ip) = imP(RAI_GTYPE)
+                if (isTasty) then
+                    i2s%Im_Enflx%data(it,ip) = imP(RAI_ENFLX)
+                    i2s%Im_Eflux%data(it,ip) = imP(RAI_EFLUX)
+                    i2s%Im_Eden%data(it,ip)  = imP(RAI_EDEN)
+                    i2s%Im_Epre%data(it,ip)  = imP(RAI_EPRE)
+                    i2s%Im_Npsp%data(it,ip)  = imP(RAI_NPSP)
+                endif
+            enddo
+        enddo
+        !$OMP END PARALLEL DO
+
+    end subroutine imagToShellRAIJU
+
 end submodule raijuCplTypesSub

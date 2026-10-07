@@ -8,7 +8,7 @@
 !          #                          GEOPACK-2008_dp                               #
 !          #                     (MAIN SET OF FORTRAN CODES)                        #
 !          #               (double-precision version of 03/21/08)                   #
-!          #                (IGRF coefficients updated 01/01/20)                    #
+!          #                (IGRF coefficients updated 09/12/26)                    #
 !          ##########################################################################
 !
 !
@@ -217,10 +217,11 @@ module geopack
 
 !    ORIGINALLY WRITTEN:    DEC.1, 1991
 !
-!    MOST RECENT REVISION: JANUARY 01, 2020:
+!    MOST RECENT REVISION: SEPTEMBER 12, 2026:
 
-!     The table of IGRF coefficients was extended to include those for the epoch 2020 (igrf-12)
-!         (for details, see https://www.ngdc.noaa.gov/IAGA/vmod/coeffs/igrf13coeffs.txt)
+!     The table of IGRF coefficients was extended to include those for the epoch 2025 and the
+!     2025-2030 secular variation (igrf-14)
+!         (for details, see https://www.ngdc.noaa.gov/IAGA/vmod/coeffs/igrf14coeffs.txt)
 !-----------------------------------------------------------------------------------
 !    EARLIER REVISIONS:
 
@@ -267,8 +268,8 @@ module geopack
 !    COEFFICIENTS USED IN THE RECURSION RELATIONS FOR LEGENDRE ASSOCIATE POLYNOMIALS.
 
       real(rp), dimension(105) :: G65,H65,G70,H70,G75,H75,G80,H80,G85,H85, &
-          G90,H90,G95,H95,G00,H00,G05,H05,G10,H10,G15,H15,G20,H20
-      real(rp), dimension(45) :: DG15,DH15,DG20,DH20
+          G90,H90,G95,H95,G00,H00,G05,H05,G10,H10,G15,H15,G20,H20,G25,H25
+      real(rp), dimension(45) :: DG15,DH15,DG20,DH20,DG25,DH25
 !<<<>>>
 !      DIMENSION G65(105),H65(105),G70(105),H70(105),G75(105),H75(105),
 !     + G80(105),H80(105),G85(105),H85(105),G90(105),H90(105),G95(105),
@@ -615,22 +616,76 @@ module geopack
                     0.3D0, 0.0D0, -0.2D0, 0.6D0, -0.2D0,   0.5D0,  -0.3D0, &
                    -0.4D0, 0.5D0,  0.0D0]
 
+! IGRF-14 main field for epoch 2025.0 (https://www.ngdc.noaa.gov/IAGA/vmod/coeffs/igrf14coeffs.txt)
+! and secular variation for 2025-2030, added to extend validity through 2030:
+      G25 = [0.0D0, &
+           -29350.00D0,-1410.30D0,-2556.20D0,2950.90D0,1648.70D0,1360.90D0,-2404.20D0, &
+           1243.80D0,453.40D0,894.70D0,799.60D0,55.80D0,-281.10D0,12.00D0, &
+           -232.90D0,369.00D0,187.20D0,-138.70D0,-141.90D0,20.90D0,64.30D0, &
+           63.80D0,76.70D0,-115.70D0,-40.90D0,14.90D0,-60.80D0,79.60D0, &
+           -76.90D0,-8.80D0,59.30D0,15.80D0,2.50D0,-11.20D0,14.30D0, &
+           23.10D0,10.90D0,-17.50D0,2.00D0,-21.80D0,16.90D0,14.90D0, &
+           -16.80D0,1.00D0,4.70D0,8.00D0,3.00D0,-0.20D0,-2.50D0, &
+           -13.10D0,2.40D0,8.60D0,-8.70D0,-12.80D0,-1.30D0,-6.40D0, &
+           0.20D0,2.00D0,-1.00D0,-0.50D0,-0.90D0,1.50D0,0.90D0, &
+           -2.60D0,-3.90D0,3.00D0,-1.40D0,-2.50D0,2.40D0,-0.60D0, &
+           0.00D0,-0.60D0,-0.10D0,1.10D0,-1.00D0,-0.10D0,2.60D0, &
+           -2.00D0,-0.10D0,0.40D0,1.20D0,-1.20D0,0.60D0,0.50D0, &
+           0.50D0,-0.10D0,-0.50D0,-0.20D0,-1.20D0,-0.70D0,0.20D0, &
+           -0.90D0,0.60D0,0.70D0,-0.20D0,0.50D0,0.10D0,0.70D0, &
+           0.00D0,0.30D0,0.20D0,0.40D0,-0.50D0,-0.40D0]
+
+      H25 = [0.0D0, &
+           0.00D0,4545.50D0,0.00D0,-3133.60D0,-814.20D0,0.00D0,-56.90D0, &
+           237.60D0,-549.60D0,0.00D0,278.60D0,-134.00D0,212.00D0,-375.40D0, &
+           0.00D0,45.30D0,220.00D0,-122.90D0,42.90D0,106.20D0,0.00D0, &
+           -18.40D0,16.80D0,48.90D0,-59.80D0,10.90D0,72.80D0,0.00D0, &
+           -48.90D0,-14.40D0,-1.00D0,23.50D0,-7.40D0,-25.10D0,-2.20D0, &
+           0.00D0,7.20D0,-12.60D0,11.50D0,-9.70D0,12.70D0,0.70D0, &
+           -5.20D0,3.90D0,0.00D0,-24.80D0,12.10D0,8.30D0,-3.40D0, &
+           -5.30D0,7.20D0,-0.60D0,0.80D0,9.80D0,0.00D0,3.30D0, &
+           0.10D0,2.50D0,5.40D0,-9.00D0,0.40D0,-4.20D0,-3.80D0, &
+           0.90D0,-9.00D0,0.00D0,0.00D0,2.80D0,-0.60D0,0.10D0, &
+           0.50D0,-0.30D0,-1.20D0,-1.70D0,-2.90D0,-1.80D0,-2.30D0, &
+           0.00D0,-1.20D0,0.60D0,1.00D0,-1.50D0,0.00D0,0.60D0, &
+           -0.20D0,0.80D0,0.10D0,-0.90D0,0.10D0,0.20D0,0.00D0, &
+           -0.90D0,0.70D0,1.20D0,-0.30D0,-1.30D0,-0.10D0,0.20D0, &
+           -0.20D0,0.50D0,0.60D0,-0.60D0,-0.30D0,-0.50D0]
+
+      DG25 = [0.0D0, &
+           12.60D0,10.00D0,-11.20D0,-5.30D0,-8.30D0,-1.50D0,-4.40D0, &
+           0.40D0,-15.60D0,-1.70D0,-2.30D0,-5.80D0,5.40D0,-6.80D0, &
+           0.60D0,1.30D0,0.00D0,0.70D0,2.30D0,1.00D0,-0.20D0, &
+           -0.30D0,0.80D0,1.20D0,-0.80D0,0.40D0,0.90D0,-0.10D0, &
+           -0.10D0,-0.10D0,0.50D0,-0.10D0,-0.80D0,-0.80D0,0.90D0, &
+           -0.10D0,0.20D0,0.00D0,0.40D0,-0.10D0,0.30D0,0.10D0, &
+           0.00D0,0.30D0]
+
+      DH25 = [0.0D0, &
+           0.00D0,-21.50D0,0.00D0,-27.30D0,-11.10D0,0.00D0,3.80D0, &
+           -0.20D0,-3.90D0,0.00D0,-1.30D0,4.10D0,1.60D0,-4.10D0, &
+           0.00D0,-0.50D0,2.10D0,0.50D0,1.70D0,1.90D0,0.00D0, &
+           0.30D0,-1.60D0,-0.40D0,0.80D0,0.70D0,0.90D0,0.00D0, &
+           0.60D0,0.50D0,-0.70D0,0.00D0,-0.90D0,0.50D0,-0.30D0, &
+           0.00D0,-0.30D0,0.40D0,-0.30D0,0.40D0,-0.50D0,-0.60D0, &
+           0.30D0,0.20D0]
+
       IY=IYEAR
 
-!  WE ARE RESTRICTED BY THE INTERVAL 1965-2025, FOR WHICH EITHER THE IGRF/DGRF COEFFICIENTS OR SECULAR VELOCITIES
+!  WE ARE RESTRICTED BY THE INTERVAL 1965-2030, FOR WHICH EITHER THE IGRF/DGRF COEFFICIENTS OR SECULAR VELOCITIES
 !    ARE KNOWN; IF IYEAR IS OUTSIDE THIS INTERVAL, THEN THE SUBROUTINE USES THE
 !      NEAREST LIMITING VALUE AND PRINTS A WARNING:
 
       IF(IY<1965) THEN
        IY=1965
-       WRITE(*,*) ' **** RECALC_08 WARNS: YEAR IS OUT OF INTERVAL 1965-2025: IYEAR=',IYEAR
+       WRITE(*,*) ' **** RECALC_08 WARNS: YEAR IS OUT OF INTERVAL 1965-2030: IYEAR=',IYEAR
        WRITE(*,*) '      CALCULATIONS WILL BE DONE FOR IYEAR=',IY
 !       WRITE (*,10) IYEAR,IY
       ENDIF
 
-      IF(IY>2025) THEN
-       IY=2025
-       WRITE(*,*) ' **** RECALC_08 WARNS: YEAR IS OUT OF INTERVAL 1965-2025: IYEAR=',IYEAR
+      IF(IY>2030) THEN
+       IY=2030
+       WRITE(*,*) ' **** RECALC_08 WARNS: YEAR IS OUT OF INTERVAL 1965-2030: IYEAR=',IYEAR
        WRITE(*,*) '      CALCULATIONS WILL BE DONE FOR IYEAR=',IY
 !       WRITE (*,10) IYEAR,IY
       ENDIF
@@ -854,15 +909,24 @@ module geopack
 !155      H(N)=H15(N)*F1+H20(N)*F2
 !      GOTO 300
 
-      ELSE!IF (IY>=2020) THEN
-!       EXTRAPOLATE BEYOND 2020:
-          DT=DFLOAT(IY)+DFLOAT(IDAY-1)/365.25D0-2020.D0
+!       INTERPOLATE BETWEEN 2020 - 2025:
+      ELSEIF (IY<2025) THEN
+          F2=(DFLOAT(IY)+DFLOAT(IDAY-1)/365.25D0-2020)/5.D0
+          F1=1.D0-F2
           DO N=1,105
-             G(N)=G20(N)
-             H(N)=H20(N)
+             G(N)=G20(N)*F1+G25(N)*F2
+             H(N)=H20(N)*F1+H25(N)*F2
+          ENDDO
+
+      ELSE!IF (IY>=2025) THEN
+!       EXTRAPOLATE BEYOND 2025:
+          DT=DFLOAT(IY)+DFLOAT(IDAY-1)/365.25D0-2025.D0
+          DO N=1,105
+             G(N)=G25(N)
+             H(N)=H25(N)
              IF (N>45) CYCLE
-             G(N)=G(N)+DG20(N)*DT
-             H(N)=H(N)+DH20(N)*DT
+             G(N)=G(N)+DG25(N)*DT
+             H(N)=H(N)+DH25(N)*DT
           ENDDO
 !      GOTO 300
 !<<<>>>
@@ -1384,7 +1448,7 @@ module geopack
 !                           FIELD IN NANOTESLA
 !
 !     LAST MODIFICATION:  FEB 07, 2008.
-!     THIS VERSION OF THE CODE ACCEPTS DATES FROM 1965 THROUGH 2025.
+!     THIS VERSION OF THE CODE ACCEPTS DATES FROM 1965 THROUGH 2030.
 !
 !     AUTHOR: N. A. TSYGANENKO
 !

@@ -340,8 +340,8 @@ module raijuIO
                 ks = Grid%spc(s)%kStart
                 ke = Grid%spc(s)%kEnd
                 do k=ks,ke !1,Grid%Nk
-                    outPrecipN(:,:,s) = outPrecipN(:,:,s) + State%precipNFlux(k)%data(is:ie,js:je)
-                    outPrecipE(:,:,s) = outPrecipE(:,:,s) + State%precipEFlux(k)%data(is:ie,js:je)
+                    outPrecipN(:,:,s) = outPrecipN(:,:,s) + State%precipNFlux_Nk(k)%data(is:ie,js:je)
+                    outPrecipE(:,:,s) = outPrecipE(:,:,s) + State%precipEFlux_Nk(k)%data(is:ie,js:je)
                 enddo
                 outCCHeatFlux(:,:,s) = sum(State%CCHeatFlux (is:ie,js:je,kS:kE), dim=3)
 
@@ -368,8 +368,8 @@ module raijuIO
             if (Model%doOutput_3DLoss .or. Model%doOutput_debug) then
                 call AddOutVar(IOVars, "dEta_dt" , State%dEta_dt(is:ie,js:je,:), uStr="eta_units/s")
                 call AddOutVar(IOVars, "CCHeatFlux_Nk" , State%CCHeatFlux (is:ie,js:je,:), uStr="eV/cm^2/s")
-                call AddOutSGV(IOVars, "precipNFlux_Nk", State%precipNFlux, outBndsO=outBnds2D, uStr="#/cm^2/s" , dStr="precipNFlux from RAIJU flavors", doWriteMaskO=.false.)
-                call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux, outBndsO=outBnds2D, uStr="erg/cm^2/s" , dStr="precipEFlux from RAIJU flavors", doWriteMaskO=.false.)
+                call AddOutSGV(IOVars, "precipNFlux_Nk", State%precipNFlux_Nk, outBndsO=outBnds2D, uStr="#/cm^2/s" , dStr="precipNFlux from RAIJU flavors", doWriteMaskO=.false.)
+                call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux_Nk, outBndsO=outBnds2D, uStr="erg/cm^2/s" , dStr="precipEFlux from RAIJU flavors", doWriteMaskO=.false.)
             endif
         endif
 
@@ -667,8 +667,8 @@ module raijuIO
         call AddOutSGV(IOVars, "Density_inst" , State%Den  , doWriteMaskO=.true., uStr="#/cc")
         call AddOutSGV(IOVars, "Tbounce", State%Tb, doWriteMaskO=.true., uStr="[s]")
         ! Precip
-        call AddOutSGV(IOVars, "precipNFlux_Nk", State%precipNFlux, doWriteMaskO=.true., uStr="#/cm^2/s")
-        call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux, doWriteMaskO=.true., uStr="erg/cm^2/s")
+        call AddOutSGV(IOVars, "precipNFlux_Nk", State%precipNFlux_Nk, doWriteMaskO=.true., uStr="#/cm^2/s")
+        call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux_Nk, doWriteMaskO=.true., uStr="erg/cm^2/s")
         call AddOutVar(IOVars, "lossRate"      , State%lossRates      (:,:,:), uStr="1/s")
         call AddOutVar(IOVars, "lossRatePrecip", State%lossRatesPrecip(:,:,:), uStr="1/s")
         ! More solver stuff
@@ -867,8 +867,8 @@ module raijuIO
         call ReadInSGV(State%Press, inH5, "Pressure_inst", "State", doIOpO=.false.)
         call ReadInSGV(State%Den  , inH5, "Density_inst" , "State", doIOpO=.false.)
         call ReadInSGV(State%Tb   , inH5, "Tbounce", "State", doIOpO=.false.)
-        call ReadInSGV(State%precipNFlux, inH5, "precipNFlux_Nk", "State", doIOpO=.false.)
-        call ReadInSGV(State%precipEFlux, inH5, "precipEFlux_Nk", "State", doIOpO=.false.)
+        call ReadInSGV(State%precipNFlux_Nk, inH5, "precipNFlux_Nk", "State", doIOpO=.false.)
+        call ReadInSGV(State%precipEFlux_Nk, inH5, "precipEFlux_Nk", "State", doIOpO=.false.)
 
         end associate
 
@@ -879,7 +879,7 @@ module raijuIO
         class(raijuApp_T), intent(in) :: raiApp
 
         character(len=strLen) :: outF
-        type(IOVAR_T), dimension(300) :: IOVars
+        type(IOVAR_T), dimension(MAXIOVAR) :: IOVars
         integer :: is, ie, js, je, ks, ke
         integer :: i,j,k,s, nClkSteps
         integer, dimension(4) :: outBnds2D, outBnds2D_corner
@@ -977,8 +977,8 @@ module raijuIO
 
         call AddOutVar(IOVars, "lossRate"      , State%lossRates(is:ie,js:je,:), uStr="1/s")
         call AddOutVar(IOVars, "lossRatePrecip", State%lossRatesPrecip(is:ie,js:je,:), uStr="1/s")
-        call AddOutSGV(IOVars, "precipNFlux_Nk", State%precipNFlux, outBndsO=outBnds2D, uStr="#/cm^2/s" , dStr="precipNFlux from RAIJU flavors", doWriteMaskO=.false.)
-        call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux, outBndsO=outBnds2D, uStr="erg/cm^2/s" , dStr="precipEFlux from RAIJU flavors", doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "precipNFlux_Nk", State%precipNFlux_Nk, outBndsO=outBnds2D, uStr="#/cm^2/s" , dStr="precipNFlux from RAIJU flavors", doWriteMaskO=.false.)
+        call AddOutSGV(IOVars, "precipEFlux_Nk", State%precipEFlux_Nk, outBndsO=outBnds2D, uStr="erg/cm^2/s" , dStr="precipEFlux from RAIJU flavors", doWriteMaskO=.false.)
         call AddOutVar(IOVars, "dEta_dt"       , State%dEta_dt(is:ie,js:je,:), uStr="eta_units/s")
         call AddOutVar(IOVars, "CCHeatFlux_Nk" , State%CCHeatFlux (is:ie,js:je,:), uStr="eV/cm^2/s")
 

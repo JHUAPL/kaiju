@@ -276,12 +276,15 @@ module mixsolver
       Npt = G%Np*G%Nt
       allocate(perm(Npt))
 
-      iparm(1)  = 0  ! all default parameters
-      iparm(27) = 0  ! Matrix checker
-      !Options added by K
-      iparm(2)  = 3
-      iparm(24) = 1
-      !iparm(28) =0; iparm (6) =0;
+      ! pardisoinit supplies the baseline parameter table.  Set iparm(1)=1
+      ! so that PARDISO actually honors the overrides below; with zero here,
+      ! it silently replaces the table with its internal defaults.
+      iparm(1)  = 1   ! Use the initialized and explicitly modified parameters
+      iparm(2)  = 2   ! Serial nested-dissection ordering
+      iparm(11) = 1   ! Scale the matrix before factorization
+      iparm(13) = 0   ! Disable weighted matching
+      iparm(24) = 10  ! Improved two-level factorization for nonsymmetric matrices
+      iparm(27) = 0   ! Disable the matrix checker
       
       maxfct = 1
       mnum   = 1

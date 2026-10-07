@@ -1,13 +1,20 @@
 ! Collection of data and objects for the voltron middle man
 
 module voltapp
+    use dktypes
     use mixtypes
     use mixdefs
     use mixmain
+    use dkinit
+    use dkmain
     use ebtypes
     use chmpdefs
     use starter
+    use cmidefs,   only: JpSt, JpSh        ! inner J-shell indices for remix mhd_Rin
+    use metric,    only: cellCenter        ! Gamera cell-center xyz for remix mhd_Rin
+    use msphutils, only: RadIonosphere     ! ionosphere radius (Rp) for remix mhd_Rin
     use mhd2mix_interface
+    use shell2gam_interface
     use mhd2chmp_interface
     use chmp2mhd_interface
     use mix2mhd_interface
@@ -15,11 +22,11 @@ module voltapp
     use imag2mix_interface
     use ebsquish
     use innermagsphere
+    use ionosphere
     use dates
     use kronos
     use voltio
     use msphutils, only : RadIonosphere
-    use gcminterp
     use gcmtypes
     use planethelper
     use shellGrid
@@ -27,7 +34,8 @@ module voltapp
     use voltappHelper
     use voltCplHelper
     use apex, only : init_apex
-    
+    use dkcplhelper, only : shellDK, init_imag2shell   ! volt -> DK coupling hop
+
     implicit none
 
     contains
@@ -157,8 +165,15 @@ module voltapp
 
         !Coupling is unified, so adding a separate XML option to control "deep" parts
         call xmlInp%Set_Val(vApp%doDeep, "coupling/doDeep", .true.)
+        if (.not. vApp%doDeep) then
+            write(*,*) 'coupling/doDeep="F" is not currently supported: the forward feed'
+            write(*,*) ' (REMIX FAC/density/sound speed) comes from tubeShell, which has no'
+            write(*,*) ' producer without deep coupling. A shallow feed is planned; until'
+            write(*,*) ' then set coupling/doDeep="T". Exiting ...'
+            stop
+        endif
 
-        call xmlInp%Set_Val(vApp%doGCM, "coupling/doGCM",.false.)
+        !call xmlInp%Set_Val(vApp%doGCM, "coupling/doGCM",.false.)
         if (vApp%isEarth) then
             call xmlInp%Set_Val(vApp%mhd2mix%dtAvg ,"coupling/dtAvgB0",900.0)
         else
@@ -272,14 +287,17 @@ module voltapp
             call initializeFromGamera(vApp, gApp, xmlInp)
         endif
 
-        ! now that remix is initialized, check if precipitation model is OK with deep choice
+        ! now that models are initialized, check that the DragonKing precipitation
+        ! model is compatible with the deep-coupling choice
         if(.not. vApp%doDeep) then
-            ! if we aren't using "deep" parts such as RCM, we need to use a
-            !    precipitation model that doesn't rely on them
-            if(vApp%remixApp%ion(NORTH)%P%aurora_model_type /= FEDDER .and. vApp%remixApp%ion(NORTH)%P%aurora_model_type /= SUNNY) then
-                write(*,*) 'The "FEDDER" or SUNNY precipitation model MUST be used when deep coupling is disabled.'
+            ! if we aren't using "deep" parts such as RCM, we need a
+            !    precipitation model that doesn't rely on them. Precipitation is
+            !    computed by DragonKing, so query DK's model (not the ionosphere).
+            if(vApp%dkApp%model%aurora_model_type /= DKOpts%FEDDER .and. &
+               vApp%dkApp%model%aurora_model_type /= DKOpts%SUNNY) then
+                write(*,*) 'The FEDDER or SUNNY precipitation model MUST be used when deep coupling is disabled.'
                 write(*,*) 'Please either enable the "voltron/coupling/doDeep" option, or'
-                write(*,*) ' set "remix/precipitation/aurora_model_type" to "FEDDER" or "SUNNY"'
+                write(*,*) ' set the DragonKing "precipitation/aurora_model_type" to "FEDDER" or "SUNNY".'
                 stop
             endif
         endif
@@ -401,58 +419,45 @@ module voltapp
         endif
 
         ! Setting apex reference altitude
-        call init_apex(vApp%MJD,vApp%gcm%altmax)
+        call init_apex(vApp%MJD,altmax)
+        ! Initialize geopack
+        call MJDRecalc(vApp%MJD)
 
-        if(present(optFilename)) then
-            ! read from the prescribed file
-            call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],optFilename=optFilename,RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
-        else
-            call init_mix(vApp%remixApp%ion,[NORTH, SOUTH],RunID=RunID,isRestart=isRestart,nRes=vApp%IO%nRes,optIO=vApp%writeFiles)
-        endif
-        
-        vApp%remixApp%ion%rad_iono_m  = vApp%planet%ri_m
-        vApp%remixApp%ion%rad_planet_m = vApp%planet%rp_m
-        !Ensure remix and voltron restart numbers match
-        if (isRestart .and. vApp%IO%nRes /= vApp%remixApp%ion(1)%P%nRes) then
-            write(*,*) "Voltron and Remix disagree on restart number, you should sort that out."
-            write(*,*) "Error code: A house divided cannot stand"
-            write(*,*) "   Voltron nRes = ", vApp%IO%nRes
-            write(*,*) "   Remix   nRes = ", vApp%remixApp%ion(1)%P%nRes
-            stop
-        endif
+        ! Allocate and init ionosphere coupler (REMIX or future models)
+        call InitIonosphere(vApp, xmlInp)
 
-        if (vApp%remixApp%ion(NORTH)%P%doSWF107 .neqv. vApp%remixApp%ion(SOUTH)%P%doSWF107) then
-            write(*,*) 'Something is wrong. doSWf107 is set differently for the two hemispheres.'
-            write(*,*) 'Exiting ...'
-            stop
-        endif
+        !DragonKing-on-shell: DK grid from the voltron shell, then model init
+        call initDKgrid(vApp%dkApp, vApp%shGrid)
+        ! Fedder R default from the Gamera resolution
+        vApp%dkApp%model%R = fedderR0default(gApp%Grid%Nkp)
+        call vApp%dkApp%InitModel(xmlInp)
+        if (vApp%writeFiles) call vApp%dkApp%InitIO(xmlInp)
+        call init_imag2shell(vApp%imag2shell, vApp%shGrid)   ! IMAG precip staging on the shell
 
-        ! read f107 from the SW file and overwrite what's been read from .xml above (in init_mix)
-        ! note, only checking for NORTH, because both hemispheres read the same xml file        
-        if (vApp%remixApp%ion(NORTH)%P%doSWF107) then
-            !Set F10.7 from time series (using max)
-            f107%wID = vApp%tilt%wID
-            call f107%initTS("f10.7",doLoudO=.false.)
-            maxF107 = f107%getMax()
+        ! Per-model coupler init behind the ionoCoupler contract (REMIX/SMITE-specific:
+        ! restart/IO/F10.7 + the gApp-dependent map builds). No select type here.
+        call vApp%ionoApp%InitCouplers(vApp, xmlInp)
 
-            call updateF107(vApp%remixApp%ion,maxF107)
-    
-            if (vApp%isLoud) write(*,*) 'Using F10.7 = ', maxF107        
-        endif                
-
-        if (vApp%isLoud) write(*,*) 'Using MJD0  = ', gApp%Model%MJD0
-
-        ! initialize remix to gamera structures
-        call init_mix2MhdCoupler(vApp%gApp, vApp%remixApp)
-        ! initialize additional coupled gamera data
-        call vApp%gApp%InitMhdCoupler(vApp)
-        if(isRestart) then
-            call xmlInp%Set_Val(resID,"/Kaiju/gamera/restart/resID","msphere")
-            call xmlInp%Set_Val(nRes,"/Kaiju/gamera/restart/nRes" ,-1)
-            call vApp%gApp%ReadRestart(resID, nRes)
-        endif
-
-        call init_mhd2Mix(vApp%mhd2mix, gApp, vApp%remixApp)
+        ! Mean MHD inner-boundary radius (Rion units) for the remixCoupler equatorward mask
+        select type (ic => vApp%ionoApp)
+        type is (remixCoupler_T)
+            block
+                integer  :: jj, kk, iG, ncnt
+                real(rp) :: xc, yc, zc, Rion, acc
+                Rion = RadIonosphere()
+                !Center-mean radius on purpose: a corner-radius mask floors REMIX's outermost valid row
+                iG   = JpSt + JpSh - 1
+                acc  = 0.0_rp; ncnt = 0
+                do kk = gApp%Grid%ks, gApp%Grid%ke
+                    do jj = gApp%Grid%js, gApp%Grid%je
+                        call cellCenter(gApp%Grid, iG, jj, kk, xc, yc, zc)
+                        acc  = acc + norm2([xc, yc, zc]) / Rion
+                        ncnt = ncnt + 1
+                    enddo
+                enddo
+                if (ncnt > 0) ic%mhd_Rin = acc / real(ncnt, rp)
+            end block
+        end select
         !vApp%mix2mhd%mixOutput = 0.0
         
     !CHIMP (TRC) from Gamera
@@ -481,71 +486,65 @@ module voltapp
     end subroutine initializeFromGamera
 
 !----------
-    subroutine runRemix(vApp)
-        class(voltApp_T), intent(inout) :: vApp
-        real(rp) :: curTilt
-        logical :: doStartupConstSigma
-
-        ! convert gamera inputs to remix
-        call MJDRecalc(vApp%MJD)
-        ! Keep REMIX on constant conductance until one full deep-coupling interval
-        ! has elapsed, so IMAG has had a chance to produce valid precip-driven
-        ! conductance inputs before we try to use them.
-        doStartupConstSigma = (vApp%time <= max(0.0_rp, vApp%DeepDT))
-        if ( vApp%doDeep .and. (.not. doStartupConstSigma) ) then
-            call CoupleIMagToMix(vApp)
-        endif
-        call mapGameraToRemix(vApp%mhd2mix, vApp%remixApp)
-
-        ! determining the current dipole tilt
-        call vApp%tilt%getValue(vApp%time,curTilt)
-
-        ! solve for remix output
-        if (doStartupConstSigma) then
-            call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.false.)
-        else if (vApp%doGCM) then
-            call run_mix(vApp%remixApp%ion,curTilt,gcm=vApp%gcm)
-        else
-            call run_mix(vApp%remixApp%ion,curTilt,doModelOpt=.true.)
-        endif
-
-    end subroutine runRemix
-
-!----------
 !Deep coupling stuff (time coming from vApp%time, so in seconds)
+    !voltron ShellGrid potential -> Gamera inner-boundary BC (model-agnostic).
+    subroutine shellToGamera(vApp)
+        class(voltApp_T), intent(inout) :: vApp
+        call convertVolttoGamera(vApp)
+    end subroutine shellToGamera
+
     subroutine DeepUpdate(vApp, gApp)
         class(gamApp_T) , intent(inout) :: gApp
         class(voltApp_T), intent(inout) :: vApp
 
-        !Remix code moved from old shallow coupling
-        ! convert gamera data to mixInput
-        call Tic("G2R")
-        call convertGameraToRemix(vApp%mhd2mix, gApp, vApp%remixApp)
-        call Toc("G2R")
-
-        ! run remix
+        !Produce tubes before the ionosphere block (same order as MPI startDeep)
+        if (vApp%doDeep .and. vApp%time >= 0) then
+            !Update i-shell to trace within in case rTrc has changed
+            vApp%iDeep = gApp%Grid%ie-1
+            call Tic("G2C")
+            call convertGameraToChimp(vApp%mhd2chmp, gApp, vApp%ebTrcApp)
+            call Toc("G2C")
+            call Tic("VoltTubes",.true.)
+            call genVoltTubes(vApp)
+            call Toc("VoltTubes",.true.)
+        elseif (vApp%doDeep) then
+            !Spinup: refresh CHIMP fields + seed-projection feed (tracing is off)
+            call convertGameraToChimp(vApp%mhd2chmp, gApp, vApp%ebTrcApp)
+            call Tic("VoltTubes",.true.)
+            call genVoltTubesSpinup(vApp)
+            call Toc("VoltTubes",.true.)
+        endif
+        ! Run ionosphere coupler
         call Tic("ReMIX", .true.)
-        call runRemix(vApp)
+        call MJDRecalc(vApp%MJD)
+        call Tic("Imag2Shell")
+        if (vApp%doDeep .and. (vApp%time > 0)) &
+            call vApp%imagApp%toShell(vApp%imag2shell, vApp%shGrid, &
+                                      vApp%State%tubeShell%latc, vApp%State%tubeShell%lonc)
+        call Toc("Imag2Shell")
+        call Tic("DK")
+        call shellDK(vApp)                    ! DK conductance on the shell (before toIono maps it)
+        call Toc("DK")
+        call Tic("ToIono")
+        call vApp%ionoApp%toIono(vApp)        ! shell -> iono (per-model)
+        call Toc("ToIono")
+        call Tic("IonoAdvance")
+        call vApp%ionoApp%AdvanceModel(0.0_rp)
+        call Toc("IonoAdvance")
+        call vApp%ionoApp%fromIono(vApp)      ! iono -> shell (per-model)
+        call updateVoltPotential(vApp)        ! potential_total = potential_base + corotation
+        call Tic("Shell2Gam")
+        call shellToGamera(vApp)             ! shell -> Gamera BC (model-agnostic)
+        call Toc("Shell2Gam")
         call Toc("ReMIX", .true.)
-
-        ! Update potential on voltron's grid
-        call updateVoltPotential(vApp)
-
-
-        call Tic("R2G")
-        call CouplePotentialToMhd(vApp)
-        call Toc("R2G")
 
         ! only do imag after spinup with deep enabled
         if(vApp%doDeep .and. vApp%time >= 0) then
-            ! DoImag needs PreDeep
-            ! DoImag can be in || with squish
-            ! PostDeep needs everything
-            call PreDeep(vApp, gApp)
-              call DoImag(vApp)
-              call SquishStart(vApp)
-                call Squish(vApp) ! do all squish blocks here
-              call SquishEnd(vApp)
+            call SquishStart(vApp)
+            call calcPotDrop(vApp)
+            call DoImag(vApp)
+            call Squish(vApp) ! do all squish blocks here
+            call SquishEnd(vApp)
             call PostDeep(vApp, gApp)
         elseif(vApp%doDeep) then
             !Doing deep but t<0, call spinup Gas0 (empirical TM plasma sheet)
@@ -554,32 +553,13 @@ module voltapp
             gApp%Grid%Gas0 = 0
             !Load TM03 into Gas0 for ingestion during spinup
             !Note: Using vApp%time instead of gamera time units
-            call LoadSpinupGas0(gApp%Model,gApp%Grid,vApp%time)            
-            
+            call LoadSpinupGas0(gApp%Model,gApp%Grid,vApp%time)
+
         endif
 
     end subroutine DeepUpdate
 
-    subroutine PreDeep(vApp, gApp)
-        class(gamApp_T) , intent(inout) :: gApp
-        class(voltApp_T), intent(inout) :: vApp
 
-        !Update i-shell to trace within in case rTrc has changed
-        vApp%iDeep = gApp%Grid%ie-1
-        
-        !Pull in updated fields to CHIMP
-        call Tic("G2C")
-        call convertGameraToChimp(vApp%mhd2chmp,gApp,vApp%ebTrcApp)
-        call Toc("G2C")
-        call Tic("VoltTubes",.true.)
-        call genVoltTubes(vApp)
-        call Toc("VoltTubes",.true.)
-
-        ! Diagnostics that need fresh voltron information
-        call calcPotDrop(vApp)
-
-
-    end subroutine
 
     subroutine DoImag(vApp)
         class(voltApp_T), intent(inout) :: vApp

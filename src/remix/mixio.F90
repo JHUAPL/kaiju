@@ -81,39 +81,32 @@ contains
     mixUnitNames(IM_PHCON)     = "radians"
   end subroutine initMIXNames
 
-  subroutine initMIXIO(I,RunID,isRestartO,nResO,h5FileO)
-    type(mixIon_T),dimension(:),intent(inout) :: I
+  subroutine initMIXIO(mixApp,RunID,isRestart,nRes,h5FileO)
+    class(mixApp_T), intent(inout) :: mixApp
     character(len=*), intent(in) :: RunID   ! these two things are needed when we're coupled with Gamera
-    logical,optional, intent(in) :: isRestartO
-    integer,optional, intent(inout) :: nResO
+    logical, intent(in) :: isRestart
+    integer, intent(inout) :: nRes
     character(len=*), optional, intent(in) :: h5FileO
     
-    logical :: isRestart
     logical :: fExist
     real(rp), dimension(:,:),allocatable :: xc,yc
     integer :: n0
 
     !Setup remix output file
-    if(present(h5FileO)) then
+    if (present(h5FileO)) then
       h5File = h5FileO
     else
       h5File = trim(RunID) // ".mix.h5"
     endif
-    if(present(isRestartO)) then
-      isRestart = isRestartO
-    else
-      isRestart = .false.
-    endif
-
     h5RunID = trim(RunID)
 
     inquire(file=h5File,exist=fExist)
 
     call initMIXNames() !Always do this ... maybe?
 
-    if (isRestart .and. present(nResO)) then
+    if (isRestart) then
       !Read the damn restart if you gotta
-      call readMIXrestart(trim(RunID),nResO,I)
+      call mixApp%ReadRestart(trim(RunID), nRes)
     endif
 
     if (isRestart .and. fExist) then
@@ -127,18 +120,18 @@ contains
     !Reset IO chain
     call ClearIO(IOVars)
 
-    call genOutGrid(I(NORTH)%G%x,I(NORTH)%G%y,xc,yc)
-    
+    call genOutGrid(mixApp%ion(NORTH)%G%x,mixApp%ion(NORTH)%G%y,xc,yc)
+
     ! save grid only for north
     call AddOutVar(IOVars,"X",xc,uStr="Ri")
     call AddOutVar(IOVars,"Y",yc,uStr="Ri")
    ! Save units of Ri and Rp as root attributes
-    call AddOutVar(IOVars,"Ri_m",I(1)%rad_iono_m  )
-    call AddOutVar(IOVars,"Rp_m",I(1)%rad_planet_m)
+    call AddOutVar(IOVars,"Ri_m",mixApp%ion(1)%rad_iono_m  )
+    call AddOutVar(IOVars,"Rp_m",mixApp%ion(1)%rad_planet_m)
 
 
     call AddOutVar(IOVars,"UnitsID","ReMIX")
-             
+    
     !Write out the chain (to root)
     call WriteVars(IOVars,.false.,h5File)
 
@@ -253,34 +246,6 @@ contains
              IOVars(n0)%unitStr = uStr
           endif
        enddo
-      ! add geographic latgeo and longeo
-      vstr = trim("Latitude (Geographic)") // " "//trim(hStr)
-      ustr = trim("radians")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%t,uStr)
-      vstr = trim("Longitude (Geographic)") // " "//trim(hStr)
-      ustr = trim("radians")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%p,uStr)
-      ! add apex lat and lon
-      vstr = trim("Latitude (Apex)") // " "//trim(hStr)
-      ustr = trim("radians")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%t,uStr)
-      vstr = trim("Longitude (Apex)") // " "//trim(hStr)
-      ustr = trim("radians")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%p,uStr)
-      ! add geographic X and Y
-      vstr = trim("X (Geographic)") // " "//trim(hStr)
-      ustr = trim("Ri")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%x,uStr)
-      vstr = trim("Y (Geographic)") // " "//trim(hStr)
-      ustr = trim("Ri")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%y,uStr)
-      ! add Apex X and Y
-      vstr = trim("X (Apex)") // " "//trim(hStr)
-      ustr = trim("Ri")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%x,uStr)
-      vstr = trim("Y (Apex)") // " "//trim(hStr)
-      ustr = trim("Ri")
-      call AddOutVar(IOVars,vstr,I(h)%Ggeo%y,uStr)
     enddo
 
     ! now add time
@@ -310,7 +275,7 @@ contains
 
    write(crashH5FName,"(A,A)") "CRASH",trim(h5File)
 
-   call initMIXIO(I,"crash", h5FileO=crashH5FName)
+   ! initMIXIO now takes class(mixApp_T); writeMIX creates the crash file directly (no-append).
    call writeMIX(I, 0, mjd=mjd,time=time,h5FileO=crashH5FName)
 
   end subroutine writeMIXCRASH
