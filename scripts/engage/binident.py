@@ -12,6 +12,10 @@ RES_OPTIONAL = ("dk",)
 
 # Printed by voltapp_mpi.F90 when WACCM-X joins the MPMD launch.
 WCMX_MARKER = "ranks of W"
+# The XML root dkinit.F90 opens for conductance/precipitation; absent from voltrons built before xml-engage.
+DK_MARKER = "Kaiju/DRAGONKING"
+# Exit code of a job whose voltron cannot run its deck (90 is missing restart inputs).
+GATE_EXIT = 91
 
 _CACHE = {}
 
@@ -63,7 +67,7 @@ def voltron_identity(exe):
     """Facts about voltron_mpi.x `exe` (elf, sha256, wcmx, ...), cached per (realpath, size, mtime)."""
     out = {"path": exe, "realpath": os.path.realpath(exe) if exe else None,
            "exists": bool(exe) and os.path.isfile(exe), "elf": False, "sha256": None, "size": None,
-           "mtime": None, "wcmx": False}
+           "mtime": None, "wcmx": False, "dk_xml": False}
     if not out["exists"]:
         return out
     facts = _file_facts(exe) or {}
@@ -79,7 +83,9 @@ def voltron_identity(exe):
         data = b""
     out["sha256"] = hashlib.sha256(data).hexdigest() if data else file_sha256(exe)
     if out["elf"]:
-        out["wcmx"] = WCMX_MARKER in "\n".join(printable_strings(data))
+        text = "\n".join(printable_strings(data))
+        out["wcmx"] = WCMX_MARKER in text
+        out["dk_xml"] = DK_MARKER in text
     _CACHE[key] = dict(out)
     return out
 
@@ -97,6 +103,9 @@ def voltron_problem(ident, component):
         return "refuse", (f"{path} has no 'ranks of W': it is not a voltron that couples WACCM-X, so "
                           f"CAM would hang in its first import broadcast. Build voltron from a uidev "
                           f"checkout.")
+    if not ident.get("dk_xml"):
+        return "refuse", (f"{path} has no {DK_MARKER} reader (built before xml-engage) and would ignore "
+                          f"the decks' <DRAGONKING> section: build voltron from this branch.")
     return None, None
 
 
@@ -109,13 +118,21 @@ def res_files(prefix, index, family):
     return [p] if os.path.exists(p) else []
 
 
-def job_probe_lines(exe="./voltron_mpi.x", sha256=None):
-    """Bash lines that warn at launch when `exe` is not the binary the deck was written for."""
-    return ["# ---- voltron check: the binary this deck was written for vs the one this job runs",
-            f"want_sha={sha256 or ''}",
-            f"have_sha=$(sha256sum {exe} 2>/dev/null | cut -d' ' -f1)",
-            'if [ "$have_sha" != "$want_sha" ]; then',
-            f'  echo "WARNING: {exe} (sha256 ${{have_sha:-unreadable}}) is not the binary engage recorded '
-            f'for this deck (sha256 ${{want_sha:-none, it did not exist yet}})"',
-            "fi",
-            "# ---- end voltron check"]
+def job_probe_lines(exe="./voltron_mpi.x", sha256=None, sha=True):
+    """Bash lines run before the launch: warn when `exe` is not the recorded binary (sha), stop
+    (exit 91) when it has no DRAGONKING reader."""
+    if not sha:
+        L = ["# ---- voltron check: the binary must read this deck's <DRAGONKING> section"]
+    else:
+        L = ["# ---- voltron check: the binary this deck was written for vs the one this job runs",
+             f"want_sha={sha256 or ''}",
+             f"have_sha=$(sha256sum {exe} 2>/dev/null | cut -d' ' -f1)",
+             'if [ "$have_sha" != "$want_sha" ]; then',
+             f'  echo "WARNING: {exe} (sha256 ${{have_sha:-unreadable}}) is not the binary engage recorded '
+             f'for this deck (sha256 ${{want_sha:-none, it did not exist yet}})"',
+             "fi"]
+    L += [f'grep -qa {DK_MARKER} {exe} || {{ echo "GATE: {exe} has no {DK_MARKER} reader (built before '
+          f'xml-engage) and would ignore this deck\'s <DRAGONKING> section: rebuild voltron from a checkout '
+          f'with xml-engage merged"; exit {GATE_EXIT}; }}',
+          "# ---- end voltron check"]
+    return L

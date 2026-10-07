@@ -863,7 +863,7 @@ MISSING_EXE_HINT = {
     "coupled": "the coupled TIE-GCM executable (the coupled jobs run it): build it with "
                "tiegcmrun.py --onlycompile --coupling",
     "voltron": "voltron_mpi.x (the jobs run the run directory's link to it): build it in "
-               "pbs.kaiju_build_directory",
+               "pbs.kaiju_build_directory from this branch (the decks need its DRAGONKING reader)",
 }
 
 
@@ -944,6 +944,22 @@ def _tiegcm_exes_of(tiegcm_options_path):
             return os.path.normpath(os.path.join(jdir, p))
         return None
     return {"modelexe": resolved(exe), "coupled_modelexe": resolved(cexe), "zitop": zitop}
+
+
+def _waxrun_voltron_exe_of(waxrun_options_path):
+    """model.data.voltron_exe of a -wo JSON (absolute, or relative to the JSON), else None."""
+    if not waxrun_options_path:
+        return None
+    try:
+        with open(waxrun_options_path, "r", encoding="utf-8") as f:
+            exe = json.load(f)["model"]["data"].get("voltron_exe")
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+    if not isinstance(exe, str) or not exe:
+        return None
+    if os.path.isabs(exe):
+        return exe
+    return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(waxrun_options_path)), exe))
 
 
 def grt_to_format_preflight(tiegcm_options_path):
@@ -1215,7 +1231,7 @@ def render_grx_pbs(options: dict, ii: int, ic: int, iu: int, coupling_start, run
     log = f"voltron_mpi.x-{seg_name}.${{PBS_JOBID}}.out"
     out = f"> {log}"
     probe_lines = []
-    if "voltron_sha256" in pbs and ii >= 1:
+    if "voltron_sha256" in pbs:
         probe_lines = binident.job_probe_lines("./voltron_mpi.x", pbs["voltron_sha256"])
     if coupled:
         if ii == ic + 1:
@@ -2123,6 +2139,9 @@ def run_grx(engage_options, args):
     # A voltron without 'ranks of W' cannot couple WACCM-X and leaves CAM hanging.
     voltron_path = _voltron_exe(pbs)
     volt_ident = voltron_preflight(voltron_path, "grx")
+    wo_exe = _waxrun_voltron_exe_of(replay)
+    if wo_exe and os.path.abspath(wo_exe) != os.path.abspath(voltron_path):
+        voltron_preflight(wo_exe, "grx")
 
     # waxrun's wizard runs before anything is written; mage.dtcouple/dtout come from makeitso later.
     answers = None

@@ -2166,16 +2166,23 @@ def _import_binident():
     return mod
 
 
+def voltron_content_problem(options: dict, args: dict = None):
+    """The refusal if <pbs.kaiju_build_directory>/bin/voltron_mpi.x exists but cannot run the decks
+    makeitso writes; None when it is fine or does not exist yet (the job's gate then decides)."""
+    bi = _import_binident()
+    exe = os.path.join(str(options.get("pbs", {}).get("kaiju_build_directory") or ""), "bin", "voltron_mpi.x")
+    level, msg = bi.voltron_problem(bi.voltron_identity(exe), run_component(args))
+    if level == "missing" and run_component(args) == "gr":
+        print(f"{YELLOW}WARNING: {exe} does not exist: build voltron from this branch before submitting "
+              f"(each job stops with GATE exit {bi.GATE_EXIT} on a binary without the DRAGONKING reader).{RESET}")
+    return msg if level == "refuse" else None
+
+
 def check_voltron_exe(options: dict, args: dict = None):
-    """Standalone GR: refuse a non-ELF voltron_mpi.x and warn about missing restart files."""
+    """Standalone GR: warn about missing restart files."""
     if run_component(args) != "gr":
         return
     bi = _import_binident()
-    exe = os.path.join(str(options.get("pbs", {}).get("kaiju_build_directory") or ""), "bin", "voltron_mpi.x")
-    if os.path.isfile(exe) and not bi.is_elf(exe):
-        raise ValueError(f"{exe} is not an ELF executable: the job scripts copy it in as voltron_mpi.x. "
-                         f"Point pbs.kaiju_build_directory at a kaiju build whose bin/voltron_mpi.x is the "
-                         f"compiled voltron.")
     gamera = options.get("gamera", {})
     if _is_segmented(options) or tf(gamera.get("restart", {}).get("doRes")) != "T":
         return
@@ -2914,6 +2921,7 @@ def render_pbs(options: dict, stack: str = "gr", handoff=None, job_dir: str = No
           f"[ -L ./voltron_mpi.x ] || cp {shlex.quote(str(build_dir) + '/bin/voltron_mpi.x')} ./voltron_mpi.x", ""]
     if handoff:
         L += list(handoff) + [""]
+    L += _import_binident().job_probe_lines("./voltron_mpi.x", sha=False) + [""]
     L += ["# Run the model. Direct output from the program is saved in a text file.",
           "EXE=./voltron_mpi.x",
           f'OUTPUT_FILE="$EXE-{segment_id}.out"',
@@ -3102,6 +3110,9 @@ def makeitso(args: dict = None):
     apply_bcwind_tsfile(options)
     check_deck_strings(options)
     apply_option_rules(options, args)
+    problem = voltron_content_problem(options, args)
+    if problem:
+        raise ValueError(problem)
 
     # GRX: preprocess and write the GRX .xml decks only; engage writes the coupled job script.
     if args.get("grx"):
