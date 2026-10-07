@@ -9,11 +9,15 @@ this version of the model "GR" ("GAMERA-RAIJU") for brevity.
 Before you begin
 --------------------------------------------
 
-*Source* (not *run*) the environment setup scripts for the ``kaiju`` software. For example:
+*Source* (not *run*) the environment setup scripts for the ``kaiju`` software,
+then activate the ``conda`` environment that holds ``kaipy`` (see
+:doc:`/python/index`). For example:
 
 .. code-block:: bash
 
     source /path/to/your/kaiju/scripts/setupEnvironment.sh
+    module load conda
+    conda activate kaiju-3.12
 
 The MPI version of the ``kaiju`` software must be built first; the ``Path to
 kaiju build directory`` prompt defaults to the ``build_mpi`` subdirectory of
@@ -43,12 +47,10 @@ For this example, we will run the code on ``derecho``, and use the default
 ``BASIC`` mode, which requires the minimum amount of input from the user. At
 each prompt, you can either type in a value, or hit the :kbd:`Return` key to
 accept the default value (shown in square brackets at the end of the prompt).
-To get started, load the CDF library (needed for fetching solar wind data) and
-run ``engage.py --component gr``:
+To get started, run ``engage.py --component gr``:
 
 .. code-block:: bash
 
-    source /path/to/your/cdf/bin/definitions.B
     engage.py --component gr
 
 This opens an arrow-key wizard that asks the questions below, one at a time: type a

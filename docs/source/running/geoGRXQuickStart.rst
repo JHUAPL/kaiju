@@ -13,13 +13,16 @@ Before you begin
 Setting environment variables
 ************************************************
 
-*Source* (not *run*) the environment setup scripts for the ``kaiju`` software
-and set ``WAXHOME`` to the path to your CAM clone. For example:
+*Source* (not *run*) the environment setup scripts for the ``kaiju`` software,
+set ``WAXHOME`` to the path to your CAM clone, then activate the ``conda``
+environment that holds ``kaipy`` (see :doc:`/python/index`). For example:
 
 .. code-block:: bash
 
     source /path/to/your/kaiju-clone/scripts/setupEnvironment.sh
     export WAXHOME=/path/to/your/cam
+    module load conda
+    conda activate kaiju-3.12
 
 .. note::
 

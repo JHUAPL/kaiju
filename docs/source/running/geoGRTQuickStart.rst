@@ -12,14 +12,17 @@ Before you begin
 Setting environment variables
 ************************************************
 
-*Source* (not *run*) the environment setup scripts for the ``kaiju`` software and add paths to ``TIEGCMHOME`` and ``TIEGCMDATA``.
-For example:
+*Source* (not *run*) the environment setup scripts for the ``kaiju`` software,
+add paths to ``TIEGCMHOME`` and ``TIEGCMDATA``, then activate the ``conda``
+environment that holds ``kaipy`` (see :doc:`/python/index`). For example:
 
 .. code-block:: bash
 
     source /path/to/your/kaiju-clone/scripts/setupEnvironment.sh
     export TIEGCMHOME=/path/to/your/tiegcm
     export TIEGCMDATA=/path/to/your/tiegcm/data
+    module load conda
+    conda activate kaiju-3.12
 
 .. note::
 
