@@ -88,9 +88,11 @@ Example XML:
    <!-- Remix params -->
    <REMIX>
      <grid Np="360" Nt="45" LowLatBoundary="45.0"/>
+   </REMIX>
+   <DRAGONKING>
      <conductance F107="100.0" pedmin="2.0" hallmin="1.0" sigma_ratio="3.0" const_sigma="False" ped0="10.0"/>
      <precipitation aurora_model_type="RCMONO" alpha="0.2" beta="0.4"/>
-   </REMIX>
+   </DRAGONKING>
 
 REMIX/grid
 ----------
@@ -102,8 +104,8 @@ REMIX/grid
 * LowLatBoundary: [degree] - What colatitude degree is your Low Latitude
   Boundary?
 
-REMIX/conductance
------------------
+DRAGONKING/conductance
+----------------------
 
 There are a lot of conditionals within this section. So this section may
 become complicated.
@@ -133,8 +135,8 @@ pedmin: [float] - minimum pedersen conductance [min(gcmped,pedmin)]
 
 hallmin: [float] - minimum hall conductnace [min(gcmhall,hallmin)]
 
-REMIX/precipitation
--------------------
+DRAGONKING/precipitation
+------------------------
 
 auroral_model_type: [FEDDER,RCMONO] - Do we use Fedder precipitation or
 RCM+Zhang Mono precipitation? Keep in mind RCMONO requires RCM or it will do
@@ -221,9 +223,11 @@ Example XML:
    <!-- Remix params -->
    <REMIX>
      <grid Np="360" Nt="45" LowLatBoundary="45.0"/>
+   </REMIX>
+   <DRAGONKING>
      <conductance F107="100.0" pedmin="2.0" hallmin="1.0" sigma_ratio="3.0" const_sigma="False" ped0="10.0"/>
      <precipitation aurora_model_type="RCMONO" alpha="0.2" beta="0.4"/>
-   </REMIX>
+   </DRAGONKING>
    <!-- EB-Tracer (CHIMP) params -->
    <CHIMP>
      <units uid="EARTHCODE"/>

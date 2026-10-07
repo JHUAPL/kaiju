@@ -76,6 +76,12 @@ build directory in any convenient location.
     make -j4 calcdb.x chop.x sctrack.x slice.x >& make-analysis.out
 
     
+Build ``voltron_mpi.x`` from this branch. It includes the ``xml-engage`` change: DragonKing reads
+its conductance and precipitation settings from a ``<DRAGONKING>`` section of the deck, and
+``makeitso``/``engage`` write only that section. They refuse a ``bin/voltron_mpi.x`` built without
+the ``Kaiju/DRAGONKING`` reader, and every generated job re-checks the binary at launch and stops
+with ``GATE`` exit 91 rather than run with default conductance.
+
 When finished, your build directory will contain a ``bin``
 subdirectory which will contain the compiled ``kaiju`` executables.
 
