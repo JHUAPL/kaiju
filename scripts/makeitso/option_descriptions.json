@@ -722,11 +722,11 @@
             }
         }
     },
-    "remix": {
+    "dragonking": {
         "conductance": {
             "doStarlight": {
                 "LEVEL": "INTERMEDIATE",
-                "prompt": "(REMIX) Compute starlight contribution to conductance",
+                "prompt": "(DRAGONKING) Compute starlight contribution to conductance",
                 "default": "T",
                 "valids": [
                     "T",
@@ -736,7 +736,7 @@
             },
             "apply_cap": {
                 "LEVEL": "INTERMEDIATE",
-                "prompt": "(REMIX) Apply cap to Hall conductance based on Pedersen conductance",
+                "prompt": "(DRAGONKING) Apply cap to Hall conductance based on Pedersen conductance",
                 "default": "T",
                 "valids": [
                     "T",
@@ -746,7 +746,7 @@
             },
             "const_sigma": {
                 "LEVEL": "INTERMEDIATE",
-                "prompt": "(REMIX) Use constant conductance",
+                "prompt": "(DRAGONKING) Use constant conductance",
                 "default": "F",
                 "valids": [
                     "T",
@@ -758,7 +758,7 @@
         "precipitation": {
             "aurora_model_type": {
                 "LEVEL": "INTERMEDIATE",
-                "prompt": "(REMIX) Name of auroral precipitation model to use",
+                "prompt": "(DRAGONKING) Name of auroral precipitation model to use",
                 "default": "LINMRG",
                 "valids": [
                     "FEDDER",
@@ -769,14 +769,14 @@
             },
             "beta": {
                 "LEVEL": "INTERMEDIATE",
-                "prompt": "(REMIX) Loss cone filling fraction",
+                "prompt": "(DRAGONKING) Loss cone filling fraction",
                 "default": "0.2",
                 "type": "float",
                 "min": 0
             },
             "doAuroralSmooth": {
                 "LEVEL": "INTERMEDIATE",
-                "prompt": "(REMIX) Enable Auroral Smoothing",
+                "prompt": "(DRAGONKING) Enable Auroral Smoothing",
                 "default": "F",
                 "valids": [
                     "T",

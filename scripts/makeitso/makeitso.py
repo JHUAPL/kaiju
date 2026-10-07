@@ -364,6 +364,7 @@ def create_command_line_parser():
 # Keys from older options JSONs, refused with what replaces them.
 OLD_FORMAT_KEYS = {
     ("provenance",): "no longer written",
+    ("remix",): "renamed dragonking, same keys",
     ("voltron", "output", "tsOut"): "use voltron.output.dtCon",
     ("voltron", "coupling", "doDeep"): "model default; a GRX deck sets it itself",
     ("voltron", "spinup", "tIO"): "model default 0.0: restart k is at k*dtRes; a GRX deck sets it itself",
@@ -890,7 +891,7 @@ def get_pbs_descriptions(option_descriptions: dict, hpc_platform: str):
 OPTIONAL_PBS_FIELDS = ("job_priority", "group_list", "local_modules")
 
 # Every leaf of these sections is rendered into template.ini.
-MODEL_SECTIONS = ("gamera", "voltron", "chimp", "remix", "raiju")
+MODEL_SECTIONS = ("gamera", "voltron", "chimp", "dragonking", "raiju")
 
 # PBS fields render_pbs reads that have an option_descriptions default.
 RENDERED_PBS_FIELDS = ("run_directory", "queue", "walltime", "mpiprocs", "ompthreads",
@@ -995,8 +996,8 @@ PREVIOUS_KEYS = (
     "simulation.LFM_grid_type", "simulation.runid", "pbs.helper_select", "pbs.hpc_system",
     "pbs.num_jobs", "pbs.runid", "gamera.ringknobs.doVClean", "gamera.source.doBounceDT",
     "gamera.source.doWolfLim", "raiju.grid.ThetaU", "raiju.output.doLossExtras",
-    "raiju.output.writeGhosts", "remix.conductance.doRamp", "remix.precipitation.alpha",
-    "voltron.coupling.rTrc", "voltron.ebsquish.epsSquish", "simulation.bcwind_t0", "rcm")
+    "raiju.output.writeGhosts", "voltron.coupling.rTrc", "voltron.ebsquish.epsSquish",
+    "simulation.bcwind_t0", "rcm")
 
 
 def add_schema_paths(schema: dict, dotted) -> dict:
@@ -1749,17 +1750,17 @@ def prompt_user_for_run_options(option_descriptions: dict, args: dict):
     for on in od:
         o[on] = get_run_option(on, od[on], mode, path=f"chimp.tracer.{on}")
 
-    options["remix"] = {}
+    options["dragonking"] = {}
 
-    o = options["remix"]["conductance"] = {}
-    od = option_descriptions["remix"]["conductance"]
+    o = options["dragonking"]["conductance"] = {}
+    od = option_descriptions["dragonking"]["conductance"]
     for on in od:
-        o[on] = get_run_option(on, od[on], mode, path=f"remix.conductance.{on}")
+        o[on] = get_run_option(on, od[on], mode, path=f"dragonking.conductance.{on}")
 
-    o = options["remix"]["precipitation"] = {}
-    od = option_descriptions["remix"]["precipitation"]
+    o = options["dragonking"]["precipitation"] = {}
+    od = option_descriptions["dragonking"]["precipitation"]
     for on in od:
-        o[on] = get_run_option(on, od[on], mode, path=f"remix.precipitation.{on}")
+        o[on] = get_run_option(on, od[on], mode, path=f"dragonking.precipitation.{on}")
 
     options["raiju"] = {}
 

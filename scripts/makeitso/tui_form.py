@@ -338,7 +338,7 @@ def load_makeitso_fields(option_descriptions, hpc_system, gamera_grid_type, stri
         if is_field(meta):
             fields.append(_field_from(meta, name, f"simulation.{name}", "simulation"))
 
-    for sec in ("gamera", "voltron", "chimp", "remix", "raiju"):
+    for sec in ("gamera", "voltron", "chimp", "dragonking", "raiju"):
         node = option_descriptions.get(sec, {})
         for sub, subnode in node.items():
             if not isinstance(subnode, dict):
