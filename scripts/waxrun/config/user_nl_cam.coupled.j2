@@ -1,11 +1,4 @@
-{# waxrun-owned user_nl_cam (coupled): the reference coupled case's user_nl_cam (tree fvitt/CAM
-   waccmx_mage_cplng @ da3bc8d52 + cmeps fvitt/CMEPS waccmx-mage @ a7c0b51a9), with three changes:
-   fincl2 without 'Nudge_T'; Model_Times_Per_day derived from dtime; the h1 nhtfrq entry derived as
-   60 // dtime steps so h1 stays 60 s at any coupled dtime. Only {{ }} lines vary per run
-   (templates.VARIABLES["coupled"]); the solar_wind_data_file line exists only when the variable is
-   non-empty (waxrun.harmonize_forcing copies the spinup template's OMNI file in). This header is a
-   Jinja comment; the templates are rendered without trim_blocks, and the {%- if %} / {%- endif %}
-   tags of the optional line strip the newline before them so the block vanishes without a trace. -#}
+{# user_nl_cam for the coupled case. {{ }} values are filled per run. -#}
 ! Users should add all user specific namelist changes below in the form of
 ! namelist_var = new_namelist_value
 
@@ -48,7 +41,7 @@ flbc_file = '/glade/campaign/cesm/cesmdata/cseg/inputdata/atm/waccm/lb/LBC_17500
          'N', 'N2D', 'QRS_TOT', 'QRL_TOT', 'QCP', 'QJOULE', 'KVM', 'EKGW', 'TTGW', 'UTGW_TOTAL', 'VTGW_TOTAL'
  fincl2= 'Z3GM', 'T', 'U', 'V', 'OMEGA', 'UI', 'VI', 'WI', 'EDens', 'PS', 'O', 'O2', 'H', 'Op', 'N',
          'OH', 'NO', 'O3', 'SIGMAHAL', 'SIGMAPED', 'NMF2', 'HMF2', 'TElec', 'TIon', 'N2D',
-	 'mage_efx_phys', 'mage_kev_phys'
+	 'mage_efx_phys', 'mage_kev_phys', 'QJOULE'
  fincl3 ='T_24_COS', 'T_24_SIN', 'T_12_COS', 'T_12_SIN',
          'U_24_COS', 'U_24_SIN', 'U_12_COS', 'U_12_SIN',
          'V_24_COS', 'V_24_SIN', 'V_12_COS', 'V_12_SIN',
@@ -63,8 +56,8 @@ flbc_file = '/glade/campaign/cesm/cesmdata/cseg/inputdata/atm/waccm/lb/LBC_17500
  fincl10= ' '
 
  inithist ='{{ inithist }}'
- nhtfrq=             -24, {{ 60 // dtime }}, -24, 1, 1
- mfilt= 1, 12, 1, 120, 12
+ nhtfrq=             -24, {{ 60 // dtime }}, -24, {{ 60 // dtime }}, {{ 1800 // dtime }}
+ mfilt= 1, 60, 1, 60, 2
  write_nstep0 = .true.
  
  se_nu			   = 2.e14
@@ -73,9 +66,9 @@ flbc_file = '/glade/campaign/cesm/cesmdata/cseg/inputdata/atm/waccm/lb/LBC_17500
 ! se_nu			   = 5.e15
 ! se_nu_div		     =  1.e16
 ! se_nu_p                     = 1.e16
- se_hypervis_subcycle		=  2
- se_hypervis_subcycle_q		=  2
- se_hypervis_subcycle_sponge = 40
+ se_hypervis_subcycle		=  1
+ se_hypervis_subcycle_q		=  1
+ se_hypervis_subcycle_sponge = 60
 
  se_statefreq = 30 ! NMP
 
