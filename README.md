@@ -78,13 +78,12 @@ configuration the `Kaiju` software is being run.
 
 **MAGE software, all versions:** https://doi.org/10.5281/zenodo.16818620.
 
-**MAGE 0.75:** Sorathia, K. A., Michael, A., Merkin,
-V. G., Ohtani, S., Keesee, A. M., Sciola, A., et
-al. (2023). Multiscale magnetosphere-ionosphere coupling during
-stormtime: A case study of the dawnside current wedge. Journal of
-Geophysical Research: Space Physics, 128,
-e2023JA031594. https://doi.org/10.1029/2023JA031594.
-Software: MAGE_0.75.5, https://doi.org/10.5281/zenodo.16818621.
+**MAGE 1.5:** Team is working on the publication.
+Software: MAGE_1.5.0, https://doi.org/10.5281/zenodo.23271204.
+
+**MAGE 1.25:** Team is working on the publication.
+Software: MAGE_1.25.1, https://doi.org/10.5281/zenodo.17915213
+(MAGE_1.25.0, https://doi.org/10.5281/zenodo.17914755).
 
 **MAGE 1.0:** Pham, K. H., Zhang, B., Sorathia, K., Dang, T., Wang, W.,
 Merkin, V., et al. (2022). Thermospheric density perturbations
@@ -93,13 +92,13 @@ storm. Journal of Geophysical Research: Space Physics, 127,
 e2021JA030071. https://doi.org/10.1029/2021JA030071.
 Software: MAGE_1.0.5, https://doi.org/10.5281/zenodo.16818682.
 
-**MAGE 1.25:** Team is working on the publication.
-Software: MAGE_1.25.1, https://doi.org/10.5281/zenodo.17915213
-(MAGE_1.25.0, https://doi.org/10.5281/zenodo.17914755).
-
-**MAGE 1.5:** Team is working on the publication.
-Software: MAGE_1.5.0, https://doi.org/10.5281/zenodo.23271204.
-
+**MAGE 0.75:** Sorathia, K. A., Michael, A., Merkin,
+V. G., Ohtani, S., Keesee, A. M., Sciola, A., et
+al. (2023). Multiscale magnetosphere-ionosphere coupling during
+stormtime: A case study of the dawnside current wedge. Journal of
+Geophysical Research: Space Physics, 128,
+e2023JA031594. https://doi.org/10.1029/2023JA031594.
+Software: MAGE_0.75.5, https://doi.org/10.5281/zenodo.16818621.
 ##### For individual model components please cite the following:
 
 **GAMERA MHD algorithm and tests:** Zhang, B., Sorathia, K.A., Lyon, J.G., Merkin, V.G., Garretson,
