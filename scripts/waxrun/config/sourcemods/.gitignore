@@ -1,0 +1,4 @@
+# your SourceMods stay local; only this file and README.md are tracked
+*
+!.gitignore
+!README.md

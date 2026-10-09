@@ -40,9 +40,11 @@ Example xml for a double-resolution MPI run
    </Gamera>
    <REMIX>
      <grid Np="360" Nt="45" LowLatBoundary="45.0"/>
+   </REMIX>
+   <DRAGONKING>
      <conductance doStarlight="T" />
      <precipitation aurora_model_type="FEDDER" alpha="0.34" beta="9.4362323" R="0.042567956" doAuroralSmooth="F"/>
-   </REMIX>
+   </DRAGONKING>
    </KAIJU>
 
 Example pbs file for a double-resolution MPI run

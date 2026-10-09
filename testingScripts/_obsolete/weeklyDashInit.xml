@@ -32,10 +32,10 @@
       <domain dtype="MAGE"/>
       <tracer epsds="0.05"/>
    </CHIMP>
-   <REMIX>
+   <DRAGONKING>
       <conductance doStarlight="T" doRamp="F"/>
       <precipitation aurora_model_type="LINMRG" alpha="0.2" beta="0.4" doAuroralSmooth="F"/>
-   </REMIX>
+   </DRAGONKING>
    <RCM>
       <rcmdomain domType="ELLIPSE"/>
       <ellipse xSun="12.5" yDD="15.0" xTail="-20.0" isDynamic="T"/>

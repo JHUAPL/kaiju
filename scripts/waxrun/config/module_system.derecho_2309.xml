@@ -1,0 +1,66 @@
+  <module_system type="module" allow_error="true">
+    <init_path lang="perl">$ENV{LMOD_ROOT}/lmod/init/perl</init_path>
+    <init_path lang="python">$ENV{LMOD_ROOT}/lmod/init/env_modules_python.py</init_path>
+    <init_path lang="sh">$ENV{LMOD_ROOT}/lmod/init/sh</init_path>
+    <init_path lang="csh">$ENV{LMOD_ROOT}/lmod/init/csh</init_path>
+    <cmd_path lang="perl">$ENV{LMOD_ROOT}/lmod/libexec/lmod perl</cmd_path>
+    <cmd_path lang="python">$ENV{LMOD_ROOT}/lmod/libexec/lmod python</cmd_path>
+    <cmd_path lang="sh">module</cmd_path>
+    <cmd_path lang="csh">module</cmd_path>
+    <modules>
+      <command name="purge"/>
+      <command name="load">cesmdev/1.0</command>
+      <command name="load">ncarenv/23.09</command>
+      <command name="load">craype</command>
+      <command name="load">cmake</command>
+    </modules>
+    <modules compiler="intel">
+      <command name="load">intel-classic/2023.2.1</command>
+      <command name="load">mkl</command>
+    </modules>
+    <modules compiler="intel-oneapi">
+      <command name="load">intel-oneapi/2023.2.1</command>
+      <command name="load">mkl</command>
+    </modules>
+    <modules compiler="intel-classic">
+      <command name="load">intel-classic/2023.2.1</command>
+      <command name="load">mkl</command>
+    </modules>
+    <modules compiler="cray">
+      <command name="load">cce/19.0.0</command>
+      <command name="load">cray-libsci/25.03.0</command>
+    </modules>
+    <modules compiler="gnu">
+      <command name="load">gcc/14.3.0</command>
+      <command name="load">cray-libsci/25.03.0</command>
+    </modules>
+    <modules compiler="nvhpc">
+      <command name="load">nvhpc/25.9</command>
+      <command name="load">cray-libsci/25.03.0</command>
+    </modules>
+    <modules>
+      <command name="load">ncarcompilers/1.0.0</command>
+      <command name="load">cmake</command>
+    </modules>
+    <modules mpilib="mpich">
+      <command name="load">cray-mpich/8.1.27</command>
+    </modules>
+    <modules mpilib="mpi-serial">
+      <command name="load">mpi-serial/2.3.0</command>
+    </modules>
+    <modules mpilib="mpi-serial">
+      <command name="load">netcdf/4.9.2</command>
+    </modules>
+    <modules mpilib="!mpi-serial">
+      <command name="load">hdf5-mpi/1.12.2</command>
+      <command name="load">netcdf-mpi/4.9.2</command>
+      <command name="load">parallel-netcdf/1.12.3</command>
+      <command name="load">parallelio/2.6.2</command>
+    </modules>
+    <modules DEBUG="FALSE">
+      <command name="load">esmf/8.6.0</command>
+    </modules>
+    <modules DEBUG="TRUE">
+      <command name="load">esmf/8.6.0-debug</command>
+    </modules>
+  </module_system>

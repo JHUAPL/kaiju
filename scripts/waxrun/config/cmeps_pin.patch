@@ -1,0 +1,25 @@
+Pin components/cmeps to fvitt/CMEPS waccmx-mage @ a7c0b51a98ee57a0b33dc75a43cbc1320385032d.
+
+The fxtag cmeps1.1.54 that fvitt/CAM waccmx_mage_cplng @ da3bc8d52 records resolves to ESCOMP
+cmeps1.1.54, whose cesm/driver/esmApp.F90 has no MPI_COMM_split: the MPMD coupled job then hangs
+at ESMF init.  Apply this in the CAM clone before ./bin/git-fleximod update; a
+bare `git checkout` inside components/cmeps is silently reverted by the next fleximod update.
+
+    git apply $KAIJUHOME/scripts/waxrun/config/cmeps_pin.patch
+    ./bin/git-fleximod update
+
+diff --git a/.gitmodules b/.gitmodules
+index 58ad8ea..c1f1110 100644
+--- a/.gitmodules
++++ b/.gitmodules
+@@ -152,8 +152,8 @@ fxDONOTUSEurl = https://github.com/ESMCI/cime
+ 
+ [submodule "cmeps"]
+ path = components/cmeps
+-url = https://github.com/ESCOMP/CMEPS.git
+-fxtag = cmeps1.1.54
++url = https://github.com/fvitt/CMEPS.git
++fxtag = a7c0b51a98ee57a0b33dc75a43cbc1320385032d
+ fxrequired = ToplevelRequired
+ fxDONOTUSEurl = https://github.com/ESCOMP/CMEPS.git
+ 

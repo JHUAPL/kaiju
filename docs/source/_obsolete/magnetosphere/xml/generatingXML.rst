@@ -49,8 +49,10 @@ So an old XML file that will no longer work might look like this:
    </Gamera>
    <REMIX>
        <grid Np="360" Nt="45" LowLatBoundary="45.0"/>
-       <conductance const_sigma="T" ped0="10.0"/>
    </REMIX>
+   <DRAGONKING>
+       <conductance const_sigma="T" ped0="10.0"/>
+   </DRAGONKING>
 
 Whereas the corrected XML file will look like this:
 
@@ -79,8 +81,10 @@ Whereas the corrected XML file will look like this:
        </Gamera>
        <REMIX>
            <grid Np="360" Nt="45" LowLatBoundary="45.0"/>
-           <conductance const_sigma="T" ped0="10.0"/>
        </REMIX>
+       <DRAGONKING>
+           <conductance const_sigma="T" ped0="10.0"/>
+       </DRAGONKING>
    </Kaiju>
 
 Generating New XML Files From Scratch
@@ -148,8 +152,10 @@ looks like as an XML:
        </Gamera>
        <REMIX>
            <grid Np="360" Nt="45" LowLatBoundary="45.0"/>
-           <conductance const_sigma="T" ped0="10.0"/>
        </REMIX>
+       <DRAGONKING>
+           <conductance const_sigma="T" ped0="10.0"/>
+       </DRAGONKING>
    </Kaiju>
 
 Here is the exact same file, but written as a config file:
@@ -239,6 +245,7 @@ Here is the exact same file, but written as a config file:
    Nt = 45
    LowLatBoundary = 45.0
 
+   ## DRAGONKING ##
    [conductance]
    const_sigm = T
    ped0 = 10.0

@@ -1,0 +1,848 @@
+{
+  "version": "1.0.0",
+  "_comment": "Option descriptions for waxrun (WACCM-X / GRX). Each leaf has LEVEL (BENCH<BASIC<INTERMEDIATE<EXPERT), prompt (null = never asked, data only), default, optional valids, description, warning, and optional type (name|file|dir|path|str_list|sourcemods), min/max/exclusive_min and anchor ('tool': a relative path is relative to scripts/waxrun; otherwise to simulation.run_directory). Both CESM cases are created from scratch with create_newcase against the CAM tree in simulation.srcroot; the xml settings and the user_nl_cam templates (config/user_nl_cam.*.j2) are waxrun's own config; SourceMods are yours (config/sourcemods/README.md). Under engage the engage-owned leaves (job name, window, account, queue, segment, delay, run dir, kaiju paths) are filled in and not asked. <run_directory> and <job> in a string default are expanded from the layout.",
+  "simulation": {
+    "job_name": {
+      "LEVEL": "BENCH",
+      "prompt": "Job name (engage job_name; the cases are <job> and <job>_spinup)",
+      "default": "grx_test",
+      "type": "name",
+      "description": "Names both CESM cases, the assembled nudging directory met_data_<job> and the replay JSON.",
+      "warning": null
+    },
+    "hpc_system": {
+      "LEVEL": "BENCH",
+      "prompt": "Name of HPC system",
+      "default": "derecho",
+      "valids": [
+        "derecho"
+      ],
+      "description": "Only derecho is supported for GRX today.",
+      "warning": null
+    },
+    "project": {
+      "LEVEL": "BASIC",
+      "prompt": "Project / account code",
+      "default": null,
+      "description": "The account the cases, the nudging job and every GRX job are charged to. Required on derecho; there is no shared default.",
+      "warning": null
+    },
+    "run_directory": {
+      "LEVEL": "BASIC",
+      "prompt": "Run directory (the coupled RUNDIR; wax_case/, cesm/, shared/ live under it)",
+      "default": ".",
+      "description": "engage's run directory. Layout: <run_dir>/wax_case/<job>{,_spinup} caseroots, <run_dir>/cesm (CIME output root), <run_dir>/shared (stripped ICs), <run_dir>/nudging_gen, <run_dir>/met_data_<job>, <run_dir>/dryrun. The coupled case runs in <run_dir> itself (its RUNDIR); the spinup runs in <run_dir>/cesm/<job>_spinup/run. The GR lead-in (<job>-SPINUP, <job>-WARMUP-01, their output and restarts) runs in <run_dir>/gr_spinup/. waxrun_parameters.json is written into <run_dir> and records this directory as '.', while the cases keep the absolute paths CIME was given: after moving a run directory recreate the cases there (engage --recreate-cases).",
+      "warning": null
+    },
+    "coupling_start": {
+      "LEVEL": "BASIC",
+      "prompt": "Coupled start, when WACCM-X joins MAGE (ISO yyyy-mm-ddThh:mm:ss)",
+      "default": "2013-03-16T16:00:00",
+      "description": "engage simulation.start_date. The spinup case ends here and writes <job>_spinup.cam.i.<date>-<tod>.nc; the coupled case starts here. The magnetosphere starts mage.delaycouplinghrs earlier.",
+      "warning": "Must lie within the bcwind, solar-forcing and nudging coverage."
+    },
+    "stop_time": {
+      "LEVEL": "BASIC",
+      "prompt": "Coupled stop time (ISO yyyy-mm-ddThh:mm:ss)",
+      "default": "2013-03-18T12:00:00",
+      "description": "engage simulation.stop_date. stop - coupling_start must be a whole multiple of coupled.stephours. Nudging runs to stop + 1 day.",
+      "warning": null
+    },
+    "srcroot": {
+      "LEVEL": "BASIC",
+      "prompt": "CAM source tree (your clone)",
+      "default": null,
+      "type": "path",
+      "description": "The CAM tree you cloned (waxrun prints the clone recipe when it is missing). Required. The default is $WAXHOME when you have exported it (export WAXHOME=<srcroot>); a value in the options JSON or --srcroot wins. The tree is checked against config/tree_pins.json before any case is created (--skip-tree-check skips that).",
+      "warning": null
+    },
+    "compset": {
+      "LEVEL": "BENCH",
+      "prompt": null,
+      "default": "FXHIST",
+      "description": "--compset for create_newcase (FXHIST = HIST_CAM60%WXIE_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV_SESP).",
+      "warning": null
+    },
+    "res": {
+      "LEVEL": "BENCH",
+      "prompt": null,
+      "default": "ne30pg3_ne30pg3_mg17",
+      "description": "--res for create_newcase, and the key of the expected IC grid in config/grids.json. Adding a resolution needs a grids.json row and matching user_nl_cam templates.",
+      "warning": null
+    },
+    "cime_machine": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": "--mach for create_newcase; null = simulation.hpc_system.",
+      "warning": null
+    },
+    "compiler": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "CESM compiler (--compiler)",
+      "default": "intel",
+      "description": "CESM compiler. The 23.09 runtime stack (stacks.derecho.runtime_modules) is the intel-classic one.",
+      "warning": null
+    },
+    "mpilib": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "CESM MPI library (--mpilib)",
+      "default": "mpich",
+      "description": "cray-mpich on Derecho; the coupled GRX jobs launch cesm.exe with mpiexec.",
+      "warning": null
+    },
+    "run_unsupported": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": true,
+      "description": "--run-unsupported: create_newcase refuses FXHIST on ne30pg3 without it.",
+      "warning": null
+    },
+    "tree_pins": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": "config/tree_pins.json",
+      "type": "file",
+      "anchor": "tool",
+      "description": "The pin file the source tree is checked against: the commit, the cmeps override and the source markers.",
+      "warning": null
+    }
+  },
+  "model": {
+    "data": {
+      "kaijuhome": {
+        "LEVEL": "BASIC",
+        "prompt": "KAIJUHOME (kaiju-private checkout used for the run)",
+        "default": null,
+        "description": "engage pbs.kaiju_install_directory; null = $KAIJUHOME. Provides scripts/preproc/pinCpuCores.sh for the coupled launch.",
+        "warning": null
+      },
+      "voltron_exe": {
+        "LEVEL": "INTERMEDIATE",
+        "prompt": "Path to voltron_mpi.x / ENTER for <kaiju_build_directory>/bin/voltron_mpi.x",
+        "default": null,
+        "type": "path",
+        "description": "The MAGE executable. engage links it into the run directory (an absolute link); the GR lead-in in gr_spinup/ reaches it through the relative link gr_spinup/voltron_mpi.x -> ../voltron_mpi.x. It must resolve (ldd) under stacks.<hpc>.runtime_modules, the module set cesm.exe is built with.",
+        "warning": null
+      },
+      "conda_env": {
+        "LEVEL": "INTERMEDIATE",
+        "prompt": "Conda env with the kaipy tools",
+        "default": "kaiju-3.12",
+        "description": "engage coupling.conda_env; recorded for the run scripts.",
+        "warning": null
+      }
+    }
+  },
+  "job": {
+    "_comment": "Scheduling of the WACCM-X spinup case (case.submit) and, standalone, of the coupled deck. Under engage, engage supplies queue/walltime/job_priority. The coupled case gets no JOB_QUEUE/JOB_WALLCLOCK_TIME: engage's GRX jobs run cesm.exe directly. The PE layout is the tree default (NTASKS=-16 -> 2048 ATM tasks); coupled.pe_nodes / spinup.pe_nodes override it.",
+    "derecho": {
+      "queue": {
+        "LEVEL": "INTERMEDIATE",
+        "prompt": "PBS queue",
+        "default": "main",
+        "valids": [
+          "main",
+          "develop"
+        ],
+        "description": "Queue of the spinup case and of the coupled GRX jobs. Must be a queue CIME defines for the machine and large enough for the job (develop is 256 cores, too small for the 16-node cases; it is used for the 1-node nudging generator).",
+        "warning": null
+      },
+      "walltime": {
+        "LEVEL": "BASIC",
+        "prompt": "Walltime per coupled GRX segment (HH:MM:SS)",
+        "default": "12:00:00",
+        "description": "Must be at least margin x rate x coupled.stephours (engage config/machines.yaml rates.grx; about 4 h 50 min of wall time per 4 h segment was measured). The spinup walltime is estimated separately (spinup.wall_s_per_simday).",
+        "warning": "Maximum walltime on main is 12:00:00."
+      },
+      "job_priority": {
+        "LEVEL": "INTERMEDIATE",
+        "prompt": "PBS job priority",
+        "default": "regular",
+        "valids": [
+          "economy",
+          "regular",
+          "premium"
+        ],
+        "description": "engage pbs.job_priority (-l job_priority on the GRX jobs).",
+        "warning": null
+      }
+    }
+  },
+  "mage": {
+    "_comment": "The MAGE-side facts waxrun needs. The GR physics and PE layout belong to makeitso in a coupled run.",
+    "delaycouplinghrs": {
+      "LEVEL": "BASIC",
+      "prompt": "Coupling delay (hours the magnetosphere runs before WACCM-X joins)",
+      "default": 4,
+      "min": 1,
+      "description": "engage coupling.gr_warm_up_time / 3600 (gcm_spin_up_time is not added). MAGE starts this many hours before coupling_start; it must be at most coupled.stephours.",
+      "warning": null
+    },
+    "dtcouple": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "MAGE<->WACCM-X coupling interval dtCouple (s)",
+      "default": 5,
+      "type": "float",
+      "min": 0,
+      "exclusive_min": true,
+      "description": "makeitso voltron.coupling.dtCouple. It is the coupled case's physics timestep: ATM_NCPL = 3600 / dtCouple and Model_Times_Per_day = 86400 / dtCouple in user_nl_cam.",
+      "warning": null
+    },
+    "dtout": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": 60,
+      "type": "float",
+      "min": 0,
+      "exclusive_min": true,
+      "description": "makeitso voltron.output.dtOut; recorded only.",
+      "warning": null
+    }
+  },
+  "ic": {
+    "start_file_dir": {
+      "LEVEL": "BASIC",
+      "prompt": "Start file directory: a CESM rest/ directory, a series root or one cam.i file (native ne30pg3 L145)",
+      "default": "/glade/campaign/hao/itmodel/liuh/csm/waccmx_ne30_2004_cmip6/rest",
+      "type": "path",
+      "description": "Where the restarts the spinup can start from are: a CESM rest/ directory, a series root, or one cam.i file. ic.start_file_date picks one of them. It must be a native ne30pg3 L145 file (ncol=48600, ncol_d=48602, lev=145); a regridded f09 file does not work. The default series covers 2003-12-11 to 2004-05-01; a run in another season needs a native ne30 restart generated first.",
+      "warning": "The default series covers 2003-12-11 to 2004-05-01 (winter and spring storms only)."
+    },
+    "start_file_date": {
+      "LEVEL": "BASIC",
+      "prompt": "Start file date (yyyy-mm-ddThh:mm:ss)",
+      "default": null,
+      "description": "Which restart of ic.start_file_dir the spinup starts from, as its date and time (YYYY-MM-DDThh:mm:ss, from the file's -SSSSS seconds of day). YYYY-MM-DD or MM-DD also works when the series has one restart that day. The default is the restart nearest the target spinup start.",
+      "warning": null
+    },
+    "spinup_start": {
+      "LEVEL": "BASIC",
+      "prompt": "Spinup start date (yyyy-mm-ddThh:mm:ss)",
+      "default": null,
+      "description": "The date and time the spinup runs from (RUN_STARTDATE/START_TOD; the start file is re-dated to it). The default is the start file's month, day and time in the event year, moved to the nearest start that gives spinup.min_hours to max_hours when it falls outside. A value you enter must give spinup.min_hours to max_hours and start on the spinup timestep.",
+      "warning": null
+    },
+    "reference": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "Known-working stripped IC for an informational variable-set diff",
+      "default": "/glade/campaign/hao/itmodel/liuh/waccmic/waccmx_ne30_2004_cmip6.cam.i.2004-01-06-00000_noBrCl.nc",
+      "type": "file",
+      "description": "A known-working stripped IC, used only for an informational variable-set diff in the log.",
+      "warning": null
+    },
+    "shared_dir": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "Directory for stripped ICs",
+      "default": "<run_directory>/shared",
+      "type": "path",
+      "description": "Where ncks writes <stem>_noBrCl.nc when the pick carries physics-grid variables that must be stripped (BR/CL on ncol). A clean file is used in place, never copied.",
+      "warning": null
+    },
+    "phys_ok": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": [
+        "HO2",
+        "N2D",
+        "N2p",
+        "NOp",
+        "Np",
+        "O1D",
+        "O2_1D",
+        "O2_1S",
+        "O2p",
+        "OH",
+        "Op",
+        "Op2D",
+        "Op2P",
+        "OpTM1",
+        "TElec",
+        "TIon",
+        "UI",
+        "VI",
+        "WI",
+        "e"
+      ],
+      "description": "3-D variables allowed on the physics grid (ncol); any other 3-D variable on ncol is stripped from the IC.",
+      "warning": null
+    }
+  },
+  "nudging": {
+    "generate": {
+      "LEVEL": "BASIC",
+      "prompt": "Generate nudging data? (yes/no)",
+      "default": true,
+      "description": "yes: use the complete MERRA2_ne30_L145 files found in nudging.search_dirs and write a generator job (nudging_gen/nudge_gen.pbs) for any missing 3-hour slot. no: you are asked for a directory of existing files instead.",
+      "warning": null
+    },
+    "nudging_dir": {
+      "LEVEL": "BASIC",
+      "prompt": "Nudging data directory (blank = no nudging)",
+      "default": null,
+      "type": "dir",
+      "description": "Asked when generate is no. A directory of MERRA2_ne30_L145.cam2.i.* files covering every 3-hour slot from the spinup start to the coupled stop + 1 day; waxrun refuses when any slot is missing or incomplete. Blank: no nudging in either case.",
+      "warning": null
+    },
+    "search_dirs": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": null,
+      "default": [
+        "/glade/campaign/hao/itmodel/liuh/met_data/MERRA2_ne30_L145/{YYYY}",
+        "/glade/campaign/hao/itmodel/liuh/met_data/MERRA2_ne30_L145/2003_2004",
+        "<run_directory>/shared/met_data/gen/{YYYY}"
+      ],
+      "type": "str_list",
+      "items": "path",
+      "description": "Used when generate is yes. Searched in order for every 3-hour slot of the nudging window; {YYYY} is the slot's year. A slot counts only when its file is complete (size, the six state variables, a readable last value), so a truncated leftover is regenerated. Missing slots are generated into the last entry.",
+      "warning": null
+    },
+    "assembled_dir": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": "<run_directory>/met_data_<job>",
+      "type": "path",
+      "description": "One directory of symlinks covering every slot (CAM reads a single Nudge_Path).",
+      "warning": null
+    },
+    "gen_workers": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "Parallel workers for the nudging generator",
+      "default": 8,
+      "min": 1,
+      "description": "nudge_gen.py --workers: how many 3-hour slots run in parallel (one process per slot, about 1.6 GB each). Sizes the generator job's ncpus, memory and walltime (config/nudging_gen.json resources); 8 workers on develop cover 144 days per chunk. At most one node's cores.",
+      "warning": null
+    },
+    "rda_input": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": "/glade/campaign/collections/rda/data/d313003/0.9x1.25",
+      "type": "dir",
+      "description": "MERRA2 f09 daily inputs <rda_input>/<YYYY>/MERRA2_0.9x1.25_<YYYYMMDD>.nc; every day of a generated span must exist. Passed to nudge_gen.py as --inputdir.",
+      "warning": null
+    },
+    "vwin_lindex": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": 97,
+      "min": 1,
+      "description": "Nudge_Vwin_Lindex: upper edge of the nudging window (index 97 is about 8 hPa on the 145-level grid).",
+      "warning": null
+    },
+    "vwin_hindex": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": 146,
+      "min": 1,
+      "description": "Nudge_Vwin_Hindex: the surface edge for the 145-level grid.",
+      "warning": null
+    }
+  },
+  "spinup": {
+    "srcroot": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "Spinup CAM tree / ENTER for the coupled tree",
+      "default": null,
+      "type": "path",
+      "description": "null = the spinup case is created from simulation.srcroot (the default). A path is a separate CAM tree for the spinup (checked against tree_pins.spinup); its atm_in then differs slightly from the single-tree one (microp_aero_bulk_scale present, three sad_*_spec_types keys absent).",
+      "warning": null
+    },
+    "target_seconds": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "Target spinup length (s)",
+      "default": 864000,
+      "min": 0,
+      "exclusive_min": true,
+      "description": "engage coupling.gcm_spin_up_time (GRX meaning: the target spinup length; the real length is coupling_start minus the chosen restart's re-dated time). Default 10 days.",
+      "warning": null
+    },
+    "min_hours": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": 48,
+      "min": 0,
+      "description": "Shortest acceptable spinup.",
+      "warning": null
+    },
+    "max_hours": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "Longest acceptable spinup (hours)",
+      "default": 480,
+      "min": 0,
+      "exclusive_min": true,
+      "description": "Longest acceptable spinup (20 days); candidates outside [min_hours, max_hours] are refused with the candidate table printed.",
+      "warning": null
+    },
+    "wall_s_per_simday": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": 1955,
+      "min": 0,
+      "exclusive_min": true,
+      "description": "Measured on the 16-node default PE layout at spinup.dtime 300 s; recompute if spinup.pe_nodes differs. Another spinup.dtime scales the estimate by 300/dtime (waxrun warns): re-measure before a production spinup at another cadence.",
+      "warning": null
+    },
+    "wall_margin": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": 1.5,
+      "min": 0,
+      "exclusive_min": true,
+      "description": "Safety factor on the spinup walltime estimate.",
+      "warning": null
+    },
+    "dtime": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": 300,
+      "description": "Standalone physics timestep (s): ATM_NCPL = 3600/dtime, ROF_NCPL = ATM_NCPL, Model_Times_Per_day = 86400/dtime. Must divide 3600 and 86400 and be at most 600 s; the reference spinup ran at 300 s, where wall_s_per_simday was measured.",
+      "warning": null
+    },
+    "pe_nodes": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": null,
+      "default": 16,
+      "description": "16 = the tree default (2048 tasks on 16 x 128), used by the reference cases, so nothing is emitted. Any other value emits the NTASKS_* settings and invalidates the measured wall_s_per_simday.",
+      "warning": null
+    },
+    "pio_netcdf_format": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": "64bit_offset",
+      "valids": [
+        "classic",
+        "64bit_offset",
+        "64bit_data"
+      ],
+      "description": "PIO_NETCDF_FORMAT for all compclasses (the reference spinup's setting; the tree default is 64bit_data).",
+      "warning": null
+    },
+    "cam_config_opts_append": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": "-nlev 145 -pcols 2",
+      "description": "Appended once to CAM_CONFIG_OPTS as the first xmlchange after create_newcase. -nlev 145 is required for the L145 IC and nudging; -pcols 2 is the reference's performance choice.",
+      "warning": null
+    },
+    "sourcemods": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "Spinup SourceMods",
+      "default": "none",
+      "type": "sourcemods",
+      "description": "none, a SourceMods set name (a folder of config/sourcemods/) or an absolute path. Its src.<component>/ files are copied into the spinup case. The two cases share one build only when both have the same files. See config/sourcemods/README.md.",
+      "warning": null
+    }
+  },
+  "coupled": {
+    "stephours": {
+      "LEVEL": "BASIC",
+      "prompt": "Hours per coupled segment (= STOP_N)",
+      "default": 4,
+      "min": 1,
+      "description": "= STOP_N in hours = the MAGE segment length; (stop - coupling_start) must be divisible by it. engage simulation.segment_duration / 3600.",
+      "warning": null
+    },
+    "build": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "Coupled build policy",
+      "default": "build",
+      "valids": [
+        "build",
+        "verify_only"
+      ],
+      "description": "build: preflight checks, ./case.build --clean-all, ./case.build, then ldd of cesm.exe and voltron_mpi.x under stacks.<hpc>.runtime_modules. verify_only: use coupled.cesm_exe (same SRCROOT, ldd clean); the case, namelists and forcing check are still generated.",
+      "warning": null
+    },
+    "cesm_exe": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "Prebuilt cesm.exe (or its caseroot) for build=verify_only",
+      "default": null,
+      "type": "path",
+      "description": "Only with build=verify_only; must come from the same SRCROOT and resolve under stacks.derecho.runtime_modules. Give the built case's caseroot (EXEROOT/cesm.exe is derived) so the SRCROOT check can run.",
+      "warning": null
+    },
+    "inithist": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": "DAILY",
+      "description": "Coupled inithist (default DAILY; the spinup is forced to ENDOFRUN).",
+      "warning": null
+    },
+    "pe_nodes": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": null,
+      "default": 16,
+      "description": "16 = the tree default (2048 tasks), the reference deck's select=16:ncpus=128:mpiprocs=128, so nothing is emitted. Any other value emits the NTASKS_* settings; engage sizes the WACCM-X task group from it.",
+      "warning": null
+    },
+    "cam_config_opts_append": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": "-nlev 145 -pcols 2",
+      "description": "As spinup.cam_config_opts_append: appended once, first. It is build-affecting (CAM_CPPDEFS -DPLEV=145 -DPCOLS=2) and checked after preview_namelists.",
+      "warning": null
+    },
+    "sourcemods": {
+      "LEVEL": "INTERMEDIATE",
+      "prompt": "Coupled SourceMods",
+      "default": "none",
+      "type": "sourcemods",
+      "description": "none, a SourceMods set name (a folder of config/sourcemods/) or an absolute path. Its src.<component>/ files are copied into the coupled case. The two cases share one build only when both have the same files. Not used with coupled.build=verify_only. See config/sourcemods/README.md.",
+      "warning": null
+    }
+  },
+  "build": {
+    "share_exe": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": true,
+      "description": "Build once (default): the spinup case also gets the 23.09 module environment and builds the one cesm.exe; the coupled case checks and reuses it (same SRCROOT, no newer sources, libraries resolve) instead of building again. Used only when both cases use the same CAM tree, SourceMods and cam_config_opts_append and coupled.build is 'build'; otherwise waxrun notes why and builds twice.",
+      "warning": null
+    }
+  },
+  "stacks": {
+    "derecho": {
+      "module_system_file": {
+        "LEVEL": "EXPERT",
+        "prompt": null,
+        "default": "config/module_system.derecho_2309.xml",
+        "type": "file",
+        "anchor": "tool",
+        "description": "The <module_system> element spliced into the coupled case's env_mach_specific.xml after case.setup (relative to scripts/waxrun/).",
+        "warning": null
+      },
+      "runtime_modules": {
+        "LEVEL": "EXPERT",
+        "prompt": null,
+        "default": [
+          "cesmdev/1.0",
+          "ncarenv/23.09",
+          "craype",
+          "cmake",
+          "intel-classic/2023.2.1",
+          "mkl",
+          "ncarcompilers/1.0.0",
+          "cray-mpich/8.1.27",
+          "hdf5-mpi/1.12.2",
+          "netcdf-mpi/4.9.2",
+          "parallel-netcdf/1.12.3",
+          "parallelio/2.6.2",
+          "esmf/8.6.0"
+        ],
+        "description": "Must equal engage machines.yaml derecho.stacks.grx, the spliced module_system block and the set voltron_mpi.x was built with.",
+        "warning": null
+      }
+    }
+  },
+  "cam": {
+    "_comment": "Optional user_nl_cam overrides applied on top of both rendered templates: the only sanctioned way to change a verbatim physics line. null (the default) = the template's value. Each value is written by its type in the tree's namelist_definition.xml (an unknown key is refused): a logical as .true./.false. (true/false/T/F accepted), an integer or real as a number, text quoted for you ('/path/file.nc'), a JSON list for an array joined with ', '. The derived keys (ncdata, inithist, Nudge_Path/Beg/End, Nudge_Model, Model_Times_Per_day, Nudge_File_Template, Nudge_Times_Per_Day, Nudge_Vwin_Lindex/Hindex) are owned by the ic/nudging/spinup/coupled sections and cannot be set here.",
+    "bnd_topo": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": "Topography file; must match the SE ne30pg3 grid.",
+      "warning": null
+    },
+    "cam_physics_mesh": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": "ESMF mesh for the ne30np4.pg3 physics grid.",
+      "warning": null
+    },
+    "flbc_file": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": "Lower-boundary GHG file; must cover the run dates (forcing gate).",
+      "warning": null
+    },
+    "solar_irrad_data_file": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": "Solar spectral irradiance file; must span the run dates (forcing gate). The coupled case takes the spinup's value.",
+      "warning": null
+    },
+    "solar_parms_data_file": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": "F10.7/Kp file; must span the run dates (forcing gate). The coupled case takes the spinup's value.",
+      "warning": null
+    },
+    "solar_wind_data_file": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": "OMNI solar wind file; must span the run dates when set. The coupled case takes the spinup's value.",
+      "warning": null
+    },
+    "use_topo_file": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "ionos_debug_hist": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "ionos_xport_nsplit": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "phys_loadbalance": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "oplus_shapiro_const": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": "Fortran real literal, written verbatim.",
+      "warning": null
+    },
+    "oplus_adiff_limiter": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": "Fortran real literal, written verbatim.",
+      "warning": null
+    },
+    "gw_top_taper": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "empty_htapes": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "se_nu": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "se_nu_div": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "se_nu_p": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "se_hypervis_subcycle": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "se_hypervis_subcycle_q": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "se_hypervis_subcycle_sponge": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "se_statefreq": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "se_nsplit": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "se_qsplit": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "se_rsplit": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "se_molecular_diff": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "ext_frc_type": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "ext_frc_cycle_yr": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "ext_frc_specifier": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "srf_emis_type": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "srf_emis_cycle_yr": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "srf_emis_specifier": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_force_opt": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_uprof": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_vprof": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_tprof": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_qprof": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_psprof": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_ucoef": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_vcoef": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_tcoef": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_qcoef": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_pscoef": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_vwin_ldelta": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    },
+    "nudge_vwin_hdelta": {
+      "LEVEL": "EXPERT",
+      "prompt": null,
+      "default": null,
+      "description": null,
+      "warning": null
+    }
+  }
+}

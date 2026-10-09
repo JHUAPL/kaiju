@@ -166,11 +166,13 @@ we have changed the time variables in xml to be in seconds. This means
      <ring gid="lfm" doRing="T" Nr="4" Nc1="8" Nc2="16" Nc3="32" Nc4="32"/>
      <wind tsfile="bcwind.h5"/>
    </Gamera>
-   <!-- Remix params -->
+   <!-- Remix / DragonKing params -->
    <REMIX>
      <grid Np="360" Nt="45" LowLatBoundary="45.0"/>
-     <conductance pedmin="2.0" hallmin="1.0" sigma_ratio="3.0" const_sigma="True" ped0="5.0"/>
    </REMIX>
+   <DRAGONKING>
+     <conductance pedmin="2.0" hallmin="1.0" sigma_ratio="3.0" const_sigma="True" ped0="5.0"/>
+   </DRAGONKING>
 
 With these parameters the run will go for 10 hours (36000 s), outputting every
 1 minute (dtOut=60.0 s) and writing restarts every 30 minutes

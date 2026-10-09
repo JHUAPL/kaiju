@@ -83,6 +83,6 @@ more complex models are specific to Earth:
 
 .. code-block:: xml
 
-     <REMIX>
+     <DRAGONKING>
        <conductance const_sigma="T" ped0="1"/>
-     </REMIX>
+     </DRAGONKING>

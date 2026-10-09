@@ -1,0 +1,10 @@
+{
+    "simulation": {
+        "bcwind_available": "N"
+    },
+    "voltron": {
+        "output": {
+            "dtOut": "60.0"
+        }
+    }
+}

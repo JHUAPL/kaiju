@@ -1,0 +1,141 @@
+{# user_nl_cam for the spinup case. {{ }} values are filled per run. -#}
+! Users should add all user specific namelist changes below in the form of
+! namelist_var = new_namelist_value
+
+use_topo_file=.true.
+bnd_topo		= '/glade/campaign/cesm/cesmdata/inputdata/atm/cam/topo/se/ne30pg3_nc3000_Co060_Fi001_PF_nullRR_Nsw042_20171014.nc'
+
+ncdata = '{{ ncdata }}'
+
+!ionos_epotential_ltr=.true.
+
+ionos_epotential_model = 'weimer'
+solar_wind_data_file = '/glade/campaign/cesm/development/wawg/joemci/inputdata/solar/solar_wind_imf_OMNI_WACCMX_2000001-2026212_c260814.nc'
+
+cam_physics_mesh = '/glade/work/fvitt/grids/ne30np4.pg3_esmf_mesh_c210113.nc'
+
+flbc_file = '/glade/campaign/cesm/cesmdata/cseg/inputdata/atm/waccm/lb/LBC_17500116-25001216_CMIP6_SSP585_0p5degLat_c20200824.nc'
+
+ ionos_debug_hist = .true.
+
+ phys_loadbalance = 1
+! ionos_xport_nsplit =	6
+ ionos_xport_nsplit = 200
+ 
+! oplus_adiff_limiter = 1.0e9
+! oplus_shapiro_const = 1.5D-5
+
+oplus_adiff_limiter = 2.0e8
+ oplus_shapiro_const = 7.5D-5
+ oplus_enforce_floor=.true.
+ steady_state_ion_elec_temp		= .true.
+
+ gw_top_taper           = .true.
+
+ empty_htapes=.true.
+ se_min_temperature = 105.
+ 
+ interpolate_output = .true.,.true.,.true.,.false.,.true.
+ interpolate_nlat = 181,  181,  181,  0, 181
+ interpolate_nlon = 360, 360, 360, 0, 360
+
+ avgflag_pertape= 'I', 'I', 'A', 'I', 'I'
+ fincl1= 'Z3GM', 'T', 'U', 'V', 'OMEGA', 'ElecColDens', 'PS', 'O', 'O2', 'H', 'NOX', 'CO2',
+         'N', 'N2D', 'QRS_TOT', 'QRL_TOT', 'QCP', 'QJOULE', 'KVM', 'EKGW', 'TTGW', 'UTGW_TOTAL', 'VTGW_TOTAL'
+ fincl2= 'Z3GM', 'T', 'U', 'V', 'OMEGA', 'UI', 'VI', 'WI', 'EDens', 'PS', 'O', 'O2', 'H', 'Op', 'N',
+         {% if nudge_t %}'Nudge_T', {% endif %}'OH', 'NO', 'O3', 'SIGMAHAL', 'SIGMAPED', 'NMF2', 'HMF2', 'TElec', 'TIon', 'N2D'
+ fincl3 ='T_24_COS', 'T_24_SIN', 'T_12_COS', 'T_12_SIN',
+         'U_24_COS', 'U_24_SIN', 'U_12_COS', 'U_12_SIN',
+         'V_24_COS', 'V_24_SIN', 'V_12_COS', 'V_12_SIN',
+	 'QRS_TOT_12_SIN', 'QRS_TOT_12_COS'
+ fincl4 = 'ED1', 'ED2', 'PHIM2D', 'PHIHM', 'HALL_CONDUCTANCE', 'PED_CONDUCTANCE', 'POTEN'
+ fincl5 = 'ElecColDens', 'PSL'
+ fincl6 = ' '
+ fincl7 = ' '
+ fincl8 = ' '
+ fincl9 = ' '
+ fincl10= ' '
+
+ inithist ='{{ inithist }}'
+ nhtfrq=             -24, -3, -24, 1, 1
+ mfilt= 1, 8, 1, 15, 60
+ write_nstep0 = .true.
+ 
+ se_nu			   = 2.e14
+ se_nu_div		     =  1.e15
+ se_nu_p                     = 1.e15
+! se_nu			   = 5.e15
+! se_nu_div		     =  1.e16
+! se_nu_p                     = 1.e16
+ se_hypervis_subcycle		=  2
+ se_hypervis_subcycle_q		=  2
+ se_hypervis_subcycle_sponge = 40
+
+ se_statefreq = 30 ! NMP
+
+ se_nsplit = 6
+ se_qsplit = 1
+ se_rsplit = 5
+
+ se_molecular_diff		= 1.0 
+
+ext_frc_type = 'CYCLICAL'
+ext_frc_cycle_yr=2010
+ext_frc_specifier = ' '
+
+srf_emis_type = 'CYCLICAL'
+srf_emis_cycle_yr=2010
+srf_emis_specifier = ' '
+
+ solar_irrad_data_file          = '{{ solar_irrad_data_file }}'
+ solar_parms_data_file          = '{{ solar_parms_data_file }}'
+
+!! NUDGING INFO:
+Nudge_Model = {{ nudge_model }}
+Nudge_Path = '{{ nudge_path }}'
+Nudge_File_Template = 'MERRA2_ne30_L145.cam2.i.%y-%m-%d-%s.nc'
+Nudge_Force_Opt = 1
+Nudge_Times_Per_Day = 8
+Model_Times_Per_day = {{ model_times_per_day }}
+Nudge_Beg_Year = {{ nudge_beg_year }}
+Nudge_Beg_Month = {{ nudge_beg_month }}
+Nudge_Beg_Day = {{ nudge_beg_day }}
+Nudge_End_Year = {{ nudge_end_year }}
+Nudge_End_Month = {{ nudge_end_month }}
+Nudge_End_Day = {{ nudge_end_day }}
+Nudge_Uprof = 2
+Nudge_Vprof = 2
+Nudge_Tprof = 2
+Nudge_Qprof = 0
+Nudge_PSprof = 0
+Nudge_Ucoef = 0.3
+Nudge_Vcoef = 0.3
+Nudge_Tcoef = 0.3
+Nudge_Qcoef = 0
+!Nudge_PScoef = 0 ! PS nudge off dec 10
+Nudge_PScoef = 0.3 ! 
+
+
+! below are the settings for 130L model that was
+! used for ne60 nudging. Level 131 corresponds to the
+! surface and Level 97 is ~ 8 hPa. 
+!Nudge_Vwin_Lindex = 97
+!Nudge_Vwin_Hindex = 131
+!Nudge_Vwin_Ldelta = 5
+!Nudge_Vwin_Hdelta = 0.001
+
+! below are the settings for 145L model that was
+! used for ne30 nudging. Level 146 corresponds to the
+! surface and Level 97 is ~ 8 hPa. 
+Nudge_Vwin_Lindex = {{ nudge_vwin_lindex }}
+Nudge_Vwin_Hindex = {{ nudge_vwin_hindex }}
+Nudge_Vwin_Ldelta = 5
+Nudge_Vwin_Hdelta = 0.001
+
+! For L273. Level 207 is ~8 hPa. Ldelta is also increased
+! since scale height is smaller (0.1 vs 0.25)
+!Nudge_Vwin_Lindex = 207
+!Nudge_Vwin_Hindex = 273
+!Nudge_Vwin_Ldelta = 30
+!Nudge_Vwin_Hdelta = 0.001
+

@@ -1,5 +1,8 @@
 # Project Kaiju #
 
+[![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.16818620-blue)](https://doi.org/10.5281/zenodo.16818620)
+[![Docs](https://img.shields.io/badge/Docs-readthedocs-blue)](https://kaiju-docs.readthedocs.io/en/latest/)
+
 ### Introduction ###
 
 `Kaiju` software includes the [Multiscale Atmosphere-Geospace Environment
@@ -10,21 +13,21 @@ such as planetary magnetospheres and the solar wind.
 
 ### Current version ###
 
-Currently
-supported applications include 
-[MAGE](https://cgs.jhuapl.edu/Models/) (version 1.25)
-and [GAMERA-helio](https://cgs.jhuapl.edu/Models/gamera.php), i.e., the
+Currently supported applications include 
+[MAGE](https://cgs.jhuapl.edu/Models/) (version 1.5)
+and [GAMERA-helio](https://cgs.jhuapl.edu/MAGE/gamera.php), i.e., the
 geospace and inner heliosphere applications of the `kaiju`
-software. `MAGE 1.25` includes [GAMERA](https://cgs.jhuapl.edu/Models/gamera.php) global magnetosphere
+software. `MAGE 1.5` includes [GAMERA](https://cgs.jhuapl.edu/MAGE/gamera.php) global magnetosphere
 model, the `RAIJU` model of the inner magnetosphere, which is a full
 rewrite of the [Rice Convection Model
-(RCM)](https://cgs.jhuapl.edu/Models/rcm.php), the new energetic
-precipitation model `Dragon King`, the [REMIX](https://cgs.jhuapl.edu/Models/remix.php) ionospheric electrodynamics
-module and the
+(RCM)](https://cgs.jhuapl.edu/MAGE/rcm.php), the new energetic
+precipitation model `Dragon King`, the [REMIX](https://cgs.jhuapl.edu/MAGE/remix.php) ionospheric electrodynamics
+module, the
 [TIEGCM](https://www.hao.ucar.edu/modeling/tgcm/tie.php) model of the
-ionosphere-thermosphere.
+ionosphere-thermosphere and the [WACCM-X](https://www2.hao.ucar.edu/modeling/waccm-x) whole-atmosphere model, from the Earth's surface to the upper thermosphere.
 
-⚠️ Note: The `master` branch (version 1.25) contains bleeding-edge code that is under
+
+⚠️ Note: The `master` branch (version 1.5) contains bleeding-edge code that is under
 active development. If you are an inexperienced user, you might want
 to stick with more stable [MAGE
 0.75](https://github.com/JHUAPL/kaiju/tree/MAGE_0.75) and [MAGE
@@ -71,16 +74,41 @@ configuration the `Kaiju` software is being run.
 
 #### For MAGE ####
 
+##### For the coupled MAGE model please cite the appropriate component models below and one of the following:
+
+**MAGE software, all versions:** https://doi.org/10.5281/zenodo.16818620.
+
+**MAGE 0.75:** Sorathia, K. A., Michael, A., Merkin,
+V. G., Ohtani, S., Keesee, A. M., Sciola, A., et
+al. (2023). Multiscale magnetosphere-ionosphere coupling during
+stormtime: A case study of the dawnside current wedge. Journal of
+Geophysical Research: Space Physics, 128,
+e2023JA031594. https://doi.org/10.1029/2023JA031594.
+Software: MAGE_0.75.5, https://doi.org/10.5281/zenodo.16818621.
+
+**MAGE 1.0:** Pham, K. H., Zhang, B., Sorathia, K., Dang, T., Wang, W.,
+Merkin, V., et al. (2022). Thermospheric density perturbations
+produced by traveling atmospheric disturbances during August 2005
+storm. Journal of Geophysical Research: Space Physics, 127,
+e2021JA030071. https://doi.org/10.1029/2021JA030071.
+Software: MAGE_1.0.5, https://doi.org/10.5281/zenodo.16818682.
+
+**MAGE 1.25:** Team is working on the publication.
+Software: MAGE_1.25.1, https://doi.org/10.5281/zenodo.17915213
+(MAGE_1.25.0, https://doi.org/10.5281/zenodo.17914755).
+
+**MAGE 1.5:** Team is working on the publication.
+
 ##### For individual model components please cite the following:
 
 **GAMERA MHD algorithm and tests:** Zhang, B., Sorathia, K.A., Lyon, J.G., Merkin, V.G., Garretson,
-J.S. and Wiltberger, M., 2019. GAMERA: A three-dimensional
+J.S. and Wiltberger, M. (2019). GAMERA: A three-dimensional
 finite-volume MHD solver for non-orthogonal curvilinear
 geometries. The Astrophysical Journal Supplement Series, 244(1),
 p.20. https://iopscience.iop.org/article/10.3847/1538-4365/ab3a4c/meta.
 
-** GAMERA magnetosphere **: Sorathia, K. A., V. G. Merkin, E. V. Panov, B. Zhang,
-J. G. Lyon, & J. Garretson, et al. (2020). Ballooning-interchange
+**GAMERA magnetosphere:** Sorathia, K. A., V. G. Merkin, E. V. Panov, B. Zhang,
+J. G. Lyon, J. Garretson, et al. (2020). Ballooning-interchange
 instability in the near-Earth plasma sheet and auroral beads: Global
 magnetospheric modeling at the limit of the MHD
 approximation. Geophysical Research Letters, 47,
@@ -91,33 +119,35 @@ low-latitude ionospheric boundary condition on the global
 magnetosphere, J. Geophys. Res., 115, A10202.
 https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2010JA015461.
 
-**RAIJU:** Team is working on the publication. 
+**RAIJU:** Sciola, A., Sorathia, K., Merkin, V. G., Shumko, M.,
+Martinis, C. R., & Garretson, J. (2025). Connecting stormtime SAR arc
+variability to mesoscale ring current-plasmasphere evolution via
+global geospace modeling. AGU Fall Meeting 2025, SM51B-114.
+https://ui.adsabs.harvard.edu/abs/2025AGUFMSM51B.114S/abstract.
 
-**Dragon King:** Team is working on the publication.
+**Dragon King:** Lin, D., Wang, W., Merkin, V. G., Wiltberger, M. J.,
+Bao, S., Sorathia, K., et al. (2025). Characterizing auroral
+precipitation and energy deposition with the Dragon King model in
+MAGE. AGU Fall Meeting 2025, SA51C-1132.
+https://ui.adsabs.harvard.edu/abs/2025AGUFMSA51C1132L/abstract.
 
-**TIEGCM:** Qian, L., Burns, A.G., Emery, B.A., Foster, B., Lu, G.,
-Maute, A., Richmond, A.D., Roble, R.G., Solomon, S.C. and Wang,
-W. (2014). The NCAR TIE-GCM. In Modeling the Ionosphere–Thermosphere
-System (eds J. Huba, R. Schunk and
-G. Khazanov). https://doi.org/10.1002/9781118704417.ch7.
+Bao, S., Lin, D., Sorathia, K., Wang, D., Toffoletto, F., Merkin,
+V. G., et al. (2022). Wave-dependent ring current electron loss and
+magnetospheric precipitation during a geospace storm. AGU Fall
+Meeting 2022, SM22F-1988.
+https://ui.adsabs.harvard.edu/abs/2022AGUFMSM22F1988B/abstract.
 
-##### For the coupled MAGE model please cite the appropriate component models above and one of the following:
+**TIEGCM:** Wu, H., Wang, W., Pham, K. H., Lin, D., Rao, N.,
+Wiltberger, M. J., et al. (2025). The NCAR-TIEGCM Version 3.0.
+Journal of Geophysical Research: Space Physics, 130(9),
+e2025JA034219. https://doi.org/10.1029/2025JA034219.
 
-**MAGE 0.75:** Sorathia, K. A., Michael, A., Merkin,
-V. G., Ohtani, S., Keesee, A. M., Sciola, A., et
-al. (2023). Multiscale magnetosphere-ionosphere coupling during
-stormtime: A case study of the dawnside current wedge. Journal of
-Geophysical Research: Space Physics, 128,
-e2023JA031594. https://doi.org/10.1029/2023JA031594.
-
-**MAGE 1.0:** Pham, K. H., Zhang, B., Sorathia, K., Dang, T., Wang, W.,
-Merkin, V., et al. (2022). Thermospheric density perturbations
-produced by traveling atmospheric disturbances during August 2005
-storm. Journal of Geophysical Research: Space Physics, 127,
-e2021JA030071. https://doi.org/10.1029/2021JA030071.
-
-**MAGE 1.25:** Team is working on the publication.
-
+**WACCM-X:** Liu, H.-L., Bardeen, C. G., Foster, B. T.,
+Lauritzen, P., Liu, J., Lu, G., … Wang, W. (2018). Development 
+and validation of the Whole Atmosphere Community Climate Model
+with thermosphere and ionosphere extension (WACCM-X 2.0).
+Journal of Advances in Modeling Earth Systems, 10, 381–402.
+https://doi.org/10.1002/2017MS001232
 
 #### For GAMERA-helio ####
 

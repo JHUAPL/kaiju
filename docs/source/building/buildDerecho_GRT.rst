@@ -1,60 +1,53 @@
-Building the ``kaiju`` software on ``aitken`` for MAGE - With TIEGCM (GTR)
+Building the ``kaiju`` software on ``derecho`` for MAGE - With TIEGCM (GRT)
 ==============================================================================================
+
 
 Introduction
 ------------
 
 This page provides instructions for building the ``kaiju`` software on the
-``aitken`` supercomputer. These instructions assume that you have cloned the
+``derecho`` supercomputer. These instructions assume that you have cloned the
 ``kaiju`` repository.
+
 
 Prepare your software environment
 ---------------------------------
 
-Like most HPC systems, ``aitken`` uses the ``module`` system to manage the
+Like most HPC systems, ``derecho`` uses the ``module`` system to manage the
 versions of software packages available to the user. When you log in to
-``aitken``, no modules are loaded by default:
+``derecho``, the following modules are loaded by default:
 
 .. code-block:: bash
 
    module list
-   No Modulefiles Currently Loaded.
+
+   Currently Loaded Modules:
+     1) ncarenv/23.09  (S)   4) ncarcompilers/1.0.0   7) netcdf/4.9.2
+     2) craype/2.7.23        5) cray-mpich/8.1.27
+     3) intel/2023.2.1       6) hdf5/1.12.2
+
+     Where:
+      S:  Module is Sticky, requires --force to unload or purge
+
+This set of modules **cannot** be used to build the ``kaiju`` code.
 
 Start by purging any currently-loaded modules, then loading the following
-module set for MAGE runs coupled with TIEGCM (known as "GTR"):
+module set For MAGE runs coupled with TIEGCM (known as "GRT"):
 
-.. warning::
+    .. code-block:: bash
 
-    The GTR currently required custom built NetCDF and ESMF modules on ``aitken``. If you need to
-    run GTR, you will need access to ``/home7/nrao3/local_aitken`` and ``/nobackup/nrao3/tiegcm/tiegcm3.0/data``,
-    please reach out to ``nikhilr@ucar.edu`` with the following:
-    
-        - Your aitken username
-        - Your Name
-        - Your Institution
-
-.. code-block:: bash
-
-    module --force purge
-    
-    module use -a /nasa/modulefiles/testing
-    module use -a /swbuild/analytix/tools/modulefiles
-    module load nas
-    module load comp-intel/2020.4.304
-    module load mpi-hpe/mpt.2.30
-    module load szip/2.1.1
-    module load hdf5/1.12.3_mpt
-    module load miniconda3/v4
-
-    export FC=mpif90
-    export CC=mpicc
-    export CXX=mpicxx
-
-    export PREFIX=/home7/nrao3/local_aitken
-    export LIBRARY_PATH=${LIBRARY_PATH}:$PREFIX/lib
-    export LD_LIBRARY_PATH=$LIBRARY_PATH
-    export CPATH=$PREFIX/include
-    export PATH=${PATH}:$PREFIX/bin
+        module --force purge
+        module load ncarenv/23.09
+        module load cmake/3.26.3
+        module load craype/2.7.31
+        module load intel-classic/2023.2.1
+        module load cray-mpich/8.1.27
+        module load ncarcompilers/1.0.0
+        module load mkl/2023.2.0
+        module load hdf5-mpi/1.12.2
+        module load netcdf-mpi/4.9.2
+        module load esmf/8.6.0
+        module load conda/latest
 
 .. important::
 
@@ -68,7 +61,7 @@ Build the ``kaiju`` software
 ----------------------------
 
 These instructions show how to build the MPI version of the ``kaiju``
-software. The GTR version is built in the subdirectory ``build_gtr``
+software. The GRT version is built in the subdirectory ``build_grt``
 under the ``kaiju`` source code directory. In practice, you can place the
 build directory in any convenient location.
 
@@ -77,13 +70,13 @@ build directory in any convenient location.
     # Move to your kaiju clone.
     cd /path/to/kaiju
 
-    # Create the GTR build directory and enter it.
-    mkdir build_gtr
-    cd build_gtr
+    # Create the GRT build directory and enter it.
+    mkdir build_grt
+    cd build_grt
 
     # Run cmake to create the Makefile, saving output.
     # NOTE: The FC definition is *required* for proper cmake operation.
-    FC=`which ifort` cmake -DENABLE_MPI=ON .. >& cmake.out
+    FC=`which ifort` cmake -DENABLE_MPI=ON -DALLOW_INVALID_COMPILERS=ON .. >& cmake.out
 
     # You can pick one compile target below or compile all of them, if you'd like
 
@@ -96,21 +89,15 @@ build directory in any convenient location.
     # Compile analysis tools
     make -j4 calcdb.x chop.x sctrack.x slice.x >& make-analysis.out
 
-.. warning::
-
-    aitken faces issues while loading the ``hdf5/1.12.3_mpt`` module at times.
-    If you aren't able to build ``kaiju`` with the above module set, unload 
-    the ``hdf5/1.12.3_mpt`` module and load it again:
-
-    .. code-block:: bash
-
-        module unload hdf5/1.12.3_mpt
-        module load hdf5/1.12.3_mpt
-
     
+Build ``voltron_mpi.x`` from this branch. It includes the ``xml-engage`` change: DragonKing reads
+its conductance and precipitation settings from a ``<DRAGONKING>`` section of the deck, and
+``makeitso``/``engage`` write only that section. They refuse a ``bin/voltron_mpi.x`` built without
+the ``Kaiju/DRAGONKING`` reader, and every generated job re-checks the binary at launch and stops
+with ``GATE`` exit 91 rather than run with default conductance.
+
 When finished, your build directory will contain a ``bin``
 subdirectory which will contain the compiled ``kaiju`` executables.
-
 
 Build the ``tiegcm`` software
 -----------------------------
@@ -143,7 +130,7 @@ For example:
 .. note::
 
     The ``TIEGCMHOME`` and ``TIEGCMDATA`` environment variables are required
-    for running the GTR model. They should point to the TIEGCM source code
+    for running the GRT model. They should point to the TIEGCM source code
     directory and the TIEGCM data directory, respectively.
 
     The TIEGCMDATA directory is located in the following locations:
@@ -154,7 +141,7 @@ For example:
 
 Resolution guide for TIEGCM
 ************************************************
-Two TIEGCM executables are required for running the GTR model:
+Two TIEGCM executables are required for running the GRT model:
 
     - TIEGCM Standalone
         This is the TIEGCM code that runs independently and is used for initialization of the model.
@@ -187,9 +174,14 @@ Build guide for TIEGCM code for a ``Q`` run:
 #########################################################################################
 
 We will use ``tiegcmrun`` script to build the code which requires the minimum amount
-of input from the user. At each prompt, you can either type in a value, or hit 
-the :kbd:`Return` key to accept the default value (shown in square brackets at 
-the end of the prompt).
+of input from the user. ``tiegcmrun.py`` opens an arrow-key wizard that asks the
+questions one at a time: type a value or press :kbd:`Enter` to accept the default
+and go to the next one. The keys are listed at the bottom of the screen:
+``↑ back   ↓/Enter next   Ctrl-S finish   Ctrl-R reset   Ctrl-C cancel``. This is the recommended way to run ``tiegcmrun.py``.
+Each session below is shown, for reference, as the plain prompts that
+``--no-tui`` prints (the fallback when your terminal cannot show the wizard;
+the tool also falls back by itself).
+
 
 1. First we will create a directory for the "Q" TIEGCM build in the TIEGCMHOME directory.
 
@@ -213,6 +205,11 @@ the end of the prompt).
 .. code-block:: bash
 
     $TIEGCMHOME/tiegcmrun/tiegcmrun.py -oc
+
+The questions, as plain prompts:
+
+.. code-block:: bash
+
     Instructions:
     -> Default Selected input parameter is given in GREEN
     -> Warnings and Information are given in YELLOW
@@ -228,8 +225,8 @@ the end of the prompt).
     Coupling = False
 
 
-    Name of HPC system (derecho|aitken|linux) [aitken]: 
-    Standalone Executable [/glade/derecho/scratch/nikhilr/tiegcm_build_Q/exec/tiegcm.exe]: 
+    Name of HPC system (derecho|aitken|linux|perlmutter) [derecho]: 
+    Standalone Executable [./exec/tiegcm.exe]: 
     Horizontal Resolution (Deg) (5.0|2.5|1.25|0.625) [2.5]: 
     Vertical Resolution (Scale Height) (1/2|1/4|1/8|1/16) [1/4]: 
     Magnetic grid resolution (Degree) (2|1|0.5) [2]: 
@@ -240,13 +237,13 @@ After these inputs, the script will compile the TIEGCM code and create the stand
 
     ..
     .. 
-    gmake[1]: Leaving directory '/nobackup/nrao3/tiegcm/tiegcm_build_Q/exec'    
-    Executable copied from /nobackup/nrao3/tiegcm/tiegcm_build_Q/exec/tiegcm.exe to /nobackup/nrao3/tiegcm/tiegcm_build_Q/stdout
+    gmake[1]: Leaving directory '<YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/exec'    
+    Executable copied from <YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/exec/tiegcm.exe to <YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/stdout
 
 3. Next, we will build the coupled TIEGCM executable by running the ``tiegcmrun.py`` script with the ``-oc`` and ``-co`` options.
 
 .. note::
-
+    
     The ``-co`` option stands for "coupled", which means that the script will compile the code for the coupled TIEGCM executable.
     Since the Gamera resolution is ``Q``, we will set the following:
 
@@ -257,6 +254,11 @@ After these inputs, the script will compile the TIEGCM code and create the stand
 .. code-block:: bash
 
     $TIEGCMHOME/tiegcmrun/tiegcmrun.py -oc -co
+
+The questions, as plain prompts:
+
+.. code-block:: bash
+
     Instructions:
     -> Default Selected input parameter is given in GREEN
     -> Warnings and Information are given in YELLOW
@@ -270,8 +272,8 @@ After these inputs, the script will compile the TIEGCM code and create the stand
     Execute = False
     Coupling = True
 
-    Name of HPC system (derecho|aitken|linux) [aitken]: 
-    Coupled Executable [/glade/derecho/scratch/nikhilr/tiegcm_build/exec/tiegcm.x]: 
+    Name of HPC system (derecho|aitken|linux|perlmutter) [derecho]: 
+    Coupled Executable [./exec/tiegcm.x]: 
     Horizontal Resolution (Deg) (5.0|2.5|1.25|0.625) [2.5]: 1.25
     Vertical Resolution (Scale Height) (1/2|1/4|1/8|1/16) [1/8]: 
     Magnetic grid resolution (Degree) (2|1|0.5) [1]: 
@@ -282,8 +284,8 @@ After these inputs, the script will compile the TIEGCM code and create the coupl
 
     ..
     ..
-    gmake[1]: Leaving directory '/nobackup/nrao3/tiegcm/tiegcm_build_Q/exec'    
-    Executable copied from /nobackup/nrao3/tiegcm/tiegcm_build_Q/exec/tiegcm.x to /nobackup/nrao3/tiegcm/tiegcm_build_Q/stdout
+    gmake[1]: Leaving directory '<YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/exec'    
+    Executable copied from <YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/exec/tiegcm.x to <YOUR_TIEGCMHOME_HERE>/tiegcm_build_Q/stdout
 
 4. You should now see the following files in your run directory:
 
@@ -313,7 +315,7 @@ Build guide for TIEGCM code for a ``D`` run on ``derecho``:
 2. Next, we will build the standalone TIEGCM executable by running the ``tiegcmrun.py`` script with the ``-oc``.
 
 .. note::
-    
+
     Since the Gamera resolution is ``D``, we will set the following:
 
         - horizontal resolution for the standalone TIEGCM to 2.5 degrees
@@ -321,7 +323,7 @@ Build guide for TIEGCM code for a ``D`` run on ``derecho``:
         - magnetic grid resolution to 2 degrees
 
 .. code-block:: bash
-
+    
     $TIEGCMHOME/tiegcmrun/tiegcmrun.py -oc
 
 3. Next, we will build the coupled TIEGCM executable by running the ``tiegcmrun.py`` script with the ``-oc`` and ``-co`` options.
@@ -349,7 +351,8 @@ Build guide for TIEGCM code for a ``D`` run on ``derecho``:
 Build guide for TIEGCM code for a ``O`` run on ``derecho``:
 #########################################################################################
 
-1. First we will create a directory for the "D" TIEGCM build in the TIEGCMHOME directory.
+1. First we will create a directory for the "O" TIEGCM build in the TIEGCMHOME directory.
+
 .. code-block:: bash
 
     cd $TIEGCMHOME
@@ -373,6 +376,7 @@ Build guide for TIEGCM code for a ``O`` run on ``derecho``:
 3. Next, we will build the coupled TIEGCM executable by running the ``tiegcmrun.py`` script with the ``-oc`` and ``-co`` options.
 
 .. note::
+
     Since the Gamera resolution is ``O``, we will set the following:
 
         - horizontal resolution for the coupled TIEGCM to 0.625 degrees
@@ -392,5 +396,4 @@ Build guide for TIEGCM code for a ``O`` run on ``derecho``:
 
 .. note:: Documentation on the analysis tools is found
     :doc:`here </tools/index>`.
-
 

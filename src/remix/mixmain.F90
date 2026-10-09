@@ -39,7 +39,6 @@ module mixmain
             call init_state(I(h)%G,I(h)%St, shGrO=I(h)%shGr)            
          end if
 
-        !  call conductance_init(I(h)%conductance,I(h)%P,I(h)%G)
         !  call dragonking_init(I(h)%aurora,I(h)%P,I(h)%G)
 
          ! check that hemisphere makes sense.
@@ -74,16 +73,6 @@ module mixmain
       
     end subroutine init_mix
 
-    subroutine updateF107(I,F107)
-        implicit none
-        type(mixIon_T),dimension(:),intent(inout) :: I 
-        real(rp), intent(in) :: F107
-        integer :: h
-    
-        do h=1,size(I)
-            I(h)%conductance%f107 = F107
-        enddo
-    end subroutine updateF107
 
 
     subroutine get_potential(I)
