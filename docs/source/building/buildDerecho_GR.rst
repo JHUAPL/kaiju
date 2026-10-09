@@ -74,7 +74,6 @@ build directory in any convenient location.
     # Run cmake to create the Makefile, saving output.
     # NOTE: The FC definition is *required* for proper cmake operation.
     FC=`which ifort` cmake -DENABLE_MPI=ON .. >& cmake.out
-    # If you are building the GTR version of the code, use the following cmake command instead:
 
     # You can pick one compile target below or compile all of them, if you'd like
 
@@ -88,6 +87,12 @@ build directory in any convenient location.
     make -j4 calcdb.x chop.x sctrack.x slice.x >& make-analysis.out
 
     
+Build ``voltron_mpi.x`` from this branch. It includes the ``xml-engage`` change: DragonKing reads
+its conductance and precipitation settings from a ``<DRAGONKING>`` section of the deck, and
+``makeitso``/``engage`` write only that section. They refuse a ``bin/voltron_mpi.x`` built without
+the ``Kaiju/DRAGONKING`` reader, and every generated job re-checks the binary at launch and stops
+with ``GATE`` exit 91 rather than run with default conductance.
+
 When finished, your build directory will contain a ``bin``
 subdirectory which will contain the compiled ``kaiju`` executables.
 

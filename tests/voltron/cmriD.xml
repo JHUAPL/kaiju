@@ -21,8 +21,10 @@
 <!-- Remix params -->
   <REMIX>
     <grid Np="360" Nt="45" LowLatBoundary="45.0"/>
-    <conductance pedmin="2.0" hallmin="1.0" sigma_ratio="3.0" const_sigma="True" ped0="5.0"/>
   </REMIX>
+  <DRAGONKING>
+    <conductance pedmin="2.0" hallmin="1.0" sigma_ratio="3.0" const_sigma="True" ped0="5.0"/>
+  </DRAGONKING>
 <!-- EB-Tracer (CHIMP) params -->
   <CHIMP>
     <units uid="EARTHCODE"/>

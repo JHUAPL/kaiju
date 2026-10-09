@@ -24,6 +24,8 @@
 <!-- Remix -->
   <REMIX>
     <grid Np="360" Nt="45" LowLatBoundary="45.0"/>
-    <conductance const_sigma="T" ped0="10.0"/>
   </REMIX>
+  <DRAGONKING>
+    <conductance const_sigma="T" ped0="10.0"/>
+  </DRAGONKING>
 </Kaiju>

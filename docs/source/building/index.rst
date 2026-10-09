@@ -56,5 +56,6 @@ Building Guides
 
     buildDerecho_GR
     buildAitken_GR
-    buildDerecho_GTR
-    buildAitken_GTR
+    buildDerecho_GRT
+    buildAitken_GRT
+    buildDerecho_GRX

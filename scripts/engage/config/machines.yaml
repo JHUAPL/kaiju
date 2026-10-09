@@ -1,0 +1,105 @@
+# Machines for engage's coupled jobs (also read by waxrun). Module sets under stacks.<stack>:
+# grt = GAMERA+TIE-GCM+RAIJU, grx = GAMERA+RAIJU+WACCM-X; a machine omits stacks it does not support.
+# rates: wall-clock h per simulated h, {grt|grx: {<grid>: {<res>|'*': {rate, basis}}}}.
+
+machines:
+
+  derecho:
+    nodename_regex: "derecho|^dec[0-9]"
+    scheduler: pbs
+    shell: bash
+    cores_per_node: 128
+    account_default: null
+    account_groups: true                    # ... but the prompt offers the user's project codes
+    account_required: true
+    queue_default: "main"
+    job_priorities: [premium, regular, economy]   # PBS job_priority values (every tool's valids)
+    # ncpus_max from `qstat -Qf`; the walltime caps are NCAR policy
+    queues:
+      # develop is shared (default 10gb per chunk): ask for a node's memory or be OOM-killed
+      develop: { ncpus_max: 256,    walltime_max: "06:00:00", mem_per_chunk: "235GB" }
+      main:    { ncpus_max: 323712, walltime_max: "12:00:00" }
+    # slowest measured coupled segment on derecho; estimates where no run completed
+    rates:
+      grt:
+        D:
+          "2.5":   { rate: 0.74, basis: measured }
+          "1.25":  { rate: 0.77, basis: estimate }
+          "0.625": { rate: 0.92, basis: estimate }
+        Q:
+          "1.25":  { rate: 0.77, basis: measured }
+          "2.5":   { rate: 0.77, basis: estimate }
+          "0.625": { rate: 0.92, basis: estimate }
+        O:
+          "*":     { rate: 3.0, basis: estimate }
+      grx:
+        Q:
+          ne30:    { rate: 1.25, basis: measured }
+    walltime_default: "12:00:00"
+    mpirun: "mpiexec"
+    module_purge: "module purge"
+    env: {}
+    stacks:
+      grt:
+        modules: [ncarenv/23.09, cmake/3.26.3, craype/2.7.31, intel-classic/2023.2.1,
+                  cray-mpich/8.1.27, ncarcompilers/1.0.0, mkl/2023.2.0, hdf5-mpi/1.12.2,
+                  netcdf-mpi/4.9.2, esmf/8.6.0, conda]
+      grx:
+        # the CESM "kaiju_w" stack
+        modules: [cesmdev/1.0, ncarenv/23.09, craype, cmake, intel-classic/2023.2.1, mkl,
+                  ncarcompilers, cray-mpich/8.1.27, hdf5-mpi/1.12.2, netcdf-mpi/4.9.2,
+                  parallel-netcdf/1.12.3, parallelio/2.6.2, esmf/8.6.0]
+        # TMPDIR exported by every GRX job (CESM/ESMF scratch)
+        tmpdir: /glade/derecho/scratch/$USER/tmp
+
+  aitken:                                   # NAS Aitken (untested); several node types (:model=...)
+    nodename_regex: "pfe|aitken|^afe[0-9]|\\bnas\\b"
+    scheduler: pbs
+    shell: bash
+    account_default: "$USER"                # -A <login name>, as the aitken jobs always carried
+    account_required: true
+    queue_default: "normal"
+    walltime_default: "08:00:00"
+    mpirun: "mpiexec_mpt"
+    module_purge: "module purge"
+    cores_per_node: 128
+    # user-built netcdf/ESMF (tiegcm/scripts/Build.netcdf_esmf_at.sh); null: none
+    local_prefix: "$HOME/local_aitken"
+    node_type_default: milan
+    node_types:                             # -> rendered as :model=<model> in each select chunk
+      milan:   { model: mil_ait, cores_per_node: 128 }
+      rome:    { model: rom_ait, cores_per_node: 128 }
+      cascade: { model: cas_ait, cores_per_node: 40 }
+    stacks:
+      grt:                                  # GRX is derecho-only today; aitken supports grt only.
+        module_use: [/nasa/modulefiles/testing, /swbuild/analytix/tools/modulefiles]
+        modules: [comp-intel/2020.4.304, "mpi-hpe/mpt.2.30", szip/2.1.1, hdf5/1.12.3_mpt,
+                  miniconda3/v4]
+
+  linux:
+    nodename_regex: ".*"                     # fallback (matches anything not matched above)
+    scheduler: none
+    shell: bash
+    cores_per_node: 8
+    mpirun: "mpiexec -n {total_tasks}"       # no scheduler: the MPI ranks explicitly
+    module_purge: ""
+    stacks:
+      grt:
+        modules: []
+
+  # perlmutter: experimental, untested
+  perlmutter:
+    nodename_regex: "^nid[0-9]|perlmutter|^login[0-9]"
+    scheduler: slurm
+    shell: bash
+    cores_per_node: 128
+    account_default: null                   # the NERSC project (mNNNN): per user
+    account_required: true
+    queue_default: "regular"                # the NERSC QOS (#SBATCH --qos=)
+    constraint: cpu                         # #SBATCH --constraint=cpu (CPU nodes)
+    walltime_default: "12:00:00"
+    mpirun: "srun"
+    module_purge: "module purge"
+    stacks:
+      grt:
+        modules: [PrgEnv-intel, cray-hdf5-parallel, cray-netcdf-hdf5parallel, cray-mpich]

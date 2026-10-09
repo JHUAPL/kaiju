@@ -1,0 +1,38 @@
+{
+  "_doc": "CAM tree pins for tree_solver.check_tree. `commit` is the pinned tip; another HEAD is a warning. `cmeps_override` is the .gitmodules stanza cmeps_pin.patch writes (without it git-fleximod update reverts a hand checkout of components/cmeps). `markers` must appear on an uncommented line of the file that will be compiled. The spinup block is used only when spinup.srcroot names a second tree.",
+  "coupled": {
+    "remote": "git@github.com:fvitt/CAM.git",
+    "remote_https": "https://github.com/fvitt/CAM.git",
+    "branch": "waccmx_mage_cplng",
+    "commit": "da3bc8d52f652b64b12d9978ba97b50fbcb750c7",
+    "describe": "short_lived_halogens01-658-gda3bc8d52",
+    "cmeps_override": {
+      "submodule": "cmeps",
+      "path": "components/cmeps",
+      "url": "https://github.com/fvitt/CMEPS.git",
+      "fxtag": "a7c0b51a98ee57a0b33dc75a43cbc1320385032d",
+      "replaces": {
+        "url": "https://github.com/ESCOMP/CMEPS.git",
+        "fxtag": "cmeps1.1.54"
+      },
+      "patch": "cmeps_pin.patch",
+      "checkout_remote": "git@github.com:fvitt/CMEPS.git",
+      "checkout_branch": "waccmx-mage"
+    },
+    "markers": {
+      "components/cmeps/cesm/driver/esmApp.F90": "MPI_COMM_split(MPI_COMM_WORLD,67,0,COMP_COMM",
+      "src/ionosphere/waccmx/mage_module.F90": "myAppId = 67",
+      "ccs_config/machines/cmake_macros/intel.cmake": "set(SFC \"ifort\")"
+    }
+  },
+  "spinup": {
+    "remote": "git@github.com:fvitt/CAM.git",
+    "remote_https": "https://github.com/fvitt/CAM.git",
+    "branch": "wx_kevin_cam6_4_185",
+    "commit": "9a1e1a1b5cc821c2d8f1082640d57e6df487dee2",
+    "describe": "short_lived_halogens01-569-g9a1e1a1b5",
+    "markers": {
+      "ccs_config/machines/cmake_macros/intel.cmake": "set(SFC \"ifort\")"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+    "simulation": {
+        "job_name": "geospace",
+        "start_date": "2016-08-09T09:00:00",
+        "stop_date": "2016-08-09T11:00:00",
+        "gamera_grid_type": "D",
+        "hpc_system": "aitken"
+    },
+    "pbs": {
+        "run_directory": "."
+    }
+}

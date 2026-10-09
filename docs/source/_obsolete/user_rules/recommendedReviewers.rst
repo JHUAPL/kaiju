@@ -19,7 +19,7 @@ Chimp
 -----
 * Adam
 
-Tiegcm/GTR
+Tiegcm/GRT
 ----------
 * Kevin
 

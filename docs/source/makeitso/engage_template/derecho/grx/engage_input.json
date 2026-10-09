@@ -1,0 +1,13 @@
+{
+    "simulation": {
+        "job_name": "geospace",
+        "start_date": "2013-03-16T16:00:00",
+        "stop_date": "2013-03-18T12:00:00",
+        "segment_duration": "14400",
+        "hpc_system": "derecho"
+    },
+    "pbs": {
+        "account_name": "<YOUR_ACCOUNT_HERE>",
+        "run_directory": "."
+    }
+}

@@ -118,10 +118,9 @@ module dkinit
       doSuicide = .false.
       rDef = 0.0_rp
 
-      ! Make sure root is Kaiju/Remix
       call inpXML%GetFileStr(tmpStr)
-      ! Create new XML reader w/ REMIX as root
-      xmlInp = New_XML_Input(trim(tmpStr),'Kaiju/REMIX',.true.)
+      ! DragonKing owns precipitation and conductance
+      xmlInp = New_XML_Input(trim(tmpStr),'Kaiju/DRAGONKING',.true.)
 
       ! =========== CONDUCTANCE MODEL PARAMETERS =================== !
       ! EUV_MODEL_TYPE
@@ -199,7 +198,7 @@ module dkinit
 
       ! if this is on, params%F107 read from xml file above will be overwritten
       ! and F107 will be set from the SW file (i.e., from OMNI data)
-      ! call xmlInp%Set_Val(params%doSWF107,"conductance/doSWF107",.true.)      !not sure this applies to DK
+      call xmlInp%Set_Val(params%doSWF107,"conductance/doSWF107",.true.)
       ! =========== CONDUCTANCE MODEL PARAMETERS =================== !
 
 
@@ -218,6 +217,15 @@ module dkinit
          write(*,*) "conductance/aurora_model_type is gone. You're entering a world of pain. Use precipitation/aurora_model_type"
          doSuicide=.true.
       end if
+
+      ! Quick check on DK inputs that used to live under <REMIX>
+      if (xmlInp%Exists("REMIX/precipitation/aurora_model_type") .or. &
+          xmlInp%Exists("REMIX/conductance/const_sigma")) then
+         write(*,*) "precipitation/* and conductance/* have moved out of <REMIX>."
+         write(*,*) "Move them into a <DRAGONKING> section of the same input deck."
+         doSuicide=.true.
+      end if
+
       write(*,*) ANSIRESET, ''
       if (doSuicide) stop
 
