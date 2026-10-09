@@ -98,6 +98,7 @@ Software: MAGE_1.25.1, https://doi.org/10.5281/zenodo.17915213
 (MAGE_1.25.0, https://doi.org/10.5281/zenodo.17914755).
 
 **MAGE 1.5:** Team is working on the publication.
+Software: MAGE_1.5.0, https://doi.org/10.5281/zenodo.23271204.
 
 ##### For individual model components please cite the following:
 
